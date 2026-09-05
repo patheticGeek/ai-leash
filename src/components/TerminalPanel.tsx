@@ -1,14 +1,81 @@
+import { useEffect, useRef } from "react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
+import { listen } from "@tauri-apps/api/event";
+import { api } from "../lib/tauriApi";
+import { useAppStore } from "../store";
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
 export default function TerminalPanel() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const projectRoot = useAppStore((s) => s.projectRoot);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const term = new Terminal({
+      convertEol: true,
+      fontSize: 13,
+      fontFamily: "Menlo, Consolas, monospace",
+      theme: {
+        background: "#0b0c0e",
+        foreground: "#d4d4d8",
+        cursor: "#d4d4d8",
+      },
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(containerRef.current);
+    fit.fit();
+
+    let ptyId: string | null = null;
+    let disposed = false;
+    let unlistenData: (() => void) | undefined;
+
+    (async () => {
+      const id = await api.ptySpawn(projectRoot ?? undefined, term.cols, term.rows);
+      if (disposed) {
+        api.ptyKill(id);
+        return;
+      }
+      ptyId = id;
+      unlistenData = await listen<string>(`pty://${id}/data`, (e) => {
+        term.write(base64ToBytes(e.payload));
+      });
+      term.onData((data) => {
+        api.ptyWrite(id, data);
+      });
+    })();
+
+    const resizeObserver = new ResizeObserver(() => {
+      fit.fit();
+      if (ptyId) api.ptyResize(ptyId, term.cols, term.rows);
+    });
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      disposed = true;
+      resizeObserver.disconnect();
+      unlistenData?.();
+      if (ptyId) api.ptyKill(ptyId);
+      term.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-t border-[#26272c]">
-      <div className="flex h-8 items-center gap-4 px-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase border-b border-[#26272c]">
-        <span className="text-zinc-200 normal-case font-normal text-sm">
-          Terminal
-        </span>
+      <div className="flex h-8 items-center px-3 text-sm text-zinc-300 border-b border-[#26272c]">
+        Terminal
       </div>
-      <div className="flex-1 overflow-y-auto p-2 font-mono text-sm text-zinc-400">
-        $ terminal wired in milestone 2 (portable-pty + xterm.js)
-      </div>
+      <div ref={containerRef} className="flex-1 min-h-0 px-2 py-1" />
     </div>
   );
 }
