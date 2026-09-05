@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --al-bg: #101114;
+  --al-bg-raised: #17181c;
+  --al-bg-sunken: #0b0c0e;
+  --al-border: #26272c;
+  --al-text: #e4e4e7;
+  --al-text-dim: #8b8d98;
+  --al-accent: #6ea8fe;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--al-bg);
+  color: var(--al-text);
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #3a3b40;
+  border-radius: 6px;
+}
