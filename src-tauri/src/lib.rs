@@ -1,3 +1,4 @@
+mod chat;
 mod commands;
 mod pty;
 mod state;
@@ -20,6 +21,8 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            chat::list_ollama_models,
+            chat::send_prompt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
