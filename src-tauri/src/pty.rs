@@ -31,6 +31,7 @@ pub fn pty_spawn(
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
     let mut cmd = CommandBuilder::new(shell);
+    cmd.env("TERM", "xterm-256color");
     if let Some(dir) = cwd {
         cmd.cwd(dir);
     }
