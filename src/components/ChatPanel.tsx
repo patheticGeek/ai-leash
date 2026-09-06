@@ -608,9 +608,6 @@ export default function ChatPanel() {
               </button>
               {expanded && (
                 <div className="mt-1 pl-4">
-                  <div className="truncate text-zinc-600">
-                    {JSON.stringify(entry.args)}
-                  </div>
                   {entry.subtasks && entry.subtasks.length > 0 && (
                     <div className="mt-1.5 space-y-2">
                       {entry.subtasks.map((t) => (
