@@ -26,15 +26,24 @@ monitoring) lives in a multi-tab panel on the right:
   `openProject(path)` to switch to it (highlighted when it matches
   `projectRoot`). One row = one project = one conversation for now;
   wiring multiple named conversations per project is future work.
-  `recentProjects: {path, name}[]` persists to `localStorage`
-  (`ai-leash:recentProjects`), most-recently-opened first, deduped by
-  path — `openProject` both switches the project and moves it to the
-  front of this list. A one-time migration in `loadRecentProjects()`
-  seeds this list from the old single-project `ai-leash:lastProjectRoot`
-  key (from before this sidebar existed) and removes that key.
-  `restoreLastProject` (called once on app mount) now opens
-  `recentProjects[0]` instead of a dedicated last-project key; if that
-  path fails to open (e.g. deleted/moved), it's dropped from the list.
+  `recentProjects: {path, name, lastMessageAt}[]` persists to
+  `localStorage` (`ai-leash:recentProjects`), deduped by path — but
+  *displayed* sorted by `lastMessageAt` descending (computed at render
+  time in `LeftBar`, the stored array order doesn't matter). Merely
+  opening/switching to a project (`openProject`) does **not** touch
+  `lastMessageAt` or reorder anything; only `touchProjectActivity`
+  does, called when a project's `chat://{path}/generating` event fires
+  `true` (see "generating" in agent-chat.md below) — i.e. an actual
+  chat turn starting, not just looking at a project. This was a
+  deliberate fix: reordering on every switch made the sidebar
+  reshuffle under you as you clicked around to look at things. A
+  one-time migration in `loadRecentProjects()` seeds this list from the
+  old single-project `ai-leash:lastProjectRoot` key (from before this
+  sidebar existed) and removes that key. `restoreLastProject` (called
+  once on app mount) opens whichever project has the highest
+  `lastMessageAt` (0 if a project's never had one, i.e. never chatted
+  in) rather than a dedicated last-project key; if that path fails to
+  open (e.g. deleted/moved), it's dropped from the list.
   Each row (`ProjectRow`) shows a small pulsing blue dot next to the
   name when `store.generatingSessions[path]` is true — since `LeftBar`
   is always mounted, this reflects a project generating in the

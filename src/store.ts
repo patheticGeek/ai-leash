@@ -14,19 +14,28 @@ interface OpenFile {
 export interface RecentProject {
   path: string;
   name: string;
+  // Epoch ms of the last chat turn started in this project (see
+  // `touchProjectActivity`) — 0 means never. Display order is sorted by
+  // this, not by when the project was last merely opened/switched to, so
+  // clicking around the sidebar to look at things doesn't reorder it.
+  lastMessageAt: number;
 }
 
 function loadRecentProjects(): RecentProject[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]");
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((p) => ({ ...p, lastMessageAt: p.lastMessageAt ?? 0 }));
+    }
   } catch {
     // fall through to migration below
   }
   // One-time migration from the old single-project key (pre-multi-project sidebar).
   const legacy = localStorage.getItem("ai-leash:lastProjectRoot");
   if (!legacy) return [];
-  const migrated = [{ path: legacy, name: legacy.split("/").filter(Boolean).pop() ?? legacy }];
+  const migrated = [
+    { path: legacy, name: legacy.split("/").filter(Boolean).pop() ?? legacy, lastMessageAt: 0 },
+  ];
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(migrated));
   localStorage.removeItem("ai-leash:lastProjectRoot");
   return migrated;
@@ -110,6 +119,7 @@ interface AppStore {
   setActiveChatTab: (id: string) => void;
   setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
   setSessionGenerating: (sessionId: string, generating: boolean) => void;
+  touchProjectActivity: (path: string) => void;
 }
 
 function panelTabIdFor(kind: PanelTabKind, path?: string): string {
@@ -156,10 +166,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
           activePanelTabId: prevActivePanelTabId,
         };
       }
-      const recentProjects = [
-        { path: root, name },
-        ...s.recentProjects.filter((p) => p.path !== root),
-      ];
+      // Merely opening/switching to a project doesn't reorder the list —
+      // only `touchProjectActivity` (a chat turn actually starting) does,
+      // so browsing the sidebar doesn't shuffle it under you. A brand new
+      // project is appended as-is; a known one is left untouched.
+      const recentProjects = s.recentProjects.some((p) => p.path === root)
+        ? s.recentProjects
+        : [...s.recentProjects, { path: root, name, lastMessageAt: 0 }];
       saveRecentProjects(recentProjects);
       return {
         projectRoot: root,
@@ -201,8 +214,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   restoreLastProject: async () => {
-    const last = get().recentProjects[0];
-    if (!last) return;
+    const projects = get().recentProjects;
+    if (projects.length === 0) return;
+    const last = projects.reduce((a, b) => (b.lastMessageAt > a.lastMessageAt ? b : a));
     try {
       await get().openProject(last.path);
     } catch {
@@ -367,5 +381,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         delete next[sessionId];
       }
       return { generatingSessions: next };
+    }),
+
+  touchProjectActivity: (path) =>
+    set((s) => {
+      if (!s.recentProjects.some((p) => p.path === path)) return s;
+      const recentProjects = s.recentProjects.map((p) =>
+        p.path === path ? { ...p, lastMessageAt: Date.now() } : p,
+      );
+      saveRecentProjects(recentProjects);
+      return { recentProjects };
     }),
 }));

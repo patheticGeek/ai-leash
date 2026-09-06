@@ -64,21 +64,28 @@ export default function LeftBar() {
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openProject = useAppStore((s) => s.openProject);
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
+  const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
 
   // Always mounted regardless of which project (if any) is currently open,
   // so a session's `generating` state is tracked even while you're looking
   // at a different project entirely — see `run_with_cancellation` in
-  // chat.rs, the single place this event is emitted from.
+  // chat.rs, the single place this event is emitted from. A turn starting
+  // is also what bumps the project's sort order (`touchProjectActivity`),
+  // not merely opening/switching to it — otherwise clicking around the
+  // sidebar to look at things would keep reshuffling it.
   useEffect(() => {
     const unlistens = recentProjects.map((p) =>
       listen<boolean>(`chat://${p.path}/generating`, (e) => {
         setSessionGenerating(p.path, e.payload);
+        if (e.payload) touchProjectActivity(p.path);
       }),
     );
     return () => {
       unlistens.forEach((u) => u.then((f) => f()));
     };
-  }, [recentProjects, setSessionGenerating]);
+  }, [recentProjects, setSessionGenerating, touchProjectActivity]);
+
+  const sortedProjects = [...recentProjects].sort((a, b) => b.lastMessageAt - a.lastMessageAt);
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -100,10 +107,10 @@ export default function LeftBar() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto py-1.5">
-        {recentProjects.length === 0 ? (
+        {sortedProjects.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">No projects yet</div>
         ) : (
-          recentProjects.map((p) => (
+          sortedProjects.map((p) => (
             <ProjectRow
               key={p.path}
               project={p}
