@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api, type ModelSummary } from "./lib/tauriApi";
+import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
 
@@ -57,6 +58,17 @@ interface ConversationPanelState {
   activePanelTabId: string | null;
 }
 
+export type ChatTabKind = "primary" | "subagent";
+
+export interface ChatTab {
+  id: string;
+  kind: ChatTabKind;
+  subSessionId?: string;
+  label: string;
+}
+
+const PRIMARY_CHAT_TAB: ChatTab = { id: "primary", kind: "primary", label: "Agent" };
+
 interface AppStore {
   projectRoot: string | null;
   openFiles: OpenFile[];
@@ -67,6 +79,9 @@ interface AppStore {
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
   panelStateByConversation: Record<string, ConversationPanelState>;
+  chatTabs: ChatTab[];
+  activeChatTabId: string;
+  subAgentThreads: Record<string, Entry[]>;
   recentProjects: RecentProject[];
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
@@ -85,6 +100,10 @@ interface AppStore {
   openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
+  openChatTab: (subSessionId: string, label: string) => void;
+  closeChatTab: (id: string) => void;
+  setActiveChatTab: (id: string) => void;
+  setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
 }
 
 function panelTabIdFor(kind: PanelTabKind, path?: string): string {
@@ -103,6 +122,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   panelTabs: [],
   activePanelTabId: null,
   panelStateByConversation: {},
+  chatTabs: [PRIMARY_CHAT_TAB],
+  activeChatTabId: "primary",
+  subAgentThreads: {},
   recentProjects: loadRecentProjects(),
 
   // `root` doubles as the conversation id for now — one conversation per
@@ -140,6 +162,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
         recentProjects,
+        // Sub-agents and their chat tabs belong to the conversation that
+        // spawned them — a different project is a different conversation
+        // (one conversation per project, for now), so none of this carries
+        // over.
+        chatTabs: [PRIMARY_CHAT_TAB],
+        activeChatTabId: "primary",
+        subAgentThreads: {},
+        subAgentTasks: [],
       };
     });
 
@@ -287,4 +317,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
         activePath: tab?.kind === "file" ? (tab.path ?? null) : null,
       };
     }),
+
+  openChatTab: (subSessionId, label) => {
+    const id = `subagent:${subSessionId}`;
+    set((s) => {
+      if (s.chatTabs.some((t) => t.id === id)) {
+        return { activeChatTabId: id };
+      }
+      return {
+        chatTabs: [...s.chatTabs, { id, kind: "subagent", subSessionId, label }],
+        activeChatTabId: id,
+      };
+    });
+  },
+
+  closeChatTab: (id) =>
+    set((s) => {
+      if (id === "primary") return s;
+      const chatTabs = s.chatTabs.filter((t) => t.id !== id);
+      const activeChatTabId = s.activeChatTabId === id ? "primary" : s.activeChatTabId;
+      return { chatTabs, activeChatTabId };
+    }),
+
+  setActiveChatTab: (id) => set({ activeChatTabId: id }),
+
+  setSubAgentEntries: (subSessionId, updater) =>
+    set((s) => ({
+      subAgentThreads: {
+        ...s.subAgentThreads,
+        [subSessionId]: updater(s.subAgentThreads[subSessionId] ?? []),
+      },
+    })),
 }));

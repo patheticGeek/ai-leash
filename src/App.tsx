@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import LeftBar from "./components/LeftBar";
 import SidePanel from "./components/SidePanel";
 import ResizeHandle from "./components/ResizeHandle";
-import ChatPanel from "./components/ChatPanel";
+import CenterPanel from "./components/CenterPanel";
 import StatusBar from "./components/StatusBar";
 import PermissionModal from "./components/PermissionModal";
 import { useAppStore } from "./store";
@@ -45,7 +45,7 @@ function App() {
         </div>
         <ResizeHandle onMouseDown={onLeftBarResize} />
         <div className="flex-1 min-w-0">
-          <ChatPanel key={projectRoot ?? "none"} />
+          <CenterPanel key={projectRoot ?? "none"} />
         </div>
         <ResizeHandle onMouseDown={onRightPanelResize} />
         <div style={{ width: rightPanelWidth }} className="shrink-0">

@@ -13,6 +13,7 @@ const statusStyles: Record<string, string> = {
 
 export default function SubAgentsTab() {
   const tasks = useAppStore((s) => s.subAgentTasks);
+  const openChatTab = useAppStore((s) => s.openChatTab);
 
   if (tasks.length === 0) {
     return (
@@ -30,7 +31,8 @@ export default function SubAgentsTab() {
       {sorted.map((task) => (
         <div
           key={task.subSessionId}
-          className="rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs"
+          onClick={() => openChatTab(task.subSessionId, task.description)}
+          className="cursor-default rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs hover:border-[#3a5f8f]"
         >
           <div className="flex items-center gap-2">
             <span

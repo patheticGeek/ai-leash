@@ -2,19 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
-
-interface TextEntry {
-  kind: "text";
-  role: "user" | "assistant";
-  content: string;
-  time: number;
-}
-
-interface ThinkingEntry {
-  kind: "thinking";
-  content: string;
-  done: boolean;
-}
+import {
+  type Entry,
+  type ToolCallPayload,
+  type ToolResultPayload,
+  appendThinking,
+  appendChunk,
+  appendToolCall,
+  applyToolResult,
+  isToolError,
+} from "../lib/chatEntries";
 
 interface SubtaskThread {
   subSessionId: string;
@@ -22,27 +19,13 @@ interface SubtaskThread {
   entries: Entry[];
 }
 
-interface ToolEntry {
-  kind: "tool";
-  callId: string;
-  name: string;
-  args: unknown;
-  result?: string;
-  subtasks?: SubtaskThread[];
-}
-
-type Entry = TextEntry | ThinkingEntry | ToolEntry;
-
-interface ToolCallPayload {
-  id: string | null;
-  name: string;
-  arguments: unknown;
-}
-
-interface ToolResultPayload {
-  id: string | null;
-  result: string;
-}
+// Extends the shared `ToolEntry` shape with UI-only nesting for subtasks
+// spawned by this specific tool call — not part of the shared type since
+// sub-agents can't themselves spawn further subtasks, so their own entries
+// (`SubtaskThread.entries` above) never need this.
+type PanelEntry =
+  | Exclude<Entry, { kind: "tool" }>
+  | (Extract<Entry, { kind: "tool" }> & { subtasks?: SubtaskThread[] });
 
 interface SubtaskStartPayload {
   callId: string | null;
@@ -50,63 +33,12 @@ interface SubtaskStartPayload {
   description: string;
 }
 
-function finishThinking(prev: Entry[]): Entry[] {
-  const last = prev[prev.length - 1];
-  if (last && last.kind === "thinking" && !last.done) {
-    return [...prev.slice(0, -1), { ...last, done: true }];
-  }
-  return prev;
-}
-
-function appendThinking(prev: Entry[], payload: string): Entry[] {
-  const last = prev[prev.length - 1];
-  if (last && last.kind === "thinking" && !last.done) {
-    return [...prev.slice(0, -1), { ...last, content: last.content + payload }];
-  }
-  return [...prev, { kind: "thinking", content: payload, done: false }];
-}
-
-function appendChunk(prev: Entry[], payload: string): Entry[] {
-  const withFinishedThinking = finishThinking(prev);
-  const last = withFinishedThinking[withFinishedThinking.length - 1];
-  if (last && last.kind === "text" && last.role === "assistant") {
-    return [
-      ...withFinishedThinking.slice(0, -1),
-      { ...last, content: last.content + payload },
-    ];
-  }
-  return [
-    ...withFinishedThinking,
-    { kind: "text", role: "assistant", content: payload, time: Date.now() },
-  ];
-}
-
-function appendToolCall(prev: Entry[], payload: ToolCallPayload): Entry[] {
-  return [
-    ...finishThinking(prev),
-    {
-      kind: "tool",
-      callId: String(payload.id),
-      name: payload.name,
-      args: payload.arguments,
-    },
-  ];
-}
-
-function applyToolResult(prev: Entry[], payload: ToolResultPayload): Entry[] {
-  return prev.map((entry) =>
-    entry.kind === "tool" && entry.callId === String(payload.id)
-      ? { ...entry, result: payload.result }
-      : entry,
-  );
-}
-
 function addSubtaskThread(
-  prev: Entry[],
+  prev: PanelEntry[],
   callId: string,
   subSessionId: string,
   description: string,
-): Entry[] {
+): PanelEntry[] {
   return prev.map((entry) =>
     entry.kind === "tool" && entry.callId === callId
       ? {
@@ -118,11 +50,11 @@ function addSubtaskThread(
 }
 
 function updateSubtaskThread(
-  prev: Entry[],
+  prev: PanelEntry[],
   callId: string,
   subSessionId: string,
   updater: (entries: Entry[]) => Entry[],
-): Entry[] {
+): PanelEntry[] {
   return prev.map((entry) => {
     if (entry.kind !== "tool" || entry.callId !== callId || !entry.subtasks) return entry;
     const idx = entry.subtasks.findIndex((t) => t.subSessionId === subSessionId);
@@ -198,10 +130,6 @@ function StopIcon() {
   );
 }
 
-function isToolError(result: string | undefined): boolean {
-  return result !== undefined && result.startsWith("Error:");
-}
-
 function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
@@ -262,8 +190,10 @@ export default function ChatPanel() {
   const refreshOllama = useAppStore((s) => s.refreshOllama);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
+  const openPanelTab = useAppStore((s) => s.openPanelTab);
+  const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
   const [model, setModel] = useState("");
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<PanelEntry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -363,6 +293,9 @@ export default function ChatPanel() {
 
         setEntries((prev) => addSubtaskThread(prev, callId, subSessionId, description));
         startSubAgentTask({ subSessionId, parentSessionId: sessionId, description });
+        // Surface the running sub-agent immediately rather than leaving the
+        // user to notice it under a collapsed tool-call entry.
+        openPanelTab("subagents");
 
         unlistens.push(
           listen(`chat://${subSessionId}/done`, () => {
@@ -381,6 +314,7 @@ export default function ChatPanel() {
                 appendThinking(sub, ev.payload),
               ),
             );
+            setSubAgentEntries(subSessionId, (prev) => appendThinking(prev, ev.payload));
           }),
         );
         unlistens.push(
@@ -390,6 +324,7 @@ export default function ChatPanel() {
                 appendChunk(sub, ev.payload),
               ),
             );
+            setSubAgentEntries(subSessionId, (prev) => appendChunk(prev, ev.payload));
           }),
         );
         unlistens.push(
@@ -399,6 +334,7 @@ export default function ChatPanel() {
                 appendToolCall(sub, ev.payload),
               ),
             );
+            setSubAgentEntries(subSessionId, (prev) => appendToolCall(prev, ev.payload));
           }),
         );
         unlistens.push(
@@ -408,6 +344,7 @@ export default function ChatPanel() {
                 applyToolResult(sub, ev.payload),
               ),
             );
+            setSubAgentEntries(subSessionId, (prev) => applyToolResult(prev, ev.payload));
           }),
         );
       }),
@@ -416,7 +353,7 @@ export default function ChatPanel() {
     return () => {
       unlistens.forEach((u) => u.then((f) => f()));
     };
-  }, [sessionId, startSubAgentTask, finishSubAgentTask]);
+  }, [sessionId, startSubAgentTask, finishSubAgentTask, openPanelTab, setSubAgentEntries]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -524,10 +461,7 @@ export default function ChatPanel() {
     usedTokens !== null && contextLength ? Math.min(100, (usedTokens / contextLength) * 100) : null;
 
   return (
-    <div className="flex h-full flex-col bg-[#0e0f12] border-l border-[#26272c]">
-      <div className="flex h-9 items-center border-b border-[#26272c] px-3">
-        <span className="text-sm font-medium text-zinc-200">Agent</span>
-      </div>
+    <div className="flex h-full flex-col bg-[#0e0f12]">
       <div
         ref={scrollRef}
         onScroll={onScroll}

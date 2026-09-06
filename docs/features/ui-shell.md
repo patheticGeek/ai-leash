@@ -8,11 +8,11 @@ monitoring) lives in a multi-tab panel on the right:
 
 ```
 +---------+---------------------------------+------------------------+
-| ai leash|                                 |  SidePanel tab strip   |
-|   [+]   |          ChatPanel              |  (Files / Terminal 1 / |
-|---------|          (flex-1)               |   Sub Agents / ...) +  |
+| ai leash|  CenterPanel tab strip          |  SidePanel tab strip   |
+|   [+]   |  (Agent, always-open + one      |  (Files / Terminal 1 / |
+|---------|   tab per opened sub-agent)     |   Sub Agents / ...) +  |
 | project |                                 |  active tab's content  |
-| list    |                                 |                        |
+| list    |  active tab's content           |                        |
 +---------+---------------------------------+------------------------+
 |                         StatusBar                                 |
 +---------------------------------------------------------------------+
@@ -35,8 +35,36 @@ monitoring) lives in a multi-tab panel on the right:
   `restoreLastProject` (called once on app mount) now opens
   `recentProjects[0]` instead of a dedicated last-project key; if that
   path fails to open (e.g. deleted/moved), it's dropped from the list.
-- `ChatPanel` is the main, central column (no fixed width) — it no
-  longer lives in a right-hand sidebar.
+- `CenterPanel.tsx` is the main, central column (no fixed width, no
+  longer lives in a right-hand sidebar) and is itself a small tab
+  strip: a permanent, non-closable `Agent` tab (`ChatPanel`, kept
+  mounted — hidden via CSS, not unmounted — whenever another center
+  tab is active, so its session/`sessionId` and in-flight streaming
+  survive switching away) plus one closable tab per opened sub-agent
+  conversation (`SubAgentChatTab.tsx`, read-only: no input box, no
+  retry — a sub-agent can't be messaged further once spawned).
+  `store.ts`'s `chatTabs: ChatTab[]` + `activeChatTabId` track these;
+  `subAgentThreads: Record<subSessionId, Entry[]>` holds each
+  sub-agent's flat transcript, mirrored in parallel with the existing
+  nested-under-tool-call thread by `ChatPanel`'s `subtask_start`
+  handler (both read from the same shared helpers in
+  `src/lib/chatEntries.ts` — `Entry`, `appendThinking`, `appendChunk`,
+  `appendToolCall`, `applyToolResult` — extracted from `ChatPanel.tsx`
+  so both consumers stay in sync off one implementation). Two ways to
+  open a sub-agent's tab:
+  - Clicking its row in the right `SidePanel`'s `Sub Agents` tab calls
+    `openChatTab(subSessionId, description)` (dedupes by
+    `` subagent:${subSessionId} ``, just activates if already open).
+  - The instant a sub-agent spawns, `ChatPanel`'s `subtask_start`
+    handler calls `openPanelTab("subagents")` to surface the right
+    sidebar's `Sub Agents` tab automatically — not the center tab
+    itself, which still requires a manual click, only the place you'd
+    notice it running.
+  Switching projects (`openProject`) resets `chatTabs` back to just
+  `Agent`, clears `subAgentThreads`, and clears `subAgentTasks` too —
+  sub-agents belong to the conversation that spawned them, and it's
+  one conversation per project for now (this also fixed a pre-existing
+  leak where `subAgentTasks` was never scoped per project at all).
 - `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
   fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
   `activePanelTabId` track an arbitrary number of simultaneously open

@@ -215,27 +215,40 @@ process for that request.
 
 ## Frontend rendering (`ChatPanel.tsx`)
 
-The UI keeps its own `entries: Entry[]` array, derived by listening to
-events rather than mirroring `ChatMessage[]` directly — this is what
-lets `thinking` and `tool` entries render as distinct UI blocks even
-though only `user`/`assistant`/`tool` roles exist in the real backend
-history:
+The UI keeps its own `entries: PanelEntry[]` array, derived by
+listening to events rather than mirroring `ChatMessage[]` directly —
+this is what lets `thinking` and `tool` entries render as distinct UI
+blocks even though only `user`/`assistant`/`tool` roles exist in the
+real backend history. The base `Entry` union (`TextEntry`,
+`ThinkingEntry`, `ToolEntry`) and the pure accumulation helpers
+(`appendThinking`/`appendChunk`/`appendToolCall`/`applyToolResult`) live
+in `src/lib/chatEntries.ts`, shared with `store.ts` (typing
+`subAgentThreads`) and `SubAgentChatTab.tsx` — see
+[ui-shell.md](./ui-shell.md) for the center-panel tab that reads
+those. `ChatPanel.tsx` locally extends `ToolEntry` with an optional
+`subtasks?: SubtaskThread[]` (as `PanelEntry`) purely for its own
+nested collapsed-thread display; sub-agents can't spawn further
+sub-agents, so a `SubtaskThread`'s own `entries: Entry[]` never needs
+that extension.
 
 - `TextEntry` — `{ role: "user" | "assistant", content, time }`.
 - `ThinkingEntry` — `{ content, done }`, accumulated from `thinking`
   events, finalized (`done: true`) as soon as a `chunk` or `tool_call`
   event arrives.
-- `ToolEntry` — `{ callId, name, args, result?, subtasks? }`, created
-  on `tool_call` and filled in on the matching `tool_result` (matched by
-  the tool call's `id`, stringified). For a `task` call, `subtasks` is
-  an array of `{ subSessionId, description, entries: Entry[] }` — one
-  entry per concurrently spawned subtask, added on that subtask's
-  `subtask_start` event and filled in by its own event stream (see
-  "Sub-agents" above). The same accumulation logic
-  (`appendThinking`/`appendChunk`/`appendToolCall`/`applyToolResult`) is
-  reused for the top-level `entries` array and for each subtask's
-  `entries`, via `updateSubtaskThread` locating the right `ToolEntry` by
-  `callId` and the right subtask within it by `subSessionId`.
+- `ToolEntry` — `{ callId, name, args, result? }`, created on
+  `tool_call` and filled in on the matching `tool_result` (matched by
+  the tool call's `id`, stringified). For a `task` call, the
+  `PanelEntry` extension's `subtasks` is an array of `{ subSessionId,
+  description, entries: Entry[] }` — one entry per concurrently spawned
+  subtask, added on that subtask's `subtask_start` event and filled in
+  by its own event stream (see "Sub-agents" above). The same
+  accumulation logic is reused for the top-level `entries` array and
+  for each subtask's `entries`, via `updateSubtaskThread` locating the
+  right `ToolEntry` by `callId` and the right subtask within it by
+  `subSessionId` — and, in parallel, mirrored into
+  `store.subAgentThreads[subSessionId]` via `setSubAgentEntries` so the
+  same data is available outside `ChatPanel`'s local state (see
+  [ui-shell.md](./ui-shell.md)).
 
 Both `thinking` and `tool` entries render collapsed by default with a
 chevron toggle; the collapsed tool row shows `name` plus a
