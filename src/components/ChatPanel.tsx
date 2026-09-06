@@ -85,10 +85,33 @@ function RetryIcon() {
   );
 }
 
+function SendIcon() {
+  return (
+    <svg {...iconProps} width={14} height={14}>
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
+      <rect x="5" y="5" width="14" height="14" rx="2" />
+    </svg>
+  );
+}
+
 function formatTime(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
+
+function formatTokenCount(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+const LAST_MODEL_KEY = "ai-leash:lastModel";
 
 export default function ChatPanel() {
   const [sessionId] = useState(() => crypto.randomUUID());
@@ -102,6 +125,8 @@ export default function ChatPanel() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [ollamaError, setOllamaError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<{ prompt: number; completion: number } | null>(null);
+  const [showUsagePopover, setShowUsagePopover] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,7 +140,10 @@ export default function ChatPanel() {
   }, [sending, refreshOllama]);
 
   useEffect(() => {
-    if (!model && models.length) setModel(models[0]);
+    if (model || !models.length) return;
+    const last = localStorage.getItem(LAST_MODEL_KEY);
+    const restored = last && models.some((m) => m.name === last) ? last : null;
+    setModel(restored ?? models[0].name);
   }, [models, model]);
 
   useEffect(() => {
@@ -198,6 +226,16 @@ export default function ChatPanel() {
       },
     );
 
+    const unlistenUsage = listen<{ promptTokens: number; completionTokens: number }>(
+      `chat://${sessionId}/usage`,
+      (e) => {
+        setUsage({
+          prompt: e.payload.promptTokens,
+          completion: e.payload.completionTokens,
+        });
+      },
+    );
+
     const unlistenDone = listen(`chat://${sessionId}/done`, () =>
       setSending(false),
     );
@@ -210,6 +248,7 @@ export default function ChatPanel() {
       unlistenChunk.then((f) => f());
       unlistenToolCall.then((f) => f());
       unlistenToolResult.then((f) => f());
+      unlistenUsage.then((f) => f());
       unlistenDone.then((f) => f());
       unlistenError.then((f) => f());
     };
@@ -292,22 +331,16 @@ export default function ChatPanel() {
       lastEntry.kind === "tool");
   const awaitingFirstToken = sending && !hasActivity;
 
+  const selectedModel = models.find((m) => m.name === model);
+  const contextLength = selectedModel?.contextLength ?? null;
+  const usedTokens = usage ? usage.prompt + usage.completion : null;
+  const usagePct =
+    usedTokens !== null && contextLength ? Math.min(100, (usedTokens / contextLength) * 100) : null;
+
   return (
     <div className="flex h-full flex-col bg-[#0e0f12] border-l border-[#26272c]">
-      <div className="flex h-9 items-center justify-between border-b border-[#26272c] px-3">
+      <div className="flex h-9 items-center border-b border-[#26272c] px-3">
         <span className="text-sm font-medium text-zinc-200">Agent</span>
-        <select
-          value={model}
-          onChange={(e) => setModel(e.currentTarget.value)}
-          className="bg-[#17181c] border border-[#26272c] rounded text-xs text-zinc-300 px-2 py-1 outline-none"
-        >
-          {models.length === 0 && <option>no models</option>}
-          {models.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 text-sm">
         {entries.length === 0 && !ollamaError && (
@@ -330,9 +363,6 @@ export default function ChatPanel() {
               >
                 <div className="flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600">
                   <span>{entry.role === "user" ? "you" : "agent"}</span>
-                  <span className="normal-case tracking-normal text-zinc-700">
-                    {formatTime(entry.time)}
-                  </span>
                   <span className="flex-1" />
                   <button
                     onClick={() => copyText(i, entry.content)}
@@ -350,6 +380,9 @@ export default function ChatPanel() {
                       <RetryIcon />
                     </button>
                   )}
+                  <span className="normal-case tracking-normal text-zinc-700">
+                    {formatTime(entry.time)}
+                  </span>
                 </div>
                 <div className="whitespace-pre-wrap">{entry.content}</div>
               </div>
@@ -412,25 +445,91 @@ export default function ChatPanel() {
         {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
       </div>
       <div className="border-t border-[#26272c] p-2">
-        {sending && (
-          <div className="mb-2 flex justify-end">
-            <button
-              onClick={stop}
-              className="flex items-center gap-1.5 rounded border border-[#26272c] bg-[#17181c] px-2.5 py-1 text-xs text-zinc-300 hover:border-red-900/50 hover:text-red-300"
+        <div className="flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.currentTarget.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Ask the agent..."
+            rows={2}
+            className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
+          />
+          <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
+            <select
+              value={model}
+              onChange={(e) => {
+                const value = e.currentTarget.value;
+                setModel(value);
+                localStorage.setItem(LAST_MODEL_KEY, value);
+              }}
+              className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
             >
-              <span className="inline-block h-2 w-2 bg-current" />
-              Stop
+              {models.length === 0 && <option>no models</option>}
+              {models.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1.5">
+            {usedTokens !== null && (
+              <div
+                className="relative"
+                onMouseEnter={() => setShowUsagePopover(true)}
+                onMouseLeave={() => setShowUsagePopover(false)}
+              >
+                <div
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    background:
+                      usagePct !== null
+                        ? `conic-gradient(#3a5f8f ${usagePct}%, #26272c ${usagePct}% 100%)`
+                        : "#26272c",
+                  }}
+                >
+                  <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#17181c] text-[7px] text-zinc-400">
+                    {usagePct !== null ? Math.round(usagePct) : "–"}
+                  </div>
+                </div>
+                {showUsagePopover && (
+                  <div className="absolute bottom-full right-0 z-10 mb-2 w-48 rounded-md border border-[#26272c] bg-[#141518] p-2.5 shadow-xl">
+                    <div className="mb-1.5 flex items-center justify-between text-[10px] text-zinc-400">
+                      <span>Context usage</span>
+                      <span className="font-medium text-zinc-200">
+                        {usagePct !== null ? `${usagePct.toFixed(0)}%` : "–"}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1c1d21]">
+                      <div
+                        className="h-full bg-[#3a5f8f]"
+                        style={{ width: `${usagePct ?? 0}%` }}
+                      />
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-zinc-600">
+                      <span>{formatTokenCount(usedTokens)} used</span>
+                      <span>
+                        {contextLength ? formatTokenCount(contextLength) : "?"} total
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={sending ? stop : send}
+              disabled={!sending && (!input.trim() || !model)}
+              title={sending ? "Stop" : "Send"}
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                sending
+                  ? "bg-red-600/80 hover:bg-red-600"
+                  : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
+              }`}
+            >
+              {sending ? <StopIcon /> : <SendIcon />}
             </button>
+            </div>
           </div>
-        )}
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.currentTarget.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Ask the agent..."
-          rows={3}
-          className="w-full resize-none rounded-md bg-[#17181c] border border-[#26272c] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-[#3a5f8f]"
-        />
+        </div>
       </div>
     </div>
   );

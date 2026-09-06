@@ -1,5 +1,6 @@
 mod chat;
 mod commands;
+mod context;
 mod pty;
 mod state;
 mod tools;

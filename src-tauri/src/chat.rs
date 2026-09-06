@@ -1,3 +1,5 @@
+use crate::commands;
+use crate::context;
 use crate::state::AppState;
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
@@ -28,6 +30,10 @@ struct OllamaChatChunk {
     message: Option<OllamaChunkMessage>,
     #[serde(default)]
     done: bool,
+    #[serde(default)]
+    prompt_eval_count: Option<u64>,
+    #[serde(default)]
+    eval_count: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -48,17 +54,46 @@ struct OllamaTagsResponse {
 #[derive(Deserialize)]
 struct OllamaModelInfo {
     name: String,
+    #[serde(default)]
+    details: Option<OllamaModelDetails>,
+}
+
+#[derive(Deserialize)]
+struct OllamaModelDetails {
+    #[serde(default)]
+    context_length: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelSummary {
+    pub name: String,
+    pub context_length: Option<u64>,
+}
+
+struct TurnResult {
+    content: String,
+    tool_calls: Option<Vec<ToolCall>>,
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
 }
 
 const MAX_TOOL_ITERATIONS: usize = 15;
 
 #[tauri::command]
-pub async fn list_ollama_models() -> Result<Vec<String>, String> {
+pub async fn list_ollama_models() -> Result<Vec<ModelSummary>, String> {
     let resp = reqwest::get("http://localhost:11434/api/tags")
         .await
         .map_err(|e| e.to_string())?;
     let tags: OllamaTagsResponse = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(tags.models.into_iter().map(|m| m.name).collect())
+    Ok(tags
+        .models
+        .into_iter()
+        .map(|m| ModelSummary {
+            name: m.name,
+            context_length: m.details.and_then(|d| d.context_length),
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -88,6 +123,38 @@ pub async fn send_prompt(
     );
 
     run_with_cancellation(&app, &state, &session_id, &model).await
+}
+
+/// Rebuilds AGENTS.md/memory/skills and keeps them as the first (system)
+/// message in history, refreshed on every turn rather than only once at the
+/// start of a session — otherwise editing AGENTS.md (or adding a skill) after
+/// a session already started would never be picked up for that session.
+fn refresh_system_prompt(
+    state: &State<'_, AppState>,
+    session_id: &str,
+    root: &std::path::Path,
+    touched_dirs: &[std::path::PathBuf],
+) {
+    let mut sessions = state.chat_sessions.lock().unwrap();
+    let history = sessions.entry(session_id.to_string()).or_default();
+    let system_prompt = context::build_system_prompt(root, touched_dirs);
+    let has_system_first = history.first().is_some_and(|m| m.role == "system");
+
+    match (has_system_first, system_prompt) {
+        (true, Some(content)) => history[0].content = content,
+        (true, None) => {
+            history.remove(0);
+        }
+        (false, Some(content)) => history.insert(
+            0,
+            ChatMessage {
+                role: "system".into(),
+                content,
+                tool_calls: None,
+            },
+        ),
+        (false, None) => {}
+    }
 }
 
 /// Drops trailing assistant/tool messages back to the last user message, then
@@ -147,7 +214,9 @@ async fn run_agent_loop(
     let error_event = format!("chat://{}/error", session_id);
     let tool_call_event = format!("chat://{}/tool_call", session_id);
     let tool_result_event = format!("chat://{}/tool_result", session_id);
+    let usage_event = format!("chat://{}/usage", session_id);
 
+    let root = commands::get_root_path(state.inner()).ok();
     let mut last_call: Option<(String, Value)> = None;
 
     for _ in 0..MAX_TOOL_ITERATIONS {
@@ -156,12 +225,20 @@ async fn run_agent_loop(
             return Ok(());
         }
 
+        // Recomputed every iteration: a tool call earlier in this same loop
+        // may have just touched a new subfolder, and its scoped AGENTS.md /
+        // skills should apply starting with the very next model call.
+        let touched = touched_dirs_for(state, session_id);
+        if let Some(r) = &root {
+            refresh_system_prompt(state, session_id, r, &touched);
+        }
+
         let history = {
             let sessions = state.chat_sessions.lock().unwrap();
             sessions.get(session_id).cloned().unwrap_or_default()
         };
 
-        let (content, tool_calls) = stream_one_turn(
+        let turn = stream_one_turn(
             app,
             model,
             &history,
@@ -169,16 +246,25 @@ async fn run_agent_loop(
             &thinking_event,
             &error_event,
             cancel_flag,
+            root.as_deref(),
+            &touched,
         )
         .await?;
+
+        if let (Some(p), Some(c)) = (turn.prompt_tokens, turn.completion_tokens) {
+            let _ = app.emit(
+                &usage_event,
+                json!({ "promptTokens": p, "completionTokens": c }),
+            );
+        }
 
         push_message(
             state,
             session_id,
             ChatMessage {
                 role: "assistant".into(),
-                content,
-                tool_calls: tool_calls.clone(),
+                content: turn.content,
+                tool_calls: turn.tool_calls.clone(),
             },
         );
 
@@ -187,7 +273,7 @@ async fn run_agent_loop(
             return Ok(());
         }
 
-        let calls = match tool_calls {
+        let calls = match turn.tool_calls {
             Some(c) if !c.is_empty() => c,
             _ => {
                 let _ = app.emit(&done_event, ());
@@ -219,9 +305,15 @@ async fn run_agent_loop(
                     call.function.name
                 )
             } else {
-                tools::execute_tool(app, state, &call.function.name, &call.function.arguments)
-                    .await
-                    .unwrap_or_else(|e| format!("Error: {e}"))
+                tools::execute_tool(
+                    app,
+                    state,
+                    session_id,
+                    &call.function.name,
+                    &call.function.arguments,
+                )
+                .await
+                .unwrap_or_else(|e| format!("Error: {e}"))
             };
             last_call = Some((call.function.name.clone(), call.function.arguments.clone()));
 
@@ -243,6 +335,18 @@ async fn run_agent_loop(
     Err(msg)
 }
 
+fn touched_dirs_for(state: &State<'_, AppState>, session_id: &str) -> Vec<std::path::PathBuf> {
+    state
+        .touched_dirs
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .collect()
+}
+
 fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
     state
         .chat_sessions
@@ -261,13 +365,15 @@ async fn stream_one_turn(
     thinking_event: &str,
     error_event: &str,
     cancel_flag: &Arc<AtomicBool>,
-) -> Result<(String, Option<Vec<ToolCall>>), String> {
+    root: Option<&std::path::Path>,
+    touched_dirs: &[std::path::PathBuf],
+) -> Result<TurnResult, String> {
     let client = reqwest::Client::new();
     let body = OllamaChatRequest {
         model,
         messages: history,
         stream: true,
-        tools: tools::tool_definitions(),
+        tools: tools::tool_definitions(root, touched_dirs),
     };
     let resp = match client
         .post("http://localhost:11434/api/chat")
@@ -295,10 +401,17 @@ async fn stream_one_turn(
     let mut buf = String::new();
     let mut full_content = String::new();
     let mut tool_calls: Option<Vec<ToolCall>> = None;
+    let mut prompt_tokens: Option<u64> = None;
+    let mut completion_tokens: Option<u64> = None;
 
     'outer: while let Some(item) = stream.next().await {
         if cancel_flag.load(Ordering::SeqCst) {
-            return Ok((full_content, None));
+            return Ok(TurnResult {
+                content: full_content,
+                tool_calls: None,
+                prompt_tokens,
+                completion_tokens,
+            });
         }
 
         let bytes = match item {
@@ -331,6 +444,12 @@ async fn stream_one_turn(
                             }
                         }
                     }
+                    if chunk.prompt_eval_count.is_some() {
+                        prompt_tokens = chunk.prompt_eval_count;
+                    }
+                    if chunk.eval_count.is_some() {
+                        completion_tokens = chunk.eval_count;
+                    }
                     if chunk.done {
                         break 'outer;
                     }
@@ -342,5 +461,10 @@ async fn stream_one_turn(
         }
     }
 
-    Ok((full_content, tool_calls))
+    Ok(TurnResult {
+        content: full_content,
+        tool_calls,
+        prompt_tokens,
+        completion_tokens,
+    })
 }

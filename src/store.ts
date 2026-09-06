@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import { api } from "./lib/tauriApi";
+import { api, type ModelSummary } from "./lib/tauriApi";
+
+const LAST_PROJECT_KEY = "ai-leash:lastProjectRoot";
 
 interface OpenFile {
   path: string;
@@ -13,8 +15,9 @@ interface AppStore {
   openFiles: OpenFile[];
   activePath: string | null;
   ollamaConnected: boolean | null;
-  ollamaModels: string[];
-  setProjectRoot: (root: string) => void;
+  ollamaModels: ModelSummary[];
+  openProject: (root: string) => Promise<void>;
+  restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
@@ -31,8 +34,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   ollamaConnected: null,
   ollamaModels: [],
 
-  setProjectRoot: (root) =>
-    set({ projectRoot: root, openFiles: [], activePath: null }),
+  openProject: async (root) => {
+    await api.setProjectRoot(root);
+    localStorage.setItem(LAST_PROJECT_KEY, root);
+    set({ projectRoot: root, openFiles: [], activePath: null });
+  },
+
+  restoreLastProject: async () => {
+    const last = localStorage.getItem(LAST_PROJECT_KEY);
+    if (!last) return;
+    try {
+      await get().openProject(last);
+    } catch {
+      localStorage.removeItem(LAST_PROJECT_KEY);
+    }
+  },
 
   openFile: async (path, name) => {
     if (get().openFiles.some((f) => f.path === path)) {

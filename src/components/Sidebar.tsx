@@ -47,7 +47,7 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
 
 export default function Sidebar() {
   const projectRoot = useAppStore((s) => s.projectRoot);
-  const setProjectRoot = useAppStore((s) => s.setProjectRoot);
+  const openProject = useAppStore((s) => s.openProject);
   const [rootEntries, setRootEntries] = useState<DirEntryInfo[]>([]);
 
   useEffect(() => {
@@ -59,8 +59,7 @@ export default function Sidebar() {
   async function openFolder() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") {
-      await api.setProjectRoot(dir);
-      setProjectRoot(dir);
+      await openProject(dir);
     }
   }
 

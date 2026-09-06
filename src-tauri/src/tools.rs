@@ -1,11 +1,12 @@
 use crate::commands::{self, IGNORED_NAMES};
+use crate::context;
 use crate::state::AppState;
 use ignore::WalkBuilder;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use similar::{ChangeTag, TextDiff};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
@@ -36,8 +37,8 @@ const MAX_TOOL_OUTPUT: usize = 20_000;
 const MAX_GREP_RESULTS: usize = 200;
 const DEFAULT_READ_LIMIT: usize = 2000;
 
-pub fn tool_definitions() -> Value {
-    json!([
+pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf]) -> Value {
+    let mut tools = json!([
         {
             "type": "function",
             "function": {
@@ -128,7 +129,28 @@ pub fn tool_definitions() -> Value {
                 }
             }
         }
-    ])
+    ]);
+
+    let has_skills = root.is_some_and(|r| !context::list_skills(r, touched_dirs).is_empty());
+    if has_skills {
+        if let Value::Array(arr) = &mut tools {
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "load_skill",
+                    "description": "Load the full instructions for a skill listed under \"Available skills\" in your system prompt, by its exact name. Only use this for names listed there — tools (read_file, edit_file, write_file, list_dir, grep, shell) are called directly and are never loaded as skills.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string", "description": "Exact name of the skill to load" }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            }));
+        }
+    }
+    tools
 }
 
 async fn request_permission(
@@ -193,9 +215,20 @@ fn diff_text(old: &str, new: &str) -> String {
     out
 }
 
+fn record_touched_dir(state: &State<'_, AppState>, session_id: &str, dir: &Path) {
+    state
+        .touched_dirs
+        .lock()
+        .unwrap()
+        .entry(session_id.to_string())
+        .or_default()
+        .insert(dir.to_path_buf());
+}
+
 pub async fn execute_tool(
     app: &AppHandle,
     state: &State<'_, AppState>,
+    session_id: &str,
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
@@ -208,6 +241,9 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_str())
                 .ok_or("missing `path`")?;
             let resolved = commands::resolve_within_root(&root, path)?;
+            if let Some(parent) = resolved.parent() {
+                record_touched_dir(state, session_id, parent);
+            }
             let content = std::fs::read_to_string(&resolved).map_err(|e| e.to_string())?;
 
             let total_lines = content.lines().count();
@@ -244,6 +280,7 @@ pub async fn execute_tool(
         "list_dir" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
             let resolved = commands::resolve_within_root(&root, path)?;
+            record_touched_dir(state, session_id, &resolved);
             let mut lines = vec![];
             for entry in std::fs::read_dir(&resolved).map_err(|e| e.to_string())? {
                 let entry = entry.map_err(|e| e.to_string())?;
@@ -268,6 +305,7 @@ pub async fn execute_tool(
                 .ok_or("missing `pattern`")?;
             let subpath = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
             let search_root = commands::resolve_within_root(&root, subpath)?;
+            record_touched_dir(state, session_id, &search_root);
             let re = Regex::new(pattern).map_err(|e| e.to_string())?;
 
             let mut results = vec![];
@@ -318,6 +356,9 @@ pub async fn execute_tool(
                 .map(fix_literal_escapes)
                 .ok_or("missing `new_string`")?;
             let resolved = commands::resolve_within_root(&root, path)?;
+            if let Some(parent) = resolved.parent() {
+                record_touched_dir(state, session_id, parent);
+            }
             let old_content = std::fs::read_to_string(&resolved).map_err(|e| e.to_string())?;
 
             let occurrences = old_content.matches(&old_string).count();
@@ -353,6 +394,9 @@ pub async fn execute_tool(
                 .map(fix_literal_escapes)
                 .ok_or("missing `content`")?;
             let resolved = commands::resolve_within_root(&root, path)?;
+            if let Some(parent) = resolved.parent() {
+                record_touched_dir(state, session_id, parent);
+            }
             let old_content = std::fs::read_to_string(&resolved).unwrap_or_default();
 
             let detail = diff_text(&old_content, &new_content);
@@ -379,6 +423,38 @@ pub async fn execute_tool(
                 return Ok("The user denied permission to run this command.".into());
             }
             run_shell(command, &root).await
+        }
+        "load_skill" => {
+            let name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `name`")?;
+            let touched: Vec<PathBuf> = state
+                .touched_dirs
+                .lock()
+                .unwrap()
+                .get(session_id)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
+            match context::load_skill_body(&root, &touched, name) {
+                Some(body) => Ok(body),
+                None => {
+                    let available: Vec<String> = context::list_skills(&root, &touched)
+                        .into_iter()
+                        .map(|s| s.name)
+                        .collect();
+                    let hint = if available.is_empty() {
+                        "There are no skills available in this project.".to_string()
+                    } else {
+                        format!("Available skills: {}.", available.join(", "))
+                    };
+                    Ok(format!(
+                        "No skill named `{name}` found. {hint} Tools (read_file, edit_file, write_file, list_dir, grep, shell) are called directly and are never loaded as skills."
+                    ))
+                }
+            }
         }
         other => Err(format!("unknown tool `{other}`")),
     }

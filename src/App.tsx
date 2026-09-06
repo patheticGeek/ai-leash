@@ -10,10 +10,15 @@ import { useAppStore } from "./store";
 function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const restoreLastProject = useAppStore((s) => s.restoreLastProject);
 
   useEffect(() => {
     refreshOllama();
   }, [refreshOllama]);
+
+  useEffect(() => {
+    restoreLastProject();
+  }, [restoreLastProject]);
 
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">

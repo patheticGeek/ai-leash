@@ -6,6 +6,11 @@ export interface DirEntryInfo {
   isDir: boolean;
 }
 
+export interface ModelSummary {
+  name: string;
+  contextLength: number | null;
+}
+
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
@@ -19,5 +24,5 @@ export const api = {
   ptyResize: (id: string, cols: number, rows: number) =>
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
-  listOllamaModels: () => invoke<string[]>("list_ollama_models"),
+  listOllamaModels: () => invoke<ModelSummary[]>("list_ollama_models"),
 };
