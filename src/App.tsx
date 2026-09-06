@@ -15,9 +15,9 @@ function App() {
 
   const [leftBarWidth, onLeftBarResize] = useResizableWidth(
     "ai-leash:leftBarWidth",
-    48,
-    36,
-    120,
+    220,
+    160,
+    400,
     1,
   );
   const [rightPanelWidth, onRightPanelResize] = useResizableWidth(

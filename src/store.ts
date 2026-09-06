@@ -1,13 +1,38 @@
 import { create } from "zustand";
 import { api, type ModelSummary } from "./lib/tauriApi";
 
-const LAST_PROJECT_KEY = "ai-leash:lastProjectRoot";
+const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
 
 interface OpenFile {
   path: string;
   name: string;
   content: string;
   dirty: boolean;
+}
+
+export interface RecentProject {
+  path: string;
+  name: string;
+}
+
+function loadRecentProjects(): RecentProject[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]");
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // fall through to migration below
+  }
+  // One-time migration from the old single-project key (pre-multi-project sidebar).
+  const legacy = localStorage.getItem("ai-leash:lastProjectRoot");
+  if (!legacy) return [];
+  const migrated = [{ path: legacy, name: legacy.split("/").filter(Boolean).pop() ?? legacy }];
+  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(migrated));
+  localStorage.removeItem("ai-leash:lastProjectRoot");
+  return migrated;
+}
+
+function saveRecentProjects(projects: RecentProject[]) {
+  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(projects));
 }
 
 export interface SubAgentTask {
@@ -27,6 +52,11 @@ export interface PanelTab {
   label: string;
 }
 
+interface ConversationPanelState {
+  panelTabs: PanelTab[];
+  activePanelTabId: string | null;
+}
+
 interface AppStore {
   projectRoot: string | null;
   openFiles: OpenFile[];
@@ -36,6 +66,8 @@ interface AppStore {
   subAgentTasks: SubAgentTask[];
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
+  panelStateByConversation: Record<string, ConversationPanelState>;
+  recentProjects: RecentProject[];
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -70,26 +102,78 @@ export const useAppStore = create<AppStore>((set, get) => ({
   subAgentTasks: [],
   panelTabs: [],
   activePanelTabId: null,
+  panelStateByConversation: {},
+  recentProjects: loadRecentProjects(),
 
+  // `root` doubles as the conversation id for now — one conversation per
+  // project, until multiple named conversations per project are wired up.
   openProject: async (root) => {
     await api.setProjectRoot(root);
-    localStorage.setItem(LAST_PROJECT_KEY, root);
-    set({
-      projectRoot: root,
-      openFiles: [],
-      activePath: null,
-      panelTabs: [],
-      activePanelTabId: null,
+    const name = root.split("/").filter(Boolean).pop() ?? root;
+    const prevRoot = get().projectRoot;
+    const prevPanelTabs = get().panelTabs;
+    const prevActivePanelTabId = get().activePanelTabId;
+
+    const restored = get().panelStateByConversation[root];
+    const restoredActiveTab = restored?.panelTabs.find(
+      (t) => t.id === restored.activePanelTabId,
+    );
+
+    set((s) => {
+      const panelStateByConversation = { ...s.panelStateByConversation };
+      if (prevRoot) {
+        panelStateByConversation[prevRoot] = {
+          panelTabs: prevPanelTabs,
+          activePanelTabId: prevActivePanelTabId,
+        };
+      }
+      const recentProjects = [
+        { path: root, name },
+        ...s.recentProjects.filter((p) => p.path !== root),
+      ];
+      saveRecentProjects(recentProjects);
+      return {
+        projectRoot: root,
+        openFiles: [],
+        activePath: restoredActiveTab?.kind === "file" ? (restoredActiveTab.path ?? null) : null,
+        panelTabs: restored?.panelTabs ?? [],
+        activePanelTabId: restored?.activePanelTabId ?? null,
+        panelStateByConversation,
+        recentProjects,
+      };
     });
+
+    // Restored file tabs need their content re-read from disk (fresh, not
+    // carried over — the old content was dropped when this project's tabs
+    // were snapshotted). A file that's since been deleted just loses its tab.
+    const fileTabs = (restored?.panelTabs ?? []).filter(
+      (t): t is PanelTab & { path: string } => t.kind === "file" && !!t.path,
+    );
+    for (const tab of fileTabs) {
+      try {
+        const content = await api.readFileText(tab.path);
+        set((s) => ({
+          openFiles: s.openFiles.some((f) => f.path === tab.path)
+            ? s.openFiles
+            : [...s.openFiles, { path: tab.path, name: tab.label, content, dirty: false }],
+        }));
+      } catch {
+        get().closePanelTab(tab.id);
+      }
+    }
   },
 
   restoreLastProject: async () => {
-    const last = localStorage.getItem(LAST_PROJECT_KEY);
+    const last = get().recentProjects[0];
     if (!last) return;
     try {
-      await get().openProject(last);
+      await get().openProject(last.path);
     } catch {
-      localStorage.removeItem(LAST_PROJECT_KEY);
+      set((s) => {
+        const recentProjects = s.recentProjects.filter((p) => p.path !== last.path);
+        saveRecentProjects(recentProjects);
+        return { recentProjects };
+      });
     }
   },
 
