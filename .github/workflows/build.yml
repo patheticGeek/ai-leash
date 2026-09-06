@@ -33,28 +33,34 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libxdo-dev
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build frontend
-        run: npm run build
-
-      - name: Build backend
-        run: npm run tauri
-
       - name: Bundle macOS dmg
         if: runner.os == 'macOS'
-        run: npx tauri build --bundle dmg
+        run: npx tauri build --bundles dmg
 
       - name: Bundle Linux AppImage
         if: runner.os == 'Linux'
-        run: npx tauri build --bundle AppImage
+        run: npx tauri build --bundles appimage
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -63,3 +69,4 @@ jobs:
           path: |
             src-tauri/target/release/bundle/dmg
             src-tauri/target/release/bundle/appimage
+          if-no-files-found: ignore
