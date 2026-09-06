@@ -18,7 +18,7 @@ Support` on macOS, `%APPDATA%` on Windows) joined with `ai-leash/`:
 
 | Source | Project path | Global path |
 |---|---|---|
-| Project instructions | `<project root>/AGENTS.md`, plus `<any touched subdir>/AGENTS.md` | — (no global equivalent) |
+| Instructions | `<project root>/AGENTS.md`, plus `<any touched subdir>/AGENTS.md` | `<config dir>/ai-leash/AGENTS.md` |
 | Memory | `<project root>/.ai-leash/memory/MEMORY.md` | `<config dir>/ai-leash/memory/MEMORY.md` |
 | Skills | `<project root>/.skills/*.md`, plus `<any touched subdir>/.skills/*.md` | `<config dir>/ai-leash/skills/*.md` |
 
@@ -40,7 +40,14 @@ way to add to it today.
 
 ## AGENTS.md
 
-The root `<project>/AGENTS.md` always applies. On top of that,
+A global `<config dir>/ai-leash/AGENTS.md` applies to **every**
+project, if present — this is the place to ship default persona/system
+instructions that should hold regardless of which folder is open, since
+there's no project involved in reading it (`context::global_agents_md`,
+checked first, labeled `# Global instructions (AGENTS.md)` in the
+prompt, ahead of any project-level section).
+
+The root `<project>/AGENTS.md` always applies too. On top of that,
 **directory-scoped** `AGENTS.md` files are supported: if the agent has
 used a tool (`read_file`/`edit_file`/`write_file`/`list_dir`/`grep`) on
 a path under some subdirectory, an `AGENTS.md` in that subdirectory (or

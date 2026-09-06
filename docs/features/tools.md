@@ -16,6 +16,7 @@ name.
 | `grep` | `pattern` (regex), `path?` | No | Walks with the `ignore` crate, so it respects `.gitignore`. |
 | `shell` | `command` | Yes (`shell`) | Runs via `sh -c`, capped at 30s. |
 | `load_skill` | `name` | No | Fetches a skill's full body — see [context-and-memory.md](./context-and-memory.md). Only offered to the model at all when the project actually has at least one discoverable skill. |
+| `task` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents, run concurrently when there's more than one entry — see [agent-chat.md](./agent-chat.md#sub-agents-the-task-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
 
 All string arguments pulled from tool calls pass through
 `fix_literal_escapes()` first: if a string has **zero** real newline

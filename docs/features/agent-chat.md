@@ -51,6 +51,70 @@ open chat session takes effect on the very next message, instead of
 only affecting sessions started after the edit. If none of AGENTS.md,
 memory, or skills have anything, no system message is present at all.
 
+## Sub-agents (the `task` tool)
+
+The main agent can delegate one or more self-contained chunks of work
+to isolated sub-agents via the `task` tool (`{tasks: [{description,
+prompt}, ...]}`, defined in `tools.rs`, each spawned via
+`chat::run_sub_agent`):
+
+- **Multiple entries in `tasks` run concurrently**, not one at a time —
+  `execute_tool`'s `"task"` arm builds one async job per entry and
+  drives them all with `futures_util::future::join_all`, so several
+  sub-agents are genuinely in flight together (their Ollama requests
+  overlap in wall-clock time; true parallelism vs. interleaved
+  single-threaded concurrency depends on whether the local Ollama
+  server itself processes requests in parallel). The whole `task` call
+  only resolves once every entry has finished. There's no separate
+  "planning" step deciding whether to split — it's the same single
+  model turn as always, just with a tool schema that lets one call
+  request several subtasks when the request actually has independent
+  parts (the tool description tells the model exactly when to do that
+  vs. just handling something directly).
+- Each sub-agent gets a **fresh history** — just its own `prompt` as
+  its first user message, nothing from the parent conversation or from
+  sibling subtasks in the same `task` call. Each has the same tool set
+  as the parent **except `task` itself**, so nesting is capped at one
+  level deep (a sub-agent can't spawn its own sub-agents).
+- Each runs on its own `sub_session_id` (`{parent_session_id}::task::{uuid}`)
+  with its own `chat://{sub_session_id}/...` event stream — the same
+  event names (`chunk`, `thinking`, `tool_call`, `tool_result`) as a
+  top-level session, just under a different id. `tools.rs` emits one
+  `chat://{parent_session_id}/subtask_start` event **per subtask**,
+  carrying `{callId, subSessionId, description}` (all subtasks from the
+  same `task` call share the same `callId`) so the frontend knows which
+  parent tool-call entry to nest each subtask's stream under, and can
+  tell multiple concurrent subtasks apart by `subSessionId`.
+- All sub-agents from one `task` call **share the parent's cancellation
+  flag** (`Arc<AtomicBool>`) rather than each getting its own —
+  stopping the parent stops every sub-agent it's running.
+- Each sub-agent's `AGENTS.md`/skills/touched-directory scoping is
+  attached to the **parent's** session id, not its own — directories
+  any of them read or edit count toward the parent's scoping (see
+  [context-and-memory.md](./context-and-memory.md)), since they're all
+  doing work on the parent's behalf within the same project.
+- Only each sub-agent's **final assistant message** feeds back — once
+  every entry in `tasks` has finished, their results are combined into
+  one string (`## {description}\n\n{result}` per subtask, joined) that
+  becomes the single `task` tool call's result in the parent's history.
+  None of their intermediate thinking/tool-calls ever enter the
+  parent's context, only the UI sees them (nested, collapsed by default
+  under the `task` tool-call entry, one labeled thread per subtask).
+  Each sub-agent's history is discarded (`chat_sessions.remove`) once
+  it finishes, so long sessions with many subtasks don't accumulate
+  unbounded state.
+- `run_agent_loop` calling into `execute_tool` calling into
+  `run_sub_agent` calling back into `run_agent_loop` is a genuine
+  recursive `async fn` cycle; the recursive call in `run_sub_agent` is
+  wrapped in `Box::pin(...)` to give it a finite size, since Rust can't
+  otherwise compute the size of a self-referential future type.
+
+Unlike `load_skill` (gated on whether any skill exists), `task` is
+always offered to a top-level session. What excludes it is an
+`allow_subtasks: bool` threaded through `run_agent_loop` →
+`stream_one_turn` → `tool_definitions`, set to `false` specifically when
+running a sub-agent's own loop.
+
 ## The agent loop (`run_agent_loop`)
 
 For a given `session_id`/`model`, in a loop capped at
@@ -133,6 +197,22 @@ existing last one. The frontend only shows the retry button on the
 *last* rendered message, since retrying anything earlier isn't a
 well-defined operation with this truncate-and-regenerate approach.
 
+### Context usage tracking
+
+Ollama's final streamed chunk for a turn (the one with `done: true`)
+includes `prompt_eval_count` and `eval_count` — the number of prompt
+and generated tokens for that request. `stream_one_turn` captures both
+and `run_agent_loop` emits them on `chat://{id}/usage` as
+`{promptTokens, completionTokens}` after every turn. The frontend adds
+them together and compares against the selected model's
+`context_length` (from `/api/tags`' `details.context_length`, surfaced
+through `list_ollama_models` as `ModelSummary.contextLength`) to show a
+percentage — see the ring indicator in `ChatPanel.tsx`. This is a
+per-turn snapshot, not a running total across the whole conversation,
+but since the full history is resent every turn, `prompt_eval_count`
+already reflects however much of the conversation Ollama had to
+process for that request.
+
 ## Frontend rendering (`ChatPanel.tsx`)
 
 The UI keeps its own `entries: Entry[]` array, derived by listening to
@@ -145,9 +225,17 @@ history:
 - `ThinkingEntry` — `{ content, done }`, accumulated from `thinking`
   events, finalized (`done: true`) as soon as a `chunk` or `tool_call`
   event arrives.
-- `ToolEntry` — `{ callId, name, args, result? }`, created on `tool_call`
-  and filled in on the matching `tool_result` (matched by the tool
-  call's `id`, stringified).
+- `ToolEntry` — `{ callId, name, args, result?, subtasks? }`, created
+  on `tool_call` and filled in on the matching `tool_result` (matched by
+  the tool call's `id`, stringified). For a `task` call, `subtasks` is
+  an array of `{ subSessionId, description, entries: Entry[] }` — one
+  entry per concurrently spawned subtask, added on that subtask's
+  `subtask_start` event and filled in by its own event stream (see
+  "Sub-agents" above). The same accumulation logic
+  (`appendThinking`/`appendChunk`/`appendToolCall`/`applyToolResult`) is
+  reused for the top-level `entries` array and for each subtask's
+  `entries`, via `updateSubtaskThread` locating the right `ToolEntry` by
+  `callId` and the right subtask within it by `subSessionId`.
 
 Both `thinking` and `tool` entries render collapsed by default with a
 chevron toggle; the collapsed tool row shows `name` plus a
