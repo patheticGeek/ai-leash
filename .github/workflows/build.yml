@@ -62,6 +62,31 @@ jobs:
         if: runner.os == 'Linux'
         run: npx tauri build --bundles appimage
 
+      # linuxdeploy-plugin-gtk bundles its own libwayland-* to be portable
+      # across distros, but that bundled libwayland-egl.so.1 is ABI-mismatched
+      # with some hosts' real Mesa/EGL stack (reproduced on CachyOS/Wayland),
+      # causing WebKitGTK to abort with "Could not create default EGL display:
+      # EGL_BAD_PARAMETER" even though GDK itself is forced to X11 already.
+      # Stripping the bundled wayland libs makes it fall back to the host's
+      # own (ABI-matching) ones, then repack the AppImage.
+      - name: Strip conflicting bundled Wayland libs from AppImage
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          cd src-tauri/target/release/bundle/appimage
+          APPIMAGE_FILE=$(ls *.AppImage)
+          chmod +x "$APPIMAGE_FILE"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./"$APPIMAGE_FILE" --appimage-extract >/dev/null
+          rm -f squashfs-root/usr/lib/libwayland-client.so.0 \
+                squashfs-root/usr/lib/libwayland-cursor.so.0 \
+                squashfs-root/usr/lib/libwayland-egl.so.1 \
+                squashfs-root/usr/lib/libwayland-server.so.0
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          rm -f "$APPIMAGE_FILE"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool squashfs-root "$APPIMAGE_FILE"
+          rm -rf squashfs-root appimagetool
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
