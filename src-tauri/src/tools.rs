@@ -159,8 +159,8 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_sub
             arr.push(json!({
                 "type": "function",
                 "function": {
-                    "name": "task",
-                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except task itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. You will only see each subtask's final result, not its intermediate steps.",
+                    "name": "spawn_sub_agent",
+                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except spawn_sub_agent itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. You will only see each subtask's final result, not its intermediate steps.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -466,8 +466,8 @@ pub async fn execute_tool(
             }
             run_shell(command, &root).await
         }
-        "task" => {
-            const TASK_SHAPE_HINT: &str = "Each entry in `tasks` must be an object with exactly two string fields: `description` (a short label) and `prompt` (full self-contained instructions for the sub-agent). Example: {\"tasks\": [{\"description\": \"count rs files\", \"prompt\": \"Count how many .rs files exist in the project and report the number.\"}]}. Retry the `task` call with that exact shape.";
+        "spawn_sub_agent" => {
+            const TASK_SHAPE_HINT: &str = "Each entry in `tasks` must be an object with exactly two string fields: `description` (a short label) and `prompt` (full self-contained instructions for the sub-agent). Example: {\"tasks\": [{\"description\": \"count rs files\", \"prompt\": \"Count how many .rs files exist in the project and report the number.\"}]}. Retry the `spawn_sub_agent` call with that exact shape.";
 
             let tasks = args
                 .get("tasks")
@@ -511,7 +511,7 @@ pub async fn execute_tool(
                         label
                     }
                 });
-                let sub_session_id = format!("{session_id}::task::{}", Uuid::new_v4());
+                let sub_session_id = format!("{session_id}::spawn_sub_agent::{}", Uuid::new_v4());
 
                 let _ = app.emit(
                     &format!("chat://{session_id}/subtask_start"),

@@ -126,19 +126,20 @@ pub async fn send_prompt(
     run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await
 }
 
-/// Runs an isolated sub-agent for the `task` tool: its own fresh history
-/// (just the given prompt) and its own `chat://{sub_session_id}/...` event
-/// stream, so the UI can render it as a nested thread under the parent's
-/// `task` tool call. It shares the parent's cancellation flag (stopping the
-/// parent stops any sub-agent it spawned) and scopes AGENTS.md/skills/
-/// touched-directory tracking to the *parent* session, so work the sub-agent
-/// does still counts toward the parent's directory scoping. It cannot itself
-/// call `task` — sub-agents are capped at one level deep.
+/// Runs an isolated sub-agent for the `spawn_sub_agent` tool: its own fresh
+/// history (just the given prompt) and its own `chat://{sub_session_id}/...`
+/// event stream, so the UI can render it as a nested thread under the
+/// parent's `spawn_sub_agent` tool call. It shares the parent's cancellation
+/// flag (stopping the parent stops any sub-agent it spawned) and scopes
+/// AGENTS.md/skills/touched-directory tracking to the *parent* session, so
+/// work the sub-agent does still counts toward the parent's directory
+/// scoping. It cannot itself call `spawn_sub_agent` — sub-agents are capped
+/// at one level deep.
 ///
 /// This is a plain `fn` returning a boxed, type-erased future rather than an
 /// `async fn` on purpose: `run_agent_loop` calls `execute_tool` which (for
-/// the `task` tool) calls back into `run_sub_agent`, a genuine cycle in the
-/// call graph. An `async fn`'s return type is an opaque type inferred from
+/// the `spawn_sub_agent` tool) calls back into `run_sub_agent`, a genuine
+/// cycle in the call graph. An `async fn`'s return type is an opaque type inferred from
 /// its body, and rustc can't resolve that inference through a structural
 /// cycle (`error[E0391]: cycle detected when computing type of opaque`) even
 /// with `Box::pin` at the call site — boxing there only fixes the infinite
@@ -198,7 +199,7 @@ pub fn run_sub_agent<'a>(
     })
 }
 
-/// Called from a detached background task (see the `task` tool's `"each"`
+/// Called from a detached background task (see the `spawn_sub_agent` tool's `"each"`
 /// interrupt mode in `tools.rs`) once one of several concurrently-spawned
 /// subtasks finishes *after* the turn that launched them has already
 /// returned. Injects that subtask's result into the session's history as if
@@ -208,7 +209,7 @@ pub fn run_sub_agent<'a>(
 /// this from racing a real `send_prompt`/`retry_last` call or another
 /// subtask's resume happening at the same time.
 /// Same reasoning as `run_sub_agent`'s doc comment: this closes a second
-/// recursive cycle (`execute_tool`'s `task` arm spawns a task that calls this,
+/// recursive cycle (`execute_tool`'s `spawn_sub_agent` arm spawns a task that calls this,
 /// which calls `run_with_cancellation` -> `run_agent_loop` -> `execute_tool`
 /// again), so it needs the same explicit boxed-future signature rather than
 /// being a plain `async fn`.

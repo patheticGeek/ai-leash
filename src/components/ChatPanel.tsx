@@ -281,11 +281,11 @@ export default function ChatPanel() {
       }),
     );
 
-    // A `task` tool call spawns an isolated sub-agent with its own
+    // A `spawn_sub_agent` tool call spawns an isolated sub-agent with its own
     // chat://{subSessionId}/... event stream, one per concurrently spawned
-    // subtask (a single `task` call can request several). Subscribe to each
-    // stream dynamically and fold its updates into that subtask's own
-    // thread, nested under the parent tool call once expanded.
+    // subtask (a single `spawn_sub_agent` call can request several).
+    // Subscribe to each stream dynamically and fold its updates into that
+    // subtask's own thread, nested under the parent tool call once expanded.
     unlistens.push(
       listen<SubtaskStartPayload>(`chat://${sessionId}/subtask_start`, (e) => {
         const { subSessionId, description } = e.payload;
