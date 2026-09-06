@@ -608,6 +608,9 @@ export default function ChatPanel() {
               </button>
               {expanded && (
                 <div className="mt-1 pl-4">
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
+                    {JSON.stringify(entry.args, null, 2)}
+                  </pre>
                   {entry.subtasks && entry.subtasks.length > 0 && (
                     <div className="mt-1.5 space-y-2">
                       {entry.subtasks.map((t) => (
