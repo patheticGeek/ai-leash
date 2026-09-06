@@ -2,17 +2,58 @@
 
 ## Layout (`App.tsx`)
 
-Fixed three-pane layout, no resizable dividers yet:
+Three resizable regions, left to right — chat is the primary, central
+surface; everything else (file tree, file editing, terminals, sub-agent
+monitoring) lives in a multi-tab panel on the right:
 
 ```
-+----------+---------------------------+------------------+
-| Sidebar  |  EditorArea (flex-[3])    |                  |
-| (w-56)   +---------------------------+  ChatPanel       |
-|          |  TerminalPanel (flex-[2]) |  (w-96)          |
-+----------+---------------------------+------------------+
-|                    StatusBar                             |
-+------------------------------------------------------------+
++------+---------------------------------+------------------------+
+| Left |                                 |  SidePanel tab strip   |
+| Bar  |          ChatPanel              |  (Files / Terminal 1 / |
+| empty|          (flex-1)               |   Sub Agents / ...) +  |
+|      |                                 |  active tab's content  |
++------+---------------------------------+------------------------+
+|                         StatusBar                                 |
++---------------------------------------------------------------------+
 ```
+
+- `LeftBar.tsx` is intentionally empty for now — a placeholder strip
+  reserved for a future icon-based activity bar.
+- `ChatPanel` is the main, central column (no fixed width) — it no
+  longer lives in a right-hand sidebar.
+- `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
+  fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
+  `activePanelTabId` track an arbitrary number of simultaneously open
+  tabs of kind `filetree` | `subagents` | `terminal` | `file`.
+  - `filetree` and `subagents` are singletons — opening one twice just
+    activates the existing tab (id equals the kind itself).
+  - `terminal` tabs are never deduped — each open creates a new
+    `TerminalPanel` instance (own pty), id
+    `` terminal:${crypto.randomUUID()} ``, labeled `Terminal N`.
+  - `file` tabs are deduped by path (id `` file:${path} ``) and driven
+    by the existing `openFiles`/`activePath` state — `store.openFile`
+    both loads the file's content (if not already loaded) and calls
+    `openPanelTab("file", ...)` to add/focus its tab. Closing a file
+    tab (`closePanelTab`) also drops it from `openFiles`.
+  - When `panelTabs` is empty, or the tab strip's `+` button is
+    clicked, `SidePanel` shows `TabPicker.tsx` — a grid of tiles (one
+    per non-file kind) instead of tab content. Picking a tile calls
+    `openPanelTab` and hides the picker. Git-diff and an embedded
+    browser are planned additions to this same grid in milestone 8.
+  - All currently-open `terminal` tabs stay mounted (hidden via CSS,
+    not unmounted) regardless of which tab is active, so their pty
+    sessions and scrollback survive switching away; `filetree`,
+    `subagents`, and `file` content is cheap to remount from store
+    state, so only the active one is rendered.
+  - `FileEditorTab.tsx` (replacing the old `EditorArea.tsx`) renders
+    just the CodeMirror view for the currently active file — no
+    internal per-file tab strip of its own, since the outer
+    `SidePanel` tab strip already covers that.
+- `LeftBar` and `SidePanel` widths are drag-resizable via
+  `ResizeHandle.tsx` + the `useResizableWidth` hook
+  (`src/hooks/useResizableWidth.ts`), which persists each width to
+  `localStorage` (`ai-leash:leftBarWidth`, `ai-leash:rightPanelWidth`).
+  Chat fills whatever space remains between them.
 
 `PermissionModal` is mounted at the top of `App.tsx` as a fixed overlay
 (`fixed inset-0 z-50`) — it renders `null` when there's no pending

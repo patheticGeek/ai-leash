@@ -33,12 +33,10 @@ function languageFor(name: string): Extension {
   }
 }
 
-export default function EditorArea() {
+export default function FileEditorTab() {
   const openFiles = useAppStore((s) => s.openFiles);
   const activePath = useAppStore((s) => s.activePath);
-  const setActive = useAppStore((s) => s.setActive);
   const updateContent = useAppStore((s) => s.updateContent);
-  const closeFile = useAppStore((s) => s.closeFile);
   const saveActive = useAppStore((s) => s.saveActive);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,40 +84,7 @@ export default function EditorArea() {
     return () => window.removeEventListener("keydown", onKey);
   }, [saveActive]);
 
-  return (
-    <div className="flex h-full flex-col bg-[#101114]">
-      <div className="flex h-9 items-center border-b border-[#26272c] bg-[#0b0c0e] overflow-x-auto">
-        {openFiles.map((f) => (
-          <div
-            key={f.path}
-            onClick={() => setActive(f.path)}
-            className={`flex h-full shrink-0 items-center gap-2 border-r border-[#26272c] px-3 text-sm cursor-default ${
-              f.path === activePath
-                ? "bg-[#101114] text-zinc-100"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            <span>{f.name}</span>
-            {f.dirty && <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />}
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                closeFile(f.path);
-              }}
-              className="text-zinc-600 hover:text-zinc-300"
-            >
-              ×
-            </span>
-          </div>
-        ))}
-      </div>
-      {activeFile ? (
-        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
-      ) : (
-        <div className="flex-1 flex items-center justify-center text-zinc-600 text-sm">
-          Open a file from the sidebar to start editing
-        </div>
-      )}
-    </div>
-  );
+  if (!activeFile) return null;
+
+  return <div ref={containerRef} className="h-full min-h-0 overflow-hidden bg-[#101114]" />;
 }

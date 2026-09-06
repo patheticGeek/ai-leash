@@ -56,7 +56,7 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
   );
 }
 
-export default function Sidebar() {
+export default function FileTree() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const openProject = useAppStore((s) => s.openProject);
   const [rootEntries, setRootEntries] = useState<DirEntryInfo[]>([]);
@@ -85,10 +85,10 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
+    <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 py-2">
         <span className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
-          Explorer
+          {projectRoot ? (projectRoot.split("/").filter(Boolean).pop() ?? "Explorer") : "Explorer"}
         </span>
         {projectRoot && (
           <button

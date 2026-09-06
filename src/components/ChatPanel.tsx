@@ -258,6 +258,8 @@ export default function ChatPanel() {
   const models = useAppStore((s) => s.ollamaModels);
   const ollamaConnected = useAppStore((s) => s.ollamaConnected);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
+  const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const [model, setModel] = useState("");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
@@ -357,7 +359,18 @@ export default function ChatPanel() {
         const callId = String(e.payload.callId);
 
         setEntries((prev) => addSubtaskThread(prev, callId, subSessionId, description));
+        startSubAgentTask({ subSessionId, parentSessionId: sessionId, description });
 
+        unlistens.push(
+          listen(`chat://${subSessionId}/done`, () => {
+            finishSubAgentTask(subSessionId, "done");
+          }),
+        );
+        unlistens.push(
+          listen(`chat://${subSessionId}/error`, () => {
+            finishSubAgentTask(subSessionId, "error");
+          }),
+        );
         unlistens.push(
           listen<string>(`chat://${subSessionId}/thinking`, (ev) => {
             setEntries((prev) =>
@@ -400,7 +413,7 @@ export default function ChatPanel() {
     return () => {
       unlistens.forEach((u) => u.then((f) => f()));
     };
-  }, [sessionId]);
+  }, [sessionId, startSubAgentTask, finishSubAgentTask]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
