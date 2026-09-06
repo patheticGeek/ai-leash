@@ -1,3 +1,5 @@
+import type { PersistedMessage } from "./tauriApi";
+
 export interface TextEntry {
   kind: "text";
   role: "user" | "assistant";
@@ -85,4 +87,53 @@ export function applyToolResult(prev: Entry[], payload: ToolResultPayload): Entr
 
 export function isToolError(result: string | undefined): boolean {
   return result !== undefined && result.startsWith("Error:");
+}
+
+function isPendingTool(e: Entry): e is Extract<Entry, { kind: "tool" }> {
+  return e.kind === "tool" && e.result === undefined;
+}
+
+// Rebuilds a display `Entry[]` from persisted, whole (non-streamed) messages
+// loaded from disk — used once, on mount, to hydrate a conversation's
+// history rather than replaying it live event-by-event. `thinking` deltas
+// are never persisted (see `PersistedMessage`), so reloaded history never
+// has them, same as it never did across an app restart before persistence
+// existed. A `tool`-role message doesn't carry which call it answers
+// (Ollama's own history shape doesn't need that, since messages are always
+// sent back in order) — matched positionally here against the earliest
+// still-unfilled `tool` entry, same assumption the backend already relies
+// on when replaying history to Ollama.
+export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
+  const entries: Entry[] = [];
+  for (const message of messages) {
+    if (message.role === "user") {
+      entries.push({
+        kind: "text",
+        role: "user",
+        content: message.content,
+        time: message.createdAt * 1000,
+      });
+    } else if (message.role === "assistant") {
+      if (message.content) {
+        entries.push({
+          kind: "text",
+          role: "assistant",
+          content: message.content,
+          time: message.createdAt * 1000,
+        });
+      }
+      for (const call of message.toolCalls ?? []) {
+        entries.push({
+          kind: "tool",
+          callId: String(call.id),
+          name: call.function.name,
+          args: call.function.arguments,
+        });
+      }
+    } else if (message.role === "tool") {
+      const pending = entries.find(isPendingTool);
+      if (pending) pending.result = message.content;
+    }
+  }
+  return entries;
 }

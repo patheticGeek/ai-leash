@@ -38,6 +38,7 @@ anyhow = "1"
 regex = "1"
 similar = "2"
 notify = "8.2.0"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

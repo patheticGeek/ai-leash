@@ -11,6 +11,18 @@ export interface ModelSummary {
   contextLength: number | null;
 }
 
+export interface PersistedToolCall {
+  id: string | null;
+  function: { name: string; arguments: unknown };
+}
+
+export interface PersistedMessage {
+  role: string;
+  content: string;
+  toolCalls: PersistedToolCall[] | null;
+  createdAt: number;
+}
+
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
@@ -25,4 +37,6 @@ export const api = {
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
   listOllamaModels: () => invoke<ModelSummary[]>("list_ollama_models"),
+  loadConversationHistory: (sessionId: string) =>
+    invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
 };

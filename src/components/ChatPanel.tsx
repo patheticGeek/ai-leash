@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
+import { api } from "../lib/tauriApi";
 import {
   type Entry,
   type ToolCallPayload,
@@ -11,6 +12,7 @@ import {
   appendToolCall,
   applyToolResult,
   isToolError,
+  messagesToEntries,
 } from "../lib/chatEntries";
 
 interface SubtaskThread {
@@ -184,7 +186,12 @@ const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
 
 export default function ChatPanel() {
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const projectRoot = useAppStore((s) => s.projectRoot);
+  // A project's conversation id is its own path — stable across app
+  // restarts (so `load_conversation_history` can find it again), one
+  // conversation per project for now. `CenterPanel` remounts `ChatPanel`
+  // whenever `projectRoot` changes, so this only ever runs once per project.
+  const [sessionId] = useState(() => projectRoot ?? crypto.randomUUID());
   const models = useAppStore((s) => s.ollamaModels);
   const ollamaConnected = useAppStore((s) => s.ollamaConnected);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
@@ -206,6 +213,17 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    api.loadConversationHistory(sessionId).then((messages) => {
+      const loaded = messagesToEntries(messages);
+      if (loaded.length === 0) return;
+      // Guards against clobbering a live event that already arrived while
+      // this load was in flight (shouldn't happen in practice — nothing can
+      // send a message before the UI has mounted — but it's a cheap check).
+      setEntries((prev) => (prev.length === 0 ? loaded : prev));
+    });
+  }, [sessionId]);
 
   useEffect(() => {
     refreshOllama();

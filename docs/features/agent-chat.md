@@ -22,14 +22,19 @@ plan (multi-provider milestone), not implemented.
 
 ## Session model
 
-Each mount of `ChatPanel` generates a fresh `sessionId`
-(`crypto.randomUUID()`), and `App.tsx` remounts `ChatPanel` (via
-`key={projectRoot}`) whenever the open folder changes, so switching
-projects starts a brand-new session. Session history lives entirely on
-the Rust side in `AppState.chat_sessions: Mutex<HashMap<String,
-Vec<ChatMessage>>>` — the frontend never holds the canonical message
-list, only a rendering-friendly derived view (see "Frontend rendering"
-below).
+`ChatPanel`'s `sessionId` is `projectRoot ?? crypto.randomUUID()` —
+stable across app restarts as long as you're reopening the same
+project, so it doubles as that project's conversation id for
+[persistence](./conversation-history.md). `CenterPanel` remounts
+`ChatPanel` (via `key={projectRoot}`) whenever the open project
+changes, so this only evaluates once per project per app run; without
+a project open it falls back to a fresh random id each time (there's
+nothing stable to key by, and nothing gets persisted either way).
+Session history lives entirely on the Rust side in
+`AppState.chat_sessions: Mutex<HashMap<String, Vec<ChatMessage>>>` —
+the frontend never holds the canonical message list, only a
+rendering-friendly derived view (see "Frontend rendering" below) —
+plus, now, on disk in SQLite once a project is open.
 
 `ChatMessage` (`chat.rs`) is `{ role, content, tool_calls? }`, matching
 Ollama's chat message shape directly (roles used: `system`, `user`,

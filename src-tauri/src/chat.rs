@@ -1,5 +1,6 @@
 use crate::commands;
 use crate::context;
+use crate::db::{self, PersistedMessage};
 use crate::state::AppState;
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
@@ -531,6 +532,11 @@ fn touched_dirs_for(state: &State<'_, AppState>, session_id: &str) -> Vec<std::p
 }
 
 fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
+    if db::is_persistable(session_id) {
+        if let Ok(root) = commands::get_root_path(state.inner()) {
+            db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);
+        }
+    }
     state
         .chat_sessions
         .lock()
@@ -538,6 +544,47 @@ fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMess
         .entry(session_id.to_string())
         .or_default()
         .push(message);
+}
+
+/// Hydrates `session_id`'s in-memory history from disk the first time it's
+/// asked for in this run (e.g. reopening a project after an app restart —
+/// see `panelStateByConversation`/`CenterPanel.tsx` on the frontend for how
+/// `session_id` ends up equal to the project's path), and returns it either
+/// way so the frontend can render it. Once a session has any in-memory
+/// history — including a session that's simply never been persisted, like a
+/// sub-agent's — this returns that as-is rather than re-reading disk.
+#[tauri::command]
+pub fn load_conversation_history(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<PersistedMessage>, String> {
+    let mut sessions = state.chat_sessions.lock().unwrap();
+    if let Some(existing) = sessions.get(&session_id) {
+        return Ok(existing
+            .iter()
+            .filter(|m| m.role != "system")
+            .map(|m| PersistedMessage {
+                role: m.role.clone(),
+                content: m.content.clone(),
+                tool_calls: m.tool_calls.clone(),
+                created_at: 0,
+            })
+            .collect());
+    }
+
+    let messages = db::load_messages(&state.db, &session_id);
+    sessions.insert(
+        session_id,
+        messages
+            .iter()
+            .map(|m| ChatMessage {
+                role: m.role.clone(),
+                content: m.content.clone(),
+                tool_calls: m.tool_calls.clone(),
+            })
+            .collect(),
+    );
+    Ok(messages)
 }
 
 #[allow(clippy::too_many_arguments)]

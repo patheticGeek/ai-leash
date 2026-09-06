@@ -1,4 +1,5 @@
 use crate::chat::ChatMessage;
+use crate::db::Db;
 use crate::pty::PtyHandle;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -26,4 +27,6 @@ pub struct AppState {
     /// Replacing it (opening a different folder) drops the old one, which
     /// stops it automatically.
     pub fs_watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    /// SQLite-backed conversation history — see `db.rs`.
+    pub db: Db,
 }

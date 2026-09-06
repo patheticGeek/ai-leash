@@ -1,6 +1,7 @@
 mod chat;
 mod commands;
 mod context;
+mod db;
 mod pty;
 mod state;
 mod tools;
@@ -27,6 +28,7 @@ pub fn run() {
             chat::send_prompt,
             chat::retry_last,
             chat::cancel_prompt,
+            chat::load_conversation_history,
             tools::respond_permission,
         ])
         .run(tauri::generate_context!())

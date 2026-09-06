@@ -9,6 +9,7 @@ This directory documents each feature area as it exists today:
 - [Editor & file tree](./editor.md)
 - [Terminal](./terminal.md)
 - [Agent chat runtime](./agent-chat.md)
+- [Conversation history (SQLite)](./conversation-history.md)
 - [Default tools & permissions](./tools.md)
 - [AGENTS.md, memory & skills](./context-and-memory.md)
 - [UI shell & theme](./ui-shell.md)
@@ -19,23 +20,32 @@ Source layout, for reference while reading these docs:
 src-tauri/src/
   main.rs        entry point
   lib.rs         Tauri app builder, command registration
-  state.rs       shared AppState (project root, ptys, chat sessions, permissions, cancellations)
+  state.rs       shared AppState (project root, ptys, chat sessions, permissions, cancellations, db)
   commands.rs    project/fs Tauri commands, path-containment helper
   pty.rs         PTY-backed terminal commands
   chat.rs        Ollama-backed agent loop, streaming, tool dispatch
   tools.rs       default tool definitions + execution + permission requests
   context.rs     AGENTS.md / memory / skills loading
+  db.rs          SQLite-backed conversation history (save/load, schema)
 
 src/
-  App.tsx                     layout composition
-  store.ts                    zustand store (project root, open files, ollama status)
-  lib/tauriApi.ts             typed wrappers around Tauri invoke
-  components/Sidebar.tsx      file tree + open-folder
-  components/EditorArea.tsx   CodeMirror editor + tabs
-  components/TerminalPanel.tsx  xterm.js terminal
-  components/ChatPanel.tsx    agent chat UI
-  components/PermissionModal.tsx  shell/edit approval dialog
-  components/StatusBar.tsx    project name + ollama status
+  App.tsx                          layout composition, resizable regions
+  store.ts                         zustand store (project root, panel tabs, chat tabs, sub-agents, ollama status)
+  lib/tauriApi.ts                  typed wrappers around Tauri invoke
+  lib/chatEntries.ts               shared chat entry types + accumulation/replay helpers
+  hooks/useResizableWidth.ts       drag-resize width hook (persists to localStorage)
+  components/LeftBar.tsx           project switcher (logo, + to open, recent projects)
+  components/SidePanel.tsx         multi-tab right panel (file tree / files / terminals / sub agents)
+  components/FileTree.tsx          file tree (a SidePanel tab)
+  components/FileEditorTab.tsx     CodeMirror editor (a SidePanel tab)
+  components/TerminalPanel.tsx     xterm.js terminal (a SidePanel tab; one instance per open terminal)
+  components/TabPicker.tsx         "open a tab" tile grid shown when SidePanel has no tabs open
+  components/CenterPanel.tsx       center tab strip (permanent Agent tab + sub-agent tabs)
+  components/ChatPanel.tsx         the primary agent chat UI
+  components/SubAgentChatTab.tsx   read-only sub-agent transcript (a CenterPanel tab)
+  components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
+  components/PermissionModal.tsx   shell/edit approval dialog
+  components/StatusBar.tsx         project name + ollama status
 ```
 
 This is a running build log, not a spec — if behavior in the code
