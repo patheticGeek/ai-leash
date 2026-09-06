@@ -193,6 +193,40 @@ current response finishes — though a tool that's already mid-execution
 (e.g. a running shell command) is not forcibly killed, it's allowed to
 finish.
 
+### `generating` — is a session busy right now?
+
+`run_with_cancellation` also emits `chat://{session_id}/generating` —
+`true` right after inserting the cancellation flag, `false` right after
+removing it — bracketing the exact same span as the cancellation flag's
+lifetime. This is the single choke point for it rather than each call
+site (`send_prompt`, `retry_last`, `resume_after_background_subtask`)
+emitting its own, specifically so a background subtask autonomously
+resuming the conversation — no frontend action triggers that, see
+"Sub-agents" above — still reports the session as busy. Two consumers:
+
+- `ChatPanel.tsx` derives its own `sending` state from
+  `store.generatingSessions[sessionId]` instead of purely local state,
+  so if you switch away from a project mid-turn and back, the newly
+  (re)mounted `ChatPanel` shows the correct busy/idle state immediately
+  from `store.ts`'s current value — rather than defaulting to "idle"
+  and waiting to happen to catch a live event. `send`/`retry`/`stop`
+  still set local state directly too, purely for instant feedback
+  ahead of the backend round-trip.
+- `LeftBar.tsx` is always mounted regardless of which project (if any)
+  is open, and subscribes to this event for every project in
+  `recentProjects` — a blue dot next to a project's name in the
+  sidebar means that project has a turn running in the background,
+  even while you're looking at a different one entirely (see
+  [ui-shell.md](./ui-shell.md)).
+
+Since a `spawn_sub_agent` call blocks the parent's own turn until every
+subtask finishes (or, for `interrupt: "each"`, until just the first
+one does), the parent's `generating` stays `true` for the duration —
+sub-agent sessions themselves never emit `generating` at all
+(`run_sub_agent` calls `run_agent_loop` directly, bypassing
+`run_with_cancellation`), so there's no separate per-sub-agent busy
+indicator, only the parent project's.
+
 ### Retry / regenerate
 
 `retry_last(session_id, model)` pops trailing messages from history

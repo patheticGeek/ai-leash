@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { useAppStore } from "../store";
+import { listen } from "@tauri-apps/api/event";
+import { useAppStore, type RecentProject } from "../store";
 
 function Logo() {
   return (
@@ -27,10 +29,56 @@ function Logo() {
   );
 }
 
+function ProjectRow({
+  project,
+  active,
+  onClick,
+}: {
+  project: RecentProject;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const generating = useAppStore((s) => !!s.generatingSessions[project.path]);
+
+  return (
+    <div
+      onClick={onClick}
+      title={project.path}
+      className={`mx-1.5 mb-0.5 flex items-center gap-2 rounded px-2 py-1.5 text-sm cursor-default ${
+        active ? "bg-white/10 text-zinc-100" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+      }`}
+    >
+      <span className="min-w-0 flex-1 truncate">{project.name}</span>
+      {generating && (
+        <span
+          title="Generating…"
+          className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
+        />
+      )}
+    </div>
+  );
+}
+
 export default function LeftBar() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openProject = useAppStore((s) => s.openProject);
+  const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
+
+  // Always mounted regardless of which project (if any) is currently open,
+  // so a session's `generating` state is tracked even while you're looking
+  // at a different project entirely — see `run_with_cancellation` in
+  // chat.rs, the single place this event is emitted from.
+  useEffect(() => {
+    const unlistens = recentProjects.map((p) =>
+      listen<boolean>(`chat://${p.path}/generating`, (e) => {
+        setSessionGenerating(p.path, e.payload);
+      }),
+    );
+    return () => {
+      unlistens.forEach((u) => u.then((f) => f()));
+    };
+  }, [recentProjects, setSessionGenerating]);
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -56,18 +104,12 @@ export default function LeftBar() {
           <div className="px-3 py-6 text-center text-xs text-zinc-600">No projects yet</div>
         ) : (
           recentProjects.map((p) => (
-            <div
+            <ProjectRow
               key={p.path}
+              project={p}
+              active={p.path === projectRoot}
               onClick={() => openProject(p.path)}
-              title={p.path}
-              className={`mx-1.5 mb-0.5 truncate rounded px-2 py-1.5 text-sm cursor-default ${
-                p.path === projectRoot
-                  ? "bg-white/10 text-zinc-100"
-                  : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-              }`}
-            >
-              {p.name}
-            </div>
+            />
           ))
         )}
       </div>

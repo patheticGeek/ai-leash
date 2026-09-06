@@ -199,12 +199,26 @@ export default function ChatPanel() {
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
+  // Backend-driven, independent of this component's mount lifecycle (see
+  // `run_with_cancellation` in chat.rs and `LeftBar.tsx`'s always-mounted
+  // subscriber) — this is what lets `sending` come back correctly true if
+  // you switch back to a project whose turn kept running while you were
+  // looking at a different one.
+  const generating = useAppStore((s) => !!s.generatingSessions[sessionId]);
   const [model, setModel] = useState("");
   const [entries, setEntries] = useState<PanelEntry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
+  // Initialized from the global (backend-driven) state so a session that's
+  // already generating shows correctly on first paint, not just after the
+  // sync effect below runs. `send`/`retry`/`stop` still set this directly
+  // too, for instant feedback ahead of the round-trip.
+  const [sending, setSending] = useState(() => !!useAppStore.getState().generatingSessions[sessionId]);
+
+  useEffect(() => {
+    setSending(generating);
+  }, [generating]);
   const [ollamaError, setOllamaError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ prompt: number; completion: number } | null>(null);
   const [showUsagePopover, setShowUsagePopover] = useState(false);
@@ -291,11 +305,12 @@ export default function ChatPanel() {
         },
       ),
     );
-    unlistens.push(listen(`chat://${sessionId}/done`, () => setSending(false)));
+    // No `done` handler needed here for `sending` — that's now derived from
+    // the backend-driven `generating` global state (see above), which is
+    // cleared right alongside `done`/`error` in `run_with_cancellation`.
     unlistens.push(
       listen<string>(`chat://${sessionId}/error`, (e) => {
         setOllamaError(e.payload);
-        setSending(false);
       }),
     );
 

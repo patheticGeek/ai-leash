@@ -83,6 +83,11 @@ interface AppStore {
   activeChatTabId: string;
   subAgentThreads: Record<string, Entry[]>;
   recentProjects: RecentProject[];
+  // Which sessions (by session id — a project's own path, for a top-level
+  // conversation) currently have a turn in flight, driven entirely by the
+  // backend's `chat://{sessionId}/generating` event rather than any
+  // frontend action — see `LeftBar.tsx`, the always-mounted subscriber.
+  generatingSessions: Record<string, boolean>;
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -104,6 +109,7 @@ interface AppStore {
   closeChatTab: (id: string) => void;
   setActiveChatTab: (id: string) => void;
   setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
+  setSessionGenerating: (sessionId: string, generating: boolean) => void;
 }
 
 function panelTabIdFor(kind: PanelTabKind, path?: string): string {
@@ -126,6 +132,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeChatTabId: "primary",
   subAgentThreads: {},
   recentProjects: loadRecentProjects(),
+  generatingSessions: {},
 
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
@@ -348,4 +355,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
         [subSessionId]: updater(s.subAgentThreads[subSessionId] ?? []),
       },
     })),
+
+  setSessionGenerating: (sessionId, generating) =>
+    set((s) => {
+      const already = !!s.generatingSessions[sessionId];
+      if (generating === already) return s;
+      const next = { ...s.generatingSessions };
+      if (generating) {
+        next[sessionId] = true;
+      } else {
+        delete next[sessionId];
+      }
+      return { generatingSessions: next };
+    }),
 }));

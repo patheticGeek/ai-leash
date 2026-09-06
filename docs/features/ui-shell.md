@@ -35,6 +35,12 @@ monitoring) lives in a multi-tab panel on the right:
   `restoreLastProject` (called once on app mount) now opens
   `recentProjects[0]` instead of a dedicated last-project key; if that
   path fails to open (e.g. deleted/moved), it's dropped from the list.
+  Each row (`ProjectRow`) shows a small pulsing blue dot next to the
+  name when `store.generatingSessions[path]` is true — since `LeftBar`
+  is always mounted, this reflects a project generating in the
+  background even while you're looking at a different one (see
+  ["generating" in agent-chat.md](./agent-chat.md#generating--is-a-session-busy-right-now)
+  for where that state comes from).
 - `CenterPanel.tsx` is the main, central column (no fixed width, no
   longer lives in a right-hand sidebar) and is itself a small tab
   strip: a permanent, non-closable `Agent` tab (`ChatPanel`, kept
