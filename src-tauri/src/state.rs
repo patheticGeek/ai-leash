@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
+use tokio::sync::Mutex as AsyncMutex;
 
 #[derive(Default)]
 pub struct AppState {
@@ -17,4 +18,12 @@ pub struct AppState {
     /// edit_file, write_file, list_dir, grep), used to scope AGENTS.md/skills
     /// discovery to subfolders the agent is actually working in.
     pub touched_dirs: Mutex<HashMap<String, HashSet<PathBuf>>>,
+    /// One async lock per session, held for the duration of any turn (user-
+    /// initiated or a background subtask's autonomous resume) so the two can
+    /// never run concurrently and interleave writes to the same history.
+    pub session_locks: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
+    /// The active filesystem watcher for the current project root, if any.
+    /// Replacing it (opening a different folder) drops the old one, which
+    /// stops it automatically.
+    pub fs_watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }

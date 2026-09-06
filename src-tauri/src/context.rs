@@ -8,8 +8,18 @@ pub struct SkillInfo {
     pub path: PathBuf,
 }
 
+fn global_config_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join("ai-leash"))
+}
+
 fn global_dir(sub: &str) -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("ai-leash").join(sub))
+    global_config_dir().map(|d| d.join(sub))
+}
+
+/// A global AGENTS.md ships default instructions/persona that apply across
+/// every project, independent of any per-project AGENTS.md.
+fn global_agents_md() -> Option<String> {
+    global_config_dir().and_then(|d| std::fs::read_to_string(d.join("AGENTS.md")).ok())
 }
 
 fn read_memory(root: &Path) -> (Option<String>, Option<String>) {
@@ -172,6 +182,10 @@ pub fn load_skill_body(root: &Path, touched_dirs: &[PathBuf], name: &str) -> Opt
 
 pub fn build_system_prompt(root: &Path, touched_dirs: &[PathBuf]) -> Option<String> {
     let mut sections = vec![];
+
+    if let Some(global_agents) = global_agents_md() {
+        sections.push(format!("# Global instructions (AGENTS.md)\n\n{global_agents}"));
+    }
 
     for (label, content) in collect_agents_md(root, touched_dirs) {
         sections.push(format!("# Project instructions ({label})\n\n{content}"));

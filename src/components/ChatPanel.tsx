@@ -16,12 +16,19 @@ interface ThinkingEntry {
   done: boolean;
 }
 
+interface SubtaskThread {
+  subSessionId: string;
+  description: string;
+  entries: Entry[];
+}
+
 interface ToolEntry {
   kind: "tool";
   callId: string;
   name: string;
   args: unknown;
   result?: string;
+  subtasks?: SubtaskThread[];
 }
 
 type Entry = TextEntry | ThinkingEntry | ToolEntry;
@@ -35,6 +42,95 @@ interface ToolCallPayload {
 interface ToolResultPayload {
   id: string | null;
   result: string;
+}
+
+interface SubtaskStartPayload {
+  callId: string | null;
+  subSessionId: string;
+  description: string;
+}
+
+function finishThinking(prev: Entry[]): Entry[] {
+  const last = prev[prev.length - 1];
+  if (last && last.kind === "thinking" && !last.done) {
+    return [...prev.slice(0, -1), { ...last, done: true }];
+  }
+  return prev;
+}
+
+function appendThinking(prev: Entry[], payload: string): Entry[] {
+  const last = prev[prev.length - 1];
+  if (last && last.kind === "thinking" && !last.done) {
+    return [...prev.slice(0, -1), { ...last, content: last.content + payload }];
+  }
+  return [...prev, { kind: "thinking", content: payload, done: false }];
+}
+
+function appendChunk(prev: Entry[], payload: string): Entry[] {
+  const withFinishedThinking = finishThinking(prev);
+  const last = withFinishedThinking[withFinishedThinking.length - 1];
+  if (last && last.kind === "text" && last.role === "assistant") {
+    return [
+      ...withFinishedThinking.slice(0, -1),
+      { ...last, content: last.content + payload },
+    ];
+  }
+  return [
+    ...withFinishedThinking,
+    { kind: "text", role: "assistant", content: payload, time: Date.now() },
+  ];
+}
+
+function appendToolCall(prev: Entry[], payload: ToolCallPayload): Entry[] {
+  return [
+    ...finishThinking(prev),
+    {
+      kind: "tool",
+      callId: String(payload.id),
+      name: payload.name,
+      args: payload.arguments,
+    },
+  ];
+}
+
+function applyToolResult(prev: Entry[], payload: ToolResultPayload): Entry[] {
+  return prev.map((entry) =>
+    entry.kind === "tool" && entry.callId === String(payload.id)
+      ? { ...entry, result: payload.result }
+      : entry,
+  );
+}
+
+function addSubtaskThread(
+  prev: Entry[],
+  callId: string,
+  subSessionId: string,
+  description: string,
+): Entry[] {
+  return prev.map((entry) =>
+    entry.kind === "tool" && entry.callId === callId
+      ? {
+          ...entry,
+          subtasks: [...(entry.subtasks ?? []), { subSessionId, description, entries: [] }],
+        }
+      : entry,
+  );
+}
+
+function updateSubtaskThread(
+  prev: Entry[],
+  callId: string,
+  subSessionId: string,
+  updater: (entries: Entry[]) => Entry[],
+): Entry[] {
+  return prev.map((entry) => {
+    if (entry.kind !== "tool" || entry.callId !== callId || !entry.subtasks) return entry;
+    const idx = entry.subtasks.findIndex((t) => t.subSessionId === subSessionId);
+    if (idx === -1) return entry;
+    const subtasks = [...entry.subtasks];
+    subtasks[idx] = { ...subtasks[idx], entries: updater(subtasks[idx].entries) };
+    return { ...entry, subtasks };
+  });
 }
 
 function Chevron({ expanded }: { expanded: boolean }) {
@@ -102,6 +198,50 @@ function StopIcon() {
   );
 }
 
+function isToolError(result: string | undefined): boolean {
+  return result !== undefined && result.startsWith("Error:");
+}
+
+function SubEntryLine({ entry }: { entry: Entry }) {
+  if (entry.kind === "text") {
+    return (
+      <div className={entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}>
+        <div className="text-[9px] uppercase tracking-wide text-zinc-700">
+          {entry.role === "user" ? "task" : "sub-agent"}
+        </div>
+        <div className="whitespace-pre-wrap">{entry.content}</div>
+      </div>
+    );
+  }
+  if (entry.kind === "thinking") {
+    return (
+      <div className="italic text-zinc-700">
+        {entry.done ? "thought" : "thinking…"}
+      </div>
+    );
+  }
+  const failed = isToolError(entry.result);
+  return (
+    <div
+      className={`rounded border px-2 py-1 ${
+        failed
+          ? "border-red-900/50 bg-red-950/20 text-red-300"
+          : "border-[#26272c] bg-[#101114] text-zinc-500"
+      }`}
+    >
+      <span className={failed ? "text-red-400" : "text-zinc-700"}>tool</span> {entry.name}
+      {failed && <span className="text-red-400"> · failed</span>}
+      {entry.result === undefined ? (
+        <span className="text-zinc-700"> · running…</span>
+      ) : (
+        <div className="mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap opacity-90">
+          {entry.result}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatTime(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -127,7 +267,10 @@ export default function ChatPanel() {
   const [ollamaError, setOllamaError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ prompt: number; completion: number } | null>(null);
   const [showUsagePopover, setShowUsagePopover] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
 
   useEffect(() => {
     refreshOllama();
@@ -157,106 +300,119 @@ export default function ChatPanel() {
   }, [ollamaConnected]);
 
   useEffect(() => {
-    const unlistenThinking = listen<string>(
-      `chat://${sessionId}/thinking`,
-      (e) => {
-        setEntries((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.kind === "thinking" && !last.done) {
-            return [
-              ...prev.slice(0, -1),
-              { ...last, content: last.content + e.payload },
-            ];
-          }
-          return [...prev, { kind: "thinking", content: e.payload, done: false }];
-        });
-      },
+    const unlistens: Promise<() => void>[] = [];
+
+    unlistens.push(
+      listen<string | null>(`chat://${sessionId}/system_prompt`, (e) => {
+        setSystemPrompt(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<string>(`chat://${sessionId}/thinking`, (e) => {
+        setEntries((prev) => appendThinking(prev, e.payload));
+      }),
+    );
+    unlistens.push(
+      listen<string>(`chat://${sessionId}/chunk`, (e) => {
+        setEntries((prev) => appendChunk(prev, e.payload));
+      }),
+    );
+    unlistens.push(
+      listen<ToolCallPayload>(`chat://${sessionId}/tool_call`, (e) => {
+        setEntries((prev) => appendToolCall(prev, e.payload));
+      }),
+    );
+    unlistens.push(
+      listen<ToolResultPayload>(`chat://${sessionId}/tool_result`, (e) => {
+        setEntries((prev) => applyToolResult(prev, e.payload));
+      }),
+    );
+    unlistens.push(
+      listen<{ promptTokens: number; completionTokens: number }>(
+        `chat://${sessionId}/usage`,
+        (e) => {
+          setUsage({
+            prompt: e.payload.promptTokens,
+            completion: e.payload.completionTokens,
+          });
+        },
+      ),
+    );
+    unlistens.push(listen(`chat://${sessionId}/done`, () => setSending(false)));
+    unlistens.push(
+      listen<string>(`chat://${sessionId}/error`, (e) => {
+        setOllamaError(e.payload);
+        setSending(false);
+      }),
     );
 
-    function finishThinking(prev: Entry[]): Entry[] {
-      const last = prev[prev.length - 1];
-      if (last && last.kind === "thinking" && !last.done) {
-        return [...prev.slice(0, -1), { ...last, done: true }];
-      }
-      return prev;
-    }
+    // A `task` tool call spawns an isolated sub-agent with its own
+    // chat://{subSessionId}/... event stream, one per concurrently spawned
+    // subtask (a single `task` call can request several). Subscribe to each
+    // stream dynamically and fold its updates into that subtask's own
+    // thread, nested under the parent tool call once expanded.
+    unlistens.push(
+      listen<SubtaskStartPayload>(`chat://${sessionId}/subtask_start`, (e) => {
+        const { subSessionId, description } = e.payload;
+        const callId = String(e.payload.callId);
 
-    const unlistenChunk = listen<string>(`chat://${sessionId}/chunk`, (e) => {
-      setEntries((prev) => {
-        const withFinishedThinking = finishThinking(prev);
-        const last = withFinishedThinking[withFinishedThinking.length - 1];
-        if (last && last.kind === "text" && last.role === "assistant") {
-          return [
-            ...withFinishedThinking.slice(0, -1),
-            { ...last, content: last.content + e.payload },
-          ];
-        }
-        return [
-          ...withFinishedThinking,
-          { kind: "text", role: "assistant", content: e.payload, time: Date.now() },
-        ];
-      });
-    });
+        setEntries((prev) => addSubtaskThread(prev, callId, subSessionId, description));
 
-    const unlistenToolCall = listen<ToolCallPayload>(
-      `chat://${sessionId}/tool_call`,
-      (e) => {
-        setEntries((prev) => [
-          ...finishThinking(prev),
-          {
-            kind: "tool",
-            callId: String(e.payload.id),
-            name: e.payload.name,
-            args: e.payload.arguments,
-          },
-        ]);
-      },
-    );
-
-    const unlistenToolResult = listen<ToolResultPayload>(
-      `chat://${sessionId}/tool_result`,
-      (e) => {
-        setEntries((prev) =>
-          prev.map((entry) =>
-            entry.kind === "tool" && entry.callId === String(e.payload.id)
-              ? { ...entry, result: e.payload.result }
-              : entry,
-          ),
+        unlistens.push(
+          listen<string>(`chat://${subSessionId}/thinking`, (ev) => {
+            setEntries((prev) =>
+              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                appendThinking(sub, ev.payload),
+              ),
+            );
+          }),
         );
-      },
+        unlistens.push(
+          listen<string>(`chat://${subSessionId}/chunk`, (ev) => {
+            setEntries((prev) =>
+              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                appendChunk(sub, ev.payload),
+              ),
+            );
+          }),
+        );
+        unlistens.push(
+          listen<ToolCallPayload>(`chat://${subSessionId}/tool_call`, (ev) => {
+            setEntries((prev) =>
+              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                appendToolCall(sub, ev.payload),
+              ),
+            );
+          }),
+        );
+        unlistens.push(
+          listen<ToolResultPayload>(`chat://${subSessionId}/tool_result`, (ev) => {
+            setEntries((prev) =>
+              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                applyToolResult(sub, ev.payload),
+              ),
+            );
+          }),
+        );
+      }),
     );
 
-    const unlistenUsage = listen<{ promptTokens: number; completionTokens: number }>(
-      `chat://${sessionId}/usage`,
-      (e) => {
-        setUsage({
-          prompt: e.payload.promptTokens,
-          completion: e.payload.completionTokens,
-        });
-      },
-    );
-
-    const unlistenDone = listen(`chat://${sessionId}/done`, () =>
-      setSending(false),
-    );
-    const unlistenError = listen<string>(`chat://${sessionId}/error`, (e) => {
-      setOllamaError(e.payload);
-      setSending(false);
-    });
     return () => {
-      unlistenThinking.then((f) => f());
-      unlistenChunk.then((f) => f());
-      unlistenToolCall.then((f) => f());
-      unlistenToolResult.then((f) => f());
-      unlistenUsage.then((f) => f());
-      unlistenDone.then((f) => f());
-      unlistenError.then((f) => f());
+      unlistens.forEach((u) => u.then((f) => f()));
     };
   }, [sessionId]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    if (autoScrollRef.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }
   }, [entries]);
+
+  function onScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = distanceFromBottom < 40;
+  }
 
   function isExpanded(i: number): boolean {
     return expandOverride[i] ?? false;
@@ -342,7 +498,27 @@ export default function ChatPanel() {
       <div className="flex h-9 items-center border-b border-[#26272c] px-3">
         <span className="text-sm font-medium text-zinc-200">Agent</span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 text-sm">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto p-3 space-y-3 text-sm"
+      >
+        {systemPrompt && (
+          <div className="text-xs">
+            <button
+              onClick={() => setSystemPromptExpanded((v) => !v)}
+              className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400"
+            >
+              <Chevron expanded={systemPromptExpanded} />
+              <span className="italic">system prompt</span>
+            </button>
+            {systemPromptExpanded && (
+              <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 text-zinc-600">
+                {systemPrompt}
+              </pre>
+            )}
+          </div>
+        )}
         {entries.length === 0 && !ollamaError && (
           <div className="text-zinc-500">
             Ask the agent anything about this project.
@@ -408,17 +584,22 @@ export default function ChatPanel() {
             );
           }
           const expanded = isExpanded(i);
+          const failed = isToolError(entry.result);
           return (
             <div
               key={i}
-              className="rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs"
+              className={`rounded border px-2.5 py-1.5 text-xs ${
+                failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
+              }`}
             >
               <button
                 onClick={() => toggle(i)}
                 className="flex w-full min-w-0 items-center gap-1.5 text-left text-zinc-400"
               >
                 <Chevron expanded={expanded} />
-                <span className="shrink-0 text-zinc-600">tool</span>
+                <span className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}>
+                  tool
+                </span>
                 <span className="shrink-0">{entry.name}</span>
                 <span className="min-w-0 flex-1 truncate text-zinc-600">
                   {JSON.stringify(entry.args)}
@@ -426,14 +607,35 @@ export default function ChatPanel() {
                 {entry.result === undefined && (
                   <span className="shrink-0 text-zinc-600">running…</span>
                 )}
+                {failed && <span className="shrink-0 text-red-400">failed</span>}
               </button>
               {expanded && (
                 <div className="mt-1 pl-4">
                   <div className="truncate text-zinc-600">
                     {JSON.stringify(entry.args)}
                   </div>
+                  {entry.subtasks && entry.subtasks.length > 0 && (
+                    <div className="mt-1.5 space-y-2">
+                      {entry.subtasks.map((t) => (
+                        <div key={t.subSessionId} className="border-l-2 border-[#26272c] pl-2">
+                          <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+                            {t.description}
+                          </div>
+                          <div className="space-y-1.5">
+                            {t.entries.map((sub, j) => (
+                              <SubEntryLine key={j} entry={sub} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {entry.result !== undefined && (
-                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-zinc-500">
+                    <pre
+                      className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
+                        failed ? "text-red-300" : "text-zinc-500"
+                      }`}
+                    >
                       {entry.result}
                     </pre>
                   )}

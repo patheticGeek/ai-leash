@@ -1,7 +1,9 @@
 use crate::state::AppState;
+use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::State;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -44,12 +46,54 @@ pub fn get_root_path(state: &AppState) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn set_project_root(state: State<AppState>, path: String) -> Result<(), String> {
+pub fn set_project_root(app: AppHandle, state: State<AppState>, path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.is_dir() {
         return Err("not a directory".into());
     }
-    *state.project_root.lock().unwrap() = Some(p);
+    *state.project_root.lock().unwrap() = Some(p.clone());
+    start_fs_watcher(app, &state, &p)?;
+    Ok(())
+}
+
+/// Watches the project root recursively and tells the frontend to refresh
+/// the file tree whenever anything changes underneath it — file edits from
+/// the agent's tools, `git checkout`/builds run in the terminal, or changes
+/// made outside the app entirely. Events are debounced (batched over a short
+/// window) so a burst of changes (e.g. a build writing many files) triggers
+/// one refresh instead of a flood of them. Replacing `state.fs_watcher` (on
+/// the next `set_project_root` call) drops this watcher and its background
+/// thread exits on its own once the channel closes.
+fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Result<(), String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher =
+        notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            if res.is_ok() {
+                let _ = tx.send(());
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    watcher
+        .watch(root, RecursiveMode::Recursive)
+        .map_err(|e| e.to_string())?;
+
+    *state.fs_watcher.lock().unwrap() = Some(watcher);
+
+    std::thread::spawn(move || {
+        const DEBOUNCE: Duration = Duration::from_millis(300);
+        while rx.recv().is_ok() {
+            let deadline = Instant::now() + DEBOUNCE;
+            while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
+                if remaining.is_zero() || rx.recv_timeout(remaining).is_err() {
+                    break;
+                }
+            }
+            if app.emit("fs://changed", ()).is_err() {
+                break;
+            }
+        }
+    });
+
     Ok(())
 }
 

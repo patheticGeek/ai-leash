@@ -1,3 +1,4 @@
+use crate::chat;
 use crate::commands::{self, IGNORED_NAMES};
 use crate::context;
 use crate::state::AppState;
@@ -7,8 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use similar::{ChangeTag, TextDiff};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -37,7 +40,7 @@ const MAX_TOOL_OUTPUT: usize = 20_000;
 const MAX_GREP_RESULTS: usize = 200;
 const DEFAULT_READ_LIMIT: usize = 2000;
 
-pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf]) -> Value {
+pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_subtasks: bool) -> Value {
     let mut tools = json!([
         {
             "type": "function",
@@ -150,6 +153,41 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf]) -> Value 
             }));
         }
     }
+
+    if allow_subtasks {
+        if let Value::Array(arr) = &mut tools {
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "task",
+                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except task itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. You will only see each subtask's final result, not its intermediate steps.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "tasks": {
+                                "type": "array",
+                                "description": "One entry per independent subtask to run concurrently",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "description": { "type": "string", "description": "Short (3-6 word) label for this subtask, shown to the user" },
+                                        "prompt": { "type": "string", "description": "Full, self-contained instructions for the sub-agent" }
+                                    },
+                                    "required": ["description", "prompt"]
+                                }
+                            },
+                            "interrupt": {
+                                "type": "string",
+                                "enum": ["all", "each"],
+                                "description": "Only matters when `tasks` has more than one entry. \"all\" (default): wait for every subtask and see all results together in this same turn. \"each\": get the first subtask's result right away in this turn while the rest keep running; you'll automatically get a new turn to react as each remaining one finishes, without the user needing to say anything. Use \"each\" when you'd genuinely want to act on or mention a result as soon as it's ready rather than waiting for the slowest subtask."
+                            }
+                        },
+                        "required": ["tasks"]
+                    }
+                }
+            }));
+        }
+    }
     tools
 }
 
@@ -225,10 +263,14 @@ fn record_touched_dir(state: &State<'_, AppState>, session_id: &str, dir: &Path)
         .insert(dir.to_path_buf());
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_tool(
     app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
+    call_id: Option<&str>,
+    model: &str,
+    cancel_flag: &Arc<AtomicBool>,
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
@@ -423,6 +465,144 @@ pub async fn execute_tool(
                 return Ok("The user denied permission to run this command.".into());
             }
             run_shell(command, &root).await
+        }
+        "task" => {
+            const TASK_SHAPE_HINT: &str = "Each entry in `tasks` must be an object with exactly two string fields: `description` (a short label) and `prompt` (full self-contained instructions for the sub-agent). Example: {\"tasks\": [{\"description\": \"count rs files\", \"prompt\": \"Count how many .rs files exist in the project and report the number.\"}]}. Retry the `task` call with that exact shape.";
+
+            let tasks = args
+                .get("tasks")
+                .and_then(|v| v.as_array())
+                .filter(|a| !a.is_empty())
+                .ok_or_else(|| format!("missing or empty `tasks`. {TASK_SHAPE_HINT}"))?;
+            let interrupt_each = args.get("interrupt").and_then(|v| v.as_str()) == Some("each");
+
+            let mut specs = Vec::with_capacity(tasks.len());
+            for t in tasks {
+                // Small/local models calling this schema sometimes reach for
+                // familiar chat-message field names (`content`/`text`/`role`)
+                // instead of `prompt`/`description` — accept the common
+                // aliases rather than failing on an otherwise-correct call.
+                let description = t
+                    .get("description")
+                    .or_else(|| t.get("title"))
+                    .or_else(|| t.get("name"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let prompt = t
+                    .get("prompt")
+                    .or_else(|| t.get("content"))
+                    .or_else(|| t.get("text"))
+                    .or_else(|| t.get("instructions"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| format!("a `tasks` entry is missing `prompt`. {TASK_SHAPE_HINT}"))?;
+                // If the model omitted a real description, derive a short,
+                // distinguishable one from the prompt itself rather than
+                // labeling every subtask identically as "Subtask".
+                let description = description.unwrap_or_else(|| {
+                    let words: Vec<&str> = prompt.split_whitespace().take(6).collect();
+                    let mut label = words.join(" ");
+                    if label.len() > 40 {
+                        label.truncate(40);
+                    }
+                    if label.is_empty() {
+                        "Subtask".to_string()
+                    } else {
+                        label
+                    }
+                });
+                let sub_session_id = format!("{session_id}::task::{}", Uuid::new_v4());
+
+                let _ = app.emit(
+                    &format!("chat://{session_id}/subtask_start"),
+                    json!({
+                        "callId": call_id,
+                        "subSessionId": sub_session_id,
+                        "description": description,
+                    }),
+                );
+                specs.push((description, prompt, sub_session_id));
+            }
+
+            if !interrupt_each || specs.len() == 1 {
+                let jobs = specs.into_iter().map(|(description, prompt, sub_session_id)| async move {
+                    let result = chat::run_sub_agent(
+                        app,
+                        state,
+                        session_id,
+                        &sub_session_id,
+                        &prompt,
+                        model,
+                        cancel_flag,
+                    )
+                    .await;
+                    (description, result.unwrap_or_else(|e| format!("Error: {e}")))
+                });
+                let results = futures_util::future::join_all(jobs).await;
+                return Ok(results
+                    .into_iter()
+                    .map(|(description, text)| format!("## {description}\n\n{text}"))
+                    .collect::<Vec<_>>()
+                    .join("\n\n---\n\n"));
+            }
+
+            // interrupt = "each": run the first inline so this tool call has
+            // a concrete result to return right away. The rest continue in
+            // a detached background task; each one autonomously resumes the
+            // conversation (a brand new turn, not triggered by the user) as
+            // it finishes — see `chat::resume_after_background_subtask`.
+            let mut iter = specs.into_iter();
+            let (first_description, first_prompt, first_sub_id) = iter.next().unwrap();
+            let remaining: Vec<_> = iter.collect();
+            let remaining_count = remaining.len();
+
+            let first_result = chat::run_sub_agent(
+                app,
+                state,
+                session_id,
+                &first_sub_id,
+                &first_prompt,
+                model,
+                cancel_flag,
+            )
+            .await
+            .unwrap_or_else(|e| format!("Error: {e}"));
+
+            if !remaining.is_empty() {
+                let app_owned = app.clone();
+                let session_id_owned = session_id.to_string();
+                let model_owned = model.to_string();
+                tokio::spawn(async move {
+                    for (description, prompt, sub_session_id) in remaining {
+                        let state = app_owned.state::<AppState>();
+                        let cancel_flag = Arc::new(AtomicBool::new(false));
+                        let result = chat::run_sub_agent(
+                            &app_owned,
+                            &state,
+                            &session_id_owned,
+                            &sub_session_id,
+                            &prompt,
+                            &model_owned,
+                            &cancel_flag,
+                        )
+                        .await
+                        .unwrap_or_else(|e| format!("Error: {e}"));
+
+                        chat::resume_after_background_subtask(
+                            app_owned.clone(),
+                            session_id_owned.clone(),
+                            model_owned.clone(),
+                            description,
+                            result,
+                        )
+                        .await;
+                    }
+                });
+            }
+
+            Ok(format!(
+                "## {first_description}\n\n{first_result}\n\n({remaining_count} more subtask(s) still running in the background — you'll automatically get a turn to respond to each as it finishes)"
+            ))
         }
         "load_skill" => {
             let name = args

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 import { api, type DirEntryInfo } from "../lib/tauriApi";
 import { useAppStore } from "../store";
 
@@ -19,6 +20,16 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
     }
     setExpanded((e) => !e);
   }
+
+  useEffect(() => {
+    if (!expanded) return;
+    const unlisten = listen("fs://changed", () => {
+      api.listDir(entry.path).then(setChildren);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [expanded, entry.path]);
 
   return (
     <div>
@@ -54,6 +65,16 @@ export default function Sidebar() {
     if (projectRoot) {
       api.listDir().then(setRootEntries);
     }
+  }, [projectRoot]);
+
+  useEffect(() => {
+    if (!projectRoot) return;
+    const unlisten = listen("fs://changed", () => {
+      api.listDir().then(setRootEntries);
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, [projectRoot]);
 
   async function openFolder() {

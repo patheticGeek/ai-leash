@@ -37,6 +37,7 @@ toml = "0.8"
 anyhow = "1"
 regex = "1"
 similar = "2"
+notify = "8.2.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

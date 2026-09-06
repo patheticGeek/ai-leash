@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -79,6 +79,7 @@ struct TurnResult {
 }
 
 const MAX_TOOL_ITERATIONS: usize = 15;
+const MAX_MALFORMED_TOOL_CALL_RETRIES: usize = 2;
 
 #[tauri::command]
 pub async fn list_ollama_models() -> Result<Vec<ModelSummary>, String> {
@@ -122,7 +123,115 @@ pub async fn send_prompt(
         },
     );
 
-    run_with_cancellation(&app, &state, &session_id, &model).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await
+}
+
+/// Runs an isolated sub-agent for the `task` tool: its own fresh history
+/// (just the given prompt) and its own `chat://{sub_session_id}/...` event
+/// stream, so the UI can render it as a nested thread under the parent's
+/// `task` tool call. It shares the parent's cancellation flag (stopping the
+/// parent stops any sub-agent it spawned) and scopes AGENTS.md/skills/
+/// touched-directory tracking to the *parent* session, so work the sub-agent
+/// does still counts toward the parent's directory scoping. It cannot itself
+/// call `task` — sub-agents are capped at one level deep.
+///
+/// This is a plain `fn` returning a boxed, type-erased future rather than an
+/// `async fn` on purpose: `run_agent_loop` calls `execute_tool` which (for
+/// the `task` tool) calls back into `run_sub_agent`, a genuine cycle in the
+/// call graph. An `async fn`'s return type is an opaque type inferred from
+/// its body, and rustc can't resolve that inference through a structural
+/// cycle (`error[E0391]: cycle detected when computing type of opaque`) even
+/// with `Box::pin` at the call site — boxing there only fixes the infinite
+/// *size* problem, not the type-inference cycle. Giving this function an
+/// explicit, already-concrete signature (`Pin<Box<dyn Future + Send>>`)
+/// breaks the cycle: callers see a fixed type immediately, with nothing left
+/// to infer.
+pub fn run_sub_agent<'a>(
+    app: &'a AppHandle,
+    state: &'a State<'a, AppState>,
+    parent_session_id: &'a str,
+    sub_session_id: &'a str,
+    prompt: &'a str,
+    model: &'a str,
+    cancel_flag: &'a Arc<AtomicBool>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
+    Box::pin(async move {
+        push_message(
+            state,
+            sub_session_id,
+            ChatMessage {
+                role: "user".into(),
+                content: prompt.to_string(),
+                tool_calls: None,
+            },
+        );
+
+        let loop_result = run_agent_loop(
+            app,
+            state,
+            sub_session_id,
+            parent_session_id,
+            model,
+            cancel_flag,
+            false,
+        )
+        .await;
+
+        let final_text = state
+            .chat_sessions
+            .lock()
+            .unwrap()
+            .remove(sub_session_id)
+            .and_then(|history| {
+                history
+                    .into_iter()
+                    .rev()
+                    .find(|m| m.role == "assistant" && !m.content.is_empty())
+                    .map(|m| m.content)
+            });
+
+        match (final_text, loop_result) {
+            (Some(text), _) => Ok(text),
+            (None, Err(e)) => Ok(format!("Subtask failed: {e}")),
+            (None, Ok(())) => Ok("Subtask finished without a final response.".to_string()),
+        }
+    })
+}
+
+/// Called from a detached background task (see the `task` tool's `"each"`
+/// interrupt mode in `tools.rs`) once one of several concurrently-spawned
+/// subtasks finishes *after* the turn that launched them has already
+/// returned. Injects that subtask's result into the session's history as if
+/// it just arrived, then autonomously runs another turn so the main agent
+/// gets a chance to react — nothing about this is triggered by the user
+/// clicking send. `run_with_cancellation`'s per-session lock is what keeps
+/// this from racing a real `send_prompt`/`retry_last` call or another
+/// subtask's resume happening at the same time.
+/// Same reasoning as `run_sub_agent`'s doc comment: this closes a second
+/// recursive cycle (`execute_tool`'s `task` arm spawns a task that calls this,
+/// which calls `run_with_cancellation` -> `run_agent_loop` -> `execute_tool`
+/// again), so it needs the same explicit boxed-future signature rather than
+/// being a plain `async fn`.
+pub fn resume_after_background_subtask(
+    app: AppHandle,
+    session_id: String,
+    model: String,
+    description: String,
+    result: String,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
+    Box::pin(async move {
+        let state = app.state::<AppState>();
+        push_message(
+            &state,
+            &session_id,
+            ChatMessage {
+                role: "tool".into(),
+                content: format!("Background subtask \"{description}\" finished:\n\n{result}"),
+                tool_calls: None,
+            },
+        );
+        let _ = run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await;
+    })
 }
 
 /// Rebuilds AGENTS.md/memory/skills and keeps them as the first (system)
@@ -130,6 +239,7 @@ pub async fn send_prompt(
 /// start of a session — otherwise editing AGENTS.md (or adding a skill) after
 /// a session already started would never be picked up for that session.
 fn refresh_system_prompt(
+    app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
     root: &std::path::Path,
@@ -139,6 +249,8 @@ fn refresh_system_prompt(
     let history = sessions.entry(session_id.to_string()).or_default();
     let system_prompt = context::build_system_prompt(root, touched_dirs);
     let has_system_first = history.first().is_some_and(|m| m.role == "system");
+
+    let _ = app.emit(&format!("chat://{session_id}/system_prompt"), &system_prompt);
 
     match (has_system_first, system_prompt) {
         (true, Some(content)) => history[0].content = content,
@@ -179,15 +291,34 @@ pub async fn retry_last(
         }
     }
 
-    run_with_cancellation(&app, &state, &session_id, &model).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await
 }
 
+fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    state
+        .session_locks
+        .lock()
+        .unwrap()
+        .entry(session_id.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+        .clone()
+}
+
+/// Serializes every turn for a given session — whether it's a normal
+/// user-initiated `send_prompt`/`retry_last`, or a background subtask
+/// autonomously resuming the conversation (see `resume_after_background_subtask`)
+/// — so the two can never interleave writes to the same session's history.
 async fn run_with_cancellation(
     app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
+    scope_id: &str,
     model: &str,
+    allow_subtasks: bool,
 ) -> Result<(), String> {
+    let lock = session_lock(state.inner(), session_id);
+    let _guard = lock.lock().await;
+
     let cancel_flag = Arc::new(AtomicBool::new(false));
     state
         .cancellations
@@ -195,18 +326,30 @@ async fn run_with_cancellation(
         .unwrap()
         .insert(session_id.to_string(), cancel_flag.clone());
 
-    let result = run_agent_loop(app, state, session_id, model, &cancel_flag).await;
+    let result = run_agent_loop(
+        app,
+        state,
+        session_id,
+        scope_id,
+        model,
+        &cancel_flag,
+        allow_subtasks,
+    )
+    .await;
 
     state.cancellations.lock().unwrap().remove(session_id);
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_agent_loop(
     app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
+    scope_id: &str,
     model: &str,
     cancel_flag: &Arc<AtomicBool>,
+    allow_subtasks: bool,
 ) -> Result<(), String> {
     let chunk_event = format!("chat://{}/chunk", session_id);
     let thinking_event = format!("chat://{}/thinking", session_id);
@@ -228,9 +371,9 @@ async fn run_agent_loop(
         // Recomputed every iteration: a tool call earlier in this same loop
         // may have just touched a new subfolder, and its scoped AGENTS.md /
         // skills should apply starting with the very next model call.
-        let touched = touched_dirs_for(state, session_id);
+        let touched = touched_dirs_for(state, scope_id);
         if let Some(r) = &root {
-            refresh_system_prompt(state, session_id, r, &touched);
+            refresh_system_prompt(app, state, session_id, r, &touched);
         }
 
         let history = {
@@ -238,18 +381,50 @@ async fn run_agent_loop(
             sessions.get(session_id).cloned().unwrap_or_default()
         };
 
-        let turn = stream_one_turn(
-            app,
-            model,
-            &history,
-            &chunk_event,
-            &thinking_event,
-            &error_event,
-            cancel_flag,
-            root.as_deref(),
-            &touched,
-        )
-        .await?;
+        // Ollama occasionally fails a turn outright with a 500 "error parsing
+        // tool call" when the model's own output mixes raw reasoning text
+        // into where Ollama expects clean JSON — a transient sampling
+        // hiccup on the model's end, not a real error condition. Retrying
+        // the exact same request a couple of times usually gets a
+        // well-formed response without bothering the user.
+        let mut attempt = 0;
+        let turn = loop {
+            match stream_one_turn(
+                app,
+                model,
+                &history,
+                &chunk_event,
+                &thinking_event,
+                &error_event,
+                cancel_flag,
+                root.as_deref(),
+                &touched,
+                allow_subtasks,
+            )
+            .await
+            {
+                Ok(t) => break t,
+                Err(e)
+                    if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES
+                        && e.contains("error parsing tool call") =>
+                {
+                    attempt += 1;
+                }
+                Err(e) => {
+                    // Ollama echoes the model's entire malformed generation
+                    // (often its full reasoning text) back inside the JSON
+                    // error body — not useful to show as-is once we're
+                    // giving up on it.
+                    let msg = if e.contains("error parsing tool call") {
+                        "The model kept producing malformed tool calls that Ollama couldn't parse, even after retrying. Try again, simplify the request, or switch to a model that handles tool calling more reliably.".to_string()
+                    } else {
+                        e
+                    };
+                    let _ = app.emit(&error_event, &msg);
+                    return Err(msg);
+                }
+            }
+        };
 
         if let (Some(p), Some(c)) = (turn.prompt_tokens, turn.completion_tokens) {
             let _ = app.emit(
@@ -308,7 +483,10 @@ async fn run_agent_loop(
                 tools::execute_tool(
                     app,
                     state,
-                    session_id,
+                    scope_id,
+                    call.id.as_deref(),
+                    model,
+                    cancel_flag,
                     &call.function.name,
                     &call.function.arguments,
                 )
@@ -317,7 +495,10 @@ async fn run_agent_loop(
             };
             last_call = Some((call.function.name.clone(), call.function.arguments.clone()));
 
-            let _ = app.emit(&tool_result_event, json!({ "id": call.id, "result": &result }));
+            let _ = app.emit(
+                &tool_result_event,
+                json!({ "id": call.id, "result": &result }),
+            );
             push_message(
                 state,
                 session_id,
@@ -330,7 +511,8 @@ async fn run_agent_loop(
         }
     }
 
-    let msg = format!("Stopped after {MAX_TOOL_ITERATIONS} tool-call iterations without finishing.");
+    let msg =
+        format!("Stopped after {MAX_TOOL_ITERATIONS} tool-call iterations without finishing.");
     let _ = app.emit(&error_event, &msg);
     Err(msg)
 }
@@ -357,6 +539,7 @@ fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMess
         .push(message);
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn stream_one_turn(
     app: &AppHandle,
     model: &str,
@@ -367,13 +550,14 @@ async fn stream_one_turn(
     cancel_flag: &Arc<AtomicBool>,
     root: Option<&std::path::Path>,
     touched_dirs: &[std::path::PathBuf],
+    allow_subtasks: bool,
 ) -> Result<TurnResult, String> {
     let client = reqwest::Client::new();
     let body = OllamaChatRequest {
         model,
         messages: history,
         stream: true,
-        tools: tools::tool_definitions(root, touched_dirs),
+        tools: tools::tool_definitions(root, touched_dirs, allow_subtasks),
     };
     let resp = match client
         .post("http://localhost:11434/api/chat")
@@ -383,18 +567,14 @@ async fn stream_one_turn(
     {
         Ok(r) => r,
         Err(e) => {
-            let msg = format!("failed to reach ollama at localhost:11434: {e}");
-            let _ = app.emit(error_event, &msg);
-            return Err(msg);
+            return Err(format!("failed to reach ollama at localhost:11434: {e}"));
         }
     };
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
-        let msg = format!("ollama returned {status}: {body_text}");
-        let _ = app.emit(error_event, &msg);
-        return Err(msg);
+        return Err(format!("ollama returned {status}: {body_text}"));
     }
 
     let mut stream = resp.bytes_stream();
@@ -416,10 +596,7 @@ async fn stream_one_turn(
 
         let bytes = match item {
             Ok(b) => b,
-            Err(e) => {
-                let _ = app.emit(error_event, e.to_string());
-                return Err(e.to_string());
-            }
+            Err(e) => return Err(e.to_string()),
         };
         buf.push_str(&String::from_utf8_lossy(&bytes));
         while let Some(pos) = buf.find('\n') {
