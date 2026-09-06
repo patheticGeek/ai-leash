@@ -1,0 +1,105 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libxdo-dev
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Bundle macOS dmg
+        if: runner.os == 'macOS'
+        run: npx tauri build --bundles dmg
+
+      - name: Bundle Linux AppImage
+        if: runner.os == 'Linux'
+        run: npx tauri build --bundles appimage
+
+      # linuxdeploy-plugin-gtk bundles its own libwayland-* and libssl/
+      # libcrypto for portability across distros, but on hosts with a newer
+      # system OpenSSL/Mesa (reproduced on CachyOS/Wayland) these bundled
+      # libs are ABI-mismatched with the host's libcurl/EGL:
+      #   - bundled libwayland-egl.so.1 -> WebKitGTK aborts with "Could not
+      #     create default EGL display: EGL_BAD_PARAMETER" even though GDK
+      #     itself is forced to X11 already by the plugin's own AppRun hook.
+      #   - bundled libssl.so.3/libcrypto.so.3 -> dynamic linker warnings
+      #     ("version `OPENSSL_3.x.0' not found") since the host's
+      #     libcurl.so.4 (used by WebKit's network process) needs symbols
+      #     newer than what the bundled OpenSSL provides.
+      # Stripping these bundled libs makes everything fall back to the
+      # host's own (ABI-matching) versions, then repack the AppImage.
+      - name: Strip conflicting bundled libs from AppImage
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          cd src-tauri/target/release/bundle/appimage
+          APPIMAGE_FILE=$(ls *.AppImage)
+          chmod +x "$APPIMAGE_FILE"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./"$APPIMAGE_FILE" --appimage-extract >/dev/null
+          rm -f squashfs-root/usr/lib/libwayland-client.so.0 \
+                squashfs-root/usr/lib/libwayland-cursor.so.0 \
+                squashfs-root/usr/lib/libwayland-egl.so.1 \
+                squashfs-root/usr/lib/libwayland-server.so.0 \
+                squashfs-root/usr/lib/libssl.so.3 \
+                squashfs-root/usr/lib/libcrypto.so.3
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          rm -f "$APPIMAGE_FILE"
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool squashfs-root "$APPIMAGE_FILE"
+          rm -rf squashfs-root appimagetool
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-build
+          path: |
+            src-tauri/target/release/bundle/dmg
+            src-tauri/target/release/bundle/appimage
+          if-no-files-found: ignore
