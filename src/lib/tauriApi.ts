@@ -19,4 +19,5 @@ export const api = {
   ptyResize: (id: string, cols: number, rows: number) =>
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
+  listOllamaModels: () => invoke<string[]>("list_ollama_models"),
 };

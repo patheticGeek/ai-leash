@@ -67,8 +67,7 @@ export default function TerminalPanel() {
       if (ptyId) api.ptyKill(ptyId);
       term.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [projectRoot]);
 
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-t border-[#26272c]">

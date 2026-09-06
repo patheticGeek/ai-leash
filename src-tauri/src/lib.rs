@@ -2,6 +2,7 @@ mod chat;
 mod commands;
 mod pty;
 mod state;
+mod tools;
 
 use state::AppState;
 
@@ -23,6 +24,9 @@ pub fn run() {
             pty::pty_kill,
             chat::list_ollama_models,
             chat::send_prompt,
+            chat::retry_last,
+            chat::cancel_prompt,
+            tools::respond_permission,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

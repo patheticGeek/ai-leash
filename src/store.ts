@@ -12,20 +12,27 @@ interface AppStore {
   projectRoot: string | null;
   openFiles: OpenFile[];
   activePath: string | null;
+  ollamaConnected: boolean | null;
+  ollamaModels: string[];
   setProjectRoot: (root: string) => void;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   closeFile: (path: string) => void;
+  refreshOllama: () => Promise<void>;
+  setOllamaConnected: (connected: boolean) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
   projectRoot: null,
   openFiles: [],
   activePath: null,
+  ollamaConnected: null,
+  ollamaModels: [],
 
-  setProjectRoot: (root) => set({ projectRoot: root }),
+  setProjectRoot: (root) =>
+    set({ projectRoot: root, openFiles: [], activePath: null }),
 
   openFile: async (path, name) => {
     if (get().openFiles.some((f) => f.path === path)) {
@@ -69,4 +76,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
           : s.activePath;
       return { openFiles, activePath };
     }),
+
+  refreshOllama: async () => {
+    try {
+      const models = await api.listOllamaModels();
+      set({ ollamaModels: models, ollamaConnected: true });
+    } catch {
+      set({ ollamaModels: [], ollamaConnected: false });
+    }
+  },
+
+  setOllamaConnected: (connected) => set({ ollamaConnected: connected }),
 }));

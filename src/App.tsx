@@ -1,12 +1,23 @@
+import { useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import EditorArea from "./components/EditorArea";
 import TerminalPanel from "./components/TerminalPanel";
 import ChatPanel from "./components/ChatPanel";
 import StatusBar from "./components/StatusBar";
+import PermissionModal from "./components/PermissionModal";
+import { useAppStore } from "./store";
 
 function App() {
+  const projectRoot = useAppStore((s) => s.projectRoot);
+  const refreshOllama = useAppStore((s) => s.refreshOllama);
+
+  useEffect(() => {
+    refreshOllama();
+  }, [refreshOllama]);
+
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">
+      <PermissionModal />
       <div className="flex flex-1 min-h-0">
         <div className="w-56 shrink-0">
           <Sidebar />
@@ -20,7 +31,7 @@ function App() {
           </div>
         </div>
         <div className="w-96 shrink-0">
-          <ChatPanel />
+          <ChatPanel key={projectRoot ?? "none"} />
         </div>
       </div>
       <StatusBar />

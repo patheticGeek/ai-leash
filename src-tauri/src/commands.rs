@@ -11,9 +11,9 @@ pub struct DirEntryInfo {
     pub is_dir: bool,
 }
 
-const IGNORED_NAMES: &[&str] = &[".git", "node_modules", "target", "dist"];
+pub const IGNORED_NAMES: &[&str] = &[".git", "node_modules", "target", "dist"];
 
-fn resolve_within_root(root: &Path, requested: &str) -> Result<PathBuf, String> {
+pub fn resolve_within_root(root: &Path, requested: &str) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(requested);
     let joined = if candidate.is_absolute() {
         candidate
@@ -32,6 +32,15 @@ fn resolve_within_root(root: &Path, requested: &str) -> Result<PathBuf, String> 
         return Err("path escapes project root".into());
     }
     Ok(canonical)
+}
+
+pub fn get_root_path(state: &AppState) -> Result<PathBuf, String> {
+    state
+        .project_root
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "no project open".to_string())
 }
 
 #[tauri::command]
