@@ -62,14 +62,20 @@ jobs:
         if: runner.os == 'Linux'
         run: npx tauri build --bundles appimage
 
-      # linuxdeploy-plugin-gtk bundles its own libwayland-* to be portable
-      # across distros, but that bundled libwayland-egl.so.1 is ABI-mismatched
-      # with some hosts' real Mesa/EGL stack (reproduced on CachyOS/Wayland),
-      # causing WebKitGTK to abort with "Could not create default EGL display:
-      # EGL_BAD_PARAMETER" even though GDK itself is forced to X11 already.
-      # Stripping the bundled wayland libs makes it fall back to the host's
-      # own (ABI-matching) ones, then repack the AppImage.
-      - name: Strip conflicting bundled Wayland libs from AppImage
+      # linuxdeploy-plugin-gtk bundles its own libwayland-* and libssl/
+      # libcrypto for portability across distros, but on hosts with a newer
+      # system OpenSSL/Mesa (reproduced on CachyOS/Wayland) these bundled
+      # libs are ABI-mismatched with the host's libcurl/EGL:
+      #   - bundled libwayland-egl.so.1 -> WebKitGTK aborts with "Could not
+      #     create default EGL display: EGL_BAD_PARAMETER" even though GDK
+      #     itself is forced to X11 already by the plugin's own AppRun hook.
+      #   - bundled libssl.so.3/libcrypto.so.3 -> dynamic linker warnings
+      #     ("version `OPENSSL_3.x.0' not found") since the host's
+      #     libcurl.so.4 (used by WebKit's network process) needs symbols
+      #     newer than what the bundled OpenSSL provides.
+      # Stripping these bundled libs makes everything fall back to the
+      # host's own (ABI-matching) versions, then repack the AppImage.
+      - name: Strip conflicting bundled libs from AppImage
         if: runner.os == 'Linux'
         run: |
           set -e
@@ -80,7 +86,9 @@ jobs:
           rm -f squashfs-root/usr/lib/libwayland-client.so.0 \
                 squashfs-root/usr/lib/libwayland-cursor.so.0 \
                 squashfs-root/usr/lib/libwayland-egl.so.1 \
-                squashfs-root/usr/lib/libwayland-server.so.0
+                squashfs-root/usr/lib/libwayland-server.so.0 \
+                squashfs-root/usr/lib/libssl.so.3 \
+                squashfs-root/usr/lib/libcrypto.so.3
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
           rm -f "$APPIMAGE_FILE"
