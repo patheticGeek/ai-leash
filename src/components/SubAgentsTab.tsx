@@ -1,4 +1,5 @@
-import { useAppStore } from "../store";
+import { useEffect } from "react";
+import { useAppStore, SUB_AGENT_MAX_AGE_MS } from "../store";
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -11,9 +12,27 @@ const statusStyles: Record<string, string> = {
   error: "text-red-400 border-red-900/50 bg-red-950/20",
 };
 
+// How often to re-check for expired entries while this tab just sits open
+// with nothing new happening — the age cap itself is a full day, so this
+// doesn't need to be tight.
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+
 export default function SubAgentsTab() {
-  const tasks = useAppStore((s) => s.subAgentTasks);
+  const allTasks = useAppStore((s) => s.subAgentTasks);
   const openChatTab = useAppStore((s) => s.openChatTab);
+  const pruneOldSubAgentTasks = useAppStore((s) => s.pruneOldSubAgentTasks);
+
+  useEffect(() => {
+    pruneOldSubAgentTasks();
+    const interval = setInterval(pruneOldSubAgentTasks, PRUNE_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [pruneOldSubAgentTasks]);
+
+  // Defensive on top of the store's own pruning (on insert + this interval)
+  // so nothing older than the cap is ever shown even for the moment
+  // between prunes.
+  const cutoff = Date.now() - SUB_AGENT_MAX_AGE_MS;
+  const tasks = allTasks.filter((t) => t.startedAt >= cutoff);
 
   if (tasks.length === 0) {
     return (

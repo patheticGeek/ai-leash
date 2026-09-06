@@ -76,10 +76,20 @@ monitoring) lives in a multi-tab panel on the right:
     itself, which still requires a manual click, only the place you'd
     notice it running.
   Switching projects (`openProject`) resets `chatTabs` back to just
-  `Agent`, clears `subAgentThreads`, and clears `subAgentTasks` too —
-  sub-agents belong to the conversation that spawned them, and it's
-  one conversation per project for now (this also fixed a pre-existing
-  leak where `subAgentTasks` was never scoped per project at all).
+  `Agent` — a stale sub-agent tab from a different project's
+  conversation showing up in the center pane would be the wrong
+  context. `subAgentTasks`/`subAgentThreads` deliberately do **not**
+  reset on project switch, though — the Sub Agents sidebar list is a
+  cross-project history, not per-conversation state, so it doesn't
+  empty out every time you switch away and back (a past bug). Capped
+  by age instead of project: `SUB_AGENT_MAX_AGE_MS` (24h) — pruned from
+  the store whenever a new sub-agent starts (`startSubAgentTask`) and
+  on a 5-minute interval in `SubAgentsTab` (`pruneOldSubAgentTasks`,
+  the only thing rendering this list) so entries also age out while
+  the tab just sits open with nothing new happening. `SubAgentsTab`
+  also re-filters by the same cutoff at render time, defensively, so
+  nothing past the cap is ever shown even for the moment between
+  prunes.
 - `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
   fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
   `activePanelTabId` track an arbitrary number of simultaneously open

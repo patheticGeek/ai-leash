@@ -53,6 +53,16 @@ export interface SubAgentTask {
   startedAt: number;
 }
 
+// The Sub Agents sidebar list is a cross-project history now (see
+// `openProject`), not cleared on every switch — capped by age instead, so
+// a long-running app doesn't accumulate it forever.
+export const SUB_AGENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function dropExpiredSubAgentTasks(tasks: SubAgentTask[]): SubAgentTask[] {
+  const cutoff = Date.now() - SUB_AGENT_MAX_AGE_MS;
+  return tasks.filter((t) => t.startedAt >= cutoff);
+}
+
 export type PanelTabKind = "filetree" | "subagents" | "terminal" | "file";
 
 export interface PanelTab {
@@ -111,6 +121,7 @@ interface AppStore {
     description: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
+  pruneOldSubAgentTasks: () => void;
   openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
@@ -182,14 +193,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
         recentProjects,
-        // Sub-agents and their chat tabs belong to the conversation that
-        // spawned them — a different project is a different conversation
-        // (one conversation per project, for now), so none of this carries
-        // over.
+        // The center pane's open tabs are specific to whichever project's
+        // conversation is currently in view — a stale sub-agent tab from a
+        // different project showing up here would be the wrong context, so
+        // this still resets. `subAgentTasks`/`subAgentThreads` (the Sub
+        // Agents sidebar list and its transcripts) deliberately do NOT
+        // reset here anymore — they're a cross-project history capped by
+        // age (see `SUB_AGENT_MAX_AGE_MS`), not per-conversation state.
         chatTabs: [PRIMARY_CHAT_TAB],
         activeChatTabId: "primary",
-        subAgentThreads: {},
-        subAgentTasks: [],
       };
     });
 
@@ -273,10 +285,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
     set((s) => ({
       subAgentTasks: [
-        ...s.subAgentTasks,
+        ...dropExpiredSubAgentTasks(s.subAgentTasks),
         { subSessionId, parentSessionId, description, status: "running", startedAt: Date.now() },
       ],
     })),
+
+  // Called on an interval by `SubAgentsTab` (the only thing rendering this
+  // list) so entries also age out of view when it's just sitting open with
+  // nothing new happening, not only when the next sub-agent starts.
+  pruneOldSubAgentTasks: () =>
+    set((s) => {
+      const subAgentTasks = dropExpiredSubAgentTasks(s.subAgentTasks);
+      return subAgentTasks.length === s.subAgentTasks.length ? s : { subAgentTasks };
+    }),
 
   finishSubAgentTask: (subSessionId, status) =>
     set((s) => ({
