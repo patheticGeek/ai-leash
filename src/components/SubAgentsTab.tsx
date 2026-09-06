@@ -17,9 +17,11 @@ export default function SubAgentsTab() {
 
   if (tasks.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-center text-sm text-zinc-600">
-        No sub-agents running. The main agent spawns these via the{" "}
-        <code className="mx-1 text-zinc-500">task</code> tool.
+      <div className="flex h-full items-center justify-center px-4">
+        <div className="text-center text-sm text-zinc-600">
+          No sub-agents running. The main agent spawns these via the{" "}
+          <code className="mx-1 text-zinc-500">spawn_sub_agent</code> tool.
+        </div>
       </div>
     );
   }
