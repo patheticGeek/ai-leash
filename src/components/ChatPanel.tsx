@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../store";
 import { api } from "../lib/tauriApi";
+import Markdown from "./Markdown";
 import {
   type Entry,
   type ToolCallPayload,
@@ -139,7 +140,11 @@ function SubEntryLine({ entry }: { entry: Entry }) {
         <div className="text-[9px] uppercase tracking-wide text-zinc-700">
           {entry.role === "user" ? "task" : "sub-agent"}
         </div>
-        <div className="whitespace-pre-wrap">{entry.content}</div>
+        {entry.role === "user" ? (
+          <div className="whitespace-pre-wrap">{entry.content}</div>
+        ) : (
+          <Markdown content={entry.content} />
+        )}
       </div>
     );
   }
@@ -557,7 +562,11 @@ export default function ChatPanel() {
                     {formatTime(entry.time)}
                   </span>
                 </div>
-                <div className="whitespace-pre-wrap">{entry.content}</div>
+                {entry.role === "user" ? (
+                  <div className="whitespace-pre-wrap">{entry.content}</div>
+                ) : (
+                  <Markdown content={entry.content} />
+                )}
               </div>
             );
           }

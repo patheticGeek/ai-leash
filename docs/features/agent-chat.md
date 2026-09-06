@@ -297,11 +297,25 @@ that extension.
 
 Both `thinking` and `tool` entries render collapsed by default with a
 chevron toggle; the collapsed tool row shows `name` plus a
-single-line, ellipsis-truncated JSON dump of its arguments.
+single-line, ellipsis-truncated JSON dump of its arguments — expanding
+one shows the same args again, but in full (pretty-printed,
+`JSON.stringify(args, null, 2)`, not truncated) rather than repeating
+the collapsed line.
 
 Per-message UI on every text entry: a `HH:mm` timestamp, a copy-to-
 clipboard button (flips to a checkmark for ~1.2s), and — only on the
 last message — the retry button described above.
+
+`assistant`/`sub-agent`-role `TextEntry`s render through
+`Markdown.tsx` (`react-markdown` + `remark-gfm`, both already
+dependencies, previously unused) — headings, lists, tables, code
+blocks/inline code, blockquotes, and links (opened in a new tab) all
+get dark-theme-matched styling via the `components` prop. `user`-role
+text stays plain `whitespace-pre-wrap`, on the assumption it's typed
+input rather than generated prose — matching the convention most chat
+UIs use. Every place a message's text is rendered uses this same
+split: the main `entries` list here, `SubEntryLine` (the nested
+sub-agent thread), and `SubAgentChatTab.tsx` (the standalone tab).
 
 ### Ollama connection status
 

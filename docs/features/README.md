@@ -43,6 +43,7 @@ src/
   components/CenterPanel.tsx       center tab strip (permanent Agent tab + sub-agent tabs)
   components/ChatPanel.tsx         the primary agent chat UI
   components/SubAgentChatTab.tsx   read-only sub-agent transcript (a CenterPanel tab)
+  components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
   components/PermissionModal.tsx   shell/edit approval dialog
   components/StatusBar.tsx         project name + ollama status

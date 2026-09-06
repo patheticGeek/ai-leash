@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
 import { isToolError, type Entry } from "../lib/chatEntries";
+import Markdown from "./Markdown";
 
 const statusStyles: Record<string, string> = {
   running: "text-amber-400 border-amber-900/50 bg-amber-950/20",
@@ -15,7 +16,11 @@ function EntryBlock({ entry }: { entry: Entry }) {
         <div className="mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600">
           {entry.role === "user" ? "task" : "sub-agent"}
         </div>
-        <div className="whitespace-pre-wrap text-sm">{entry.content}</div>
+        {entry.role === "user" ? (
+          <div className="whitespace-pre-wrap text-sm">{entry.content}</div>
+        ) : (
+          <Markdown content={entry.content} />
+        )}
       </div>
     );
   }
