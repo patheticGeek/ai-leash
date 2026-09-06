@@ -252,6 +252,8 @@ function formatTokenCount(n: number): string {
 }
 
 const LAST_MODEL_KEY = "ai-leash:lastModel";
+const INPUT_MIN_ROWS = 3;
+const INPUT_MAX_ROWS = 6;
 
 export default function ChatPanel() {
   const [sessionId] = useState(() => crypto.randomUUID());
@@ -273,6 +275,7 @@ export default function ChatPanel() {
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     refreshOllama();
@@ -426,6 +429,20 @@ export default function ChatPanel() {
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     autoScrollRef.current = distanceFromBottom < 40;
   }
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const lineHeight = parseFloat(cs.lineHeight) || 20;
+    const paddingY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const minHeight = lineHeight * INPUT_MIN_ROWS + paddingY;
+    const maxHeight = lineHeight * INPUT_MAX_ROWS + paddingY;
+    el.style.height = "auto";
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [input]);
 
   function isExpanded(i: number): boolean {
     return expandOverride[i] ?? false;
@@ -662,11 +679,12 @@ export default function ChatPanel() {
       <div className="border-t border-[#26272c] p-2">
         <div className="flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.currentTarget.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask the agent..."
-            rows={2}
+            rows={INPUT_MIN_ROWS}
             className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
           />
           <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
