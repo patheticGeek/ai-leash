@@ -23,7 +23,8 @@ src-tauri/src/
   state.rs       shared AppState (project root, ptys, chat sessions, permissions, cancellations, db)
   commands.rs    project/fs Tauri commands, path-containment helper
   pty.rs         PTY-backed terminal commands
-  chat.rs        Ollama-backed agent loop, streaming, tool dispatch
+  chat.rs        agent loop, streaming orchestration, tool dispatch
+  provider.rs    Provider abstraction (Ollama + OpenAI-compatible HTTP backends)
   tools.rs       default tool definitions + execution + permission requests
   context.rs     AGENTS.md / memory / skills loading
   db.rs          SQLite-backed conversation history (save/load, schema)
@@ -46,6 +47,7 @@ src/
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
   components/PermissionModal.tsx   shell/edit approval dialog
+  components/ProviderSettingsModal.tsx  Ollama host + OpenAI-compatible provider config
   components/StatusBar.tsx         project name + ollama status
 ```
 

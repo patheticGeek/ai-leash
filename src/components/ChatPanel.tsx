@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { Bot, Wrench } from "lucide-react";
 import { useAppStore } from "../store";
 import { api } from "../lib/tauriApi";
@@ -205,6 +204,9 @@ export default function ChatPanel() {
   const models = useAppStore((s) => s.ollamaModels);
   const ollamaConnected = useAppStore((s) => s.ollamaConnected);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const activeProviderConfig = useAppStore((s) => s.activeProviderConfig);
+  const providerSettings = useAppStore((s) => s.providerSettings);
+  const isOpenAiCompatible = providerSettings.activeId !== "ollama";
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -259,22 +261,43 @@ export default function ChatPanel() {
     return () => clearInterval(interval);
   }, [sending, refreshOllama]);
 
+  // The OpenAI-compatible provider has no live model list (see
+  // `provider.rs::list_provider_models`) — its model id is free-text, seeded
+  // from the active saved config only when the active provider actually
+  // changes (not on every unrelated settings edit, which would clobber
+  // whatever the user's since typed into the model field).
   useEffect(() => {
+    if (isOpenAiCompatible) {
+      const active = providerSettings.openAiCompatible.find(
+        (c) => c.id === providerSettings.activeId,
+      );
+      setModel(active?.model ?? "");
+    } else {
+      setModel(""); // let the localStorage-restore effect below re-seed it
+    }
+    // Only re-seed on an actual provider switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerSettings.activeId]);
+
+  useEffect(() => {
+    if (isOpenAiCompatible) return;
     if (model || !models.length) return;
     const last = localStorage.getItem(LAST_MODEL_KEY);
     const restored = last && models.some((m) => m.name === last) ? last : null;
     setModel(restored ?? models[0].name);
-  }, [models, model]);
+  }, [models, model, isOpenAiCompatible]);
 
   useEffect(() => {
     if (ollamaConnected === false) {
       setOllamaError(
-        "Could not reach Ollama at localhost:11434. Is `ollama serve` running?",
+        isOpenAiCompatible
+          ? "Could not reach the configured provider. Check the base URL and API key in provider settings."
+          : `Could not reach Ollama at ${providerSettings.ollama.host || "localhost:11434"}. Is \`ollama serve\` running?`,
       );
     } else if (ollamaConnected === true) {
       setOllamaError(null);
     }
-  }, [ollamaConnected]);
+  }, [ollamaConnected, isOpenAiCompatible, providerSettings.ollama.host]);
 
   useEffect(() => {
     const unlistens: Promise<() => void>[] = [];
@@ -443,7 +466,7 @@ export default function ChatPanel() {
     ]);
     setSending(true);
     try {
-      await invoke("send_prompt", { sessionId, model, message: text });
+      await api.sendPrompt(sessionId, activeProviderConfig(), model, text);
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -458,7 +481,7 @@ export default function ChatPanel() {
   }
 
   async function stop() {
-    await invoke("cancel_prompt", { sessionId });
+    await api.cancelPrompt(sessionId);
     setSending(false);
   }
 
@@ -482,7 +505,7 @@ export default function ChatPanel() {
     });
     setSending(true);
     try {
-      await invoke("retry_last", { sessionId, model });
+      await api.retryLast(sessionId, activeProviderConfig(), model);
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -674,22 +697,31 @@ export default function ChatPanel() {
             className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
           />
           <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
-            <select
-              value={model}
-              onChange={(e) => {
-                const value = e.currentTarget.value;
-                setModel(value);
-                localStorage.setItem(LAST_MODEL_KEY, value);
-              }}
-              className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
-            >
-              {models.length === 0 && <option>no models</option>}
-              {models.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            {isOpenAiCompatible ? (
+              <input
+                value={model}
+                onChange={(e) => setModel(e.currentTarget.value)}
+                placeholder="model id"
+                className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
+              />
+            ) : (
+              <select
+                value={model}
+                onChange={(e) => {
+                  const value = e.currentTarget.value;
+                  setModel(value);
+                  localStorage.setItem(LAST_MODEL_KEY, value);
+                }}
+                className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
+              >
+                {models.length === 0 && <option>no models</option>}
+                {models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <div className="flex items-center gap-1.5">
             {usedTokens !== null && (
               <div

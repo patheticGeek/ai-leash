@@ -1,9 +1,9 @@
 use crate::commands;
 use crate::context;
 use crate::db::{self, PersistedMessage};
+use crate::provider::{self, ProviderConfig, ProviderError};
 use crate::state::AppState;
 use crate::tools::{self, ToolCall};
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,85 +18,15 @@ pub struct ChatMessage {
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
-#[derive(Serialize)]
-struct OllamaChatRequest<'a> {
-    model: &'a str,
-    messages: &'a [ChatMessage],
-    stream: bool,
-    tools: Value,
-}
-
-#[derive(Deserialize)]
-struct OllamaChatChunk {
-    message: Option<OllamaChunkMessage>,
-    #[serde(default)]
-    done: bool,
-    #[serde(default)]
-    prompt_eval_count: Option<u64>,
-    #[serde(default)]
-    eval_count: Option<u64>,
-}
-
-#[derive(Deserialize)]
-struct OllamaChunkMessage {
-    #[serde(default)]
-    content: String,
-    #[serde(default)]
-    thinking: String,
-    #[serde(default)]
-    tool_calls: Option<Vec<ToolCall>>,
-}
-
-#[derive(Deserialize)]
-struct OllamaTagsResponse {
-    models: Vec<OllamaModelInfo>,
-}
-
-#[derive(Deserialize)]
-struct OllamaModelInfo {
-    name: String,
-    #[serde(default)]
-    details: Option<OllamaModelDetails>,
-}
-
-#[derive(Deserialize)]
-struct OllamaModelDetails {
-    #[serde(default)]
-    context_length: Option<u64>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelSummary {
-    pub name: String,
-    pub context_length: Option<u64>,
-}
-
-struct TurnResult {
-    content: String,
-    tool_calls: Option<Vec<ToolCall>>,
-    prompt_tokens: Option<u64>,
-    completion_tokens: Option<u64>,
+pub struct TurnResult {
+    pub content: String,
+    pub tool_calls: Option<Vec<ToolCall>>,
+    pub prompt_tokens: Option<u64>,
+    pub completion_tokens: Option<u64>,
 }
 
 const MAX_TOOL_ITERATIONS: usize = 15;
 const MAX_MALFORMED_TOOL_CALL_RETRIES: usize = 2;
-
-#[tauri::command]
-pub async fn list_ollama_models() -> Result<Vec<ModelSummary>, String> {
-    let resp = reqwest::get("http://localhost:11434/api/tags")
-        .await
-        .map_err(|e| e.to_string())?;
-    let tags: OllamaTagsResponse = resp.json().await.map_err(|e| e.to_string())?;
-    Ok(tags
-        .models
-        .into_iter()
-        .map(|m| ModelSummary {
-            name: m.name,
-            context_length: m.details.and_then(|d| d.context_length),
-        })
-        .collect())
-}
 
 #[tauri::command]
 pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), String> {
@@ -111,6 +41,7 @@ pub async fn send_prompt(
     app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
+    provider: ProviderConfig,
     model: String,
     message: String,
 ) -> Result<(), String> {
@@ -124,7 +55,7 @@ pub async fn send_prompt(
         },
     );
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true).await
 }
 
 /// Runs an isolated sub-agent for the `spawn_sub_agent` tool: its own fresh
@@ -148,12 +79,14 @@ pub async fn send_prompt(
 /// explicit, already-concrete signature (`Pin<Box<dyn Future + Send>>`)
 /// breaks the cycle: callers see a fixed type immediately, with nothing left
 /// to infer.
+#[allow(clippy::too_many_arguments)]
 pub fn run_sub_agent<'a>(
     app: &'a AppHandle,
     state: &'a State<'a, AppState>,
     parent_session_id: &'a str,
     sub_session_id: &'a str,
     prompt: &'a str,
+    provider: &'a ProviderConfig,
     model: &'a str,
     cancel_flag: &'a Arc<AtomicBool>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
@@ -173,6 +106,7 @@ pub fn run_sub_agent<'a>(
             state,
             sub_session_id,
             parent_session_id,
+            provider,
             model,
             cancel_flag,
             false,
@@ -217,6 +151,7 @@ pub fn run_sub_agent<'a>(
 pub fn resume_after_background_subtask(
     app: AppHandle,
     session_id: String,
+    provider: ProviderConfig,
     model: String,
     description: String,
     result: String,
@@ -232,7 +167,9 @@ pub fn resume_after_background_subtask(
                 tool_calls: None,
             },
         );
-        let _ = run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await;
+        let _ =
+            run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true)
+                .await;
     })
 }
 
@@ -282,6 +219,7 @@ pub async fn retry_last(
     app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
+    provider: ProviderConfig,
     model: String,
 ) -> Result<(), String> {
     {
@@ -293,7 +231,7 @@ pub async fn retry_last(
         }
     }
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &model, true).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true).await
 }
 
 fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()>> {
@@ -326,6 +264,7 @@ async fn run_with_cancellation(
     state: &State<'_, AppState>,
     session_id: &str,
     scope_id: &str,
+    provider: &ProviderConfig,
     model: &str,
     allow_subtasks: bool,
 ) -> Result<(), String> {
@@ -345,6 +284,7 @@ async fn run_with_cancellation(
         state,
         session_id,
         scope_id,
+        provider,
         model,
         &cancel_flag,
         allow_subtasks,
@@ -362,6 +302,7 @@ async fn run_agent_loop(
     state: &State<'_, AppState>,
     session_id: &str,
     scope_id: &str,
+    provider: &ProviderConfig,
     model: &str,
     cancel_flag: &Arc<AtomicBool>,
     allow_subtasks: bool,
@@ -396,16 +337,17 @@ async fn run_agent_loop(
             sessions.get(session_id).cloned().unwrap_or_default()
         };
 
-        // Ollama occasionally fails a turn outright with a 500 "error parsing
-        // tool call" when the model's own output mixes raw reasoning text
-        // into where Ollama expects clean JSON — a transient sampling
-        // hiccup on the model's end, not a real error condition. Retrying
-        // the exact same request a couple of times usually gets a
-        // well-formed response without bothering the user.
+        // Providers occasionally fail a turn outright with a transient hiccup
+        // (e.g. Ollama's "error parsing tool call" 500 when the model's own
+        // output mixes raw reasoning text into where clean JSON is expected,
+        // or a 429/5xx from an OpenAI-compatible host) — not a real error
+        // condition. Retrying the exact same request a couple of times
+        // usually gets a well-formed response without bothering the user.
         let mut attempt = 0;
         let turn = loop {
-            match stream_one_turn(
+            match provider::stream_turn(
                 app,
+                provider,
                 model,
                 &history,
                 &chunk_event,
@@ -419,24 +361,17 @@ async fn run_agent_loop(
             .await
             {
                 Ok(t) => break t,
-                Err(e)
-                    if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES
-                        && e.contains("error parsing tool call") =>
-                {
+                Err(ProviderError::Transient(_)) if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES => {
                     attempt += 1;
                 }
-                Err(e) => {
-                    // Ollama echoes the model's entire malformed generation
-                    // (often its full reasoning text) back inside the JSON
-                    // error body — not useful to show as-is once we're
-                    // giving up on it.
-                    let msg = if e.contains("error parsing tool call") {
-                        "The model kept producing malformed tool calls that Ollama couldn't parse, even after retrying. Try again, simplify the request, or switch to a model that handles tool calling more reliably.".to_string()
-                    } else {
-                        e
-                    };
+                Err(ProviderError::Transient(_)) => {
+                    let msg = "The model kept producing malformed tool calls that the provider couldn't parse, even after retrying. Try again, simplify the request, or switch to a model that handles tool calling more reliably.".to_string();
                     let _ = app.emit(&error_event, &msg);
                     return Err(msg);
+                }
+                Err(ProviderError::Fatal(e)) => {
+                    let _ = app.emit(&error_event, &e);
+                    return Err(e);
                 }
             }
         };
@@ -500,6 +435,7 @@ async fn run_agent_loop(
                     state,
                     scope_id,
                     call.id.as_deref(),
+                    provider,
                     model,
                     cancel_flag,
                     &call.function.name,
@@ -600,109 +536,3 @@ pub fn load_conversation_history(
     Ok(messages)
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn stream_one_turn(
-    app: &AppHandle,
-    model: &str,
-    history: &[ChatMessage],
-    chunk_event: &str,
-    thinking_event: &str,
-    error_event: &str,
-    cancel_flag: &Arc<AtomicBool>,
-    root: Option<&std::path::Path>,
-    touched_dirs: &[std::path::PathBuf],
-    allow_subtasks: bool,
-) -> Result<TurnResult, String> {
-    let client = reqwest::Client::new();
-    let body = OllamaChatRequest {
-        model,
-        messages: history,
-        stream: true,
-        tools: tools::tool_definitions(root, touched_dirs, allow_subtasks),
-    };
-    let resp = match client
-        .post("http://localhost:11434/api/chat")
-        .json(&body)
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            return Err(format!("failed to reach ollama at localhost:11434: {e}"));
-        }
-    };
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("ollama returned {status}: {body_text}"));
-    }
-
-    let mut stream = resp.bytes_stream();
-    let mut buf = String::new();
-    let mut full_content = String::new();
-    let mut tool_calls: Option<Vec<ToolCall>> = None;
-    let mut prompt_tokens: Option<u64> = None;
-    let mut completion_tokens: Option<u64> = None;
-
-    'outer: while let Some(item) = stream.next().await {
-        if cancel_flag.load(Ordering::SeqCst) {
-            return Ok(TurnResult {
-                content: full_content,
-                tool_calls: None,
-                prompt_tokens,
-                completion_tokens,
-            });
-        }
-
-        let bytes = match item {
-            Ok(b) => b,
-            Err(e) => return Err(e.to_string()),
-        };
-        buf.push_str(&String::from_utf8_lossy(&bytes));
-        while let Some(pos) = buf.find('\n') {
-            let line = buf[..pos].trim().to_string();
-            buf.drain(..=pos);
-            if line.is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<OllamaChatChunk>(&line) {
-                Ok(chunk) => {
-                    if let Some(msg) = chunk.message {
-                        if !msg.thinking.is_empty() {
-                            let _ = app.emit(thinking_event, &msg.thinking);
-                        }
-                        if !msg.content.is_empty() {
-                            full_content.push_str(&msg.content);
-                            let _ = app.emit(chunk_event, &msg.content);
-                        }
-                        if let Some(calls) = msg.tool_calls {
-                            if !calls.is_empty() {
-                                tool_calls = Some(calls);
-                            }
-                        }
-                    }
-                    if chunk.prompt_eval_count.is_some() {
-                        prompt_tokens = chunk.prompt_eval_count;
-                    }
-                    if chunk.eval_count.is_some() {
-                        completion_tokens = chunk.eval_count;
-                    }
-                    if chunk.done {
-                        break 'outer;
-                    }
-                }
-                Err(e) => {
-                    let _ = app.emit(error_event, e.to_string());
-                }
-            }
-        }
-    }
-
-    Ok(TurnResult {
-        content: full_content,
-        tool_calls,
-        prompt_tokens,
-        completion_tokens,
-    })
-}

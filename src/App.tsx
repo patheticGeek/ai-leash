@@ -5,6 +5,7 @@ import ResizeHandle from "./components/ResizeHandle";
 import CenterPanel from "./components/CenterPanel";
 import StatusBar from "./components/StatusBar";
 import PermissionModal from "./components/PermissionModal";
+import ProviderSettingsModal from "./components/ProviderSettingsModal";
 import { useAppStore } from "./store";
 import { useResizableWidth } from "./hooks/useResizableWidth";
 
@@ -39,6 +40,7 @@ function App() {
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">
       <PermissionModal />
+      <ProviderSettingsModal />
       <div className="flex flex-1 min-h-0">
         <div style={{ width: leftBarWidth }} className="shrink-0">
           <LeftBar />

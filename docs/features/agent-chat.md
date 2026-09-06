@@ -10,15 +10,78 @@ code isn't tied to one backend shape.
 
 ## Provider
 
-Hardcoded to `http://localhost:11434` for now (`chat.rs`):
-- `GET /api/tags` → `list_ollama_models` command, used to populate the
-  model dropdown and to determine Ollama connectivity.
-- `POST /api/chat` with `"stream": true` and the full tool list attached
-  (see [tools.md](./tools.md)) → the actual chat/tool-call loop.
+`src-tauri/src/provider.rs` defines `ProviderConfig`, an enum with two
+variants — `Ollama { host }` and `OpenAiCompatible { base_url, api_key }`
+— serialized with an internal `kind` tag (`"ollama"` /
+`"openAiCompatible"`) so it matches the frontend's `ProviderConfigPayload`
+union (`src/lib/tauriApi.ts`) exactly. There is deliberately **no
+backend-persisted provider config**: every command that talks to a model
+(`send_prompt`, `retry_last`, `resume_after_background_subtask`,
+`list_provider_models`) takes a `provider: ProviderConfig` argument sent
+fresh from the frontend on every call, the same way `model: String`
+already was — `AppState` gained no new field for this. The frontend's own
+copy of provider settings (`store.ts`'s `providerSettings` — the Ollama
+host, zero or more saved OpenAI-compatible configs, and which one is
+active) lives in `localStorage` only (`ai-leash:providerConfig`),
+including API keys in plaintext — an explicit, deliberate tradeoff for
+this local-first single-user app rather than adding an OS-keychain
+dependency.
 
-There's no generic OpenAI-compatible provider yet and no way to point
-at a different Ollama host/port from the UI — both are still on the
-plan (multi-provider milestone), not implemented.
+`provider::stream_turn` dispatches on the enum to one of two functions,
+both used from the single `run_agent_loop` call site (`chat.rs`) that
+used to call Ollama directly:
+- `stream_turn_ollama`: unchanged Ollama behavior, just with the host
+  built from `ProviderConfig::Ollama.host` instead of a hardcoded
+  `localhost:11434` — bare newline-delimited JSON, one full message
+  snapshot per line, `tool_calls` sent whole (not incrementally) right
+  before the final `done`.
+- `stream_turn_openai`: a generic OpenAI-compatible chat-completions
+  provider (works against `api.openai.com`, OpenRouter, or any
+  self-hosted OpenAI-compatible server). Its wire format is genuinely
+  different from Ollama's, not just a different URL: streaming is
+  **SSE** (`data: {...}\n` lines terminated by a literal `data: [DONE]`),
+  and tool-call arguments arrive as **incremental string fragments keyed
+  by index** that must be concatenated before parsing as JSON, rather
+  than Ollama's single whole-array send. `stream_options:
+  {include_usage: true}` is set on the request so token usage populates
+  the same `usage` event Ollama's path already emits (best-effort — some
+  third-party hosts may ignore it). Both providers reuse
+  `tools::tool_definitions(...)` unchanged (already OpenAI
+  function-calling-shaped JSON) and `tools::ToolCall`/`ToolCallFunction`
+  as the finalized shape, so `TurnResult` is identical regardless of
+  which provider produced it.
+
+`list_provider_models` only returns a real, live model list for Ollama
+(`GET /api/tags`, host-configurable). For `OpenAiCompatible` it always
+returns `[]` — many OpenAI-compatible hosts don't implement `GET
+/v1/models` reliably, and it has no `context_length` equivalent anyway —
+so the frontend uses a free-text model-id input for this provider kind
+(`ChatPanel.tsx` swaps its `<select>` for an `<input>` when
+`providerSettings.activeId !== "ollama"`) instead of a populated
+dropdown.
+
+A provider call can fail two ways, expressed as `ProviderError` rather
+than a plain `String` so `run_agent_loop`'s retry logic doesn't have to
+string-match provider-specific error text:
+- `Transient` — worth silently retrying the same turn a couple of times
+  (`MAX_MALFORMED_TOOL_CALL_RETRIES`): Ollama's "error parsing tool call"
+  500 (a sampling hiccup where the model's raw reasoning leaks into where
+  clean JSON is expected), or a `429`/`5xx` from an OpenAI-compatible
+  host.
+- `Fatal` — surfaced to the user immediately.
+
+Settings UI: `ProviderSettingsModal.tsx` (opened via the gear button next
+to `LeftBar.tsx`'s "open project" `+`) lets you set the Ollama host, and
+add/edit/delete saved OpenAI-compatible configs (label, base URL, API
+key, model id) and pick which one is active.
+
+External ACP-agent-process support (driving a whole separate agent
+*binary* over the Agent Client Protocol, as opposed to just varying which
+HTTP API a single turn's model call goes to) remains a distinct, larger,
+not-yet-built piece of work — see the intro above. It won't fold into
+`ProviderConfig`: an ACP agent owns its entire tool-calling and
+permission-request loop, so it would replace `run_agent_loop` itself for
+a session rather than swap out one HTTP call inside it.
 
 ## Session model
 

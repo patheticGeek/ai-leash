@@ -65,6 +65,7 @@ export default function LeftBar() {
   const openProject = useAppStore((s) => s.openProject);
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
   const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
+  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
 
   // Always mounted regardless of which project (if any) is currently open,
   // so a session's `generating` state is tracked even while you're looking
@@ -98,13 +99,22 @@ export default function LeftBar() {
     <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#26272c] px-2.5">
         <Logo />
-        <button
-          onClick={pickProject}
-          title="Open project"
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
-        >
-          +
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setSettingsModalOpen(true)}
+            title="Provider settings"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
+          >
+            ⚙
+          </button>
+          <button
+            onClick={pickProject}
+            title="Open project"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
+          >
+            +
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1.5">
         {sortedProjects.length === 0 ? (

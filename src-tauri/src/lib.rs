@@ -2,6 +2,7 @@ mod chat;
 mod commands;
 mod context;
 mod db;
+mod provider;
 mod pty;
 mod state;
 mod tools;
@@ -24,7 +25,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
-            chat::list_ollama_models,
+            provider::list_provider_models,
             chat::send_prompt,
             chat::retry_last,
             chat::cancel_prompt,

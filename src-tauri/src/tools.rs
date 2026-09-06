@@ -1,6 +1,7 @@
 use crate::chat;
 use crate::commands::{self, IGNORED_NAMES};
 use crate::context;
+use crate::provider::ProviderConfig;
 use crate::state::AppState;
 use ignore::WalkBuilder;
 use regex::Regex;
@@ -269,6 +270,7 @@ pub async fn execute_tool(
     state: &State<'_, AppState>,
     session_id: &str,
     call_id: Option<&str>,
+    provider: &ProviderConfig,
     model: &str,
     cancel_flag: &Arc<AtomicBool>,
     name: &str,
@@ -532,6 +534,7 @@ pub async fn execute_tool(
                         session_id,
                         &sub_session_id,
                         &prompt,
+                        provider,
                         model,
                         cancel_flag,
                     )
@@ -562,6 +565,7 @@ pub async fn execute_tool(
                 session_id,
                 &first_sub_id,
                 &first_prompt,
+                provider,
                 model,
                 cancel_flag,
             )
@@ -571,6 +575,7 @@ pub async fn execute_tool(
             if !remaining.is_empty() {
                 let app_owned = app.clone();
                 let session_id_owned = session_id.to_string();
+                let provider_owned = provider.clone();
                 let model_owned = model.to_string();
                 tokio::spawn(async move {
                     for (description, prompt, sub_session_id) in remaining {
@@ -582,6 +587,7 @@ pub async fn execute_tool(
                             &session_id_owned,
                             &sub_session_id,
                             &prompt,
+                            &provider_owned,
                             &model_owned,
                             &cancel_flag,
                         )
@@ -591,6 +597,7 @@ pub async fn execute_tool(
                         chat::resume_after_background_subtask(
                             app_owned.clone(),
                             session_id_owned.clone(),
+                            provider_owned.clone(),
                             model_owned.clone(),
                             description,
                             result,

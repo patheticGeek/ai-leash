@@ -11,6 +11,12 @@ export interface ModelSummary {
   contextLength: number | null;
 }
 
+// Wire shape matching Rust's `provider::ProviderConfig` exactly (see
+// provider.rs's `provider_config_serde_matches_frontend_wire_shape` test).
+export type ProviderConfigPayload =
+  | { kind: "ollama"; host: string }
+  | { kind: "openAiCompatible"; baseUrl: string; apiKey: string };
+
 export interface PersistedToolCall {
   id: string | null;
   function: { name: string; arguments: unknown };
@@ -36,7 +42,17 @@ export const api = {
   ptyResize: (id: string, cols: number, rows: number) =>
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
-  listOllamaModels: () => invoke<ModelSummary[]>("list_ollama_models"),
+  listProviderModels: (provider: ProviderConfigPayload) =>
+    invoke<ModelSummary[]>("list_provider_models", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
+  sendPrompt: (
+    sessionId: string,
+    provider: ProviderConfigPayload,
+    model: string,
+    message: string,
+  ) => invoke<void>("send_prompt", { sessionId, provider, model, message }),
+  retryLast: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
+    invoke<void>("retry_last", { sessionId, provider, model }),
+  cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
 };

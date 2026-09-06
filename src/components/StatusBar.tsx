@@ -2,6 +2,12 @@ import { useAppStore } from "../store";
 
 export default function StatusBar() {
   const ollamaConnected = useAppStore((s) => s.ollamaConnected);
+  const providerSettings = useAppStore((s) => s.providerSettings);
+  const activeProviderLabel =
+    providerSettings.activeId === "ollama"
+      ? "ollama"
+      : (providerSettings.openAiCompatible.find((c) => c.id === providerSettings.activeId)
+          ?.label ?? "provider");
 
   return (
     <div className="flex h-6 items-center justify-between bg-[#17181c] border-t border-[#26272c] px-3 text-xs text-zinc-500">
@@ -15,7 +21,7 @@ export default function StatusBar() {
                 : "bg-zinc-600"
           }`}
         />
-        ollama ·{" "}
+        {activeProviderLabel} ·{" "}
         {ollamaConnected === null
           ? "checking…"
           : ollamaConnected

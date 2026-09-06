@@ -1,8 +1,9 @@
 import { create } from "zustand";
-import { api, type ModelSummary } from "./lib/tauriApi";
+import { api, type ModelSummary, type ProviderConfigPayload } from "./lib/tauriApi";
 import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
+const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
 
 interface OpenFile {
   path: string;
@@ -43,6 +44,54 @@ function loadRecentProjects(): RecentProject[] {
 
 function saveRecentProjects(projects: RecentProject[]) {
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(projects));
+}
+
+export interface OllamaProviderConfig {
+  kind: "ollama";
+  host: string; // e.g. "localhost:11434"; "" is treated as the default
+}
+
+export interface OpenAiCompatibleProviderConfig {
+  kind: "openAiCompatible";
+  id: string; // stable local id, survives label edits
+  label: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string; // free-text — see docs/features/agent-chat.md on why there's no live model list for this provider kind
+}
+
+export type ProviderConfig = OllamaProviderConfig | OpenAiCompatibleProviderConfig;
+
+interface ProviderSettings {
+  ollama: OllamaProviderConfig;
+  openAiCompatible: OpenAiCompatibleProviderConfig[];
+  activeId: "ollama" | string;
+}
+
+const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
+  ollama: { kind: "ollama", host: "localhost:11434" },
+  openAiCompatible: [],
+  activeId: "ollama",
+};
+
+function loadProviderSettings(): ProviderSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null");
+    if (parsed && typeof parsed === "object") {
+      return {
+        ollama: { kind: "ollama", host: parsed.ollama?.host ?? "localhost:11434" },
+        openAiCompatible: Array.isArray(parsed.openAiCompatible) ? parsed.openAiCompatible : [],
+        activeId: parsed.activeId ?? "ollama",
+      };
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_PROVIDER_SETTINGS;
+}
+
+function saveProviderSettings(settings: ProviderSettings) {
+  localStorage.setItem(PROVIDER_CONFIG_KEY, JSON.stringify(settings));
 }
 
 export interface SubAgentTask {
@@ -94,6 +143,8 @@ interface AppStore {
   activePath: string | null;
   ollamaConnected: boolean | null;
   ollamaModels: ModelSummary[];
+  providerSettings: ProviderSettings;
+  settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
@@ -115,6 +166,12 @@ interface AppStore {
   saveActive: () => Promise<void>;
   refreshOllama: () => Promise<void>;
   setOllamaConnected: (connected: boolean) => void;
+  activeProviderConfig: () => ProviderConfigPayload;
+  setSettingsModalOpen: (open: boolean) => void;
+  setOllamaHost: (host: string) => void;
+  saveOpenAiCompatibleConfig: (config: OpenAiCompatibleProviderConfig) => void;
+  deleteOpenAiCompatibleConfig: (id: string) => void;
+  setActiveProvider: (activeId: string) => void;
   startSubAgentTask: (task: {
     subSessionId: string;
     parentSessionId: string;
@@ -145,6 +202,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activePath: null,
   ollamaConnected: null,
   ollamaModels: [],
+  providerSettings: loadProviderSettings(),
+  settingsModalOpen: false,
   subAgentTasks: [],
   panelTabs: [],
   activePanelTabId: null,
@@ -273,7 +332,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   refreshOllama: async () => {
     try {
-      const models = await api.listOllamaModels();
+      const models = await api.listProviderModels(get().activeProviderConfig());
       set({ ollamaModels: models, ollamaConnected: true });
     } catch {
       set({ ollamaModels: [], ollamaConnected: false });
@@ -281,6 +340,58 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setOllamaConnected: (connected) => set({ ollamaConnected: connected }),
+
+  // Narrows `providerSettings` (which carries frontend-only bookkeeping like
+  // `id`/`label`/`model`) down to exactly the shape the backend's
+  // `ProviderConfig` enum expects, so callers can pass this straight into
+  // `api.listProviderModels`/`api.sendPrompt`/`api.retryLast`.
+  activeProviderConfig: () => {
+    const { providerSettings } = get();
+    if (providerSettings.activeId === "ollama") {
+      return { kind: "ollama", host: providerSettings.ollama.host };
+    }
+    const found = providerSettings.openAiCompatible.find(
+      (c) => c.id === providerSettings.activeId,
+    );
+    if (!found) return { kind: "ollama", host: providerSettings.ollama.host };
+    return { kind: "openAiCompatible", baseUrl: found.baseUrl, apiKey: found.apiKey };
+  },
+
+  setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
+
+  setOllamaHost: (host) =>
+    set((s) => {
+      const providerSettings = { ...s.providerSettings, ollama: { kind: "ollama" as const, host } };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  saveOpenAiCompatibleConfig: (config) =>
+    set((s) => {
+      const exists = s.providerSettings.openAiCompatible.some((c) => c.id === config.id);
+      const openAiCompatible = exists
+        ? s.providerSettings.openAiCompatible.map((c) => (c.id === config.id ? config : c))
+        : [...s.providerSettings.openAiCompatible, config];
+      const providerSettings = { ...s.providerSettings, openAiCompatible };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  deleteOpenAiCompatibleConfig: (id) =>
+    set((s) => {
+      const openAiCompatible = s.providerSettings.openAiCompatible.filter((c) => c.id !== id);
+      const activeId = s.providerSettings.activeId === id ? "ollama" : s.providerSettings.activeId;
+      const providerSettings = { ...s.providerSettings, openAiCompatible, activeId };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  setActiveProvider: (activeId) =>
+    set((s) => {
+      const providerSettings = { ...s.providerSettings, activeId };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
 
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
     set((s) => ({
