@@ -33,6 +33,9 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
     if let Some(flag) = state.cancellations.lock().unwrap().get(&session_id) {
         flag.store(true, Ordering::SeqCst);
     }
+    if let Some(sender) = state.acp_sessions.lock().unwrap().get(&session_id) {
+        let _ = sender.send(crate::acp::AcpCommand::Cancel);
+    }
     Ok(())
 }
 
@@ -480,7 +483,9 @@ fn touched_dirs_for(state: &State<'_, AppState>, session_id: &str) -> Vec<std::p
         .collect()
 }
 
-fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
+/// `pub(crate)` so `acp.rs` can persist ACP-backed turns through the same
+/// SQLite + in-memory path the built-in loop already uses.
+pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
     if db::is_persistable(session_id) {
         if let Ok(root) = commands::get_root_path(state.inner()) {
             db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);

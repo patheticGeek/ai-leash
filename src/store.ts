@@ -4,6 +4,7 @@ import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
 const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
+const AGENT_BACKEND_KEY = "ai-leash:agentBackend";
 
 interface OpenFile {
   path: string;
@@ -94,6 +95,43 @@ function saveProviderSettings(settings: ProviderSettings) {
   localStorage.setItem(PROVIDER_CONFIG_KEY, JSON.stringify(settings));
 }
 
+// One global agent backend setting (not per-project), same reasoning as
+// `providerSettings` — a session's chat "just uses whatever's active".
+// External ACP support replaces the entire built-in agent loop for a
+// session rather than varying which HTTP API a turn's model call goes to
+// (that's what `ProviderConfig` above is for) — see docs/features/agent-chat.md.
+export interface BuiltInAgentBackend {
+  kind: "builtin";
+}
+
+export interface AcpAgentBackend {
+  kind: "acp";
+  launchCommand: string; // shell-style command line, e.g. "npx -y @agentclientprotocol/claude-agent-acp@latest"
+}
+
+export type AgentBackend = BuiltInAgentBackend | AcpAgentBackend;
+
+const DEFAULT_AGENT_BACKEND: AgentBackend = { kind: "builtin" };
+
+function loadAgentBackend(): AgentBackend {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AGENT_BACKEND_KEY) ?? "null");
+    if (parsed?.kind === "acp") {
+      return { kind: "acp", launchCommand: String(parsed.launchCommand ?? "") };
+    }
+    if (parsed?.kind === "builtin") {
+      return { kind: "builtin" };
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_AGENT_BACKEND;
+}
+
+function saveAgentBackend(backend: AgentBackend) {
+  localStorage.setItem(AGENT_BACKEND_KEY, JSON.stringify(backend));
+}
+
 export interface SubAgentTask {
   subSessionId: string;
   parentSessionId: string;
@@ -144,6 +182,7 @@ interface AppStore {
   ollamaConnected: boolean | null;
   ollamaModels: ModelSummary[];
   providerSettings: ProviderSettings;
+  agentBackend: AgentBackend;
   settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
   panelTabs: PanelTab[];
@@ -172,6 +211,7 @@ interface AppStore {
   saveOpenAiCompatibleConfig: (config: OpenAiCompatibleProviderConfig) => void;
   deleteOpenAiCompatibleConfig: (id: string) => void;
   setActiveProvider: (activeId: string) => void;
+  setAgentBackend: (backend: AgentBackend) => void;
   startSubAgentTask: (task: {
     subSessionId: string;
     parentSessionId: string;
@@ -203,6 +243,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   ollamaConnected: null,
   ollamaModels: [],
   providerSettings: loadProviderSettings(),
+  agentBackend: loadAgentBackend(),
   settingsModalOpen: false,
   subAgentTasks: [],
   panelTabs: [],
@@ -391,6 +432,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const providerSettings = { ...s.providerSettings, activeId };
       saveProviderSettings(providerSettings);
       return { providerSettings };
+    }),
+
+  setAgentBackend: (backend) =>
+    set(() => {
+      saveAgentBackend(backend);
+      return { agentBackend: backend };
     }),
 
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>

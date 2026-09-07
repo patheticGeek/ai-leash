@@ -207,6 +207,8 @@ export default function ChatPanel() {
   const activeProviderConfig = useAppStore((s) => s.activeProviderConfig);
   const providerSettings = useAppStore((s) => s.providerSettings);
   const isOpenAiCompatible = providerSettings.activeId !== "ollama";
+  const agentBackend = useAppStore((s) => s.agentBackend);
+  const isAcp = agentBackend.kind === "acp";
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -457,7 +459,7 @@ export default function ChatPanel() {
 
   async function send() {
     const text = input.trim();
-    if (!text || sending || !model) return;
+    if (!text || sending || (!isAcp && !model)) return;
     setInput("");
     setOllamaError(null);
     setEntries((prev) => [
@@ -466,7 +468,11 @@ export default function ChatPanel() {
     ]);
     setSending(true);
     try {
-      await api.sendPrompt(sessionId, activeProviderConfig(), model, text);
+      if (isAcp && agentBackend.kind === "acp") {
+        await api.sendPromptAcp(sessionId, agentBackend.launchCommand, text);
+      } else {
+        await api.sendPrompt(sessionId, activeProviderConfig(), model, text);
+      }
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -580,7 +586,7 @@ export default function ChatPanel() {
                   >
                     {copiedIndex === i ? <CheckIcon /> : <CopyIcon />}
                   </button>
-                  {!sending && isLast && (
+                  {!sending && isLast && !isAcp && (
                     <button
                       onClick={retry}
                       title="Retry"
@@ -697,7 +703,9 @@ export default function ChatPanel() {
             className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
           />
           <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
-            {isOpenAiCompatible ? (
+            {isAcp ? (
+              <span className="text-xs text-zinc-600">external ACP agent</span>
+            ) : isOpenAiCompatible ? (
               <input
                 value={model}
                 onChange={(e) => setModel(e.currentTarget.value)}
@@ -723,7 +731,7 @@ export default function ChatPanel() {
               </select>
             )}
             <div className="flex items-center gap-1.5">
-            {usedTokens !== null && (
+            {!isAcp && usedTokens !== null && (
               <div
                 className="relative"
                 onMouseEnter={() => setShowUsagePopover(true)}
@@ -768,7 +776,7 @@ export default function ChatPanel() {
             )}
             <button
               onClick={sending ? stop : send}
-              disabled={!sending && (!input.trim() || !model)}
+              disabled={!sending && (!input.trim() || (!isAcp && !model))}
               title={sending ? "Stop" : "Send"}
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white disabled:cursor-not-allowed disabled:opacity-40 ${
                 sending

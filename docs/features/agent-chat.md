@@ -1,12 +1,18 @@
 # Agent chat runtime
 
-The built-in agent runtime (`chat.rs`) talks directly to a local
-**Ollama** server over HTTP — it does not go through the Agent Client
-Protocol (ACP). ACP is reserved for driving *external* agent processes
-later (not yet built); the built-in runtime uses its own simple
-session/event model that happens to look ACP-shaped (session id,
-streamed message chunks, tool calls, permission requests) so the UI
-code isn't tied to one backend shape.
+There are two independent "agent backends" a chat session can use, chosen
+globally in `ProviderSettingsModal.tsx` (`store.ts`'s `agentBackend`, not
+per-project): the **built-in** loop (`chat.rs`, described in this whole
+file below), or an **external ACP agent subprocess** (`acp.rs`, see
+"External ACP agent backend" at the end of this file). The built-in
+runtime talks directly to a local Ollama server or an OpenAI-compatible
+HTTP API (see "Provider" below) and does not go through the Agent Client
+Protocol (ACP) itself — it uses its own simple session/event model that
+happens to look ACP-shaped (session id, streamed message chunks, tool
+calls, permission requests) so the UI code isn't tied to one backend
+shape, which is exactly what let the ACP backend reuse the same
+`chat://{sessionId}/...` event names and the same `PermissionModal.tsx`
+flow without any redesign.
 
 ## Provider
 
@@ -380,14 +386,99 @@ UIs use. Every place a message's text is rendered uses this same
 split: the main `entries` list here, `SubEntryLine` (the nested
 sub-agent thread), and `SubAgentChatTab.tsx` (the standalone tab).
 
-### Ollama connection status
+### Provider connection status
 
 `store.ts` holds `ollamaConnected: boolean | null` (`null` = not yet
-checked) and `ollamaModels: string[]`, refreshed via `refreshOllama()`
-which calls `list_ollama_models` and sets connected/models on success or
+checked, name kept from before multi-provider support to avoid churn —
+see [Provider](#provider) above) and `ollamaModels: ModelSummary[]`,
+refreshed via `refreshOllama()` which calls `api.listProviderModels
+(activeProviderConfig())` and sets connected/models on success or
 `ollamaConnected: false` + empty models on failure. `App.tsx` triggers
 one check on mount; `ChatPanel` polls every **5 seconds** via
 `setInterval`, but the effect bails out (and its cleanup stops the
 interval) whenever `sending` is `true` — no polling while a turn is
 actively in flight. `StatusBar.tsx` reads the same store value to show
-"checking…" / "connected" / "disconnected" with a colored dot.
+"checking…" / "connected" / "disconnected" with a colored dot next to
+the active provider's label.
+
+## External ACP agent backend
+
+`src-tauri/src/acp.rs` implements the other agent backend: driving a
+whole **external ACP (Agent Client Protocol) agent subprocess** — a
+separate autonomous program that owns its own model calls, its own
+tool-calling, and its own permission-request flow — instead of our
+built-in loop. This is a different axis than [Provider](#provider)
+above: `Provider` only varies which HTTP API a single model-turn call
+goes to, with `run_agent_loop`/`tools::execute_tool`/every built-in tool
+staying identical regardless; the ACP backend *replaces*
+`run_agent_loop` entirely for a session, and none of our own tools run —
+the external agent does its own file I/O directly as a real OS process.
+Chosen globally (not per-project) via `store.ts`'s `agentBackend: {kind:
+"builtin"} | {kind: "acp", launchCommand}`, set in
+`ProviderSettingsModal.tsx`'s "Agent backend" section.
+
+Uses the `agent-client-protocol` crate's stable v1 client role
+(`Client.builder()...connect_with(...)`, following
+`examples/yolo_one_shot_client.rs`'s pattern), advertising
+`ClientCapabilities::new()` (all default/false) so the agent never asks
+us to read/write files or run a terminal on its behalf — deliberately
+out of scope for now.
+
+- **Process lifecycle**: `send_prompt_acp(session_id, launch_command,
+  message)` calls `ensure_acp_session`, which spawns (via
+  `AcpAgent::from_str(launch_command)`, a shell-style command line) a
+  `tokio::spawn`ed connection actor the first time a given `session_id`
+  is used, storing an `mpsc::UnboundedSender<AcpCommand>` in
+  `AppState.acp_sessions` keyed by `session_id`. Subsequent prompts for
+  the same session reuse the same subprocess/connection — spawning a new
+  one per turn would lose the agent's own conversation state entirely,
+  since ACP semantics are `Initialize` → one `NewSessionRequest` → many
+  serial `PromptRequest`s over that session. The subprocess stays alive
+  for the life of the running app; there's no `session/load`/resume
+  across app restarts, so a fresh run's respawned subprocess has no
+  memory of earlier turns even though the persisted transcript (see
+  below) still shows them — the same category of limitation already
+  accepted for the built-in loop's crash-recovery behavior.
+- **Event mapping**: the connection's `on_receive_notification` handler
+  maps `SessionUpdate` variants onto the *same* `chat://{sessionId}/...`
+  events the built-in loop emits, so `ChatPanel.tsx` needed zero
+  rendering changes: `AgentMessageChunk` → `chunk` (and accumulated into
+  a shared `Arc<Mutex<String>>` for persistence once the turn ends),
+  `AgentThoughtChunk` → `thinking`, `ToolCall`/`ToolCallUpdate` →
+  `tool_call`/`tool_result` (only once `status` reaches
+  `Completed`/`Failed`; content rendered via `summarize_tool_call_content`,
+  a best-effort text join). `Plan`/`AvailableCommandsUpdate`/
+  `CurrentModeUpdate`/etc. are ignored — no UI concept for them yet.
+  `generating` is bracketed true/false around each `PromptRequest`
+  exactly like `run_with_cancellation` does for the built-in loop, so
+  `LeftBar.tsx`'s busy dot and `ChatPanel.tsx`'s `sending` state work
+  unchanged.
+- **Permission bridge**: `RequestPermissionRequest` (ACP's permission
+  ask, which offers a list of named options — allow once/always, reject
+  once/always) is bridged onto the *existing* boolean approve/deny
+  `PermissionModal.tsx` flow rather than redesigning it — `tools::
+  request_permission` (now `pub(crate)`, previously private) is reused
+  as-is. `select_permission_option` collapses the outcome: approve →
+  first `AllowOnce`, else first `AllowAlways`, else the first option
+  offered at all; deny → `RequestPermissionOutcome::Cancelled`
+  unconditionally, a legitimate protocol response. `PermissionRequestPayload
+  .kind` gained a third literal, `"acp"`, for the modal's header copy.
+- **Cancellation**: `chat::cancel_prompt` (same command, same signature —
+  the frontend's `stop()` needed no changes) now also checks
+  `AppState.acp_sessions` and sends `AcpCommand::Cancel`, which the
+  connection actor turns into a `session/cancel` notification to the
+  agent.
+- **Persistence**: the connection actor calls `chat::push_message` (now
+  `pub(crate)`) directly — once for the user's text right before sending
+  the prompt, once for the accumulated assistant text once the prompt
+  resolves — so ACP-backed turns land in the same SQLite history as the
+  built-in loop's, with the same restart-transcript caveat as above.
+  Tool-call detail is *not* persisted to SQLite, only forwarded live to
+  the frontend for the running app instance.
+- **No retry**: our retry is a truncate-and-regenerate operation against
+  *our own* `chat_sessions` history; the ACP agent's real conversation
+  state lives inside the subprocess and can't be truncated from outside
+  without `session/load` (unimplemented). `ChatPanel.tsx` just hides the
+  retry button, and the model selector/token-usage ring, while
+  `agentBackend.kind === "acp"` — there's no "model" concept from this
+  side either, the agent decides.

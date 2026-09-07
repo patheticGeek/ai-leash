@@ -192,7 +192,7 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_sub
     tools
 }
 
-async fn request_permission(
+pub(crate) async fn request_permission(
     app: &AppHandle,
     state: &State<'_, AppState>,
     kind: &str,

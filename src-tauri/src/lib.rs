@@ -1,3 +1,4 @@
+mod acp;
 mod chat;
 mod commands;
 mod context;
@@ -31,6 +32,7 @@ pub fn run() {
             chat::cancel_prompt,
             chat::load_conversation_history,
             tools::respond_permission,
+            acp::send_prompt_acp,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

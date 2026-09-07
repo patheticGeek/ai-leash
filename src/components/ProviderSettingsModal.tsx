@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAppStore, type OpenAiCompatibleProviderConfig } from "../store";
+import { useAppStore, type AgentBackend, type OpenAiCompatibleProviderConfig } from "../store";
 
 const emptyForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 
@@ -11,8 +11,13 @@ export default function ProviderSettingsModal() {
   const saveOpenAiCompatibleConfig = useAppStore((s) => s.saveOpenAiCompatibleConfig);
   const deleteOpenAiCompatibleConfig = useAppStore((s) => s.deleteOpenAiCompatibleConfig);
   const setActiveProvider = useAppStore((s) => s.setActiveProvider);
+  const agentBackend = useAppStore((s) => s.agentBackend);
+  const setAgentBackend = useAppStore((s) => s.setAgentBackend);
 
   const [hostInput, setHostInput] = useState(providerSettings.ollama.host);
+  const [acpCommandInput, setAcpCommandInput] = useState(
+    agentBackend.kind === "acp" ? agentBackend.launchCommand : "",
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
@@ -62,6 +67,49 @@ export default function ProviderSettingsModal() {
           </button>
         </div>
         <div className="flex-1 space-y-5 overflow-auto p-4 text-sm">
+          <div>
+            <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Agent backend
+            </div>
+            <select
+              value={agentBackend.kind}
+              onChange={(e) => {
+                const backend: AgentBackend =
+                  e.currentTarget.value === "acp"
+                    ? { kind: "acp", launchCommand: acpCommandInput }
+                    : { kind: "builtin" };
+                setAgentBackend(backend);
+              }}
+              className="w-full rounded border border-[#26272c] bg-[#17181c] px-2 py-1 text-xs text-zinc-300 outline-none"
+            >
+              <option value="builtin">Built-in (this app's own tool loop)</option>
+              <option value="acp">External ACP agent</option>
+            </select>
+            {agentBackend.kind === "acp" && (
+              <div className="mt-2">
+                <div className="flex gap-2">
+                  <input
+                    value={acpCommandInput}
+                    onChange={(e) => setAcpCommandInput(e.currentTarget.value)}
+                    placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
+                    className="flex-1 rounded border border-[#26272c] bg-[#17181c] px-2 py-1 text-xs text-zinc-300 outline-none"
+                  />
+                  <button
+                    onClick={() => setAgentBackend({ kind: "acp", launchCommand: acpCommandInput })}
+                    className="rounded bg-[#3a5f8f] px-3 py-1 text-xs text-white hover:bg-[#4a6f9f]"
+                  >
+                    Save
+                  </button>
+                </div>
+                <div className="mt-1 text-[10px] text-zinc-600">
+                  Shell command used to launch the ACP agent subprocess. Replaces the
+                  built-in tool loop entirely for this app's sessions while active — no
+                  model selection, retry, or built-in tools apply.
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
               Active provider

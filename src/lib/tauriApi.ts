@@ -55,4 +55,6 @@ export const api = {
   retryLast: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
     invoke<void>("retry_last", { sessionId, provider, model }),
   cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
+  sendPromptAcp: (sessionId: string, launchCommand: string, message: string) =>
+    invoke<void>("send_prompt_acp", { sessionId, launchCommand, message }),
 };

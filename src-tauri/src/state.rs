@@ -1,3 +1,4 @@
+use crate::acp::AcpCommand;
 use crate::chat::ChatMessage;
 use crate::db::Db;
 use crate::pty::PtyHandle;
@@ -5,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -29,4 +31,8 @@ pub struct AppState {
     pub fs_watcher: Mutex<Option<notify::RecommendedWatcher>>,
     /// SQLite-backed conversation history — see `db.rs`.
     pub db: Db,
+    /// One entry per session_id (a project's path) that currently has a live
+    /// external ACP agent subprocess — the channel used to send it prompts
+    /// and cancellations. See `acp.rs::run_acp_session`.
+    pub acp_sessions: Mutex<HashMap<String, mpsc::UnboundedSender<AcpCommand>>>,
 }
