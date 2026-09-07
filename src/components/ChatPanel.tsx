@@ -618,7 +618,7 @@ export default function ChatPanel() {
                 )}
                 <span className="shrink-0">{entry.name}</span>
                 <span className="min-w-0 flex-1 truncate text-zinc-600">
-                  {JSON.stringify(entry.args)}
+                  {!expanded ? JSON.stringify(entry.args) : ''}
                 </span>
                 {entry.result === undefined && (
                   <span className="shrink-0 text-zinc-600">running…</span>
