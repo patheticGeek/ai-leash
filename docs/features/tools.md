@@ -14,6 +14,7 @@ name.
 | `write_file` | `path`, `content` | Yes (`edit`) | Full create/overwrite. |
 | `list_dir` | `path` (`.` for root) | No | Hides the same `IGNORED_NAMES` as the sidebar. |
 | `grep` | `pattern` (regex), `path?` | No | Walks with the `ignore` crate, so it respects `.gitignore`. |
+| `update_memory` | `scope` (`"project"` \| `"global"`), `content` | Yes (`edit`) | Full overwrite of that scope's `MEMORY.md` — see [context-and-memory.md](./context-and-memory.md). |
 | `shell` | `command` | Yes (`shell`) | Runs via `sh -c`, capped at 30s. |
 | `load_skill` | `name` | No | Fetches a skill's full body — see [context-and-memory.md](./context-and-memory.md). Only offered to the model at all when the project actually has at least one discoverable skill. |
 | `spawn_sub_agent` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents, run concurrently when there's more than one entry — see [agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
@@ -83,8 +84,8 @@ command exits.
 
 ## Permissions
 
-`shell`, `edit_file`, and `write_file` require approval before doing
-anything. `request_permission()` (`tools.rs`) generates a UUID, stores a
+`shell`, `edit_file`, `write_file`, and `update_memory` require approval
+before doing anything. `request_permission()` (`tools.rs`) generates a UUID, stores a
 `tokio::sync::oneshot::Sender<bool>` for it in
 `AppState.pending_permissions`, emits a `permission://request` event
 with `{ id, kind: "shell" | "edit", title, detail }`, and `.await`s the
@@ -95,8 +96,8 @@ user responds.
 - `shell` — the raw command in a monospace block.
 - `edit` — a line-by-line diff (`+`/`-`/` ` prefixed, colored
   green/red/gray), built server-side by `diff_text()` using the
-  `similar` crate (`TextDiff::from_lines`) — used for both `edit_file`
-  and `write_file`.
+  `similar` crate (`TextDiff::from_lines`) — used for `edit_file`,
+  `write_file`, and `update_memory`.
 
 Approve/Deny calls `respond_permission(id, approved)`, which looks up
 and fires the stored oneshot sender. If denied, the tool returns a

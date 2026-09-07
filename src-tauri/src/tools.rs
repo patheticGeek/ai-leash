@@ -122,6 +122,21 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_sub
         {
             "type": "function",
             "function": {
+                "name": "update_memory",
+                "description": "Add to or update your persistent memory notes, which are shown back to you under \"# Project memory\" / \"# Global memory\" in the system prompt at the start of every future session. Use this for durable facts worth remembering across conversations (user preferences, project conventions, ongoing context) — not scratch state for the current task. Pass the complete new contents for the given scope, not just an addition: this replaces the whole file, and you can see its current contents (if any) already in your system prompt.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "scope": { "type": "string", "enum": ["project", "global"], "description": "\"project\" for notes specific to this project only, \"global\" for notes that should apply across all projects" },
+                        "content": { "type": "string", "description": "The complete new markdown contents of the memory file for this scope" }
+                    },
+                    "required": ["scope", "content"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "shell",
                 "description": "Run a shell command in the project root and return its combined stdout/stderr. Requires user approval.",
                 "parameters": {
@@ -454,6 +469,43 @@ pub async fn execute_tool(
             }
             std::fs::write(&resolved, &new_content).map_err(|e| e.to_string())?;
             Ok(format!("Wrote {} bytes to {}", new_content.len(), path))
+        }
+        "update_memory" => {
+            let scope = args
+                .get("scope")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `scope`")?;
+            let global = match scope {
+                "project" => false,
+                "global" => true,
+                other => return Err(format!("invalid `scope` {other:?}, expected \"project\" or \"global\"")),
+            };
+            let new_content = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .map(fix_literal_escapes)
+                .ok_or("missing `content`")?;
+            let path = context::memory_path(&root, global)
+                .ok_or("could not determine the global memory file location")?;
+            let old_content = std::fs::read_to_string(&path).unwrap_or_default();
+
+            let detail = diff_text(&old_content, &new_content);
+            let approved = request_permission(
+                app,
+                state,
+                "edit",
+                format!("Update {scope} memory"),
+                detail,
+            )
+            .await;
+            if !approved {
+                return Ok("The user denied permission to update memory.".into());
+            }
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            std::fs::write(&path, &new_content).map_err(|e| e.to_string())?;
+            Ok(format!("Updated {scope} memory ({} bytes)", new_content.len()))
         }
         "shell" => {
             let command = args
