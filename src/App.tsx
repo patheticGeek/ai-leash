@@ -13,6 +13,7 @@ function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
   const restoreLastProject = useAppStore((s) => s.restoreLastProject);
+  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
 
   const [leftBarWidth, onLeftBarResize] = useResizableWidth(
     "ai-leash:leftBarWidth",
@@ -36,6 +37,10 @@ function App() {
   useEffect(() => {
     restoreLastProject();
   }, [restoreLastProject]);
+
+  useEffect(() => {
+    loadSubAgentTasks();
+  }, [loadSubAgentTasks]);
 
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">

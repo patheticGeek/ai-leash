@@ -166,7 +166,10 @@ async fn drive_acp_connection(
                 match cmd {
                     AcpCommand::Prompt(text) => {
                         turn_text.lock().unwrap().clear();
-                        let _ = app.emit(&format!("chat://{session_id}/generating"), true);
+                        let _ = app.emit(
+                            &format!("chat://{session_id}/generating"),
+                            json!({ "active": true, "autonomous": false }),
+                        );
 
                         // Persist the user's turn immediately, mirroring
                         // send_prompt's behavior, so the transcript stays
@@ -192,7 +195,10 @@ async fn drive_acp_connection(
                             .block_task()
                             .await;
 
-                        let _ = app.emit(&format!("chat://{session_id}/generating"), false);
+                        let _ = app.emit(
+                            &format!("chat://{session_id}/generating"),
+                            json!({ "active": false, "autonomous": false }),
+                        );
 
                         match result {
                             Ok(_response) => {

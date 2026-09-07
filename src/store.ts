@@ -140,16 +140,6 @@ export interface SubAgentTask {
   startedAt: number;
 }
 
-// The Sub Agents sidebar list is a cross-project history now (see
-// `openProject`), not cleared on every switch — capped by age instead, so
-// a long-running app doesn't accumulate it forever.
-export const SUB_AGENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-function dropExpiredSubAgentTasks(tasks: SubAgentTask[]): SubAgentTask[] {
-  const cutoff = Date.now() - SUB_AGENT_MAX_AGE_MS;
-  return tasks.filter((t) => t.startedAt >= cutoff);
-}
-
 export type PanelTabKind = "filetree" | "subagents" | "terminal" | "file";
 
 export interface PanelTab {
@@ -197,6 +187,13 @@ interface AppStore {
   // backend's `chat://{sessionId}/generating` event rather than any
   // frontend action — see `LeftBar.tsx`, the always-mounted subscriber.
   generatingSessions: Record<string, boolean>;
+  // Which of those active sessions are running an *autonomous* turn right
+  // now — the model reacting to a finished background sub-agent, not
+  // anything the user just sent. `ChatPanel.tsx` uses this to avoid
+  // showing the Stop button / blocking new sends for a turn the user isn't
+  // actually waiting on; `LeftBar.tsx`'s busy dot ignores it (any activity
+  // still lights it up).
+  autonomousGeneratingSessions: Record<string, boolean>;
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -218,7 +215,11 @@ interface AppStore {
     description: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
-  pruneOldSubAgentTasks: () => void;
+  // Backend is the source of truth (SQLite, kept indefinitely) — this merges
+  // in anything not already known locally, without clobbering live updates
+  // a `subtask_start`/`done`/`error` event may have already applied. Safe
+  // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`).
+  loadSubAgentTasks: () => Promise<void>;
   openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
@@ -226,7 +227,7 @@ interface AppStore {
   closeChatTab: (id: string) => void;
   setActiveChatTab: (id: string) => void;
   setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
-  setSessionGenerating: (sessionId: string, generating: boolean) => void;
+  setSessionGenerating: (sessionId: string, generating: boolean, autonomous: boolean) => void;
   touchProjectActivity: (path: string) => void;
 }
 
@@ -254,6 +255,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   subAgentThreads: {},
   recentProjects: loadRecentProjects(),
   generatingSessions: {},
+  autonomousGeneratingSessions: {},
 
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
@@ -298,8 +300,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         // different project showing up here would be the wrong context, so
         // this still resets. `subAgentTasks`/`subAgentThreads` (the Sub
         // Agents sidebar list and its transcripts) deliberately do NOT
-        // reset here anymore — they're a cross-project history capped by
-        // age (see `SUB_AGENT_MAX_AGE_MS`), not per-conversation state.
+        // reset here anymore — they're a cross-project history stored
+        // indefinitely in SQLite (see `loadSubAgentTasks`), not
+        // per-conversation state.
         chatTabs: [PRIMARY_CHAT_TAB],
         activeChatTabId: "primary",
       };
@@ -443,19 +446,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
     set((s) => ({
       subAgentTasks: [
-        ...dropExpiredSubAgentTasks(s.subAgentTasks),
+        ...s.subAgentTasks,
         { subSessionId, parentSessionId, description, status: "running", startedAt: Date.now() },
       ],
     })),
 
-  // Called on an interval by `SubAgentsTab` (the only thing rendering this
-  // list) so entries also age out of view when it's just sitting open with
-  // nothing new happening, not only when the next sub-agent starts.
-  pruneOldSubAgentTasks: () =>
+  loadSubAgentTasks: async () => {
+    const rows = await api.listSubAgents();
     set((s) => {
-      const subAgentTasks = dropExpiredSubAgentTasks(s.subAgentTasks);
-      return subAgentTasks.length === s.subAgentTasks.length ? s : { subAgentTasks };
-    }),
+      const known = new Set(s.subAgentTasks.map((t) => t.subSessionId));
+      const fromDb: SubAgentTask[] = rows
+        .filter((r) => !known.has(r.id))
+        .map((r) => ({
+          subSessionId: r.id,
+          parentSessionId: r.parentSessionId,
+          description: r.description,
+          status: r.status,
+          startedAt: r.startedAt * 1000,
+        }));
+      return fromDb.length ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] } : s;
+    });
+  },
 
   finishSubAgentTask: (subSessionId, status) =>
     set((s) => ({
@@ -549,17 +560,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     })),
 
-  setSessionGenerating: (sessionId, generating) =>
+  setSessionGenerating: (sessionId, generating, autonomous) =>
     set((s) => {
       const already = !!s.generatingSessions[sessionId];
-      if (generating === already) return s;
+      const alreadyAutonomous = !!s.autonomousGeneratingSessions[sessionId];
+      if (generating === already && autonomous === alreadyAutonomous) return s;
+
       const next = { ...s.generatingSessions };
+      const nextAutonomous = { ...s.autonomousGeneratingSessions };
       if (generating) {
         next[sessionId] = true;
+        if (autonomous) {
+          nextAutonomous[sessionId] = true;
+        } else {
+          delete nextAutonomous[sessionId];
+        }
       } else {
         delete next[sessionId];
+        delete nextAutonomous[sessionId];
       }
-      return { generatingSessions: next };
+      return { generatingSessions: next, autonomousGeneratingSessions: nextAutonomous };
     }),
 
   touchProjectActivity: (path) =>

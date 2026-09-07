@@ -1,6 +1,7 @@
 use crate::chat;
 use crate::commands::{self, IGNORED_NAMES};
 use crate::context;
+use crate::db;
 use crate::provider::ProviderConfig;
 use crate::state::AppState;
 use ignore::WalkBuilder;
@@ -176,7 +177,7 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_sub
                 "type": "function",
                 "function": {
                     "name": "spawn_sub_agent",
-                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except spawn_sub_agent itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. You will only see each subtask's final result, not its intermediate steps.",
+                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except spawn_sub_agent itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. This call returns immediately once the sub-agent(s) are spawned, without waiting for any of them to finish — each one's result is appended to this conversation as its own turn as soon as it's ready, and you'll automatically get a chance to react, without the user needing to say anything. Use `list_sub_agents`/`read_sub_agent` if you need to check on one proactively instead of waiting.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -191,14 +192,33 @@ pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_sub
                                     },
                                     "required": ["description", "prompt"]
                                 }
-                            },
-                            "interrupt": {
-                                "type": "string",
-                                "enum": ["all", "each"],
-                                "description": "Only matters when `tasks` has more than one entry. \"all\" (default): wait for every subtask and see all results together in this same turn. \"each\": get the first subtask's result right away in this turn while the rest keep running; you'll automatically get a new turn to react as each remaining one finishes, without the user needing to say anything. Use \"each\" when you'd genuinely want to act on or mention a result as soon as it's ready rather than waiting for the slowest subtask."
                             }
                         },
                         "required": ["tasks"]
+                    }
+                }
+            }));
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "list_sub_agents",
+                    "description": "List the sub-agents you've spawned via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find a sub_session_id for read_sub_agent.",
+                    "parameters": { "type": "object", "properties": {}, "required": [] }
+                }
+            }));
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "read_sub_agent",
+                    "description": "Read the full prompt and transcript (including tool calls and the final result) of one sub-agent you spawned, by its sub_session_id. For long transcripts, prefer offset/limit over reading it all at once.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
+                            "offset": { "type": "integer", "description": "1-based line number to start reading from. Omit to start at line 1." },
+                            "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
+                        },
+                        "required": ["sub_session_id"]
                     }
                 }
             }));
@@ -239,6 +259,30 @@ fn truncate(mut s: String) -> String {
         s.push_str("\n...[truncated]");
     }
     s
+}
+
+/// 1-based line-range windowing shared by `read_file` and `read_sub_agent` —
+/// same semantics either way: a trailing `[showing lines A-B of N in
+/// <label>; call <retry_hint> with offset=B+1 to continue]` note whenever the
+/// returned range doesn't cover the whole thing.
+fn paginate_lines(content: &str, offset: u64, limit: usize, label: &str, retry_hint: &str) -> String {
+    let total_lines = content.lines().count();
+    let offset = offset.max(1) as usize;
+    let start_idx = offset - 1;
+    if start_idx >= total_lines && total_lines > 0 {
+        return format!("{label} has only {total_lines} lines; offset {offset} is beyond the end.");
+    }
+
+    let selected: Vec<&str> = content.lines().skip(start_idx).take(limit).collect();
+    let end_line = start_idx + selected.len();
+    let mut out = selected.join("\n");
+    if start_idx > 0 || end_line < total_lines {
+        out.push_str(&format!(
+            "\n\n[showing lines {offset}-{end_line} of {total_lines} in {label}; call {retry_hint} with offset={} to continue]",
+            end_line + 1,
+        ));
+    }
+    out
 }
 
 /// Small local models sometimes emit tool-call string arguments where newlines
@@ -287,7 +331,6 @@ pub async fn execute_tool(
     call_id: Option<&str>,
     provider: &ProviderConfig,
     model: &str,
-    cancel_flag: &Arc<AtomicBool>,
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
@@ -305,36 +348,14 @@ pub async fn execute_tool(
             }
             let content = std::fs::read_to_string(&resolved).map_err(|e| e.to_string())?;
 
-            let total_lines = content.lines().count();
-            let offset = args
-                .get("offset")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(1)
-                .max(1) as usize;
+            let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(1);
             let limit = args
                 .get("limit")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize)
                 .unwrap_or(DEFAULT_READ_LIMIT);
 
-            let start_idx = offset - 1;
-            if start_idx >= total_lines && total_lines > 0 {
-                return Ok(format!(
-                    "{path} has only {total_lines} lines; offset {offset} is beyond the end of the file."
-                ));
-            }
-
-            let selected: Vec<&str> = content.lines().skip(start_idx).take(limit).collect();
-            let end_line = start_idx + selected.len();
-            let mut out = selected.join("\n");
-            if start_idx > 0 || end_line < total_lines {
-                out.push_str(&format!(
-                    "\n\n[showing lines {}-{end_line} of {total_lines} in {path}; call read_file again with offset={} to continue]",
-                    offset,
-                    end_line + 1,
-                ));
-            }
-            Ok(truncate(out))
+            Ok(truncate(paginate_lines(&content, offset, limit, path, "read_file again")))
         }
         "list_dir" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
@@ -528,7 +549,6 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_array())
                 .filter(|a| !a.is_empty())
                 .ok_or_else(|| format!("missing or empty `tasks`. {TASK_SHAPE_HINT}"))?;
-            let interrupt_each = args.get("interrupt").and_then(|v| v.as_str()) == Some("each");
 
             let mut specs = Vec::with_capacity(tasks.len());
             for t in tasks {
@@ -567,6 +587,7 @@ pub async fn execute_tool(
                 });
                 let sub_session_id = format!("{session_id}::spawn_sub_agent::{}", Uuid::new_v4());
 
+                db::record_sub_agent_started(&state.db, &sub_session_id, session_id, &description, &prompt);
                 let _ = app.emit(
                     &format!("chat://{session_id}/subtask_start"),
                     json!({
@@ -578,90 +599,113 @@ pub async fn execute_tool(
                 specs.push((description, prompt, sub_session_id));
             }
 
-            if !interrupt_each || specs.len() == 1 {
-                let jobs = specs.into_iter().map(|(description, prompt, sub_session_id)| async move {
-                    let result = chat::run_sub_agent(
-                        app,
-                        state,
-                        session_id,
-                        &sub_session_id,
-                        &prompt,
-                        provider,
-                        model,
-                        cancel_flag,
-                    )
-                    .await;
-                    (description, result.unwrap_or_else(|e| format!("Error: {e}")))
-                });
-                let results = futures_util::future::join_all(jobs).await;
-                return Ok(results
-                    .into_iter()
-                    .map(|(description, text)| format!("## {description}\n\n{text}"))
-                    .collect::<Vec<_>>()
-                    .join("\n\n---\n\n"));
-            }
+            // Every sub-agent always runs fully detached — this call never
+            // waits on any of them. Each independently records its own
+            // finish and autonomously resumes the parent conversation (a
+            // brand new turn, not triggered by the user) as soon as it's
+            // ready — see `chat::resume_after_background_subtask`. Each gets
+            // its own fresh cancel flag rather than sharing the parent's,
+            // since nothing here awaits them together anymore.
+            let count = specs.len();
+            let labels: Vec<String> = specs.iter().map(|(d, _, _)| d.clone()).collect();
 
-            // interrupt = "each": run the first inline so this tool call has
-            // a concrete result to return right away. The rest continue in
-            // a detached background task; each one autonomously resumes the
-            // conversation (a brand new turn, not triggered by the user) as
-            // it finishes — see `chat::resume_after_background_subtask`.
-            let mut iter = specs.into_iter();
-            let (first_description, first_prompt, first_sub_id) = iter.next().unwrap();
-            let remaining: Vec<_> = iter.collect();
-            let remaining_count = remaining.len();
-
-            let first_result = chat::run_sub_agent(
-                app,
-                state,
-                session_id,
-                &first_sub_id,
-                &first_prompt,
-                provider,
-                model,
-                cancel_flag,
-            )
-            .await
-            .unwrap_or_else(|e| format!("Error: {e}"));
-
-            if !remaining.is_empty() {
+            for (description, prompt, sub_session_id) in specs {
                 let app_owned = app.clone();
                 let session_id_owned = session_id.to_string();
                 let provider_owned = provider.clone();
                 let model_owned = model.to_string();
                 tokio::spawn(async move {
-                    for (description, prompt, sub_session_id) in remaining {
-                        let state = app_owned.state::<AppState>();
-                        let cancel_flag = Arc::new(AtomicBool::new(false));
-                        let result = chat::run_sub_agent(
-                            &app_owned,
-                            &state,
-                            &session_id_owned,
-                            &sub_session_id,
-                            &prompt,
-                            &provider_owned,
-                            &model_owned,
-                            &cancel_flag,
-                        )
-                        .await
-                        .unwrap_or_else(|e| format!("Error: {e}"));
-
-                        chat::resume_after_background_subtask(
-                            app_owned.clone(),
-                            session_id_owned.clone(),
-                            provider_owned.clone(),
-                            model_owned.clone(),
-                            description,
-                            result,
-                        )
-                        .await;
-                    }
+                    let state = app_owned.state::<AppState>();
+                    let cancel_flag = Arc::new(AtomicBool::new(false));
+                    let outcome = chat::run_sub_agent(
+                        &app_owned,
+                        &state,
+                        &session_id_owned,
+                        &sub_session_id,
+                        &prompt,
+                        &provider_owned,
+                        &model_owned,
+                        &cancel_flag,
+                    )
+                    .await;
+                    let (status, result) = match outcome {
+                        Ok(text) => ("done", text),
+                        Err(e) => ("error", format!("Error: {e}")),
+                    };
+                    db::record_sub_agent_finished(&state.db, &sub_session_id, status, &result);
+                    chat::resume_after_background_subtask(
+                        app_owned,
+                        session_id_owned,
+                        provider_owned,
+                        model_owned,
+                        sub_session_id,
+                        description,
+                        result,
+                    )
+                    .await;
                 });
             }
 
             Ok(format!(
-                "## {first_description}\n\n{first_result}\n\n({remaining_count} more subtask(s) still running in the background — you'll automatically get a turn to respond to each as it finishes)"
+                "Spawned {count} sub-agent(s): {}. Results will be appended to this chat as each finishes.",
+                labels.join(", ")
             ))
+        }
+        "list_sub_agents" => {
+            let items = db::list_sub_agents_for_parent(&state.db, session_id, 50);
+            if items.is_empty() {
+                return Ok("No sub-agents have been spawned by this session.".to_string());
+            }
+            let lines: Vec<String> = items
+                .iter()
+                .map(|s| {
+                    let timing = match s.finished_at {
+                        Some(f) => format!("finished (took {}s)", (f - s.started_at).max(0)),
+                        None => "running".to_string(),
+                    };
+                    format!("{} [{}] {} — \"{}\"", s.id, s.status, timing, s.description)
+                })
+                .collect();
+            Ok(truncate(lines.join("\n")))
+        }
+        "read_sub_agent" => {
+            let given = args
+                .get("sub_session_id")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `sub_session_id`")?;
+            let expected_prefix = format!("{session_id}::spawn_sub_agent::");
+            // Models sometimes pass just the trailing UUID (e.g. copied from
+            // a `sub_agent_result` tool call's `subSessionId` arg without
+            // the full `{parent}::spawn_sub_agent::` prefix) instead of the
+            // full id — tolerate that by reconstructing it, same reasoning
+            // as `fix_literal_escapes` elsewhere in this file. This can't be
+            // used to reach another session's sub-agent: a foreign id
+            // doesn't start with `expected_prefix` either, so it gets
+            // (harmlessly) re-prefixed into something that won't exist.
+            let target = if given.starts_with(&expected_prefix) {
+                given.to_string()
+            } else {
+                format!("{expected_prefix}{given}")
+            };
+            let meta = db::get_sub_agent(&state.db, &target).ok_or_else(|| {
+                format!("no sub-agent found with id {given:?}. Use list_sub_agents to see valid ids.")
+            })?;
+            let messages = db::load_messages(&state.db, &target);
+            let mut transcript = format!("Status: {}\n\nPrompt:\n{}\n", meta.status, meta.prompt);
+            for (i, m) in messages.iter().enumerate() {
+                if i == 0 && m.role == "user" {
+                    continue; // already shown as "Prompt" above
+                }
+                transcript.push_str(&format!("\n### {}\n{}\n", m.role, m.content));
+            }
+
+            let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(1);
+            let limit = args
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as usize)
+                .unwrap_or(DEFAULT_READ_LIMIT);
+            Ok(truncate(paginate_lines(&transcript, offset, limit, &target, "read_sub_agent again")))
         }
         "load_skill" => {
             let name = args

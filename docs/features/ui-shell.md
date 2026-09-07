@@ -81,15 +81,19 @@ monitoring) lives in a multi-tab panel on the right:
   context. `subAgentTasks`/`subAgentThreads` deliberately do **not**
   reset on project switch, though — the Sub Agents sidebar list is a
   cross-project history, not per-conversation state, so it doesn't
-  empty out every time you switch away and back (a past bug). Capped
-  by age instead of project: `SUB_AGENT_MAX_AGE_MS` (24h) — pruned from
-  the store whenever a new sub-agent starts (`startSubAgentTask`) and
-  on a 5-minute interval in `SubAgentsTab` (`pruneOldSubAgentTasks`,
-  the only thing rendering this list) so entries also age out while
-  the tab just sits open with nothing new happening. `SubAgentsTab`
-  also re-filters by the same cutoff at render time, defensively, so
-  nothing past the cap is ever shown even for the moment between
-  prunes.
+  empty out every time you switch away and back (a past bug). It's also
+  no longer purely in-memory: `store.loadSubAgentTasks()` fetches every
+  persisted sub-agent from SQLite (`list_sub_agents`, see
+  [conversation-history.md](./conversation-history.md)) and merges in
+  anything not already known locally (by `subSessionId`, so it can't
+  clobber a live update), called once on `App` mount and again every
+  time `SubAgentsTab` mounts. There's no age cap anymore — sub-agents
+  are kept indefinitely. `SubAgentChatTab.tsx` does the equivalent for
+  an individual transcript: if `subAgentThreads[subSessionId]` is
+  `undefined` (never loaded — as opposed to `[]`, loaded but genuinely
+  empty) it calls `load_conversation_history(subSessionId)` and converts
+  the result with the same `messagesToEntries()` a top-level session's
+  history hydration already uses.
 - `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
   fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
   `activePanelTabId` track an arbitrary number of simultaneously open

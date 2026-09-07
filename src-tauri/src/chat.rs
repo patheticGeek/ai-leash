@@ -3,12 +3,13 @@ use crate::context;
 use crate::db::{self, PersistedMessage};
 use crate::provider::{self, ProviderConfig, ProviderError};
 use crate::state::AppState;
-use crate::tools::{self, ToolCall};
+use crate::tools::{self, ToolCall, ToolCallFunction};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
+use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -58,7 +59,8 @@ pub async fn send_prompt(
         },
     );
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true, false)
+        .await
 }
 
 /// Runs an isolated sub-agent for the `spawn_sub_agent` tool: its own fresh
@@ -70,6 +72,12 @@ pub async fn send_prompt(
 /// work the sub-agent does still counts toward the parent's directory
 /// scoping. It cannot itself call `spawn_sub_agent` — sub-agents are capped
 /// at one level deep.
+///
+/// Every message pushed during the run is durably persisted to SQLite via
+/// `push_message`, just like a top-level session's — only the in-memory
+/// `chat_sessions` copy is dropped once this returns (see below), so
+/// `load_conversation_history`/`tools::read_sub_agent` can still recover the
+/// full transcript afterward straight from disk.
 ///
 /// This is a plain `fn` returning a boxed, type-erased future rather than an
 /// `async fn` on purpose: `run_agent_loop` calls `execute_tool` which (for
@@ -137,15 +145,15 @@ pub fn run_sub_agent<'a>(
     })
 }
 
-/// Called from a detached background task (see the `spawn_sub_agent` tool's `"each"`
-/// interrupt mode in `tools.rs`) once one of several concurrently-spawned
-/// subtasks finishes *after* the turn that launched them has already
-/// returned. Injects that subtask's result into the session's history as if
-/// it just arrived, then autonomously runs another turn so the main agent
-/// gets a chance to react — nothing about this is triggered by the user
-/// clicking send. `run_with_cancellation`'s per-session lock is what keeps
-/// this from racing a real `send_prompt`/`retry_last` call or another
-/// subtask's resume happening at the same time.
+/// Called from the detached background task every `spawn_sub_agent`-spawned
+/// subtask runs in (see `tools.rs`) once it finishes — *after* the turn that
+/// launched it has already returned to the model. Injects that subtask's
+/// result into the session's history as if it just arrived, then
+/// autonomously runs another turn so the main agent gets a chance to react —
+/// nothing about this is triggered by the user clicking send.
+/// `run_with_cancellation`'s per-session lock is what keeps this from racing
+/// a real `send_prompt`/`retry_last` call or another subtask's resume
+/// happening at the same time.
 /// Same reasoning as `run_sub_agent`'s doc comment: this closes a second
 /// recursive cycle (`execute_tool`'s `spawn_sub_agent` arm spawns a task that calls this,
 /// which calls `run_with_cancellation` -> `run_agent_loop` -> `execute_tool`
@@ -156,23 +164,60 @@ pub fn resume_after_background_subtask(
     session_id: String,
     provider: ProviderConfig,
     model: String,
+    sub_session_id: String,
     description: String,
     result: String,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
     Box::pin(async move {
         let state = app.state::<AppState>();
+
+        // Represented as a real tool call/result pair — not a bare injected
+        // message — so it renders in the UI exactly like any other tool
+        // call (live, via these two events; and on reload, via
+        // `messagesToEntries`' existing assistant-tool_calls/tool pairing)
+        // instead of being an invisible, dangling `tool`-role message with
+        // nothing to attach it to.
+        let call_id = Uuid::new_v4().to_string();
+        let arguments = json!({ "sub_session_id": sub_session_id, "description": description });
+
+        push_message(
+            &state,
+            &session_id,
+            ChatMessage {
+                role: "assistant".into(),
+                content: String::new(),
+                tool_calls: Some(vec![ToolCall {
+                    id: Some(call_id.clone()),
+                    function: ToolCallFunction {
+                        name: "sub_agent_result".into(),
+                        arguments: arguments.clone(),
+                    },
+                }]),
+            },
+        );
+        let _ = app.emit(
+            &format!("chat://{session_id}/tool_call"),
+            json!({ "id": call_id, "name": "sub_agent_result", "arguments": arguments }),
+        );
+
         push_message(
             &state,
             &session_id,
             ChatMessage {
                 role: "tool".into(),
-                content: format!("Background subtask \"{description}\" finished:\n\n{result}"),
+                content: result.clone(),
                 tool_calls: None,
             },
         );
-        let _ =
-            run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true)
-                .await;
+        let _ = app.emit(
+            &format!("chat://{session_id}/tool_result"),
+            json!({ "id": call_id, "result": &result }),
+        );
+
+        let _ = run_with_cancellation(
+            &app, &state, &session_id, &session_id, &provider, &model, true, true,
+        )
+        .await;
     })
 }
 
@@ -234,7 +279,8 @@ pub async fn retry_last(
         }
     }
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true).await
+    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true, false)
+        .await
 }
 
 fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()>> {
@@ -253,8 +299,8 @@ fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()
 /// — so the two can never interleave writes to the same session's history.
 ///
 /// Also the single choke point for the `chat://{session_id}/generating`
-/// true/false events the frontend uses to know a session is busy — emitted
-/// here rather than at each call site (`send_prompt`, `retry_last`,
+/// events the frontend uses to know a session is busy — emitted here rather
+/// than at each call site (`send_prompt`, `retry_last`,
 /// `resume_after_background_subtask`) specifically so a background subtask
 /// autonomously resuming the conversation (no frontend action kicks that
 /// off) still reports it's working, not just user-initiated turns. This is
@@ -262,6 +308,17 @@ fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()
 /// you're looking at a different one — see `LeftBar.tsx`, which is always
 /// mounted and subscribes to this event for every known project regardless
 /// of which one's currently open.
+///
+/// `autonomous` distinguishes *why* this turn is running: `false` for
+/// `send_prompt`/`retry_last` (the user is actually waiting on this one),
+/// `true` for `resume_after_background_subtask` (the model reacting to a
+/// finished sub-agent on its own — nothing the user did or is necessarily
+/// watching for). The event payload carries both fields so `LeftBar.tsx`'s
+/// sidebar busy-dot (which should light up for *any* activity) and
+/// `ChatPanel.tsx`'s own Stop-button/input-disabling (which should only
+/// reflect a turn the user is actually waiting on) can each use the field
+/// that matters to them, off the one event.
+#[allow(clippy::too_many_arguments)]
 async fn run_with_cancellation(
     app: &AppHandle,
     state: &State<'_, AppState>,
@@ -270,6 +327,7 @@ async fn run_with_cancellation(
     provider: &ProviderConfig,
     model: &str,
     allow_subtasks: bool,
+    autonomous: bool,
 ) -> Result<(), String> {
     let lock = session_lock(state.inner(), session_id);
     let _guard = lock.lock().await;
@@ -280,7 +338,10 @@ async fn run_with_cancellation(
         .lock()
         .unwrap()
         .insert(session_id.to_string(), cancel_flag.clone());
-    let _ = app.emit(&format!("chat://{session_id}/generating"), true);
+    let _ = app.emit(
+        &format!("chat://{session_id}/generating"),
+        json!({ "active": true, "autonomous": autonomous }),
+    );
 
     let result = run_agent_loop(
         app,
@@ -295,7 +356,10 @@ async fn run_with_cancellation(
     .await;
 
     state.cancellations.lock().unwrap().remove(session_id);
-    let _ = app.emit(&format!("chat://{session_id}/generating"), false);
+    let _ = app.emit(
+        &format!("chat://{session_id}/generating"),
+        json!({ "active": false, "autonomous": autonomous }),
+    );
     result
 }
 
@@ -440,7 +504,6 @@ async fn run_agent_loop(
                     call.id.as_deref(),
                     provider,
                     model,
-                    cancel_flag,
                     &call.function.name,
                     &call.function.arguments,
                 )
@@ -486,10 +549,8 @@ fn touched_dirs_for(state: &State<'_, AppState>, session_id: &str) -> Vec<std::p
 /// `pub(crate)` so `acp.rs` can persist ACP-backed turns through the same
 /// SQLite + in-memory path the built-in loop already uses.
 pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
-    if db::is_persistable(session_id) {
-        if let Ok(root) = commands::get_root_path(state.inner()) {
-            db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);
-        }
+    if let Ok(root) = commands::get_root_path(state.inner()) {
+        db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);
     }
     state
         .chat_sessions
@@ -505,8 +566,9 @@ pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, messag
 /// see `panelStateByConversation`/`CenterPanel.tsx` on the frontend for how
 /// `session_id` ends up equal to the project's path), and returns it either
 /// way so the frontend can render it. Once a session has any in-memory
-/// history — including a session that's simply never been persisted, like a
-/// sub-agent's — this returns that as-is rather than re-reading disk.
+/// history, this returns that as-is rather than re-reading disk — also used
+/// as-is by the frontend to (re)load a finished sub-agent's full transcript,
+/// since its id round-trips through disk exactly like any other session's.
 #[tauri::command]
 pub fn load_conversation_history(
     state: State<'_, AppState>,
@@ -539,5 +601,13 @@ pub fn load_conversation_history(
             .collect(),
     );
     Ok(messages)
+}
+
+/// All sub-agents ever spawned, across every project — the Sub Agents
+/// sidebar's own scope (a cross-project history, not scoped to whichever
+/// project is currently open). See `db::list_all_sub_agents`.
+#[tauri::command]
+pub fn list_sub_agents(state: State<AppState>) -> Result<Vec<db::SubAgentSummary>, String> {
+    Ok(db::list_all_sub_agents(&state.db))
 }
 

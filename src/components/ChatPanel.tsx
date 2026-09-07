@@ -217,8 +217,13 @@ export default function ChatPanel() {
   // `run_with_cancellation` in chat.rs and `LeftBar.tsx`'s always-mounted
   // subscriber) — this is what lets `sending` come back correctly true if
   // you switch back to a project whose turn kept running while you were
-  // looking at a different one.
-  const generating = useAppStore((s) => !!s.generatingSessions[sessionId]);
+  // looking at a different one. Excludes *autonomous* turns (the model
+  // reacting to a finished background sub-agent) — the user isn't waiting
+  // on those, so they shouldn't show the Stop button or block a new send;
+  // see `autonomousGeneratingSessions`.
+  const generating = useAppStore(
+    (s) => !!s.generatingSessions[sessionId] && !s.autonomousGeneratingSessions[sessionId],
+  );
   const [model, setModel] = useState("");
   const [entries, setEntries] = useState<PanelEntry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
@@ -228,7 +233,10 @@ export default function ChatPanel() {
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `send`/`retry`/`stop` still set this directly
   // too, for instant feedback ahead of the round-trip.
-  const [sending, setSending] = useState(() => !!useAppStore.getState().generatingSessions[sessionId]);
+  const [sending, setSending] = useState(() => {
+    const st = useAppStore.getState();
+    return !!st.generatingSessions[sessionId] && !st.autonomousGeneratingSessions[sessionId];
+  });
 
   useEffect(() => {
     setSending(generating);
@@ -640,7 +648,7 @@ export default function ChatPanel() {
                 className="flex w-full min-w-0 items-center gap-1.5 text-left text-zinc-400"
               >
                 <Chevron expanded={expanded} />
-                {entry.name === "spawn_sub_agent" ? (
+                {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
                   <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
                 ) : (
                   <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />

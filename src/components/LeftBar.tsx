@@ -76,9 +76,9 @@ export default function LeftBar() {
   // sidebar to look at things would keep reshuffling it.
   useEffect(() => {
     const unlistens = recentProjects.map((p) =>
-      listen<boolean>(`chat://${p.path}/generating`, (e) => {
-        setSessionGenerating(p.path, e.payload);
-        if (e.payload) touchProjectActivity(p.path);
+      listen<{ active: boolean; autonomous: boolean }>(`chat://${p.path}/generating`, (e) => {
+        setSessionGenerating(p.path, e.payload.active, e.payload.autonomous);
+        if (e.payload.active) touchProjectActivity(p.path);
       }),
     );
     return () => {

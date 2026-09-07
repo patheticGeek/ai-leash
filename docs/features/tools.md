@@ -17,7 +17,16 @@ name.
 | `update_memory` | `scope` (`"project"` \| `"global"`), `content` | Yes (`edit`) | Full overwrite of that scope's `MEMORY.md` — see [context-and-memory.md](./context-and-memory.md). |
 | `shell` | `command` | Yes (`shell`) | Runs via `sh -c`, capped at 30s. |
 | `load_skill` | `name` | No | Fetches a skill's full body — see [context-and-memory.md](./context-and-memory.md). Only offered to the model at all when the project actually has at least one discoverable skill. |
-| `spawn_sub_agent` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents, run concurrently when there's more than one entry — see [agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
+| `spawn_sub_agent` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents. Always returns immediately, without waiting on any of them — see [agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
+| `list_sub_agents` | none | No | Lists sub-agents spawned by this session (running and finished), most recent first. Same gating as `spawn_sub_agent`. |
+| `read_sub_agent` | `sub_session_id`, `offset?`, `limit?` | No | Full prompt + transcript of one sub-agent this session spawned, paginated like `read_file`. Same gating as `spawn_sub_agent`. Tolerates a bare UUID (missing the `{parent}::spawn_sub_agent::` prefix) by reconstructing the full id — models sometimes copy just the `sub_session_id` suffix they see in a `sub_agent_result` tool call. Still rejects ids that don't actually belong to the calling session. |
+
+`sub_agent_result` isn't a real, callable tool — it's a synthetic tool
+call/result pair the backend injects into a session's history whenever a
+background-spawned sub-agent finishes, so its result shows up in the
+transcript the same way a real tool call does rather than as an
+invisible dangling message. See
+[agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool).
 
 All string arguments pulled from tool calls pass through
 `fix_literal_escapes()` first: if a string has **zero** real newline
@@ -53,17 +62,19 @@ replacement:
   silently failing or guessing.
 - Only a genuinely new/replacement file should use `write_file`.
 
-### Partial reads (`read_file`)
+### Partial reads (`read_file`, `read_sub_agent`)
 
+Both tools share the same `paginate_lines()` helper (`tools.rs`):
 - `offset` is 1-based; `limit` defaults to **`DEFAULT_READ_LIMIT` =
   2000** lines.
-- If the requested range doesn't cover the whole file, the result has a
-  trailing note: `[showing lines A-B of N in <path>; call read_file
-  again with offset=B+1 to continue]`.
-- Requesting an `offset` past the end of the file returns a plain
-  message instead of an empty read.
-- The tool description explicitly nudges the model to use `grep` or a
-  small `limit` first on large files, rather than reading everything.
+- If the requested range doesn't cover the whole thing, the result has a
+  trailing note: `[showing lines A-B of N in <label>; call <tool> again
+  with offset=B+1 to continue]`.
+- Requesting an `offset` past the end returns a plain message instead of
+  an empty read.
+- `read_file`'s tool description explicitly nudges the model to use
+  `grep` or a small `limit` first on large files, rather than reading
+  everything.
 
 ### `grep`
 

@@ -27,6 +27,9 @@ CREATE TABLE messages (
 );
 ```
 
+(See "What gets persisted, and what doesn't" below for the third table,
+`sub_agents` — sub-agent metadata that doesn't fit `conversations`.)
+
 No separate `seq` column — `messages.id`'s `AUTOINCREMENT` already
 gives strict insertion order, which is all that's needed since messages
 are always appended, never reordered or edited in place.
@@ -49,25 +52,44 @@ project path, at which point this doubling-up goes away.
 
 `chat.rs`'s `push_message` — the single choke point everything already
 went through for updating in-memory `chat_sessions` — now also calls
-`db::save_message` before it touches the `HashMap`. Two things are
+`db::save_message` before it touches the `HashMap`. Only one thing is
 silently skipped there (`db::save_message` no-ops rather than erroring,
 since a persistence failure shouldn't ever break the live chat):
+**`system`-role messages**, rebuilt from AGENTS.md/memory on every
+single turn by `refresh_system_prompt` (see
+[agent-chat.md](./agent-chat.md)), which mutates `chat_sessions`
+directly and never calls `push_message` — so in practice a system
+message can't reach `save_message` at all; the explicit role check
+there is just a defensive belt-and-suspenders guard.
 
-- **`system`-role messages.** These are rebuilt from AGENTS.md/memory
-  on every single turn by `refresh_system_prompt` (see
-  [agent-chat.md](./agent-chat.md)), which mutates `chat_sessions`
-  directly and never calls `push_message` — so in practice a system
-  message can't reach `save_message` at all; the explicit role check
-  there is just a defensive belt-and-suspenders guard.
-- **Sub-agent sessions** (`spawn_sub_agent`). `db::is_persistable`
-  checks for the `::spawn_sub_agent::` marker every `sub_session_id`
-  is built with (see [agent-chat.md](./agent-chat.md)) and skips
-  anything matching — sub-agent history is already discarded from
-  `chat_sessions` the moment it finishes (`run_sub_agent`), so
-  persisting it would just be dead rows with no way to view them again
-  (there's no per-project sub-agent history UI, only the live
-  `subAgentThreads` store slice for the duration of the run — see
-  [ui-shell.md](./ui-shell.md)).
+**Sub-agent sessions are persisted too**, exactly like a top-level
+session — there's no exclusion by session id shape anymore
+(`sub_session_id`s round-trip through `conversations`/`messages` same
+as a project's own id). A separate `sub_agents` table tracks the
+metadata `messages` can't express — one row per `spawn_sub_agent`-spawned
+sub-agent:
+
+```sql
+CREATE TABLE sub_agents (
+    id TEXT PRIMARY KEY,             -- == sub_session_id
+    parent_session_id TEXT NOT NULL,
+    description TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    status TEXT NOT NULL,            -- "running" | "done" | "error"
+    result TEXT,                     -- set once finished
+    started_at INTEGER NOT NULL,
+    finished_at INTEGER              -- set once finished
+);
+```
+
+`db::record_sub_agent_started`/`record_sub_agent_finished` write this
+row at the start/end of `execute_tool`'s `"spawn_sub_agent"` arm and its
+detached background task respectively (see
+[agent-chat.md](./agent-chat.md)); `list_sub_agents_for_parent` (scoped,
+used by the `list_sub_agents`/`read_sub_agent` tools) and
+`list_all_sub_agents` (cross-project, used by the `list_sub_agents`
+Tauri command for the sidebar) read it back. Kept **indefinitely** — no
+age-based expiry, unlike the frontend-only 24h cap this replaced.
 
 Persisting a message requires a project to be open —
 `commands::get_root_path` returning `Err` (no project open) means
@@ -76,14 +98,17 @@ there's no stable id to key a conversation by without one.
 
 ## Loading history back
 
-`load_conversation_history(session_id)` (new Tauri command,
-`chat.rs`) is called once from a `ChatPanel` mount effect, before the
+`load_conversation_history(session_id)` (Tauri command, `chat.rs`) is
+called once from a `ChatPanel` mount effect, before the
 event-listener-registration effect. It checks `chat_sessions` first —
-if the session's already in memory (including a session that's simply
-never been persisted, which covers every sub-agent id) it's returned
-as-is; otherwise `db::load_messages` reads it from disk and the result
-seeds `chat_sessions` too, so the loop can resume the conversation on
-the next `send_prompt` without needing to hit SQLite again this run.
+if the session's already in memory it's returned as-is; otherwise
+`db::load_messages` reads it from disk and the result seeds
+`chat_sessions` too, so the loop can resume the conversation on the
+next `send_prompt` without needing to hit SQLite again this run. This
+same command, unmodified, is what `SubAgentChatTab.tsx` calls to
+(re)hydrate a specific sub-agent's transcript from disk — its id
+round-trips through `chat_sessions`/SQLite exactly like a top-level
+session's now, so no separate command was needed.
 
 The frontend's `messagesToEntries()` (`src/lib/chatEntries.ts`)
 rebuilds a display `Entry[]` from the returned whole (non-streamed)
@@ -117,9 +142,10 @@ with it.
 
 `db.rs` has `#[cfg(test)]` unit tests exercising the SQL directly
 (round-tripping plain messages in order, round-tripping `tool_calls`
-JSON, confirming `system` messages and sub-agent sessions are excluded,
-and confirming two conversations' messages don't leak into each
-other) against a throwaway file in the OS temp dir per test — `cargo
-test --lib db::`. This is the fastest way to verify a change to the
-schema or save/load logic without going through Ollama or the UI at
-all.
+JSON, confirming only `system` messages are excluded — sub-agent
+sessions round-trip like any other, confirming two conversations'
+messages don't leak into each other, and exercising the `sub_agents`
+table's start/finish lifecycle and its cross-parent scoping) against a
+throwaway file in the OS temp dir per test — `cargo test --lib db::`.
+This is the fastest way to verify a change to the schema or save/load
+logic without going through Ollama or the UI at all.

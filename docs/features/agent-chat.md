@@ -134,19 +134,28 @@ to isolated sub-agents via the `spawn_sub_agent` tool (`{tasks:
 the model, and anyone reading the code, sees an action rather than a
 noun):
 
-- **Multiple entries in `tasks` run concurrently**, not one at a time —
-  `execute_tool`'s `"spawn_sub_agent"` arm builds one async job per
-  entry and drives them all with `futures_util::future::join_all`, so
-  several sub-agents are genuinely in flight together (their Ollama
-  requests overlap in wall-clock time; true parallelism vs. interleaved
-  single-threaded concurrency depends on whether the local Ollama
-  server itself processes requests in parallel). The whole
-  `spawn_sub_agent` call only resolves once every entry has finished.
+- **The tool call always returns immediately, never waiting on any
+  sub-agent.** `execute_tool`'s `"spawn_sub_agent"` arm spawns one
+  detached `tokio::spawn` task per entry in `tasks` and returns a short
+  confirmation (`"Spawned N sub-agent(s): ...`") the moment they're all
+  kicked off — there's no mode that blocks the calling turn. Each
+  spawned task independently runs `chat::run_sub_agent`, records its own
+  finish (`db::record_sub_agent_finished`), and then calls
+  `chat::resume_after_background_subtask` to inject its result into the
+  parent session and autonomously trigger a new turn — the model gets a
+  chance to react to each result as soon as it's ready, in whatever
+  order they actually finish, without the user needing to say anything.
   There's no separate "planning" step deciding whether to split — it's
   the same single model turn as always, just with a tool schema that
   lets one call request several subtasks when the request actually has
   independent parts (the tool description tells the model exactly when
-  to do that vs. just handling something directly).
+  to do that vs. just handling something directly). The model can also
+  proactively check on things itself via `list_sub_agents` (a status
+  list of everything it's spawned) and `read_sub_agent` (one sub-agent's
+  full prompt + transcript, paginated line-by-line like `read_file`) —
+  both gated behind the same `allow_subtasks` flag as `spawn_sub_agent`
+  itself, and both scoped so a session can only see sub-agents it
+  spawned.
 - Each sub-agent gets a **fresh history** — just its own `prompt` as
   its first user message, nothing from the parent conversation or from
   sibling subtasks in the same `spawn_sub_agent` call. Each has the
@@ -164,25 +173,43 @@ noun):
   knows which parent tool-call entry to nest each subtask's stream
   under, and can tell multiple concurrent subtasks apart by
   `subSessionId`.
-- All sub-agents from one `spawn_sub_agent` call **share the parent's
-  cancellation flag** (`Arc<AtomicBool>`) rather than each getting its
-  own — stopping the parent stops every sub-agent it's running.
+- Each sub-agent gets its **own fresh cancellation flag**, not the
+  parent's — an accepted consequence of every task running fully
+  detached now (nothing awaits them together, so there's no single
+  point to share a flag through). Stopping the parent no longer stops
+  sub-agents already in flight.
 - Each sub-agent's `AGENTS.md`/skills/touched-directory scoping is
   attached to the **parent's** session id, not its own — directories
   any of them read or edit count toward the parent's scoping (see
   [context-and-memory.md](./context-and-memory.md)), since they're all
   doing work on the parent's behalf within the same project.
-- Only each sub-agent's **final assistant message** feeds back — once
-  every entry in `tasks` has finished, their results are combined into
-  one string (`## {description}\n\n{result}` per subtask, joined) that
-  becomes the single `spawn_sub_agent` tool call's result in the
-  parent's history. None of their intermediate thinking/tool-calls ever
-  enter the parent's context, only the UI sees them (nested, collapsed
-  by default under the `spawn_sub_agent` tool-call entry, one labeled
-  thread per subtask — see [ui-shell.md](./ui-shell.md) for the
-  separate, standalone tab view of the same data). Each sub-agent's
-  history is discarded (`chat_sessions.remove`) once it finishes, so
-  long sessions with many subtasks don't accumulate unbounded state.
+- Only each sub-agent's **final assistant message** feeds back into the
+  parent's own history — as a *real* synthetic tool call, not a bare
+  injected message: `resume_after_background_subtask` pushes an
+  `assistant` message with one `tool_calls` entry (name
+  `sub_agent_result`, args `{sub_session_id, description}`) followed by a
+  `tool`-role message carrying the result, and emits the matching
+  `chat://{session_id}/tool_call`/`tool_result` events live. This is
+  what makes it render as an ordinary tool-call entry (with a `Bot`
+  icon, same as `spawn_sub_agent`) both live and after a reload — a bare
+  `tool`-role message with no preceding `tool_calls` entry to pair with
+  would otherwise be silently dropped by `messagesToEntries` (nothing to
+  attach it to), which is exactly what an earlier version of this did.
+  None of a sub-agent's intermediate thinking/tool-calls ever enter the
+  parent's context, only the UI sees them (nested, collapsed by default
+  under the `spawn_sub_agent` tool-call entry, one labeled thread per
+  subtask — see [ui-shell.md](./ui-shell.md) for the separate,
+  standalone tab view of the same data). Each sub-agent's *in-memory*
+  history is dropped
+  (`chat_sessions.remove`) once it finishes so long-running apps don't
+  accumulate unbounded state — but every message is durably persisted to
+  the same SQLite `conversations`/`messages` tables a top-level session
+  uses (sub-agent session ids are no longer excluded from persistence),
+  plus a `sub_agents` table tracking status/timing, kept **indefinitely**
+  (no expiry). `load_conversation_history` transparently falls back to
+  disk for any session id, so it works unmodified for reloading a
+  sub-agent's full transcript too — see
+  [conversation-history.md](./conversation-history.md).
 - `run_agent_loop` calling into `execute_tool` calling into
   `run_sub_agent` calling back into `run_agent_loop` is a genuine
   recursive `async fn` cycle; the recursive call in `run_sub_agent` is
@@ -264,34 +291,52 @@ finish.
 
 ### `generating` — is a session busy right now?
 
-`run_with_cancellation` also emits `chat://{session_id}/generating` —
-`true` right after inserting the cancellation flag, `false` right after
-removing it — bracketing the exact same span as the cancellation flag's
-lifetime. This is the single choke point for it rather than each call
-site (`send_prompt`, `retry_last`, `resume_after_background_subtask`)
+`run_with_cancellation` also emits `chat://{session_id}/generating` with
+`{ active: bool, autonomous: bool }` — `active: true` right after
+inserting the cancellation flag, `active: false` right after removing
+it, bracketing the exact same span as the cancellation flag's lifetime.
+This is the single choke point for it rather than each call site
+(`send_prompt`, `retry_last`, `resume_after_background_subtask`)
 emitting its own, specifically so a background subtask autonomously
 resuming the conversation — no frontend action triggers that, see
-"Sub-agents" above — still reports the session as busy. Two consumers:
+"Sub-agents" above — still reports the session as busy. `autonomous` is
+`true` only for `resume_after_background_subtask`'s turns (the model
+reacting to a finished sub-agent on its own); `false` for
+`send_prompt`/`retry_last` (a turn the user is actually waiting on).
+ACP-backed sessions (`acp.rs`) emit the same shape, always with
+`autonomous: false` — there's no background-subtask concept there. Two
+consumers, each keying off the field that matters to them:
 
 - `ChatPanel.tsx` derives its own `sending` state from
-  `store.generatingSessions[sessionId]` instead of purely local state,
-  so if you switch away from a project mid-turn and back, the newly
-  (re)mounted `ChatPanel` shows the correct busy/idle state immediately
-  from `store.ts`'s current value — rather than defaulting to "idle"
-  and waiting to happen to catch a live event. `send`/`retry`/`stop`
-  still set local state directly too, purely for instant feedback
-  ahead of the backend round-trip.
+  `store.generatingSessions[sessionId] && !store.autonomousGeneratingSessions[sessionId]`
+  instead of purely local state, so if you switch away from a project
+  mid-turn and back, the newly (re)mounted `ChatPanel` shows the correct
+  busy/idle state immediately from `store.ts`'s current value — rather
+  than defaulting to "idle" and waiting to happen to catch a live event.
+  Excluding autonomous turns here means the Stop button never appears,
+  and a new message can always be sent (it just queues behind the
+  session lock), for a turn the user didn't initiate and isn't
+  necessarily watching — only `send`/`retry`/`stop`-driven turns block
+  the input. `send`/`retry`/`stop` still set local state directly too,
+  purely for instant feedback ahead of the backend round-trip.
 - `LeftBar.tsx` is always mounted regardless of which project (if any)
   is open, and subscribes to this event for every project in
   `recentProjects` — a blue dot next to a project's name in the
   sidebar means that project has a turn running in the background,
   even while you're looking at a different one entirely (see
-  [ui-shell.md](./ui-shell.md)).
+  [ui-shell.md](./ui-shell.md)). It only reads `active`, not
+  `autonomous` — any activity, including a sub-agent's autonomous
+  reaction turn, is worth surfacing there.
 
-Since a `spawn_sub_agent` call blocks the parent's own turn until every
-subtask finishes (or, for `interrupt: "each"`, until just the first
-one does), the parent's `generating` stays `true` for the duration —
-sub-agent sessions themselves never emit `generating` at all
+Since a `spawn_sub_agent` call itself never waits on any subtask, the
+parent's `generating` drops back to `false` as soon as its own turn
+finishes returning the "spawned" confirmation — not while subtasks are
+still running in the background. It flips `true` again independently
+(with `autonomous: true`), once per subtask, when that subtask's
+`resume_after_background_subtask` reacquires the parent's per-session
+lock and runs another turn — visible as a busy dot in the sidebar, but
+never as a Stop button or blocked input in that project's own chat.
+Sub-agent sessions themselves never emit `generating` at all
 (`run_sub_agent` calls `run_agent_loop` directly, bypassing
 `run_with_cancellation`), so there's no separate per-sub-agent busy
 indicator, only the parent project's.

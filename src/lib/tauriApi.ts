@@ -29,6 +29,15 @@ export interface PersistedMessage {
   createdAt: number;
 }
 
+export interface SubAgentSummary {
+  id: string;
+  parentSessionId: string;
+  description: string;
+  status: "running" | "done" | "error";
+  startedAt: number; // epoch seconds, matches PersistedMessage.createdAt
+  finishedAt: number | null;
+}
+
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
@@ -57,4 +66,5 @@ export const api = {
   cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
   sendPromptAcp: (sessionId: string, launchCommand: string, message: string) =>
     invoke<void>("send_prompt_acp", { sessionId, launchCommand, message }),
+  listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
 };
