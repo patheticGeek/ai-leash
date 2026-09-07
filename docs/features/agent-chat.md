@@ -1,7 +1,7 @@
 # Agent chat runtime
 
 There are two independent "agent backends" a chat session can use, chosen
-globally in `ProviderSettingsModal.tsx` (`store.ts`'s `agentBackend`, not
+globally in `SettingsModal.tsx` (`store.ts`'s `agentBackend`, not
 per-project): the **built-in** loop (`chat.rs`, described in this whole
 file below), or an **external ACP agent subprocess** (`acp.rs`, see
 "External ACP agent backend" at the end of this file). The built-in
@@ -76,7 +76,7 @@ string-match provider-specific error text:
   host.
 - `Fatal` — surfaced to the user immediately.
 
-Settings UI: `ProviderSettingsModal.tsx` (opened via the gear button next
+Settings UI: `SettingsModal.tsx` (opened via the gear button next
 to `LeftBar.tsx`'s "open project" `+`) lets you set the Ollama host, and
 add/edit/delete saved OpenAI-compatible configs (label, base URL, API
 key, model id) and pick which one is active.
@@ -433,6 +433,9 @@ sub-agent thread), and `SubAgentChatTab.tsx` (the standalone tab).
 
 ### Provider connection status
 
+Two independent checks exist, because they answer different questions.
+
+**Active-provider check** (drives the model dropdown/chat warnings):
 `store.ts` holds `ollamaConnected: boolean | null` (`null` = not yet
 checked, name kept from before multi-provider support to avoid churn —
 see [Provider](#provider) above) and `ollamaModels: ModelSummary[]`,
@@ -442,9 +445,29 @@ refreshed via `refreshOllama()` which calls `api.listProviderModels
 one check on mount; `ChatPanel` polls every **5 seconds** via
 `setInterval`, but the effect bails out (and its cleanup stops the
 interval) whenever `sending` is `true` — no polling while a turn is
-actively in flight. `StatusBar.tsx` reads the same store value to show
-"checking…" / "connected" / "disconnected" with a colored dot next to
-the active provider's label.
+actively in flight.
+
+**All-providers check** (drives the status bar's aggregate indicator):
+`store.ts` holds `providerConnectivity: Record<string, boolean | null>`,
+keyed by `"ollama"` or an `openAiCompatible` config's `id`. Refreshed via
+`refreshProviderConnectivity()`, which calls the new
+`api.checkProviderConnection()` (backend: `provider::check_provider_connection`)
+against every configured provider, not just the active one.
+`list_provider_models` can't be reused for this — it's a no-op stub for
+OpenAI-compatible configs (see [Provider](#provider) above, no live model
+list for that kind) — so `check_provider_connection` does a real network
+round-trip for both kinds instead: `GET /api/tags` for Ollama, `GET
+{baseUrl}/models` for OpenAI-compatible. Any HTTP response at all (even
+401/404) counts as "connected" — this checks host reachability, not
+credential validity. `App.tsx` triggers one check on mount and polls every
+5 seconds unconditionally (no `sending`-gated pause, since this isn't tied
+to any one chat's turn).
+
+`StatusBar.tsx` reads `providerConnectivity` (not `ollamaConnected`) to
+show "`N`/`M` providers connected" with a dot: gray until at least one
+result comes back, green if all connected, amber if some, red if none.
+Hovering shows a per-provider breakdown (`title` tooltip) — each
+provider's label and "checking…" / "connected" / "disconnected".
 
 ## External ACP agent backend
 
@@ -460,7 +483,19 @@ staying identical regardless; the ACP backend *replaces*
 the external agent does its own file I/O directly as a real OS process.
 Chosen globally (not per-project) via `store.ts`'s `agentBackend: {kind:
 "builtin"} | {kind: "acp", launchCommand}`, set in
-`ProviderSettingsModal.tsx`'s "Agent backend" section.
+`SettingsModal.tsx`'s "Agent backend" section. `launchCommand` is a free-text
+shell command, but the settings UI also offers two quick-select preset
+buttons (`ACP_PRESETS` in `SettingsModal.tsx`) that fill it in and switch
+to `acp` in one click, for CLIs the user already has installed and
+authenticated — no API key entry needed for either:
+- **Claude Code**: `npx -y @agentclientprotocol/claude-agent-acp@latest`
+  — wraps the official Claude Agent SDK over ACP, reusing an existing
+  `claude` CLI login.
+- **GitHub Copilot**: `copilot --acp` — the `copilot` CLI's native ACP
+  server (stdio by default), reusing existing GitHub auth.
+
+Both are just launch-command strings compatible with the generic ACP
+backend below, so no other code was needed to support them.
 
 Uses the `agent-client-protocol` crate's stable v1 client role
 (`Client.builder()...connect_with(...)`, following

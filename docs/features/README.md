@@ -50,8 +50,8 @@ src/
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
   components/PermissionModal.tsx   shell/edit approval dialog
-  components/ProviderSettingsModal.tsx  agent backend (built-in/ACP), Ollama host, OpenAI-compatible provider config
-  components/StatusBar.tsx         project name + ollama status
+  components/SettingsModal.tsx     side-nav settings dialog; "Providers" section: agent backend (built-in/ACP), Ollama host, OpenAI-compatible provider config
+  components/StatusBar.tsx         aggregate connected/total across all configured providers
 ```
 
 This is a running build log, not a spec — if behavior in the code

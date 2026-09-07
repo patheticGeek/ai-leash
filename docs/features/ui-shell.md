@@ -175,13 +175,15 @@ palette that exists in the codebase.
 
 ## Status bar
 
-`StatusBar.tsx`:
-- **Bottom-left**: the currently open folder's base name (last path
-  segment), or the literal string `"ai-leash"` if no project is open.
-- **Bottom-right**: live Ollama connection status with a colored dot —
-  gray while unknown/checking, green when connected, red when a check
-  has failed. Backed by `store.ts`'s `ollamaConnected`/`refreshOllama`
-  (see [agent-chat.md](./agent-chat.md) for the polling behavior).
+`StatusBar.tsx`: aggregate connectivity across every configured provider
+(Ollama + each saved OpenAI-compatible config), as "`N`/`M` providers
+connected" with a colored dot — gray until at least one check has
+returned, green if all are connected, amber if some are, red if none are.
+Hovering the dot/text shows a per-provider tooltip (label + "checking…" /
+"connected" / "disconnected"). Backed by `store.ts`'s
+`providerConnectivity`/`refreshProviderConnectivity` (see
+[agent-chat.md](./agent-chat.md) for the polling behavior and how this
+differs from the active-provider-only `ollamaConnected` check).
 
 ## Window
 

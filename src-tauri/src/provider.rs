@@ -77,6 +77,37 @@ pub async fn list_provider_models(provider: ProviderConfig) -> Result<Vec<ModelS
     }
 }
 
+/// Real reachability check for the status bar's provider indicator — unlike
+/// `list_provider_models`, this always does a live network round-trip for
+/// both provider kinds (including OpenAI-compatible, which has no model
+/// list). Any HTTP response at all (even 401/404) counts as "connected":
+/// this checks that the host is reachable, not that credentials are valid.
+#[tauri::command]
+pub async fn check_provider_connection(provider: ProviderConfig) -> bool {
+    match provider {
+        ProviderConfig::Ollama { host } => list_ollama_models(&host).await.is_ok(),
+        ProviderConfig::OpenAiCompatible { base_url, api_key } => {
+            check_openai_compatible_connection(&base_url, &api_key).await
+        }
+    }
+}
+
+async fn check_openai_compatible_connection(base_url: &str, api_key: &str) -> bool {
+    let base_url = base_url.trim_end_matches('/');
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let mut request = client.get(format!("{base_url}/models"));
+    if !api_key.is_empty() {
+        request = request.header("Authorization", format!("Bearer {api_key}"));
+    }
+    request.send().await.is_ok()
+}
+
 async fn list_ollama_models(host: &str) -> Result<Vec<ModelSummary>, String> {
     let url = format!("{}/api/tags", ProviderConfig::ollama_base_url(host));
     let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;

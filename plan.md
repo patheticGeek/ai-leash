@@ -145,13 +145,12 @@ layer does not know which one is behind a thread" — tool availability is
 made uniform by giving every provider the *same* MCP server unconditionally,
 not by a per-provider "supports custom tools" capability flag.
 
-## Decisions pending (nothing below has been decided or built yet)
+## Decisions pending
 
-1. **Do the two ACP presets (Claude Code / GitHub Copilot quick-select
-   buttons) now, independent of the MCP-bridge question?** This part is
-   small, fully designed, and doesn't block on anything below — it could
-   ship on its own. Not yet explicitly greenlit by the user (conversation
-   branched into the bigger question first).
+1. ~~Do the two ACP presets (Claude Code / GitHub Copilot quick-select
+   buttons) now, independent of the MCP-bridge question?~~ **Shipped** —
+   `ACP_PRESETS` in `SettingsModal.tsx`, see
+   [agent-chat.md](./docs/features/agent-chat.md#external-acp-agent-backend).
 2. **Build the MCP-server bridge for our custom tools at all, or accept
    the current "ACP sessions get none of our tools/skills" limitation as
    permanent?** T3 Code's precedent argues for building it, but it's real

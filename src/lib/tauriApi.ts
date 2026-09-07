@@ -53,6 +53,8 @@ export const api = {
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
   listProviderModels: (provider: ProviderConfigPayload) =>
     invoke<ModelSummary[]>("list_provider_models", { provider }),
+  checkProviderConnection: (provider: ProviderConfigPayload) =>
+    invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
   sendPrompt: (

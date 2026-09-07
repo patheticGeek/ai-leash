@@ -95,6 +95,16 @@ function saveProviderSettings(settings: ProviderSettings) {
   localStorage.setItem(PROVIDER_CONFIG_KEY, JSON.stringify(settings));
 }
 
+// Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like
+// `id`/`label`/`model`) down to exactly the shape the backend's
+// `ProviderConfig` enum expects.
+function toProviderConfigPayload(config: ProviderConfig): ProviderConfigPayload {
+  if (config.kind === "ollama") {
+    return { kind: "ollama", host: config.host };
+  }
+  return { kind: "openAiCompatible", baseUrl: config.baseUrl, apiKey: config.apiKey };
+}
+
 // One global agent backend setting (not per-project), same reasoning as
 // `providerSettings` — a session's chat "just uses whatever's active".
 // External ACP support replaces the entire built-in agent loop for a
@@ -172,6 +182,12 @@ interface AppStore {
   ollamaConnected: boolean | null;
   ollamaModels: ModelSummary[];
   providerSettings: ProviderSettings;
+  // Live reachability per configured provider, keyed by "ollama" or an
+  // openAiCompatible config's `id` — independent of `ollamaConnected` above,
+  // which only ever reflects the *active* provider (used to drive the model
+  // dropdown/chat warnings). This one covers every configured provider at
+  // once, for the status bar's aggregate indicator. `null` = not checked yet.
+  providerConnectivity: Record<string, boolean | null>;
   agentBackend: AgentBackend;
   settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
@@ -202,6 +218,7 @@ interface AppStore {
   saveActive: () => Promise<void>;
   refreshOllama: () => Promise<void>;
   setOllamaConnected: (connected: boolean) => void;
+  refreshProviderConnectivity: () => Promise<void>;
   activeProviderConfig: () => ProviderConfigPayload;
   setSettingsModalOpen: (open: boolean) => void;
   setOllamaHost: (host: string) => void;
@@ -244,6 +261,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   ollamaConnected: null,
   ollamaModels: [],
   providerSettings: loadProviderSettings(),
+  providerConnectivity: {},
   agentBackend: loadAgentBackend(),
   settingsModalOpen: false,
   subAgentTasks: [],
@@ -392,13 +410,36 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeProviderConfig: () => {
     const { providerSettings } = get();
     if (providerSettings.activeId === "ollama") {
-      return { kind: "ollama", host: providerSettings.ollama.host };
+      return toProviderConfigPayload(providerSettings.ollama);
     }
     const found = providerSettings.openAiCompatible.find(
       (c) => c.id === providerSettings.activeId,
     );
-    if (!found) return { kind: "ollama", host: providerSettings.ollama.host };
-    return { kind: "openAiCompatible", baseUrl: found.baseUrl, apiKey: found.apiKey };
+    return toProviderConfigPayload(found ?? providerSettings.ollama);
+  },
+
+  // Checks reachability of every configured provider (not just the active
+  // one — see `providerConnectivity`'s doc comment), for the status bar's
+  // aggregate indicator.
+  refreshProviderConnectivity: async () => {
+    const { providerSettings } = get();
+    const targets: [string, ProviderConfig][] = [
+      ["ollama", providerSettings.ollama],
+      ...providerSettings.openAiCompatible.map((c): [string, ProviderConfig] => [c.id, c]),
+    ];
+    const results = await Promise.all(
+      targets.map(async ([id, config]) => {
+        try {
+          const connected = await api.checkProviderConnection(toProviderConfigPayload(config));
+          return [id, connected] as const;
+        } catch {
+          return [id, false] as const;
+        }
+      }),
+    );
+    set((s) => ({
+      providerConnectivity: { ...s.providerConnectivity, ...Object.fromEntries(results) },
+    }));
   },
 
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),

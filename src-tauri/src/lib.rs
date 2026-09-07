@@ -27,6 +27,7 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             provider::list_provider_models,
+            provider::check_provider_connection,
             chat::send_prompt,
             chat::retry_last,
             chat::cancel_prompt,
