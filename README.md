@@ -9,6 +9,8 @@ work.
 Built on Tauri, so the app itself is a small native binary with a Rust
 backend, not a bundled Chromium.
 
+**[Download the latest release →](https://github.com/patheticGeek/ai-leash/releases/latest)**
+
 ## Table of contents
 
 - [Features](#features)
