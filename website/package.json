@@ -1,0 +1,22 @@
+{
+  "name": "ai-leash-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/sync-docs.mjs",
+    "dev": "next",
+    "prebuild": "node scripts/sync-docs.mjs",
+    "build": "next build --webpack",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^16.3.4",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "overrides": {
+    "zod": "4.3.6"
+  }
+}
