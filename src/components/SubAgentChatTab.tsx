@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Wrench } from "lucide-react";
 import { useAppStore } from "../store";
 import { isToolError, type Entry } from "../lib/chatEntries";
 import Markdown from "./Markdown";
@@ -40,7 +41,7 @@ function EntryBlock({ entry }: { entry: Entry }) {
       }`}
     >
       <div className="flex min-w-0 items-center gap-1.5 text-zinc-400">
-        <span className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}>tool</span>
+        <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
         <span className="shrink-0">{entry.name}</span>
         <span className="min-w-0 flex-1 truncate text-zinc-600">{JSON.stringify(entry.args)}</span>
         {entry.result === undefined && <span className="shrink-0 text-zinc-600">running…</span>}

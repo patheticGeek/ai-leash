@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { Bot, Wrench } from "lucide-react";
 import { useAppStore } from "../store";
 import { api } from "../lib/tauriApi";
 import Markdown from "./Markdown";
@@ -164,7 +165,11 @@ function SubEntryLine({ entry }: { entry: Entry }) {
           : "border-[#26272c] bg-[#101114] text-zinc-500"
       }`}
     >
-      <span className={failed ? "text-red-400" : "text-zinc-700"}>tool</span> {entry.name}
+      <Wrench
+        size={11}
+        className={`inline-block -mt-0.5 mr-1 ${failed ? "text-red-400" : "text-zinc-700"}`}
+      />
+      {entry.name}
       {failed && <span className="text-red-400"> · failed</span>}
       {entry.result === undefined ? (
         <span className="text-zinc-700"> · running…</span>
@@ -534,13 +539,16 @@ export default function ChatPanel() {
         {entries.map((entry, i) => {
           if (entry.kind === "text") {
             const isLast = i === entries.length - 1;
+            const isUser = entry.role === "user";
             return (
               <div
                 key={i}
-                className={entry.role === "user" ? "text-zinc-200" : "text-zinc-300"}
+                className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
               >
-                <div className="flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600">
-                  <span>{entry.role === "user" ? "you" : "agent"}</span>
+                <div
+                  className={`flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                >
+                  <span>{isUser ? "you" : "agent"}</span>
                   <span className="flex-1" />
                   <button
                     onClick={() => copyText(i, entry.content)}
@@ -562,7 +570,7 @@ export default function ChatPanel() {
                     {formatTime(entry.time)}
                   </span>
                 </div>
-                {entry.role === "user" ? (
+                {isUser ? (
                   <div className="whitespace-pre-wrap">{entry.content}</div>
                 ) : (
                   <Markdown content={entry.content} />
@@ -603,12 +611,14 @@ export default function ChatPanel() {
                 className="flex w-full min-w-0 items-center gap-1.5 text-left text-zinc-400"
               >
                 <Chevron expanded={expanded} />
-                <span className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}>
-                  tool
-                </span>
+                {entry.name === "spawn_sub_agent" ? (
+                  <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+                ) : (
+                  <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+                )}
                 <span className="shrink-0">{entry.name}</span>
                 <span className="min-w-0 flex-1 truncate text-zinc-600">
-                  {JSON.stringify(entry.args)}
+                  {!expanded ? JSON.stringify(entry.args) : ''}
                 </span>
                 {entry.result === undefined && (
                   <span className="shrink-0 text-zinc-600">running…</span>
