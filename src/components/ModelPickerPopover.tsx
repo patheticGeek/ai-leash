@@ -13,6 +13,11 @@ interface ModelPickerPopoverProps {
   onSelect: (key: string) => void;
   triggerLabel: string;
   disabled?: boolean;
+  // Controlled from outside (rather than the plain internal toggle this
+  // started with) so the "/model" local command can pop it open without a
+  // real click — see `ChatPanel.tsx`'s `runLocalCommand`.
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 // A search-and-pick popover for choosing "which brain answers" — modeled
@@ -26,8 +31,9 @@ export default function ModelPickerPopover({
   onSelect,
   triggerLabel,
   disabled,
+  open,
+  onOpenChange,
 }: ModelPickerPopoverProps) {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -35,11 +41,11 @@ export default function ModelPickerPopover({
     if (!open) return;
     function onDocClick(e: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        onOpenChange(false);
       }
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") onOpenChange(false);
     }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKeyDown);
@@ -47,7 +53,7 @@ export default function ModelPickerPopover({
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
 
   useEffect(() => {
     if (!open) setQuery("");
@@ -62,7 +68,7 @@ export default function ModelPickerPopover({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => onOpenChange(!open)}
         className="min-w-0 max-w-[160px] truncate rounded border border-[#26272c] bg-[#17181c] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:text-zinc-200 disabled:opacity-50"
       >
         {triggerLabel}
@@ -89,7 +95,7 @@ export default function ModelPickerPopover({
                 type="button"
                 onClick={() => {
                   onSelect(o.key);
-                  setOpen(false);
+                  onOpenChange(false);
                 }}
                 className={`block w-full px-3 py-2 text-left ${
                   o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"

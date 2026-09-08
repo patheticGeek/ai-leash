@@ -23,13 +23,24 @@ interface SubtaskThread {
   entries: Entry[];
 }
 
+// The output of a local command (currently just "/help") — never sent
+// through `push_message`/persisted, so it can't round-trip through
+// `messagesToEntries` like every other `Entry` kind; it only ever exists in
+// this component's own `entries` state for the rest of the session.
+interface LocalInfoEntry {
+  kind: "info";
+  content: string;
+  time: number;
+}
+
 // Extends the shared `ToolEntry` shape with UI-only nesting for subtasks
 // spawned by this specific tool call — not part of the shared type since
 // sub-agents can't themselves spawn further subtasks, so their own entries
 // (`SubtaskThread.entries` above) never need this.
 type PanelEntry =
   | Exclude<Entry, { kind: "tool" }>
-  | (Extract<Entry, { kind: "tool" }> & { subtasks?: SubtaskThread[] });
+  | (Extract<Entry, { kind: "tool" }> & { subtasks?: SubtaskThread[] })
+  | LocalInfoEntry;
 
 interface SubtaskStartPayload {
   callId: string | null;
@@ -203,6 +214,8 @@ const INPUT_MAX_ROWS = 6;
 // local command wins over an agent-advertised one of the same name.
 const LOCAL_COMMANDS: AcpCommandInfo[] = [
   { name: "clear", description: "Clear this conversation's history", hint: null },
+  { name: "model", description: "Open the model/agent picker", hint: null },
+  { name: "help", description: "List available commands", hint: null },
 ];
 
 export default function ChatPanel() {
@@ -260,6 +273,9 @@ export default function ChatPanel() {
   const [acpCommands, setAcpCommands] = useState<AcpCommandInfo[]>([]);
   const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  // Lifted out of `ModelPickerPopover` so the "/model" local command can
+  // open it without a real click.
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -438,24 +454,33 @@ export default function ChatPanel() {
         setSystemPrompt(e.payload);
       }),
     );
+    // The four `chatEntries.ts` helpers below only know about the shared
+    // `Entry` union, not this component's local-only `"info"` entries (see
+    // `LocalInfoEntry`) — but they treat whatever's already in `prev`
+    // opaquely (only ever inspecting the *last* entry's `kind` to decide
+    // whether to append or extend), so an `"info"` entry sitting in the
+    // array is harmless: it just doesn't match `"thinking"`/`"text"`,
+    // falling through to "append a new entry" exactly as any other
+    // unrelated kind already would. The cast is safe on that basis, not a
+    // real type hole.
     unlistens.push(
       listen<string>(`chat://${sessionId}/thinking`, (e) => {
-        setEntries((prev) => appendThinking(prev, e.payload));
+        setEntries((prev) => appendThinking(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<string>(`chat://${sessionId}/chunk`, (e) => {
-        setEntries((prev) => appendChunk(prev, e.payload));
+        setEntries((prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<ToolCallPayload>(`chat://${sessionId}/tool_call`, (e) => {
-        setEntries((prev) => appendToolCall(prev, e.payload));
+        setEntries((prev) => appendToolCall(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<ToolResultPayload>(`chat://${sessionId}/tool_result`, (e) => {
-        setEntries((prev) => applyToolResult(prev, e.payload));
+        setEntries((prev) => applyToolResult(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
@@ -596,10 +621,19 @@ export default function ChatPanel() {
     setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
   }
 
-  // Runs a local command (currently just "/clear") entirely client-side —
-  // never sent to the model/agent as a prompt. Blocked while `sending`, same
-  // as `retry`: clearing mid-turn would let that turn's own `push_message`
-  // calls land right back in the history this just wiped (see
+  // Local commands first, then whatever the connected ACP agent advertises
+  // (skipping any name a local command already covers) — see
+  // `LOCAL_COMMANDS`. Available regardless of `isAcp`: "/clear" works the
+  // same for a plain Ollama/OpenAI-compatible conversation too.
+  const allCommands = [
+    ...LOCAL_COMMANDS,
+    ...acpCommands.filter((c) => !LOCAL_COMMANDS.some((l) => l.name === c.name)),
+  ];
+
+  // Runs a local command entirely client-side — never sent to the
+  // model/agent as a prompt. Blocked while `sending`, same as `retry`:
+  // "/clear" mid-turn would let that turn's own `push_message` calls land
+  // right back in the history this just wiped (see
   // `chat::clear_conversation`'s doc comment).
   async function runLocalCommand(name: string) {
     if (sending) return;
@@ -613,6 +647,20 @@ export default function ChatPanel() {
       } catch (e) {
         setOllamaError(String(e));
       }
+      return;
+    }
+    if (name === "model") {
+      setModelPickerOpen(true);
+      return;
+    }
+    if (name === "help") {
+      const lines = allCommands.map(
+        (c) => `- \`/${c.name}${c.hint ? ` ${c.hint}` : ""}\` — ${c.description}`,
+      );
+      setEntries((prev) => [
+        ...prev,
+        { kind: "info", content: `Available commands:\n${lines.join("\n")}`, time: Date.now() },
+      ]);
     }
   }
 
@@ -642,15 +690,6 @@ export default function ChatPanel() {
       setSending(false);
     }
   }
-
-  // Local commands first, then whatever the connected ACP agent advertises
-  // (skipping any name a local command already covers) — see
-  // `LOCAL_COMMANDS`. Available regardless of `isAcp`: "/clear" works the
-  // same for a plain Ollama/OpenAI-compatible conversation too.
-  const allCommands = [
-    ...LOCAL_COMMANDS,
-    ...acpCommands.filter((c) => !LOCAL_COMMANDS.some((l) => l.name === c.name)),
-  ];
 
   // Slash-command autocomplete: only triggers when the *entire* input is
   // "/" followed by a run of non-space characters — i.e. the user is still
@@ -915,6 +954,16 @@ export default function ChatPanel() {
           </div>
         )}
         {entries.map((entry, i) => {
+          if (entry.kind === "info") {
+            return (
+              <div
+                key={i}
+                className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
+              >
+                <Markdown content={entry.content} />
+              </div>
+            );
+          }
           if (entry.kind === "text") {
             const isLast = i === entries.length - 1;
             const isUser = entry.role === "user";
@@ -1081,6 +1130,8 @@ export default function ChatPanel() {
                 activeKey={activeBackendKey}
                 onSelect={selectBackendOption}
                 triggerLabel={activeBackendLabel}
+                open={modelPickerOpen}
+                onOpenChange={setModelPickerOpen}
               />
               {isOpenAiCompatible && !isAcp && (
                 <input

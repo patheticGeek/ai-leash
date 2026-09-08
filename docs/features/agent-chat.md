@@ -735,22 +735,40 @@ out of scope for now.
   for arguments. Typing a space past the command name drops out of the
   match automatically, and Escape dismisses the popover for that exact
   query (tracked via `slashDismissed`) without clearing what's typed.
-- **Local commands (`/clear`)**: shown in the same popover as agent-
-  advertised ones (`LOCAL_COMMANDS` in `ChatPanel.tsx`, merged ahead of
-  `acpCommands` so a local name always wins), but never sent as a prompt —
-  no ACP agent implements a matching request, since the protocol doesn't
-  define one. `send()` intercepts an exact `/name` match against
-  `LOCAL_COMMANDS` before it ever reaches `sendPrompt`/`sendPromptAcp`.
-  `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
-  both the in-memory `chat_sessions` entry and the on-disk rows
-  (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
-  the map entry for it — not a kill, just lets it wind down once idle (same
-  mechanism as switching agents; see `ensure_acp_session`'s doc comment) —
-  so the *next* prompt starts a real fresh `session/new` rather than
-  continuing a conversation the agent still remembers, since ACP has no
-  session/truncate. Blocked client-side while `sending`, same as retry:
-  clearing mid-turn would let that turn's own `push_message` calls land
-  right back in the history that was just wiped.
+- **Local commands (`/clear`, `/model`, `/help`)**: shown in the same
+  popover as agent-advertised ones (`LOCAL_COMMANDS` in `ChatPanel.tsx`,
+  merged ahead of `acpCommands` so a local name always wins), but never sent
+  as a prompt — no ACP agent implements any of these (the protocol doesn't
+  define a matching request for any of them). `send()` intercepts an exact
+  `/name` match against `LOCAL_COMMANDS`, routing it to `runLocalCommand`
+  instead of ever reaching `sendPrompt`/`sendPromptAcp`:
+  - `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
+    both the in-memory `chat_sessions` entry and the on-disk rows
+    (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
+    the map entry for it — not a kill, just lets it wind down once idle
+    (same mechanism as switching agents; see `ensure_acp_session`'s doc
+    comment) — so the *next* prompt starts a real fresh `session/new`
+    rather than continuing a conversation the agent still remembers, since
+    ACP has no session/truncate. Blocked client-side while `sending`, same
+    as retry: clearing mid-turn would let that turn's own `push_message`
+    calls land right back in the history that was just wiped.
+  - `/model` just opens the model/agent picker (`setModelPickerOpen(true)`)
+    — `ModelPickerPopover` was refactored from an internally-toggled popover
+    to a controlled one (`open`/`onOpenChange` props, lifted into
+    `ChatPanel.tsx`) purely so this command has something to flip.
+  - `/help` lists every available command (local + agent-advertised) as a
+    one-off `LocalInfoEntry` (`kind: "info"`) appended straight to
+    `entries` — a display-only entry type that exists solely in this
+    component's state, distinct from the shared `Entry` union
+    (`chatEntries.ts`) since it's never persisted or replayed from disk.
+    The four streaming-update helpers there (`appendThinking`,
+    `appendChunk`, `appendToolCall`, `applyToolResult`) only look at the
+    *last* entry's `kind` to decide whether to extend or append, so an
+    `"info"` entry sitting in the array ahead of them is harmless — it
+    just doesn't match, and they fall through to "append a new entry" the
+    same as for any other kind they don't recognize. `ChatPanel.tsx` casts
+    through this at the four call sites rather than teaching `chatEntries.ts`
+    about a type it has no other reason to know about.
 
 ### Providers and ACP agents share one picker
 
