@@ -15,18 +15,17 @@ export const metadata = {
 export default async function RootLayout({ children }) {
   const navbar = (
     <Navbar
-      logo={
-        <div>
-          <b>ai</b> leash
-        </div>
-      }
+      // next/image's `unoptimized` mode doesn't prepend basePath, and this
+      // is a static export with a fixed basePath, so hardcode it here to
+      // match next.config.mjs's `basePath: "/ai-leash"`.
+      logo={<img src="/ai-leash/wordmark.svg" alt="ai leash" height={20} style={{ height: 20, width: "auto" }} />}
       projectLink="https://github.com/patheticGeek/ai-leash"
     />
   );
   const pageMap = await getPageMap();
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
-      <Head faviconGlyph="🐕" />
+      <Head />
       <body>
         <Layout
           navbar={navbar}

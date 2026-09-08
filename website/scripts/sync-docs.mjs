@@ -3,7 +3,7 @@
 // source of truth. Run automatically via predev/prebuild — nothing
 // under src/content/ except the hand-maintained _meta.js files should
 // ever be edited directly; it's all overwritten on every run.
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -86,5 +86,18 @@ for (const name of readdirSync(featuresDir)) {
   const slug = name.replace(/\.md$/, "");
   write(`docs/features/${slug}.mdx`, escapeMdxOutsideCode(rewriteFeatureDocLinks(source)));
 }
+
+// App icon (public/logo.svg, the squircle "ai" + leash mark used to
+// generate every src-tauri/icons/* variant) -> the site's favicon, via
+// Next's app/icon.svg file convention. app/wordmark.svg (the "ai leash"
+// text logo used in LeftBar.tsx/SettingsModal.tsx) -> the navbar logo.
+// Copied rather than hand-duplicated so the site can't drift from what
+// the app actually ships.
+copyFileSync(path.join(repoRoot, "public", "logo.svg"), path.join(websiteDir, "src", "app", "icon.svg"));
+mkdirSync(path.join(websiteDir, "public"), { recursive: true });
+copyFileSync(
+  path.join(repoRoot, "src", "assets", "logo.svg"),
+  path.join(websiteDir, "public", "wordmark.svg"),
+);
 
 console.log("Synced docs into website/src/content/");
