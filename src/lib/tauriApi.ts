@@ -84,4 +84,8 @@ export const api = {
   fetchAcpModels: (launchCommand: string) =>
     invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
+  reportFrontendCrash: (kind: string, message: string, stack?: string) =>
+    invoke<void>("report_frontend_crash", { kind, message, stack }),
+  getCrashLog: () => invoke<string>("get_crash_log"),
+  clearCrashLog: () => invoke<void>("clear_crash_log"),
 };

@@ -15,6 +15,7 @@ This directory documents each feature area as it exists today:
 - [Default tools & permissions](./tools.md)
 - [AGENTS.md, memory & skills](./context-and-memory.md)
 - [UI shell & theme](./ui-shell.md)
+- [Crash logging](./crash-logging.md)
 
 Source layout, for reference while reading these docs:
 
@@ -29,15 +30,18 @@ src-tauri/src/
   provider.rs    Provider abstraction (Ollama + OpenAI-compatible HTTP backends)
   acp.rs         external ACP agent subprocess backend (alternative to chat.rs's loop)
   env.rs         one-shot startup fixups: PATH (via fix-path-env) and stripping AppImage's LD_LIBRARY_PATH for spawned children
+  crashlog.rs    panic hook + durable crash log file, also accepts frontend-reported crashes
   tools.rs       default tool definitions + execution + permission requests
   context.rs     AGENTS.md / memory / skills loading
   db.rs          SQLite-backed conversation history (save/load, schema)
 
 src/
+  main.tsx                         React root; installs crash reporting, wraps App in ErrorBoundary
   App.tsx                          layout composition, resizable regions
   store.ts                         zustand store (project root, panel tabs, chat tabs, sub-agents, ollama status)
   lib/tauriApi.ts                  typed wrappers around Tauri invoke
   lib/chatEntries.ts               shared chat entry types + accumulation/replay helpers
+  lib/crashReporting.ts            forwards uncaught errors/rejections/React crashes to the backend crash log
   hooks/useResizableWidth.ts       drag-resize width hook (persists to localStorage)
   components/LeftBar.tsx           project switcher (logo, + to open, recent projects)
   components/SidePanel.tsx         multi-tab right panel (file tree / files / terminals / sub agents)
@@ -52,8 +56,9 @@ src/
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
   components/PermissionModal.tsx   shell/edit approval dialog
-  components/SettingsModal.tsx     side-nav settings dialog; "Providers" section: agent backend (built-in/ACP), Ollama host, OpenAI-compatible provider config
+  components/SettingsModal.tsx     side-nav settings dialog; "Providers" (agent backend, Ollama host, OpenAI-compatible config) and "Crash log" sections
   components/StatusBar.tsx         aggregate connected/total across all configured providers
+  components/ErrorBoundary.tsx     catches render-time crashes app-wide, reports + shows a fallback instead of a white screen
 ```
 
 This is a running build log, not a spec — if behavior in the code

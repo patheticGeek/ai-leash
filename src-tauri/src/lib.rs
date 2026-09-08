@@ -2,6 +2,7 @@ mod acp;
 mod chat;
 mod commands;
 mod context;
+mod crashlog;
 mod db;
 mod env;
 mod provider;
@@ -13,6 +14,9 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // First thing, before anything else that could itself panic — see the
+    // doc comment on `install_panic_hook` for why this can't wait.
+    crashlog::install_panic_hook();
     env::fix_env();
 
     tauri::Builder::default()
@@ -40,6 +44,9 @@ pub fn run() {
             acp::send_prompt_acp,
             acp::set_acp_model,
             acp::fetch_acp_models,
+            crashlog::report_frontend_crash,
+            crashlog::get_crash_log,
+            crashlog::clear_crash_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
