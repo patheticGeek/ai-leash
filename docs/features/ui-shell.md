@@ -187,6 +187,6 @@ differs from the active-provider-only `ollamaConnected` check).
 
 ## Window
 
-From `tauri.conf.json`: product name `ai-leash`, identifier
-`dev.patheticgeek.aileash`, single window titled "ai-leash", default size
+From `tauri.conf.json`: product name "AI Leash", identifier
+`dev.patheticgeek.aileash`, single window titled "AI Leash", default size
 1400×900, minimum size 900×600.
