@@ -1,4 +1,4 @@
-# ai-leash
+# AI Leash
 
 A small, better agentic harness — the editor, file tree, and terminal
 exist to support the agent chat, not the other way around. Dark mode

@@ -1,6 +1,6 @@
-# ai-leash features
+# AI Leash features
 
-ai-leash is a dark-mode-only agentic harness built on Tauri, with a
+AI Leash is a dark-mode-only agentic harness built on Tauri, with a
 built-in agent runtime that talks to Ollama or an OpenAI-compatible
 provider and executes tools (shell, file read/edit, search) with user
 permission gating — or, as an alternative agent backend, drives an
