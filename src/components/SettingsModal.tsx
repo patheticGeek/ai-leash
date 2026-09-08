@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react";
+import { getIdentifier, getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppStore, type AcpAgentConfig, type OpenAiCompatibleProviderConfig } from "../store";
 import { api } from "../lib/tauriApi";
+import Logo from "./Logo";
 
 const emptyForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 
+const GITHUB_URL = "https://github.com/patheticGeek/ai-leash";
+const WEBSITE_URL = "https://patheticgeek.dev";
+
 // One entry per settings page — the side nav is built to hold more without
 // restructuring.
-type SettingsSection = "providers" | "crashlog";
+type SettingsSection = "providers" | "crashlog" | "about";
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "providers", label: "Providers" },
   { id: "crashlog", label: "Crash log" },
+  { id: "about", label: "About" },
 ];
 
 export default function SettingsModal() {
@@ -48,6 +55,7 @@ export default function SettingsModal() {
           <div className="flex-1 overflow-auto p-4 text-base">
             {activeSection === "providers" && <ProvidersSection />}
             {activeSection === "crashlog" && <CrashLogSection />}
+            {activeSection === "about" && <AboutSection />}
           </div>
         </div>
       </div>
@@ -462,6 +470,40 @@ function CrashLogSection() {
       <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded border border-[#26272c] bg-[#0e0f12] p-2.5 text-xs text-zinc-400">
         {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
       </pre>
+    </div>
+  );
+}
+
+function AboutSection() {
+  const [info, setInfo] = useState<{ version: string; identifier: string } | null>(null);
+
+  useEffect(() => {
+    Promise.all([getVersion(), getIdentifier()]).then(([version, identifier]) =>
+      setInfo({ version, identifier }),
+    );
+  }, []);
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+      <Logo className="h-14 w-auto" />
+      <div className="text-xs text-zinc-600">
+        v{info?.version ?? "…"} · {info?.identifier ?? "…"}
+      </div>
+      <div className="text-xs text-zinc-600">A local-first ACP IDE.</div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => openUrl(GITHUB_URL)}
+          className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+        >
+          GitHub
+        </button>
+        <button
+          onClick={() => openUrl(WEBSITE_URL)}
+          className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+        >
+          patheticgeek.dev
+        </button>
+      </div>
     </div>
   );
 }

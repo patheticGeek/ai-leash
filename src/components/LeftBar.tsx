@@ -2,32 +2,7 @@ import { useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore, type RecentProject } from "../store";
-
-function Logo() {
-  return (
-    <svg width="98" height="20" viewBox="0 0 98 20" className="shrink-0">
-      <defs>
-        <linearGradient id="ai-leash-gradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f97316" />
-          <stop offset="25%" stopColor="#eab308" />
-          <stop offset="50%" stopColor="#22c55e" />
-          <stop offset="75%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#a855f7" />
-        </linearGradient>
-      </defs>
-      <text
-        x="2"
-        y="15"
-        fontSize="14"
-        fontWeight="700"
-        fontFamily="ui-sans-serif, system-ui, sans-serif"
-      >
-        <tspan fill="url(#ai-leash-gradient)">ai</tspan>
-        <tspan fill="#e4e4e7"> leash</tspan>
-      </text>
-    </svg>
-  );
-}
+import Logo from "./Logo";
 
 function ProjectRow({
   project,
@@ -98,7 +73,7 @@ export default function LeftBar() {
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#26272c] px-2.5">
-        <Logo />
+        <Logo className="h-5 w-auto shrink-0" />
         <div className="flex items-center gap-1">
           <button
             onClick={() => setSettingsModalOpen(true)}
