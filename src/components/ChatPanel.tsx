@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   Bot,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   RotateCcw,
@@ -161,6 +162,11 @@ function formatTokenCount(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
 const LAST_MODEL_KEY = "ai-leash:lastModel";
 const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
@@ -281,6 +287,12 @@ export default function ChatPanel() {
   );
   const [entries, setEntries] = useState<PanelEntry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
+  // Consecutive tool-call entries are grouped so only the latest one shows by
+  // default (see `renderItems` below) — keyed by the group's first index,
+  // which stays stable as long as `entries` only ever grows (it does; see
+  // `setEntries` above), tracking whether that group has been expanded to
+  // show every call in it rather than just the latest.
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [input, setInput] = useState("");
   // Initialized from the global (backend-driven) state so a session that's
@@ -295,6 +307,50 @@ export default function ChatPanel() {
   useEffect(() => {
     setSending(generating);
   }, [generating]);
+  // Drives the "Working for <time>" indicator below the transcript — a
+  // ticking clock rather than a static label, since a turn can run for
+  // minutes (tool calls, sub-agents) and a frozen "generating…" gives no
+  // sense of how long that's actually been going on.
+  const [sendStartedAt, setSendStartedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  // Once a turn finishes, its elapsed time is frozen here (keyed by the
+  // finished assistant reply's own index in `entries`) so the reply's
+  // footer can keep showing "Worked for <time>" instead of reverting to a
+  // plain timestamp — refs because the effect below only fires on the
+  // `sending` transition and needs whatever `entries`/`sendStartedAt` were
+  // current *at that moment*, not whatever they were when the effect was
+  // last set up.
+  const [turnDurations, setTurnDurations] = useState<Record<number, number>>({});
+  const sendStartedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    sendStartedAtRef.current = sendStartedAt;
+  }, [sendStartedAt]);
+  const entriesRef = useRef(entries);
+  useEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
+  useEffect(() => {
+    if (!sending) {
+      const startedAt = sendStartedAtRef.current;
+      if (startedAt) {
+        const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+        const list = entriesRef.current;
+        for (let i = list.length - 1; i >= 0; i--) {
+          const e = list[i];
+          if (e.kind === "text" && e.role === "assistant") {
+            setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
+            break;
+          }
+          if (e.kind === "text" && e.role === "user") break;
+        }
+      }
+      setSendStartedAt(null);
+      return;
+    }
+    setSendStartedAt((prev) => prev ?? Date.now());
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [sending]);
   const [ollamaError, setOllamaError] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ prompt: number; completion: number } | null>(null);
   const [showUsagePopover, setShowUsagePopover] = useState(false);
@@ -606,6 +662,10 @@ export default function ChatPanel() {
     setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
   }
 
+  function toggleGroup(key: string) {
+    setGroupExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   // "/compact" only exists for the built-in provider loop — see
   // `COMPACT_COMMAND`. Local commands first, then whatever the connected
   // ACP agent advertises (skipping any name a local command already
@@ -837,13 +897,17 @@ export default function ChatPanel() {
     }
   }
 
+  // Whether this turn has produced anything visible yet — before that, the
+  // bottom indicator shows "Waiting" rather than a running clock, since
+  // there's nothing to measure the *progress* of yet, just the wait for the
+  // model to respond at all.
   const lastEntry = entries[entries.length - 1];
-  const hasActivity =
+  const hasActivity = !!(
     lastEntry &&
     ((lastEntry.kind === "text" && lastEntry.role === "assistant") ||
       lastEntry.kind === "thinking" ||
-      lastEntry.kind === "tool");
-  const awaitingFirstToken = sending && !hasActivity;
+      lastEntry.kind === "tool")
+  );
 
   const selectedModel = models.find((m) => m.name === model);
   const contextLength = selectedModel?.contextLength ?? null;
@@ -973,6 +1037,97 @@ export default function ChatPanel() {
   const usagePct =
     usedTokens !== null && contextLength ? Math.min(100, (usedTokens / contextLength) * 100) : null;
 
+  // Renders a single tool-call entry at index `i` — pulled out of the JSX
+  // below so both a lone tool call and each call inside an expanded group
+  // (see `renderItems`) share the exact same markup.
+  function renderToolEntry(i: number) {
+    const entry = entries[i] as Extract<PanelEntry, { kind: "tool" }>;
+    const expanded = isExpanded(i);
+    const failed = isToolError(entry.result);
+    return (
+      <div
+        key={i}
+        className={`rounded border px-2.5 py-1.5 text-xs ${
+          failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
+        }`}
+      >
+        <Button
+          variant="unstyled"
+          size="none"
+          onClick={() => toggle(i)}
+          className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
+        >
+          <Chevron expanded={expanded} />
+          {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
+            <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+          ) : (
+            <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+          )}
+          <span className="shrink-0">{entry.name}</span>
+          <span className="min-w-0 flex-1 truncate text-zinc-600">
+            {!expanded ? JSON.stringify(entry.args) : ''}
+          </span>
+          {entry.result === undefined && (
+            <span className="shrink-0 text-zinc-600">running…</span>
+          )}
+          {failed && <span className="shrink-0 text-red-400">failed</span>}
+        </Button>
+        {expanded && (
+          <div className="mt-1 pl-4">
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
+              {JSON.stringify(entry.args, null, 2)}
+            </pre>
+            {entry.subtasks && entry.subtasks.length > 0 && (
+              <div className="mt-1.5 space-y-2">
+                {entry.subtasks.map((t) => (
+                  <div key={t.subSessionId} className="border-l-2 border-[#26272c] pl-2">
+                    <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+                      {t.description}
+                    </div>
+                    <div className="space-y-1.5">
+                      {t.entries.map((sub, j) => (
+                        <SubEntryLine key={j} entry={sub} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {entry.result !== undefined && (
+              <pre
+                className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
+                  failed ? "text-red-300" : "text-zinc-500"
+                }`}
+              >
+                {entry.result}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Groups runs of consecutive tool-call entries so the transcript can show
+  // only the latest call in a run by default (see the "toolgroup" branch
+  // below) instead of every single one — a multi-step agent turn can rack up
+  // a dozen tool calls in a row, which otherwise buries the actual
+  // conversation. Non-tool entries always stand alone.
+  type RenderItem = { kind: "single"; index: number } | { kind: "toolgroup"; indices: number[] };
+  const renderItems: RenderItem[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].kind === "tool") {
+      const last = renderItems[renderItems.length - 1];
+      if (last && last.kind === "toolgroup") {
+        last.indices.push(i);
+      } else {
+        renderItems.push({ kind: "toolgroup", indices: [i] });
+      }
+    } else {
+      renderItems.push({ kind: "single", index: i });
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
       <div className="relative flex-1 overflow-hidden">
@@ -1009,7 +1164,35 @@ export default function ChatPanel() {
             {ollamaError}
           </div>
         )}
-        {entries.map((entry, i) => {
+        {renderItems.map((item) => {
+          if (item.kind === "toolgroup") {
+            const { indices } = item;
+            const groupKey = String(indices[0]);
+            const expanded = groupExpanded[groupKey] ?? false;
+            const showToggle = indices.length > 1;
+            const visible = showToggle && !expanded ? [indices[indices.length - 1]] : indices;
+            return (
+              <div key={`group-${groupKey}`} className="space-y-1.5">
+                {visible.map((idx) => renderToolEntry(idx))}
+                {showToggle && (
+                  <Button
+                    variant="unstyled"
+                    size="none"
+                    onClick={() => toggleGroup(groupKey)}
+                    className="flex items-center gap-1 rounded px-1 py-0.5 text-[10px] text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                  >
+                    <ChevronDown
+                      size={11}
+                      className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+                    />
+                    {expanded ? "Hide" : `Show all (${indices.length})`}
+                  </Button>
+                )}
+              </div>
+            );
+          }
+          const i = item.index;
+          const entry = entries[i];
           if (entry.kind === "info") {
             return (
               <div
@@ -1028,10 +1211,12 @@ export default function ChatPanel() {
                 key={i}
                 className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
               >
-                <Markdown content={entry.content} />
+                <div className={isUser ? `rounded-xl px-3 py-2 bg-zinc-900` : undefined}>
+                  <Markdown content={entry.content} />
+                </div>
                   
                 <div
-                  className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                  className={`mt-1 flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                 >
                   <Button
                     variant="ghost"
@@ -1054,7 +1239,9 @@ export default function ChatPanel() {
                     </Button>
                   )}
                   <span className="normal-case tracking-normal text-zinc-700">
-                    {formatTime(entry.time)}
+                    {!isUser && turnDurations[i] !== undefined
+                      ? `Worked for ${formatDuration(turnDurations[i])}`
+                      : formatTime(entry.time)}
                   </span>
                 </div>
               </div>
@@ -1081,72 +1268,18 @@ export default function ChatPanel() {
               </div>
             );
           }
-          const expanded = isExpanded(i);
-          const failed = isToolError(entry.result);
-          return (
-            <div
-              key={i}
-              className={`rounded border px-2.5 py-1.5 text-xs ${
-                failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
-              }`}
-            >
-              <Button
-                variant="unstyled"
-                size="none"
-                onClick={() => toggle(i)}
-                className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
-              >
-                <Chevron expanded={expanded} />
-                {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
-                  <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
-                ) : (
-                  <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
-                )}
-                <span className="shrink-0">{entry.name}</span>
-                <span className="min-w-0 flex-1 truncate text-zinc-600">
-                  {!expanded ? JSON.stringify(entry.args) : ''}
-                </span>
-                {entry.result === undefined && (
-                  <span className="shrink-0 text-zinc-600">running…</span>
-                )}
-                {failed && <span className="shrink-0 text-red-400">failed</span>}
-              </Button>
-              {expanded && (
-                <div className="mt-1 pl-4">
-                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
-                    {JSON.stringify(entry.args, null, 2)}
-                  </pre>
-                  {entry.subtasks && entry.subtasks.length > 0 && (
-                    <div className="mt-1.5 space-y-2">
-                      {entry.subtasks.map((t) => (
-                        <div key={t.subSessionId} className="border-l-2 border-[#26272c] pl-2">
-                          <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
-                            {t.description}
-                          </div>
-                          <div className="space-y-1.5">
-                            {t.entries.map((sub, j) => (
-                              <SubEntryLine key={j} entry={sub} />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {entry.result !== undefined && (
-                    <pre
-                      className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
-                        failed ? "text-red-300" : "text-zinc-500"
-                      }`}
-                    >
-                      {entry.result}
-                    </pre>
-                  )}
-                </div>
-              )}
-            </div>
-          );
+          // Every remaining `entry.kind` is "tool" here, but those are always
+          // routed through the "toolgroup" branch above instead — this point
+          // is unreachable.
+          return null;
         })}
-        {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
+        {sending && sendStartedAt && (
+          <div className="text-zinc-600 text-sm">
+            {hasActivity
+              ? `Working for ${formatDuration(Math.max(0, Math.round((nowTick - sendStartedAt) / 1000)))}`
+              : "Waiting"}
+          </div>
+        )}
       </div>
       {helpOpen && (
         <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
