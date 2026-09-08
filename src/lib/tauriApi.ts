@@ -81,6 +81,8 @@ export const api = {
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
   clearConversation: (sessionId: string) => invoke<void>("clear_conversation", { sessionId }),
+  compactConversation: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
+    invoke<string>("compact_conversation", { sessionId, provider, model }),
   sendPrompt: (
     sessionId: string,
     provider: ProviderConfigPayload,

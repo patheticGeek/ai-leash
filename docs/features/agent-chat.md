@@ -735,13 +735,14 @@ out of scope for now.
   for arguments. Typing a space past the command name drops out of the
   match automatically, and Escape dismisses the popover for that exact
   query (tracked via `slashDismissed`) without clearing what's typed.
-- **Local commands (`/clear`, `/model`, `/help`)**: shown in the same
-  popover as agent-advertised ones (`LOCAL_COMMANDS` in `ChatPanel.tsx`,
-  merged ahead of `acpCommands` so a local name always wins), but never sent
-  as a prompt — no ACP agent implements any of these (the protocol doesn't
-  define a matching request for any of them). `send()` intercepts an exact
-  `/name` match against `LOCAL_COMMANDS`, routing it to `runLocalCommand`
-  instead of ever reaching `sendPrompt`/`sendPromptAcp`:
+- **Local commands (`/clear`, `/model`, `/help`, `/compact`)**: shown in the
+  same popover as agent-advertised ones (`LOCAL_COMMANDS`/`COMPACT_COMMAND`
+  in `ChatPanel.tsx`, merged ahead of `acpCommands` so a local name always
+  wins), but never sent as a prompt — no ACP agent implements a matching
+  request for any of the first three (the protocol doesn't define one).
+  `send()` intercepts an exact `/name` match against `localCommands`,
+  routing it to `runLocalCommand` instead of ever reaching
+  `sendPrompt`/`sendPromptAcp`:
   - `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
     both the in-memory `chat_sessions` entry and the on-disk rows
     (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
@@ -769,6 +770,30 @@ out of scope for now.
     same as for any other kind they don't recognize. `ChatPanel.tsx` casts
     through this at the four call sites rather than teaching `chatEntries.ts`
     about a type it has no other reason to know about.
+  - `/compact` only exists for the built-in provider loop — `localCommands`
+    excludes `COMPACT_COMMAND` entirely whenever `isAcp`, so it neither
+    shows in the popover nor gets intercepted for an ACP conversation,
+    letting an agent-advertised "/compact" (some do implement their own)
+    pass straight through as a normal prompt like any other agent command;
+    an ACP agent's real context lives in its own subprocess anyway, so
+    there'd be nothing to compact from out here even if we wanted to.
+    For the built-in loop, `compact_conversation(session_id, provider,
+    model)` (`chat.rs`) loads the existing history via
+    `load_conversation_history`, appends one more `user` message asking the
+    model to summarize the conversation so far, and sends the whole thing
+    through `provider::complete` — a new, plain non-streaming, tool-free
+    completion call (no `tools` key in the request body at all, unlike
+    `stream_turn`, which always includes at least the built-in file tools)
+    that exists solely for this one-shot use. On success it wipes the
+    session exactly like `clear_conversation` does, then reseeds it with a
+    single synthetic `user` message carrying the summary (`user`, not
+    `assistant`, since it's not something the model actually said) so the
+    *next* real turn still has it as context, and returns the summary text
+    directly so the frontend can show it without a second round-trip
+    through `load_conversation_history`. `runLocalCommand` renders it as an
+    `"info"` entry rather than a normal chat bubble, same as `/help`'s
+    output, and toggles `sending` around the call so it can't overlap a
+    real turn (or another compact) the same way `/clear` guards itself.
 
 ### Providers and ACP agents share one picker
 

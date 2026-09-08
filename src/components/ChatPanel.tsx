@@ -218,6 +218,19 @@ const LOCAL_COMMANDS: AcpCommandInfo[] = [
   { name: "help", description: "List available commands", hint: null },
 ];
 
+// Only offered for the built-in provider loop we drive ourselves — an ACP
+// agent's real context lives inside its own subprocess, so there's nothing
+// to compact from out here, and some agents implement a genuine "/compact"
+// of their own that intercepting the name locally would otherwise shadow.
+// Kept separate from `LOCAL_COMMANDS` so `isAcp` conversations never list
+// or intercept it, letting an agent-advertised "/compact" (if any) pass
+// straight through as a normal prompt like any other agent command.
+const COMPACT_COMMAND: AcpCommandInfo = {
+  name: "compact",
+  description: "Summarize this conversation to reclaim context",
+  hint: null,
+};
+
 export default function ChatPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   // A project's conversation id is its own path — stable across app
@@ -621,20 +634,21 @@ export default function ChatPanel() {
     setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
   }
 
-  // Local commands first, then whatever the connected ACP agent advertises
-  // (skipping any name a local command already covers) — see
-  // `LOCAL_COMMANDS`. Available regardless of `isAcp`: "/clear" works the
-  // same for a plain Ollama/OpenAI-compatible conversation too.
+  // "/compact" only exists for the built-in provider loop — see
+  // `COMPACT_COMMAND`. Local commands first, then whatever the connected
+  // ACP agent advertises (skipping any name a local command already
+  // covers) — see `LOCAL_COMMANDS`.
+  const localCommands = isAcp ? LOCAL_COMMANDS : [...LOCAL_COMMANDS, COMPACT_COMMAND];
   const allCommands = [
-    ...LOCAL_COMMANDS,
-    ...acpCommands.filter((c) => !LOCAL_COMMANDS.some((l) => l.name === c.name)),
+    ...localCommands,
+    ...acpCommands.filter((c) => !localCommands.some((l) => l.name === c.name)),
   ];
 
   // Runs a local command entirely client-side — never sent to the
   // model/agent as a prompt. Blocked while `sending`, same as `retry`:
-  // "/clear" mid-turn would let that turn's own `push_message` calls land
-  // right back in the history this just wiped (see
-  // `chat::clear_conversation`'s doc comment).
+  // "/clear"/"/compact" mid-turn would let that turn's own `push_message`
+  // calls land right back in the history either just wiped or is about to
+  // replace (see `chat::clear_conversation`'s doc comment).
   async function runLocalCommand(name: string) {
     if (sending) return;
     setInput("");
@@ -661,13 +675,30 @@ export default function ChatPanel() {
         ...prev,
         { kind: "info", content: `Available commands:\n${lines.join("\n")}`, time: Date.now() },
       ]);
+      return;
+    }
+    if (name === "compact") {
+      if (isAcp || !model) return;
+      setOllamaError(null);
+      setSending(true);
+      try {
+        const summary = await api.compactConversation(sessionId, providerConfigFor(providerActiveId), model);
+        setEntries([
+          { kind: "info", content: `Conversation compacted:\n\n${summary}`, time: Date.now() },
+        ]);
+        setUsage(null);
+      } catch (e) {
+        setOllamaError(String(e));
+      } finally {
+        setSending(false);
+      }
     }
   }
 
   async function send() {
     const text = input.trim();
     const localMatch = /^\/(\S+)$/.exec(text);
-    if (localMatch && LOCAL_COMMANDS.some((c) => c.name === localMatch[1])) {
+    if (localMatch && localCommands.some((c) => c.name === localMatch[1])) {
       await runLocalCommand(localMatch[1]);
       return;
     }
