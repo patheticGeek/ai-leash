@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ai-leash",
+  "productName": "AI Leash",
   "version": "0.1.0",
   "identifier": "dev.patheticgeek.aileash",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ai-leash",
+        "title": "AI Leash",
         "width": 1400,
         "height": 900,
         "minWidth": 900,
