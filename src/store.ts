@@ -354,6 +354,15 @@ interface AppStore {
     description: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
+  // Drops every sub-agent spawned by `parentSessionId` from local state —
+  // called alongside `/clear` (`ChatPanel.tsx`), since `chat::
+  // clear_conversation` now deletes their rows on the backend too
+  // (`db::clear_conversation`) rather than leaving them as orphaned rows a
+  // cleared conversation can no longer reach. Also closes any of their open
+  // `chatTabs` (a stale tab pointing at a just-deleted transcript would
+  // 404 the next time `load_conversation_history` runs for it) and drops
+  // their live `subAgentThreads`.
+  clearSubAgentTasksForParent: (parentSessionId: string) => void;
   // Backend is the source of truth (SQLite, kept indefinitely) — this merges
   // in anything not already known locally, without clobbering live updates
   // a `subtask_start`/`done`/`error` event may have already applied. Safe
@@ -735,6 +744,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
         t.subSessionId === subSessionId ? { ...t, status } : t,
       ),
     })),
+
+  clearSubAgentTasksForParent: (parentSessionId) =>
+    set((s) => {
+      const removedIds = new Set(
+        s.subAgentTasks
+          .filter((t) => t.parentSessionId === parentSessionId)
+          .map((t) => t.subSessionId),
+      );
+      if (removedIds.size === 0) return s;
+
+      const subAgentTasks = s.subAgentTasks.filter((t) => !removedIds.has(t.subSessionId));
+      const subAgentThreads = Object.fromEntries(
+        Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
+      );
+      const chatTabs = s.chatTabs.filter(
+        (t) => !t.subSessionId || !removedIds.has(t.subSessionId),
+      );
+      const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
+        ? s.activeChatTabId
+        : "primary";
+      return { subAgentTasks, subAgentThreads, chatTabs, activeChatTabId };
+    }),
 
   openPanelTab: (kind, opts) => {
     const id = kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);

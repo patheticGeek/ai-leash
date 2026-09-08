@@ -754,6 +754,15 @@ out of scope for now.
     ACP has no session/truncate. Blocked client-side while `sending`, same
     as retry: clearing mid-turn would let that turn's own `push_message`
     calls land right back in the history that was just wiped.
+    `db::clear_conversation` also deletes every `sub_agents` row this
+    conversation spawned (and their own `messages`/`conversations` rows,
+    each keyed by its own sub-session id) rather than leaving them as
+    orphaned rows the Sub Agents sidebar still lists with no way back to a
+    now-gone conversation — sub-agents can't spawn further sub-agents (one
+    level deep only), so this never needs to recurse. `ChatPanel.tsx` mirrors
+    this on the frontend via `clearSubAgentTasksForParent` (`store.ts`),
+    dropping them from `subAgentTasks`/`subAgentThreads` and closing any of
+    their open `chatTabs`.
   - `/model` just opens the model/agent picker (`setModelPickerOpen(true)`)
     — `ModelPickerPopover` was refactored from an internally-toggled popover
     to a controlled one (`open`/`onOpenChange` props, lifted into

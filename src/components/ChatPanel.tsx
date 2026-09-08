@@ -315,6 +315,7 @@ export default function ChatPanel() {
   const pendingPermission = permissionForSession(pendingPermissions, sessionId);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
+  const clearSubAgentTasksForParent = useAppStore((s) => s.clearSubAgentTasksForParent);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
   // Backend-driven, independent of this component's mount lifecycle (see
@@ -682,6 +683,11 @@ export default function ChatPanel() {
         await api.clearConversation(sessionId);
         setEntries([]);
         setUsage(null);
+        // The backend also deletes any sub-agent this conversation spawned
+        // (see `db::clear_conversation`) — drop them from local state too,
+        // so the Sub Agents sidebar and any open sub-agent tab don't keep
+        // pointing at now-deleted rows.
+        clearSubAgentTasksForParent(sessionId);
       } catch (e) {
         setOllamaError(String(e));
       }

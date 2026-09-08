@@ -139,11 +139,36 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
 /// `chat::clear_conversation`) — deletes its `messages` rows and its own
 /// `conversations` row, so `save_message`'s `ON CONFLICT` treats the next
 /// message as starting a brand new conversation rather than updating a
-/// leftover `updated_at`. Leaves `sub_agents` rows alone: those live in
-/// their own sidebar keyed by their own id, independent of this
-/// conversation's transcript.
+/// leftover `updated_at`. Also deletes every `sub_agents` row this
+/// conversation spawned, and *their* own `messages`/`conversations` rows
+/// (each sub-agent's transcript is keyed by its own id as `conversation_id`,
+/// same as any other session's) — otherwise they'd be orphaned rows the
+/// Sub Agents sidebar still lists with no way back to the conversation that
+/// spawned them. Sub-agents can't themselves spawn further sub-agents (one
+/// level deep only — see `run_sub_agent` in chat.rs), so this never needs
+/// to recurse.
 pub fn clear_conversation(db: &Db, conversation_id: &str) {
     let conn = db.0.lock().unwrap();
+
+    let sub_agent_ids: Vec<String> = conn
+        .prepare("SELECT id FROM sub_agents WHERE parent_session_id = ?1")
+        .and_then(|mut stmt| {
+            stmt.query_map(params![conversation_id], |row| row.get(0))?
+                .collect()
+        })
+        .unwrap_or_default();
+    for sub_agent_id in &sub_agent_ids {
+        let _ = conn.execute(
+            "DELETE FROM messages WHERE conversation_id = ?1",
+            params![sub_agent_id],
+        );
+        let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![sub_agent_id]);
+    }
+    let _ = conn.execute(
+        "DELETE FROM sub_agents WHERE parent_session_id = ?1",
+        params![conversation_id],
+    );
+
     let _ = conn.execute(
         "DELETE FROM messages WHERE conversation_id = ?1",
         params![conversation_id],
@@ -456,5 +481,30 @@ mod tests {
         let loaded = load_messages(&db, "/proj");
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].content, "after clear");
+    }
+
+    #[test]
+    fn clear_conversation_also_wipes_its_own_sub_agents_but_not_unrelated_ones() {
+        let db = temp_db();
+        record_sub_agent_started(&db, "/proj::spawn_sub_agent::abc", "/proj", "count files", "count the files");
+        save_message(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "/proj",
+            &ChatMessage { role: "user".into(), content: "sub-agent prompt".into(), tool_calls: None },
+        );
+        record_sub_agent_started(
+            &db,
+            "/other::spawn_sub_agent::xyz",
+            "/other",
+            "unrelated task",
+            "do something else",
+        );
+
+        clear_conversation(&db, "/proj");
+
+        assert!(list_sub_agents_for_parent(&db, "/proj", 50).is_empty());
+        assert!(load_messages(&db, "/proj::spawn_sub_agent::abc").is_empty());
+        assert_eq!(list_sub_agents_for_parent(&db, "/other", 50).len(), 1);
     }
 }
