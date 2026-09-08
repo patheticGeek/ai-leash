@@ -286,12 +286,24 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Starts `true` so the reset effect's first run — which coincides with
-  // mount — doesn't immediately wipe out the `acpModelChoice`/`acpActiveId`
-  // this conversation just restored from persisted state (see the lazy
-  // `useState` initializers above); every run after that reflects a real
-  // switch and gets to decide for itself via `selectBackendOption`.
-  const skipNextAcpResetRef = useRef(true);
+  // Suppresses exactly one *real* run of the reset effect below, for the
+  // "switch agent and pick one of its models in the same click" case (set
+  // by `selectBackendOption`). Deliberately *not* relied on to protect the
+  // effect's very first run at mount — see `lastResetAcpActiveIdRef` for
+  // why a consume-once flag alone isn't safe there.
+  const skipNextAcpResetRef = useRef(false);
+  // The reset effect only does its work when `acpActiveId` has actually
+  // changed since the last time it ran — tracked here instead of relying
+  // solely on `skipNextAcpResetRef`, because React StrictMode deliberately
+  // double-invokes every effect on mount (setup → cleanup → setup again) to
+  // catch non-idempotent effects, and a "run once, consume a flag" guard is
+  // exactly that: the first of the two mount-time invocations consumes the
+  // flag, so the *second* one runs for real and wipes the `acpModelChoice`
+  // this conversation just restored from persisted state, on every fresh
+  // mount. Comparing against the last value this effect actually processed
+  // is idempotent no matter how many times it's invoked with the same
+  // `acpActiveId`, which a plain boolean flag can't guarantee.
+  const lastResetAcpActiveIdRef = useRef(acpActiveId);
   // Tracks the last `acpModelChoice` actually sent to the *current*
   // connection, so the apply-effect doesn't resend it every time some
   // unrelated dependency changes, and so a fresh connection (after an
@@ -331,6 +343,8 @@ export default function ChatPanel() {
   // setting a model choice in the same click — otherwise this would wipe
   // that choice right back out before it ever got a chance to apply.
   useEffect(() => {
+    if (lastResetAcpActiveIdRef.current === acpActiveId) return;
+    lastResetAcpActiveIdRef.current = acpActiveId;
     if (skipNextAcpResetRef.current) {
       skipNextAcpResetRef.current = false;
       return;
