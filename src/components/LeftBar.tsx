@@ -5,6 +5,7 @@ import { useAppStore, permissionForSession, type RecentProject } from "../store"
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import Logo from "./Logo";
 import { PlusIcon, SettingsIcon } from "lucide-react";
+import Button from "./Button";
 
 function ProjectRow({
   project,
@@ -105,20 +106,17 @@ export default function LeftBar() {
       <div className="flex h-9 shrink-0 items-center justify-between px-2.5">
         <Logo className="h-5 w-auto shrink-0" />
         <div className="flex items-center gap-1">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setSettingsModalOpen(true)}
             title="Provider settings"
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
           >
-            <SettingsIcon className="h-3 w-3" />
-          </button>
-          <button
-            onClick={pickProject}
-            title="Open project"
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
-          >
-            <PlusIcon className="h-3 w-3" />
-          </button>
+            <SettingsIcon size={14} />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={pickProject} title="Open project">
+            <PlusIcon size={14} />
+          </Button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1.5">

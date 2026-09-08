@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import Button from "./Button";
 
 export interface PickerOption {
   key: string;
@@ -65,14 +66,15 @@ export default function ModelPickerPopover({
 
   return (
     <div ref={rootRef} className="relative min-w-0">
-      <button
-        type="button"
+      <Button
+        variant="unstyled"
+        size="none"
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
-        className="min-w-0 max-w-[160px] truncate rounded border border-[#26272c] bg-[#17181c] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:text-zinc-200 disabled:opacity-50"
+        className="min-w-0 max-w-[160px] truncate rounded border border-[#26272c] bg-[#17181c] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200"
       >
         {triggerLabel}
-      </button>
+      </Button>
       {open && (
         <div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
           <div className="flex items-center gap-2 border-b border-[#26272c] px-3 py-2.5">
@@ -90,9 +92,10 @@ export default function ModelPickerPopover({
               <div className="px-3 py-3 text-sm text-zinc-600">No matches.</div>
             )}
             {filtered.map((o) => (
-              <button
+              <Button
                 key={o.key}
-                type="button"
+                variant="unstyled"
+                size="none"
                 onClick={() => {
                   onSelect(o.key);
                   onOpenChange(false);
@@ -103,7 +106,7 @@ export default function ModelPickerPopover({
               >
                 <div className="text-sm font-medium text-zinc-100">{o.label}</div>
                 <div className="text-xs text-zinc-500">{o.subtitle}</div>
-              </button>
+              </Button>
             ))}
           </div>
         </div>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { getIdentifier, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Check, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useAppStore, type AcpAgentConfig, type OpenAiCompatibleProviderConfig } from "../store";
 import { api } from "../lib/tauriApi";
 import Logo from "./Logo";
+import Button from "./Button";
 
 const emptyForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 
@@ -32,24 +34,26 @@ export default function SettingsModal() {
       <div className="flex h-[620px] w-[840px] flex-col rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#26272c] px-4 py-3">
           <div className="text-base font-medium text-zinc-100">Settings</div>
-          <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-zinc-200">
-            ×
-          </button>
+          <Button variant="ghost" size="icon" onClick={() => setOpen(false)} title="Close">
+            <X size={16} />
+          </Button>
         </div>
         <div className="flex flex-1 min-h-0">
           <div className="w-48 shrink-0 space-y-0.5 border-r border-[#26272c] p-2">
             {SECTIONS.map((section) => (
-              <button
+              <Button
                 key={section.id}
+                variant="unstyled"
+                size="none"
                 onClick={() => setActiveSection(section.id)}
                 className={`block w-full rounded px-2 py-2 text-left text-sm ${
                   activeSection === section.id
                     ? "bg-[#26272c] text-zinc-100"
-                    : "text-zinc-400 hover:text-zinc-200"
+                    : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                 }`}
               >
                 {section.label}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="flex-1 overflow-auto p-4 text-base">
@@ -129,18 +133,14 @@ function ProvidersSection() {
           className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
         />
         <div className="flex justify-end gap-2">
-          <button
-            onClick={cancelAcpForm}
-            className="rounded px-2 py-1.5 text-sm text-zinc-400 hover:text-zinc-200"
-          >
+          <Button variant="ghost" size="md" onClick={cancelAcpForm}>
+            <X size={14} />
             Cancel
-          </button>
-          <button
-            onClick={saveAcpForm}
-            className="rounded bg-[#3a5f8f] px-3 py-1.5 text-sm text-white hover:bg-[#4a6f9f]"
-          >
+          </Button>
+          <Button variant="primary" size="md" onClick={saveAcpForm}>
+            <Check size={14} />
             Save
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -213,18 +213,14 @@ function ProvidersSection() {
           className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
         />
         <div className="flex justify-end gap-2">
-          <button
-            onClick={cancelForm}
-            className="rounded px-2 py-1.5 text-sm text-zinc-400 hover:text-zinc-200"
-          >
+          <Button variant="ghost" size="md" onClick={cancelForm}>
+            <X size={14} />
             Cancel
-          </button>
-          <button
-            onClick={saveForm}
-            className="rounded bg-[#3a5f8f] px-3 py-1.5 text-sm text-white hover:bg-[#4a6f9f]"
-          >
+          </Button>
+          <Button variant="primary" size="md" onClick={saveForm}>
+            <Check size={14} />
             Save
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -250,12 +246,10 @@ function ProvidersSection() {
               <div className="text-xs uppercase tracking-wide text-zinc-600">
                 Saved ACP agents
               </div>
-              <button
-                onClick={startAddAcp}
-                className="rounded border border-[#26272c] px-2 py-1 text-sm text-zinc-400 hover:text-zinc-200"
-              >
-                + Add agent
-              </button>
+              <Button variant="secondary" size="sm" onClick={startAddAcp}>
+                <Plus size={13} />
+                Add agent
+              </Button>
             </div>
 
             {agentBackend.acpAgents.length === 0 && !showAcpForm && (
@@ -285,24 +279,28 @@ function ProvidersSection() {
                       </div>
                       <div className="truncate text-zinc-600">{c.launchCommand}</div>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Edit"
                       onClick={(e) => {
                         e.stopPropagation();
                         startEditAcp(c);
                       }}
-                      className="text-zinc-500 hover:text-zinc-200"
                     >
-                      Edit
-                    </button>
-                    <button
+                      <Pencil size={13} />
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="icon-sm"
+                      title="Delete"
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteAcpAgentConfig(c.id);
                       }}
-                      className="text-zinc-500 hover:text-red-400"
                     >
-                      Delete
-                    </button>
+                      <Trash2 size={13} />
+                    </Button>
                   </div>
                 ),
               )}
@@ -353,12 +351,10 @@ function ProvidersSection() {
             placeholder="localhost:11434"
             className="flex-1 rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
           />
-          <button
-            onClick={() => setOllamaHost(hostInput)}
-            className="rounded bg-[#3a5f8f] px-3 py-1.5 text-sm text-white hover:bg-[#4a6f9f]"
-          >
+          <Button variant="primary" size="md" onClick={() => setOllamaHost(hostInput)}>
+            <Check size={14} />
             Save
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -367,12 +363,10 @@ function ProvidersSection() {
           <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
             OpenAI-compatible
           </div>
-          <button
-            onClick={startAdd}
-            className="rounded border border-[#26272c] px-2 py-1 text-sm text-zinc-400 hover:text-zinc-200"
-          >
-            + Add provider
-          </button>
+          <Button variant="secondary" size="sm" onClick={startAdd}>
+            <Plus size={13} />
+            Add provider
+          </Button>
         </div>
 
         {providerSettings.openAiCompatible.length === 0 && !showForm && (
@@ -392,15 +386,17 @@ function ProvidersSection() {
                   <div className="text-zinc-200">{c.label}</div>
                   <div className="truncate text-zinc-600">{c.baseUrl}</div>
                 </div>
-                <button onClick={() => startEdit(c)} className="text-zinc-500 hover:text-zinc-200">
-                  Edit
-                </button>
-                <button
+                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => startEdit(c)}>
+                  <Pencil size={13} />
+                </Button>
+                <Button
+                  variant="danger"
+                  size="icon-sm"
+                  title="Delete"
                   onClick={() => deleteOpenAiCompatibleConfig(c.id)}
-                  className="text-zinc-500 hover:text-red-400"
                 >
-                  Delete
-                </button>
+                  <Trash2 size={13} />
+                </Button>
               </div>
             ),
           )}
@@ -440,26 +436,18 @@ function CrashLogSection() {
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">Crash log</div>
         <div className="flex gap-2">
-          <button
-            onClick={refresh}
-            className="rounded border border-[#26272c] px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
-          >
+          <Button variant="secondary" size="sm" onClick={refresh}>
+            <RefreshCw size={13} />
             Refresh
-          </button>
-          <button
-            onClick={copy}
-            disabled={!log}
-            className="rounded border border-[#26272c] px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={copy} disabled={!log}>
+            {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Copied" : "Copy"}
-          </button>
-          <button
-            onClick={clear}
-            disabled={!log}
-            className="rounded border border-[#26272c] px-2 py-1 text-xs text-zinc-400 hover:text-red-400 disabled:opacity-40"
-          >
+          </Button>
+          <Button variant="danger" size="sm" onClick={clear} disabled={!log}>
+            <Trash2 size={13} />
             Clear
-          </button>
+          </Button>
         </div>
       </div>
       <div className="text-xs text-zinc-600">
@@ -491,18 +479,14 @@ function AboutSection() {
         {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}
       </div>
       <div className="flex gap-2">
-        <button
-          onClick={() => openUrl(GITHUB_URL)}
-          className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
-        >
+        <Button variant="secondary" size="sm" onClick={() => openUrl(GITHUB_URL)}>
+          <ExternalLink size={13} />
           source code
-        </button>
-        <button
-          onClick={() => openUrl(WEBSITE_URL)}
-          className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => openUrl(WEBSITE_URL)}>
+          <ExternalLink size={13} />
           my website
-        </button>
+        </Button>
       </div>
     </div>
   );

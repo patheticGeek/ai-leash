@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { RotateCcw } from "lucide-react";
 import { reportReactError } from "../lib/crashReporting";
+import Button from "./Button";
 
 interface Props {
   children: ReactNode;
@@ -37,12 +39,10 @@ export default class ErrorBoundary extends Component<Props, State> {
           <pre className="max-w-lg overflow-auto rounded border border-[#26272c] bg-[#141518] p-2 text-[10px] text-zinc-600">
             {this.state.error.message}
           </pre>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded bg-[#3a5f8f] px-3 py-1.5 text-xs text-white hover:bg-[#4a6f9f]"
-          >
+          <Button variant="primary" size="sm" onClick={() => window.location.reload()}>
+            <RotateCcw size={13} />
             Reload
-          </button>
+          </Button>
         </div>
       );
     }

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Bot, Wrench } from "lucide-react";
+import { Bot, Check, ChevronRight, Copy, RotateCcw, Send, Square, Wrench, X } from "lucide-react";
 import { useAppStore, permissionForSession } from "../store";
 import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
 import PermissionPopover from "./PermissionPopover";
+import Button from "./Button";
 import {
   type Entry,
   type ToolCallPayload,
@@ -85,75 +86,10 @@ function updateSubtaskThread(
 
 function Chevron({ expanded }: { expanded: boolean }) {
   return (
-    <span
-      className={`inline-block text-zinc-600 transition-transform ${expanded ? "rotate-90" : ""}`}
-    >
-      ▸
-    </span>
-  );
-}
-
-const iconProps = {
-  width: 12,
-  height: 12,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
-
-function CopyIcon() {
-  return (
-    <svg {...iconProps}>
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg {...iconProps}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function RetryIcon() {
-  return (
-    <svg {...iconProps}>
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg {...iconProps} width={14} height={14}>
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
-      <rect x="5" y="5" width="14" height="14" rx="2" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg {...iconProps}>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
+    <ChevronRight
+      size={12}
+      className={`shrink-0 text-zinc-600 transition-transform ${expanded ? "rotate-90" : ""}`}
+    />
   );
 }
 
@@ -1001,13 +937,15 @@ export default function ChatPanel() {
       >
         {systemPrompt && (
           <div className="text-xs">
-            <button
+            <Button
+              variant="unstyled"
+              size="none"
               onClick={() => setSystemPromptExpanded((v) => !v)}
-              className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400"
+              className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
             >
               <Chevron expanded={systemPromptExpanded} />
               <span className="italic">system prompt</span>
-            </button>
+            </Button>
             {systemPromptExpanded && (
               <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 text-zinc-600">
                 {systemPrompt}
@@ -1049,21 +987,25 @@ export default function ChatPanel() {
                 <div
                   className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                 >
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => copyText(i, entry.content)}
                     title="Copy"
                     className="text-zinc-600 hover:text-zinc-300"
                   >
-                    {copiedIndex === i ? <CheckIcon /> : <CopyIcon />}
-                  </button>
+                    {copiedIndex === i ? <Check size={13} /> : <Copy size={13} />}
+                  </Button>
                   {!sending && isLast && !isAcp && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={retry}
                       title="Retry"
                       className="text-zinc-600 hover:text-zinc-300"
                     >
-                      <RetryIcon />
-                    </button>
+                      <RotateCcw size={13} />
+                    </Button>
                   )}
                   <span className="normal-case tracking-normal text-zinc-700">
                     {formatTime(entry.time)}
@@ -1076,13 +1018,15 @@ export default function ChatPanel() {
             const expanded = isExpanded(i);
             return (
               <div key={i} className="text-xs">
-                <button
+                <Button
+                  variant="unstyled"
+                  size="none"
                   onClick={() => toggle(i)}
-                  className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400"
+                  className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
                 >
                   <Chevron expanded={expanded} />
                   <span className="italic">generating slop…</span>
-                </button>
+                </Button>
                 {expanded && (
                   <div className="mt-1 ml-4 whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 italic text-zinc-600">
                     {entry.content}
@@ -1100,9 +1044,11 @@ export default function ChatPanel() {
                 failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
               }`}
             >
-              <button
+              <Button
+                variant="unstyled"
+                size="none"
                 onClick={() => toggle(i)}
-                className="flex w-full min-w-0 items-center gap-1.5 text-left text-zinc-400"
+                className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
               >
                 <Chevron expanded={expanded} />
                 {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
@@ -1118,7 +1064,7 @@ export default function ChatPanel() {
                   <span className="shrink-0 text-zinc-600">running…</span>
                 )}
                 {failed && <span className="shrink-0 text-red-400">failed</span>}
-              </button>
+              </Button>
               {expanded && (
                 <div className="mt-1 pl-4">
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
@@ -1162,14 +1108,9 @@ export default function ChatPanel() {
             <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
               Commands
             </span>
-            <button
-              type="button"
-              onClick={() => setHelpOpen(false)}
-              title="Close"
-              className="text-zinc-500 hover:text-zinc-200"
-            >
-              <XIcon />
-            </button>
+            <Button variant="ghost" size="icon-sm" onClick={() => setHelpOpen(false)} title="Close">
+              <X size={14} />
+            </Button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {allCommands.map((c) => (
@@ -1196,9 +1137,10 @@ export default function ChatPanel() {
             showSlashPopover && (
             <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
               {slashMatches.map((c, i) => (
-                <button
+                <Button
                   key={c.name}
-                  type="button"
+                  variant="unstyled"
+                  size="none"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     acceptSlashCommand(c);
@@ -1212,7 +1154,7 @@ export default function ChatPanel() {
                     {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
                   </div>
                   <div className="text-xs text-zinc-500">{c.description}</div>
-                </button>
+                </Button>
               ))}
             </div>
             )
@@ -1289,21 +1231,23 @@ export default function ChatPanel() {
                 )}
               </div>
             )}
-            <button
+            <Button
+              variant="unstyled"
+              size="icon"
               onClick={sending ? stop : send}
               disabled={
                 !sending &&
                 (!input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent))
               }
               title={sending ? "Stop" : "Send"}
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`text-white ${
                 sending
                   ? "bg-red-600/80 hover:bg-red-600"
                   : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
               }`}
             >
-              {sending ? <StopIcon /> : <SendIcon />}
-            </button>
+              {sending ? <Square size={13} fill="currentColor" /> : <Send size={14} />}
+            </Button>
             </div>
           </div>
         </div>

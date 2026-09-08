@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { Plus, X } from "lucide-react";
 import { useAppStore, type PanelTabKind } from "../store";
 import FileTree from "./FileTree";
 import SubAgentsTab from "./SubAgentsTab";
 import FileEditorTab from "./FileEditorTab";
 import TerminalPanel from "./TerminalPanel";
 import TabPicker from "./TabPicker";
+import Button from "./Button";
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
@@ -53,25 +55,30 @@ export default function SidePanel() {
                 </span>
               )}
               {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />}
-              <span
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Close tab"
                 onClick={(e) => {
                   e.stopPropagation();
                   closePanelTab(tab.id);
                 }}
-                className="text-zinc-600 hover:text-zinc-300"
+                className="-mr-1 text-zinc-600 hover:text-zinc-300"
               >
-                ×
-              </span>
+                <X size={12} />
+              </Button>
             </div>
           );
         })}
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setPickerOpen(true)}
           title="Open tab"
-          className="ml-auto shrink-0 rounded px-2 py-1 text-xs text-zinc-500 hover:text-zinc-200"
+          className="ml-auto shrink-0"
         >
-          +
-        </button>
+          <Plus size={14} />
+        </Button>
       </div>
       <div className="relative flex-1 min-h-0">
         {terminalTabs.map((tab) => (

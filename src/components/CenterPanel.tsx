@@ -1,6 +1,8 @@
+import { X } from "lucide-react";
 import { useAppStore } from "../store";
 import ChatPanel from "./ChatPanel";
 import SubAgentChatTab from "./SubAgentChatTab";
+import Button from "./Button";
 
 export default function CenterPanel() {
   const chatTabs = useAppStore((s) => s.chatTabs);
@@ -23,15 +25,18 @@ export default function CenterPanel() {
           >
             <span className="max-w-[12rem] truncate">{tab.label}</span>
             {tab.kind === "subagent" && (
-              <span
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Close tab"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeChatTab(tab.id);
                 }}
-                className="text-zinc-600 hover:text-zinc-300"
+                className="-mr-1 text-zinc-600 hover:text-zinc-300"
               >
-                ×
-              </span>
+                <X size={12} />
+              </Button>
             )}
           </div>
         ))}
