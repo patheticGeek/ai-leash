@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore, type RecentProject } from "../store";
 import Logo from "./Logo";
+import { PlusIcon, SettingsIcon } from "lucide-react";
 
 function ProjectRow({
   project,
@@ -72,7 +73,7 @@ export default function LeftBar() {
 
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#26272c] px-2.5">
+      <div className="flex h-9 shrink-0 items-center justify-between px-2.5">
         <Logo className="h-5 w-auto shrink-0" />
         <div className="flex items-center gap-1">
           <button
@@ -80,14 +81,14 @@ export default function LeftBar() {
             title="Provider settings"
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
           >
-            ⚙
+            <SettingsIcon className="h-3 w-3" />
           </button>
           <button
             onClick={pickProject}
             title="Open project"
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-500 hover:bg-white/10 hover:text-zinc-200"
           >
-            +
+            <PlusIcon className="h-3 w-3" />
           </button>
         </div>
       </div>

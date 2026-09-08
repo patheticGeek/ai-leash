@@ -10,7 +10,7 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-[#26272c] px-1.5 overflow-x-auto bg-[#0e0f12]">
+      <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
         {chatTabs.map((tab) => (
           <div
             key={tab.id}

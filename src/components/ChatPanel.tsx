@@ -1158,7 +1158,7 @@ export default function ChatPanel() {
         </div>
       )}
       </div>
-      <div className="border-t border-[#26272c] p-2">
+      <div className="p-2">
         <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
           {showSlashPopover && (
             <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
