@@ -542,10 +542,27 @@ fn select_permission_option(options: &[PermissionOption], approved: bool) -> Opt
 }
 
 fn format_acp_error(error: &agent_client_protocol::Error) -> String {
-    match &error.data {
+    let base = match &error.data {
         Some(serde_json::Value::String(s)) => format!("{}: {s}", error.message),
         Some(other) => format!("{}: {other}", error.message),
         None => error.message.clone(),
+    };
+    // The crate reports a failed spawn (bad command, or the binary genuinely
+    // isn't reachable) as an opaque OS error buried in `data`, indistinguishable
+    // from any other internal error at a glance. `os error 2` is ENOENT — the
+    // executable itself couldn't be found, which is almost always either a
+    // typo in the launch command or a PATH problem (npx/copilot installed via
+    // something like nvm that only exposes it to interactive shells, which is
+    // why `env::fix_path_env` exists — but it can't help if the command is
+    // simply wrong).
+    if base.contains("os error 2") || base.contains("No such file or directory") {
+        format!(
+            "{base}\n\nThe agent's launch command couldn't be found. Check for a typo, that it's \
+             installed, and that it's on PATH — or use its full path instead of relying on PATH \
+             lookup (Settings → Agent backend)."
+        )
+    } else {
+        base
     }
 }
 
@@ -609,5 +626,22 @@ mod tests {
     fn formats_error_without_data() {
         let err = agent_client_protocol::Error::new(-32000, "Internal error");
         assert_eq!(format_acp_error(&err), "Internal error");
+    }
+
+    #[test]
+    fn appends_a_hint_for_a_failed_spawn() {
+        let err = agent_client_protocol::Error::new(-32000, "Internal error").data(
+            serde_json::json!({"spawned_at": "jsonrpc.rs:1931:39", "data": "No such file or directory (os error 2)"}),
+        );
+        let formatted = format_acp_error(&err);
+        assert!(formatted.contains("No such file or directory (os error 2)"));
+        assert!(formatted.contains("couldn't be found"));
+    }
+
+    #[test]
+    fn does_not_hint_for_an_unrelated_error() {
+        let err = agent_client_protocol::Error::new(-32000, "Internal error")
+            .data(serde_json::Value::String("Process exited with 1: boom".to_string()));
+        assert!(!format_acp_error(&err).contains("couldn't be found"));
     }
 }

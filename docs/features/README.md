@@ -28,6 +28,7 @@ src-tauri/src/
   chat.rs        built-in agent loop, streaming orchestration, tool dispatch
   provider.rs    Provider abstraction (Ollama + OpenAI-compatible HTTP backends)
   acp.rs         external ACP agent subprocess backend (alternative to chat.rs's loop)
+  env.rs         one-shot startup fixups: PATH (via fix-path-env) and stripping AppImage's LD_LIBRARY_PATH for spawned children
   tools.rs       default tool definitions + execution + permission requests
   context.rs     AGENTS.md / memory / skills loading
   db.rs          SQLite-backed conversation history (save/load, schema)

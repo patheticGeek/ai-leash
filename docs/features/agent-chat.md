@@ -132,8 +132,8 @@ memory, or skills have anything, no system message is present at all.
 ## Sub-agents (the `spawn_sub_agent` tool)
 
 The main agent can delegate one or more self-contained chunks of work
-to isolated sub-agents via the `spawn_sub_agent` tool (`{tasks:
-[{description, prompt}, ...]}`, defined in `tools.rs`, each spawned via
+to isolated sub-agents via the `spawn_sub_agent` tool
+(`{tasks: [{description, prompt}, ...]}`, defined in `tools.rs`, each spawned via
 `chat::run_sub_agent`; named `spawn_sub_agent` — not just `task` — so
 the model, and anyone reading the code, sees an action rather than a
 noun):
@@ -526,6 +526,64 @@ and authenticated, no API key entry needed for either:
 
 Both are just launch-command strings compatible with the generic ACP
 backend below, so no other code was needed to support them.
+
+**Environment fixups** (`env::fix_env()`, called once at the very start of
+`run()` in `lib.rs`, before Tauri does anything — see `env.rs`): a
+packaged desktop app's process doesn't have the environment a real
+terminal session would, which breaks child-process spawning in two
+different ways.
+
+- **PATH**: `AcpAgent::from_str` spawns the launch command's argv[0]
+  directly (via `shell_words::split`, not `sh -c`), using the OS's normal
+  PATH lookup against the *app process's own* environment — not a login
+  shell's. GUI apps launched outside a terminal (a desktop icon, a dock)
+  typically inherit a minimal PATH from the display/session manager that's
+  missing wherever `npx`/`copilot`/etc. actually live, especially when
+  installed via something like nvm that only wires itself into
+  `.bashrc`/`.zshrc` (sourced for *interactive* shells, not GUI launches).
+  The result is a spawn failure that surfaces as an opaque `"Internal
+  error: ... No such file or directory (os error 2)"` — ENOENT for the
+  binary itself, not an ACP protocol problem. Fixed via the
+  [`fix-path-env`](https://github.com/tauri-apps/fix-path-env-rs) crate
+  (a `git` dependency — it isn't published to crates.io — maintained by
+  the Tauri project specifically for this), which spawns `$SHELL -ilc
+  "echo ...; env; echo ..."` and adopts the resulting `PATH` for the rest
+  of the process, so every child process spawned afterward — including ACP
+  agents — sees what a real terminal session would. Best-effort: on
+  failure it logs to stderr and leaves the inherited PATH as-is rather
+  than blocking startup. `format_acp_error` additionally recognizes this
+  specific failure (`"os error 2"`/`"No such file or directory"`) and
+  appends an actionable hint pointing at a typo/PATH/missing-install
+  cause, since the PATH fix can't help if the command itself is simply
+  wrong.
+- **`LD_LIBRARY_PATH`** (Linux AppImage packaging only): the AppImage
+  runtime mounts its bundled squashfs and points `LD_LIBRARY_PATH` at its
+  own `usr/lib` so the app binary can find its bundled shared libraries —
+  confirmed directly against a real built AppImage's `AppRun`
+  (`linuxdeploy`-generated): `<mount-dir>/usr/lib/:<mount-dir>/usr/lib/
+  x86_64-linux-gnu/:...`. That bundle is the *entire* GTK/WebKitGTK stack
+  (~155 `.so` files — glib, cairo, pango, icu, krb5, nghttp2, sqlite3,
+  libxml2, zstd, and far more), not just `libpcre2-8.so.0` — plenty of
+  ordinary CLI tools link against one or more of these too. Same problem
+  as PATH: that variable is inherited by every child process we spawn,
+  including totally unrelated system binaries (`git`, anything run via
+  the `shell` tool, ACP agents). Those then load the AppImage's bundled
+  lib instead of their own system one — usually a noisy `"no version
+  information available"` warning, but a real ABI mismatch for a big
+  enough version gap. `env::strip_appimage_ld_library_path()` removes
+  `LD_LIBRARY_PATH` entirely once it's confirmed injected — not gated on
+  the `APPIMAGE` env var (the documented AppImage-runtime convention for
+  "we're running mounted"), since that couldn't be independently verified
+  against this build without either `strace` (unavailable) or risking a
+  real GTK window flashing mid-startup to catch a doomed process before it
+  crashed against a fake `DISPLAY`. Instead it's self-gating on the one
+  thing that *was* directly confirmed: whether any `LD_LIBRARY_PATH` entry
+  is actually a subdirectory of our own executable's directory (two levels
+  up from `usr/bin/<binary>`, matching `usr/lib`'s sibling root) — true
+  exactly when AppImage-injected, never true for a `.deb`/`.rpm` install
+  or `tauri dev`. Safe to do unconditionally when true: our own process
+  already finished loading its shared libraries before `main()` even runs,
+  so this only affects subprocesses spawned from this point on.
 
 Uses the `agent-client-protocol` crate's stable v1 client role
 (`Client.builder()...connect_with(...)`, following

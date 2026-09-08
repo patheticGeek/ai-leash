@@ -3,6 +3,7 @@ mod chat;
 mod commands;
 mod context;
 mod db;
+mod env;
 mod provider;
 mod pty;
 mod state;
@@ -12,6 +13,8 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env::fix_env();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
