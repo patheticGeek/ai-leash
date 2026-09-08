@@ -657,8 +657,24 @@ out of scope for now.
   the prompt, once for the accumulated assistant text once the prompt
   resolves — so ACP-backed turns land in the same SQLite history as the
   built-in loop's, with the same restart-transcript caveat as above.
-  Tool-call detail is *not* persisted to SQLite, only forwarded live to
-  the frontend for the running app instance.
+  Tool calls are persisted too: `emit_tool_call`/`emit_tool_call_update`
+  (which already emit the live `chat://.../tool_call`/`tool_result`
+  events) also call `persist_tool_call`/`persist_tool_result`, writing the
+  same `assistant` (with `tool_calls`) + `tool` (result) `ChatMessage`
+  pair shape `messagesToEntries` (`chatEntries.ts`) already knows how to
+  reconstruct for the built-in loop — no frontend changes needed. Only the
+  *initial* `ToolCall` notification persists the assistant/tool_calls half
+  (a later `ToolCallUpdate` for the same id is just it reaching a terminal
+  state, not a new call); the result half persists whenever a terminal
+  status (`Completed`/`Failed`) is reached, whether that's on the initial
+  notification (an instant tool) or a later update. One honest
+  simplification carried over from the plain-text case: tool calls persist
+  in their true chronological order, but the assistant's *text* still only
+  gets written as one aggregated message at the very end of the turn — so
+  a reload can show tool calls positioned after text that, live, actually
+  streamed in around them. Still far better than the tool calls being
+  missing entirely after a restart, which is what happened before this
+  existed.
 - **No retry**: our retry is a truncate-and-regenerate operation against
   *our own* `chat_sessions` history; the ACP agent's real conversation
   state lives inside the subprocess and can't be truncated from outside
