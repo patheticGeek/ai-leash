@@ -757,19 +757,15 @@ out of scope for now.
     — `ModelPickerPopover` was refactored from an internally-toggled popover
     to a controlled one (`open`/`onOpenChange` props, lifted into
     `ChatPanel.tsx`) purely so this command has something to flip.
-  - `/help` lists every available command (local + agent-advertised) as a
-    one-off `LocalInfoEntry` (`kind: "info"`) appended straight to
-    `entries` — a display-only entry type that exists solely in this
-    component's state, distinct from the shared `Entry` union
-    (`chatEntries.ts`) since it's never persisted or replayed from disk.
-    The four streaming-update helpers there (`appendThinking`,
-    `appendChunk`, `appendToolCall`, `applyToolResult`) only look at the
-    *last* entry's `kind` to decide whether to extend or append, so an
-    `"info"` entry sitting in the array ahead of them is harmless — it
-    just doesn't match, and they fall through to "append a new entry" the
-    same as for any other kind they don't recognize. `ChatPanel.tsx` casts
-    through this at the four call sites rather than teaching `chatEntries.ts`
-    about a type it has no other reason to know about.
+  - `/help` doesn't touch the transcript at all — it lists every available
+    command (local + agent-advertised) in an overlay (`helpOpen`) absolutely
+    positioned over the messages area (a `relative` wrapper now sits between
+    the outer flex column and the scrollable messages `div`, sized to
+    exactly that area so the overlay never covers the input bar below it).
+    Closes via its own X button or, more usually, implicitly: `send()`
+    unconditionally clears `helpOpen` as its very first line, so submitting
+    the next message (or another local command) dismisses it without any
+    special-casing at the call site.
   - `/compact` only exists for the built-in provider loop — `localCommands`
     excludes `COMPACT_COMMAND` entirely whenever `isAcp`, so it neither
     shows in the popover nor gets intercepted for an ACP conversation,
@@ -790,10 +786,22 @@ out of scope for now.
     `assistant`, since it's not something the model actually said) so the
     *next* real turn still has it as context, and returns the summary text
     directly so the frontend can show it without a second round-trip
-    through `load_conversation_history`. `runLocalCommand` renders it as an
-    `"info"` entry rather than a normal chat bubble, same as `/help`'s
-    output, and toggles `sending` around the call so it can't overlap a
-    real turn (or another compact) the same way `/clear` guards itself.
+    through `load_conversation_history`. `runLocalCommand` renders it as a
+    one-off `LocalInfoEntry` (`kind: "info"`) appended straight to
+    `entries`, rather than a normal chat bubble — a display-only entry type
+    that exists solely in this component's state, distinct from the shared
+    `Entry` union (`chatEntries.ts`) since it's never persisted or replayed
+    from disk. The four streaming-update helpers there (`appendThinking`,
+    `appendChunk`, `appendToolCall`, `applyToolResult`) only look at the
+    *last* entry's `kind` to decide whether to extend or append, so an
+    `"info"` entry sitting in the array ahead of them is harmless — it just
+    doesn't match, and they fall through to "append a new entry" the same
+    as for any other kind they don't recognize. `ChatPanel.tsx` casts
+    through this at the four call sites rather than teaching
+    `chatEntries.ts` about a type it has no other reason to know about.
+    `runLocalCommand` also toggles `sending` around the call so it can't
+    overlap a real turn (or another compact) the same way `/clear` guards
+    itself.
 
 ### Providers and ACP agents share one picker
 

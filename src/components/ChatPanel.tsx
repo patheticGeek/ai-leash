@@ -23,10 +23,12 @@ interface SubtaskThread {
   entries: Entry[];
 }
 
-// The output of a local command (currently just "/help") — never sent
-// through `push_message`/persisted, so it can't round-trip through
-// `messagesToEntries` like every other `Entry` kind; it only ever exists in
-// this component's own `entries` state for the rest of the session.
+// The output of a local command that belongs in the transcript (currently
+// just "/compact"'s summary — "/help" shows in its own overlay instead, see
+// `helpOpen`) — never sent through `push_message`/persisted, so it can't
+// round-trip through `messagesToEntries` like every other `Entry` kind; it
+// only ever exists in this component's own `entries` state for the rest of
+// the session.
 interface LocalInfoEntry {
   kind: "info";
   content: string;
@@ -141,6 +143,15 @@ function StopIcon() {
   return (
     <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor">
       <rect x="5" y="5" width="14" height="14" rx="2" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg {...iconProps}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
@@ -289,6 +300,10 @@ export default function ChatPanel() {
   // Lifted out of `ModelPickerPopover` so the "/model" local command can
   // open it without a real click.
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // "/help" shows an overlay over the messages area rather than adding an
+  // entry to the transcript — closed by its own X button or, more usually,
+  // implicitly by sending the next message (see the top of `send()`).
+  const [helpOpen, setHelpOpen] = useState(false);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -668,13 +683,7 @@ export default function ChatPanel() {
       return;
     }
     if (name === "help") {
-      const lines = allCommands.map(
-        (c) => `- \`/${c.name}${c.hint ? ` ${c.hint}` : ""}\` — ${c.description}`,
-      );
-      setEntries((prev) => [
-        ...prev,
-        { kind: "info", content: `Available commands:\n${lines.join("\n")}`, time: Date.now() },
-      ]);
+      setHelpOpen(true);
       return;
     }
     if (name === "compact") {
@@ -696,6 +705,7 @@ export default function ChatPanel() {
   }
 
   async function send() {
+    setHelpOpen(false);
     const text = input.trim();
     const localMatch = /^\/(\S+)$/.exec(text);
     if (localMatch && localCommands.some((c) => c.name === localMatch[1])) {
@@ -953,10 +963,11 @@ export default function ChatPanel() {
 
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
+      <div className="relative flex-1 overflow-hidden">
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-3 text-sm"
+        className="h-full overflow-y-auto p-3 space-y-3 text-sm"
       >
         {systemPrompt && (
           <div className="text-xs">
@@ -1003,11 +1014,11 @@ export default function ChatPanel() {
                 key={i}
                 className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
               >
+                <Markdown content={entry.content} />
+                  
                 <div
-                  className={`flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                  className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                 >
-                  <span>{isUser ? "you" : "agent"}</span>
-                  <span className="flex-1" />
                   <button
                     onClick={() => copyText(i, entry.content)}
                     title="Copy"
@@ -1028,11 +1039,6 @@ export default function ChatPanel() {
                     {formatTime(entry.time)}
                   </span>
                 </div>
-                {isUser ? (
-                  <div className="whitespace-pre-wrap">{entry.content}</div>
-                ) : (
-                  <Markdown content={entry.content} />
-                )}
               </div>
             );
           }
@@ -1119,6 +1125,38 @@ export default function ChatPanel() {
           );
         })}
         {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
+      </div>
+      {helpOpen && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
+          <div className="flex items-center justify-between border-b border-[#26272c] px-3 py-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              Commands
+            </span>
+            <button
+              type="button"
+              onClick={() => setHelpOpen(false)}
+              title="Close"
+              className="text-zinc-500 hover:text-zinc-200"
+            >
+              <XIcon />
+            </button>
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+            {allCommands.map((c) => (
+              <div
+                key={c.name}
+                className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2"
+              >
+                <div className="text-sm font-medium text-zinc-100">
+                  /{c.name}
+                  {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
+                </div>
+                <div className="text-xs text-zinc-500">{c.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       </div>
       <div className="border-t border-[#26272c] p-2">
         <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
