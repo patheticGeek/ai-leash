@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { api, type AcpModelOptions, type ModelSummary, type ProviderConfigPayload } from "./lib/tauriApi";
+import {
+  api,
+  type AcpModelOptions,
+  type ModelSummary,
+  type PermissionRequestPayload,
+  type ProviderConfigPayload,
+} from "./lib/tauriApi";
 import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
@@ -308,6 +314,19 @@ interface AppStore {
   // actually waiting on; `LeftBar.tsx`'s busy dot ignores it (any activity
   // still lights it up).
   autonomousGeneratingSessions: Record<string, boolean>;
+  // Keyed by the *exact* session id the request came from — for a sub-agent
+  // that's its own synthetic `{parentSessionId}::spawn_sub_agent::{uuid}`
+  // id, not its parent's. `permissionForSession` (below) is what resolves
+  // "does this project have anything pending", checking both an exact match
+  // and any child sub-agent id, since a sub-agent's tool calls have nowhere
+  // of their own to surface a popover — they're shown above the *parent*
+  // project's textarea instead. One global `permission://request`/
+  // `permission://resolved` listener pair maintains this (see
+  // `LeftBar.tsx`) — unlike `generatingSessions`, no per-project listener
+  // is needed since the backend event itself now carries `sessionId`.
+  pendingPermissions: Record<string, PermissionRequestPayload>;
+  addPendingPermission: (payload: PermissionRequestPayload) => void;
+  resolvePendingPermission: (id: string) => void;
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -335,6 +354,15 @@ interface AppStore {
     description: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
+  // Drops every sub-agent spawned by `parentSessionId` from local state —
+  // called alongside `/clear` (`ChatPanel.tsx`), since `chat::
+  // clear_conversation` now deletes their rows on the backend too
+  // (`db::clear_conversation`) rather than leaving them as orphaned rows a
+  // cleared conversation can no longer reach. Also closes any of their open
+  // `chatTabs` (a stale tab pointing at a just-deleted transcript would
+  // 404 the next time `load_conversation_history` runs for it) and drops
+  // their live `subAgentThreads`.
+  clearSubAgentTasksForParent: (parentSessionId: string) => void;
   // Backend is the source of truth (SQLite, kept indefinitely) — this merges
   // in anything not already known locally, without clobbering live updates
   // a `subtask_start`/`done`/`error` event may have already applied. Safe
@@ -355,6 +383,22 @@ function panelTabIdFor(kind: PanelTabKind, path?: string): string {
   if (kind === "file") return `file:${path}`;
   if (kind === "terminal") return `terminal:${crypto.randomUUID()}`;
   return kind;
+}
+
+// Resolves "does this project have a permission request waiting" — an
+// exact match (a top-level conversation's own tool call), or a sub-agent
+// spawned from it (`{sessionId}::spawn_sub_agent::{uuid}`, see
+// `spawn_sub_agent` in tools.rs), since a sub-agent has no textarea of its
+// own to show a popover above. Used by both `ChatPanel.tsx` (to render the
+// popover) and `LeftBar.tsx` (to glow the row) so the two never disagree
+// about which project a given request belongs to.
+export function permissionForSession(
+  pending: Record<string, PermissionRequestPayload>,
+  sessionId: string,
+): PermissionRequestPayload | null {
+  if (pending[sessionId]) return pending[sessionId];
+  const childPrefix = `${sessionId}::spawn_sub_agent::`;
+  return Object.values(pending).find((p) => p.sessionId.startsWith(childPrefix)) ?? null;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -378,6 +422,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   recentProjects: loadRecentProjects(),
   generatingSessions: {},
   autonomousGeneratingSessions: {},
+  pendingPermissions: {},
 
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
@@ -700,6 +745,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
       ),
     })),
 
+  clearSubAgentTasksForParent: (parentSessionId) =>
+    set((s) => {
+      const removedIds = new Set(
+        s.subAgentTasks
+          .filter((t) => t.parentSessionId === parentSessionId)
+          .map((t) => t.subSessionId),
+      );
+      if (removedIds.size === 0) return s;
+
+      const subAgentTasks = s.subAgentTasks.filter((t) => !removedIds.has(t.subSessionId));
+      const subAgentThreads = Object.fromEntries(
+        Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
+      );
+      const chatTabs = s.chatTabs.filter(
+        (t) => !t.subSessionId || !removedIds.has(t.subSessionId),
+      );
+      const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
+        ? s.activeChatTabId
+        : "primary";
+      return { subAgentTasks, subAgentThreads, chatTabs, activeChatTabId };
+    }),
+
   openPanelTab: (kind, opts) => {
     const id = kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);
     const existing = get().panelTabs.find((t) => t.id === id);
@@ -805,6 +872,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
         delete nextAutonomous[sessionId];
       }
       return { generatingSessions: next, autonomousGeneratingSessions: nextAutonomous };
+    }),
+
+  addPendingPermission: (payload) =>
+    set((s) => ({ pendingPermissions: { ...s.pendingPermissions, [payload.sessionId]: payload } })),
+
+  resolvePendingPermission: (id) =>
+    set((s) => {
+      const entry = Object.entries(s.pendingPermissions).find(([, p]) => p.id === id);
+      if (!entry) return s;
+      const pendingPermissions = { ...s.pendingPermissions };
+      delete pendingPermissions[entry[0]];
+      return { pendingPermissions };
     }),
 
   touchProjectActivity: (path) =>

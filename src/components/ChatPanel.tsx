@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Bot, Wrench } from "lucide-react";
-import { useAppStore } from "../store";
-import { api, type AcpModelOptions } from "../lib/tauriApi";
+import { useAppStore, permissionForSession } from "../store";
+import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
+import PermissionPopover from "./PermissionPopover";
 import {
   type Entry,
   type ToolCallPayload,
@@ -23,13 +24,26 @@ interface SubtaskThread {
   entries: Entry[];
 }
 
+// The output of a local command that belongs in the transcript (currently
+// just "/compact"'s summary — "/help" shows in its own overlay instead, see
+// `helpOpen`) — never sent through `push_message`/persisted, so it can't
+// round-trip through `messagesToEntries` like every other `Entry` kind; it
+// only ever exists in this component's own `entries` state for the rest of
+// the session.
+interface LocalInfoEntry {
+  kind: "info";
+  content: string;
+  time: number;
+}
+
 // Extends the shared `ToolEntry` shape with UI-only nesting for subtasks
 // spawned by this specific tool call — not part of the shared type since
 // sub-agents can't themselves spawn further subtasks, so their own entries
 // (`SubtaskThread.entries` above) never need this.
 type PanelEntry =
   | Exclude<Entry, { kind: "tool" }>
-  | (Extract<Entry, { kind: "tool" }> & { subtasks?: SubtaskThread[] });
+  | (Extract<Entry, { kind: "tool" }> & { subtasks?: SubtaskThread[] })
+  | LocalInfoEntry;
 
 interface SubtaskStartPayload {
   callId: string | null;
@@ -134,6 +148,15 @@ function StopIcon() {
   );
 }
 
+function XIcon() {
+  return (
+    <svg {...iconProps}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
 function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
@@ -195,6 +218,31 @@ const LAST_MODEL_KEY = "ai-leash:lastModel";
 const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
 
+// Commands we handle ourselves, client-side, rather than sending as a
+// prompt — no ACP agent implements a matching request (the protocol
+// doesn't define one), so these exist purely as local UI bookkeeping.
+// Listed alongside whatever the connected ACP agent advertises (see
+// `acpCommands`) so they show up in the same autocomplete popover; a
+// local command wins over an agent-advertised one of the same name.
+const LOCAL_COMMANDS: AcpCommandInfo[] = [
+  { name: "clear", description: "Clear this conversation's history", hint: null },
+  { name: "model", description: "Open the model/agent picker", hint: null },
+  { name: "help", description: "List available commands", hint: null },
+];
+
+// Only offered for the built-in provider loop we drive ourselves — an ACP
+// agent's real context lives inside its own subprocess, so there's nothing
+// to compact from out here, and some agents implement a genuine "/compact"
+// of their own that intercepting the name locally would otherwise shadow.
+// Kept separate from `LOCAL_COMMANDS` so `isAcp` conversations never list
+// or intercept it, letting an agent-advertised "/compact" (if any) pass
+// straight through as a normal prompt like any other agent command.
+const COMPACT_COMMAND: AcpCommandInfo = {
+  name: "compact",
+  description: "Summarize this conversation to reclaim context",
+  hint: null,
+};
+
 export default function ChatPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   // A project's conversation id is its own path — stable across app
@@ -244,8 +292,30 @@ export default function ChatPanel() {
   // (see docs/features/agent-chat.md) — most agents won't, in which case
   // this stays null and no model dropdown shows for ACP mode.
   const [acpModelOptions, setAcpModelOptions] = useState<AcpModelOptions | null>(null);
+  // Slash commands the connected ACP agent advertises, if any — most agents
+  // won't send this notification at all, in which case typing "/" does
+  // nothing special. See `chat://{sessionId}/acp_commands` below.
+  const [acpCommands, setAcpCommands] = useState<AcpCommandInfo[]>([]);
+  const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  // Lifted out of `ModelPickerPopover` so the "/model" local command can
+  // open it without a real click.
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // "/help" shows an overlay over the messages area rather than adding an
+  // entry to the transcript — closed by its own X button or, more usually,
+  // implicitly by sending the next message (see the top of `send()`).
+  const [helpOpen, setHelpOpen] = useState(false);
+  // Resolves to a real request only while this project (or a sub-agent it
+  // spawned) has one pending — see `permissionForSession`. Global listeners
+  // that populate `pendingPermissions` live in `LeftBar.tsx`, always
+  // mounted regardless of which project is currently open, same pattern as
+  // `generatingSessions`.
+  const pendingPermissions = useAppStore((s) => s.pendingPermissions);
+  const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
+  const pendingPermission = permissionForSession(pendingPermissions, sessionId);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
+  const clearSubAgentTasksForParent = useAppStore((s) => s.clearSubAgentTasksForParent);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
   // Backend-driven, independent of this component's mount lifecycle (see
@@ -352,6 +422,8 @@ export default function ChatPanel() {
     setAcpModelOptions(null);
     setAcpModelChoice(null);
     appliedAcpModelRef.current = null;
+    setAcpCommands([]);
+    setSlashDismissed(null);
   }, [acpActiveId]);
 
   // Applies a model choice (from the unified popover's per-model ACP rows)
@@ -420,24 +492,33 @@ export default function ChatPanel() {
         setSystemPrompt(e.payload);
       }),
     );
+    // The four `chatEntries.ts` helpers below only know about the shared
+    // `Entry` union, not this component's local-only `"info"` entries (see
+    // `LocalInfoEntry`) — but they treat whatever's already in `prev`
+    // opaquely (only ever inspecting the *last* entry's `kind` to decide
+    // whether to append or extend), so an `"info"` entry sitting in the
+    // array is harmless: it just doesn't match `"thinking"`/`"text"`,
+    // falling through to "append a new entry" exactly as any other
+    // unrelated kind already would. The cast is safe on that basis, not a
+    // real type hole.
     unlistens.push(
       listen<string>(`chat://${sessionId}/thinking`, (e) => {
-        setEntries((prev) => appendThinking(prev, e.payload));
+        setEntries((prev) => appendThinking(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<string>(`chat://${sessionId}/chunk`, (e) => {
-        setEntries((prev) => appendChunk(prev, e.payload));
+        setEntries((prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<ToolCallPayload>(`chat://${sessionId}/tool_call`, (e) => {
-        setEntries((prev) => appendToolCall(prev, e.payload));
+        setEntries((prev) => appendToolCall(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
       listen<ToolResultPayload>(`chat://${sessionId}/tool_result`, (e) => {
-        setEntries((prev) => applyToolResult(prev, e.payload));
+        setEntries((prev) => applyToolResult(prev as Entry[], e.payload) as PanelEntry[]);
       }),
     );
     unlistens.push(
@@ -462,6 +543,11 @@ export default function ChatPanel() {
     unlistens.push(
       listen<AcpModelOptions>(`chat://${sessionId}/acp_model_options`, (e) => {
         setAcpModelOptions(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<AcpCommandInfo[]>(`chat://${sessionId}/acp_commands`, (e) => {
+        setAcpCommands(e.payload);
       }),
     );
 
@@ -573,8 +659,74 @@ export default function ChatPanel() {
     setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
   }
 
+  // "/compact" only exists for the built-in provider loop — see
+  // `COMPACT_COMMAND`. Local commands first, then whatever the connected
+  // ACP agent advertises (skipping any name a local command already
+  // covers) — see `LOCAL_COMMANDS`.
+  const localCommands = isAcp ? LOCAL_COMMANDS : [...LOCAL_COMMANDS, COMPACT_COMMAND];
+  const allCommands = [
+    ...localCommands,
+    ...acpCommands.filter((c) => !localCommands.some((l) => l.name === c.name)),
+  ];
+
+  // Runs a local command entirely client-side — never sent to the
+  // model/agent as a prompt. Blocked while `sending`, same as `retry`:
+  // "/clear"/"/compact" mid-turn would let that turn's own `push_message`
+  // calls land right back in the history either just wiped or is about to
+  // replace (see `chat::clear_conversation`'s doc comment).
+  async function runLocalCommand(name: string) {
+    if (sending) return;
+    setInput("");
+    if (name === "clear") {
+      setOllamaError(null);
+      try {
+        await api.clearConversation(sessionId);
+        setEntries([]);
+        setUsage(null);
+        // The backend also deletes any sub-agent this conversation spawned
+        // (see `db::clear_conversation`) — drop them from local state too,
+        // so the Sub Agents sidebar and any open sub-agent tab don't keep
+        // pointing at now-deleted rows.
+        clearSubAgentTasksForParent(sessionId);
+      } catch (e) {
+        setOllamaError(String(e));
+      }
+      return;
+    }
+    if (name === "model") {
+      setModelPickerOpen(true);
+      return;
+    }
+    if (name === "help") {
+      setHelpOpen(true);
+      return;
+    }
+    if (name === "compact") {
+      if (isAcp || !model) return;
+      setOllamaError(null);
+      setSending(true);
+      try {
+        const summary = await api.compactConversation(sessionId, providerConfigFor(providerActiveId), model);
+        setEntries([
+          { kind: "info", content: `Conversation compacted:\n\n${summary}`, time: Date.now() },
+        ]);
+        setUsage(null);
+      } catch (e) {
+        setOllamaError(String(e));
+      } finally {
+        setSending(false);
+      }
+    }
+  }
+
   async function send() {
+    setHelpOpen(false);
     const text = input.trim();
+    const localMatch = /^\/(\S+)$/.exec(text);
+    if (localMatch && localCommands.some((c) => c.name === localMatch[1])) {
+      await runLocalCommand(localMatch[1]);
+      return;
+    }
     if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent)) return;
     setInput("");
     setOllamaError(null);
@@ -595,7 +747,52 @@ export default function ChatPanel() {
     }
   }
 
+  // Slash-command autocomplete: only triggers when the *entire* input is
+  // "/" followed by a run of non-space characters — i.e. the user is still
+  // typing the command name itself. Typing a space (moving on to args) or
+  // anything else drops out of match automatically, no explicit "close"
+  // needed for that case.
+  const slashQuery = /^\/(\S*)$/.exec(input)?.[1] ?? null;
+  const slashMatches =
+    slashQuery !== null
+      ? allCommands.filter((c) => c.name.toLowerCase().startsWith(slashQuery.toLowerCase()))
+      : [];
+  const showSlashPopover = slashMatches.length > 0 && slashDismissed !== slashQuery;
+  const slashActiveIndex = Math.min(slashIndex, slashMatches.length - 1);
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashQuery]);
+
+  function acceptSlashCommand(cmd: AcpCommandInfo) {
+    setInput(`/${cmd.name} `);
+    setSlashDismissed(null);
+    textareaRef.current?.focus();
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (showSlashPopover) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => Math.min(i + 1, slashMatches.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        acceptSlashCommand(slashMatches[slashActiveIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashDismissed(slashQuery);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -605,6 +802,21 @@ export default function ChatPanel() {
   async function stop() {
     await api.cancelPrompt(sessionId);
     setSending(false);
+  }
+
+  // Clears the popover immediately (optimistic — no round-trip flicker)
+  // rather than waiting for the backend's own `permission://resolved`,
+  // which still fires regardless and is what makes this safe even when a
+  // sub-agent's request got answered from its *parent's* popover instance.
+  async function respondPermission(approved: boolean) {
+    if (!pendingPermission) return;
+    const id = pendingPermission.id;
+    resolvePendingPermission(id);
+    try {
+      await api.respondPermission(id, approved);
+    } catch (e) {
+      setOllamaError(String(e));
+    }
   }
 
   async function selectAcpModel(value: string) {
@@ -781,10 +993,11 @@ export default function ChatPanel() {
 
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
+      <div className="relative flex-1 overflow-hidden">
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-3 text-sm"
+        className="h-full overflow-y-auto p-3 space-y-3 text-sm"
       >
         {systemPrompt && (
           <div className="text-xs">
@@ -813,6 +1026,16 @@ export default function ChatPanel() {
           </div>
         )}
         {entries.map((entry, i) => {
+          if (entry.kind === "info") {
+            return (
+              <div
+                key={i}
+                className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
+              >
+                <Markdown content={entry.content} />
+              </div>
+            );
+          }
           if (entry.kind === "text") {
             const isLast = i === entries.length - 1;
             const isUser = entry.role === "user";
@@ -821,11 +1044,11 @@ export default function ChatPanel() {
                 key={i}
                 className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
               >
+                <Markdown content={entry.content} />
+                  
                 <div
-                  className={`flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                  className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                 >
-                  <span>{isUser ? "you" : "agent"}</span>
-                  <span className="flex-1" />
                   <button
                     onClick={() => copyText(i, entry.content)}
                     title="Copy"
@@ -846,11 +1069,6 @@ export default function ChatPanel() {
                     {formatTime(entry.time)}
                   </span>
                 </div>
-                {isUser ? (
-                  <div className="whitespace-pre-wrap">{entry.content}</div>
-                ) : (
-                  <Markdown content={entry.content} />
-                )}
               </div>
             );
           }
@@ -938,8 +1156,67 @@ export default function ChatPanel() {
         })}
         {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
       </div>
-      <div className="border-t border-[#26272c] p-2">
-        <div className="flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+      {helpOpen && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
+          <div className="flex items-center justify-between border-b border-[#26272c] px-3 py-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+              Commands
+            </span>
+            <button
+              type="button"
+              onClick={() => setHelpOpen(false)}
+              title="Close"
+              className="text-zinc-500 hover:text-zinc-200"
+            >
+              <XIcon />
+            </button>
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+            {allCommands.map((c) => (
+              <div
+                key={c.name}
+                className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2"
+              >
+                <div className="text-sm font-medium text-zinc-100">
+                  /{c.name}
+                  {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
+                </div>
+                <div className="text-xs text-zinc-500">{c.description}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      </div>
+      <div className="p-2">
+        <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+          {pendingPermission ? (
+            <PermissionPopover request={pendingPermission} onRespond={respondPermission} />
+          ) : (
+            showSlashPopover && (
+            <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
+              {slashMatches.map((c, i) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    acceptSlashCommand(c);
+                  }}
+                  className={`block w-full px-3 py-1.5 text-left ${
+                    i === slashActiveIndex ? "bg-white/10" : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-zinc-100">
+                    /{c.name}
+                    {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
+                  </div>
+                  <div className="text-xs text-zinc-500">{c.description}</div>
+                </button>
+              ))}
+            </div>
+            )
+          )}
           <textarea
             ref={textareaRef}
             value={input}
@@ -956,6 +1233,8 @@ export default function ChatPanel() {
                 activeKey={activeBackendKey}
                 onSelect={selectBackendOption}
                 triggerLabel={activeBackendLabel}
+                open={modelPickerOpen}
+                onOpenChange={setModelPickerOpen}
               />
               {isOpenAiCompatible && !isAcp && (
                 <input

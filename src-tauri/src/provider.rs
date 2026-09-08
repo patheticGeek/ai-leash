@@ -108,6 +108,84 @@ async fn check_openai_compatible_connection(base_url: &str, api_key: &str) -> bo
     request.send().await.is_ok()
 }
 
+/// A single, non-streaming, tool-free completion call — used only by
+/// `/compact`'s summarization request (`chat::compact_conversation`).
+/// Unlike `stream_turn`, this never emits chunk/thinking events, never
+/// offers tools (there's no `tools` key in the request body at all, unlike
+/// `stream_turn` which always includes at least the built-in file tools),
+/// and returns the final text directly rather than threading it through
+/// cancellation/retry — a summarization call is a one-shot backend-internal
+/// request, not a turn the user is watching stream in.
+pub async fn complete(
+    provider: &ProviderConfig,
+    model: &str,
+    messages: &[ChatMessage],
+) -> Result<String, String> {
+    match provider {
+        ProviderConfig::Ollama { host } => complete_ollama(host, model, messages).await,
+        ProviderConfig::OpenAiCompatible { base_url, api_key } => {
+            complete_openai(base_url, api_key, model, messages).await
+        }
+    }
+}
+
+async fn complete_ollama(host: &str, model: &str, messages: &[ChatMessage]) -> Result<String, String> {
+    let base_url = ProviderConfig::ollama_base_url(host);
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
+    let resp = client
+        .post(format!("{base_url}/api/chat"))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("failed to reach ollama at {host}: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("ollama returned {status}: {body_text}"));
+    }
+    let value: Value = resp.json().await.map_err(|e| e.to_string())?;
+    value
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| "ollama response had no message content".to_string())
+}
+
+async fn complete_openai(
+    base_url: &str,
+    api_key: &str,
+    model: &str,
+    messages: &[ChatMessage],
+) -> Result<String, String> {
+    let base_url = base_url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
+    let mut request = client.post(format!("{base_url}/chat/completions")).json(&body);
+    if !api_key.is_empty() {
+        request = request.header("Authorization", format!("Bearer {api_key}"));
+    }
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("failed to reach {base_url}: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body_text = resp.text().await.unwrap_or_default();
+        return Err(format!("provider returned {status}: {body_text}"));
+    }
+    let value: Value = resp.json().await.map_err(|e| e.to_string())?;
+    value
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| "provider response had no message content".to_string())
+}
+
 async fn list_ollama_models(host: &str) -> Result<Vec<ModelSummary>, String> {
     let url = format!("{}/api/tags", ProviderConfig::ollama_base_url(host));
     let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;

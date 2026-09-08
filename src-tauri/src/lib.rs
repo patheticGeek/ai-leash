@@ -39,6 +39,8 @@ pub fn run() {
             chat::retry_last,
             chat::cancel_prompt,
             chat::load_conversation_history,
+            chat::clear_conversation,
+            chat::compact_conversation,
             chat::list_sub_agents,
             tools::respond_permission,
             acp::send_prompt_acp,

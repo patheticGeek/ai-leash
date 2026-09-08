@@ -16,7 +16,7 @@ Protocol (ACP) itself — it uses its own simple session/event model that
 happens to look ACP-shaped (session id, streamed message chunks, tool
 calls, permission requests) so the UI code isn't tied to one backend
 shape, which is exactly what let the ACP backend reuse the same
-`chat://{sessionId}/...` event names and the same `PermissionModal.tsx`
+`chat://{sessionId}/...` event names and the same `PermissionPopover.tsx`
 flow without any redesign.
 
 ## Provider
@@ -631,8 +631,9 @@ out of scope for now.
   `AgentThoughtChunk` → `thinking`, `ToolCall`/`ToolCallUpdate` →
   `tool_call`/`tool_result` (only once `status` reaches
   `Completed`/`Failed`; content rendered via `summarize_tool_call_content`,
-  a best-effort text join). `Plan`/`AvailableCommandsUpdate`/
-  `CurrentModeUpdate`/etc. are ignored — no UI concept for them yet.
+  a best-effort text join), and `AvailableCommandsUpdate` → the
+  `chat://{sessionId}/acp_commands` event covered above. `Plan`/
+  `CurrentModeUpdate`/etc. are still ignored — no UI concept for them yet.
   `generating` is bracketed true/false around each `PromptRequest`
   exactly like `run_with_cancellation` does for the built-in loop, so
   `LeftBar.tsx`'s busy dot and `ChatPanel.tsx`'s `sending` state work
@@ -640,13 +641,13 @@ out of scope for now.
 - **Permission bridge**: `RequestPermissionRequest` (ACP's permission
   ask, which offers a list of named options — allow once/always, reject
   once/always) is bridged onto the *existing* boolean approve/deny
-  `PermissionModal.tsx` flow rather than redesigning it — `tools::
+  `PermissionPopover.tsx` flow rather than redesigning it — `tools::
   request_permission` (now `pub(crate)`, previously private) is reused
   as-is. `select_permission_option` collapses the outcome: approve →
   first `AllowOnce`, else first `AllowAlways`, else the first option
   offered at all; deny → `RequestPermissionOutcome::Cancelled`
   unconditionally, a legitimate protocol response. `PermissionRequestPayload
-  .kind` gained a third literal, `"acp"`, for the modal's header copy.
+  .kind` gained a third literal, `"acp"`, for the popover's header copy.
 - **Cancellation**: `chat::cancel_prompt` (same command, same signature —
   the frontend's `stop()` needed no changes) now also checks
   `AppState.acp_sessions` and sends `AcpCommand::Cancel`, which the
@@ -714,6 +715,103 @@ out of scope for now.
   polled — each miss is a real subprocess spawn); `saveAcpAgentConfig`
   invalidates and re-fetches a single entry when that agent's
   `launchCommand` actually changes, so edits don't serve stale data.
+- **Slash commands, when the agent advertises them**: an ACP agent can send
+  a `SessionUpdate::AvailableCommandsUpdate` notification at any point in a
+  live session — typically once, right after it connects, but nothing stops
+  it from re-announcing a changed set later. `handle_session_notification`
+  (`acp.rs`) forwards each one, flattened by `available_commands_payload`
+  into `{ name, description, hint }` (`hint` is the agent's placeholder text
+  for the command's argument, from `AvailableCommandInput::Unstructured` —
+  the only input shape ACP defines; `null` for commands that take none), as
+  `chat://{sessionId}/acp_commands`. Unlike models, there's no throwaway-
+  session discovery path — commands are only known once a real session has
+  actually reported them, so `ChatPanel.tsx` just holds the latest list in
+  local state (`acpCommands`), reset to empty whenever `acpActiveId`
+  changes. Invoking a command isn't a distinct ACP request; the agent parses
+  it back out of the prompt's own text, so the UI's only job is
+  discoverability — `ChatPanel.tsx` shows an autocomplete popover above the
+  input box (`showSlashPopover`) whenever the entire input is `/` followed
+  by a partial command name (`/^\/(\S*)$/`), filtered by prefix; accepting
+  one (click, Tab, or Enter) fills in `/name ` and leaves the cursor ready
+  for arguments. Typing a space past the command name drops out of the
+  match automatically, and Escape dismisses the popover for that exact
+  query (tracked via `slashDismissed`) without clearing what's typed.
+- **Local commands (`/clear`, `/model`, `/help`, `/compact`)**: shown in the
+  same popover as agent-advertised ones (`LOCAL_COMMANDS`/`COMPACT_COMMAND`
+  in `ChatPanel.tsx`, merged ahead of `acpCommands` so a local name always
+  wins), but never sent as a prompt — no ACP agent implements a matching
+  request for any of the first three (the protocol doesn't define one).
+  `send()` intercepts an exact `/name` match against `localCommands`,
+  routing it to `runLocalCommand` instead of ever reaching
+  `sendPrompt`/`sendPromptAcp`:
+  - `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
+    both the in-memory `chat_sessions` entry and the on-disk rows
+    (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
+    the map entry for it — not a kill, just lets it wind down once idle
+    (same mechanism as switching agents; see `ensure_acp_session`'s doc
+    comment) — so the *next* prompt starts a real fresh `session/new`
+    rather than continuing a conversation the agent still remembers, since
+    ACP has no session/truncate. Blocked client-side while `sending`, same
+    as retry: clearing mid-turn would let that turn's own `push_message`
+    calls land right back in the history that was just wiped.
+    `db::clear_conversation` also deletes every `sub_agents` row this
+    conversation spawned (and their own `messages`/`conversations` rows,
+    each keyed by its own sub-session id) rather than leaving them as
+    orphaned rows the Sub Agents sidebar still lists with no way back to a
+    now-gone conversation — sub-agents can't spawn further sub-agents (one
+    level deep only), so this never needs to recurse. `ChatPanel.tsx` mirrors
+    this on the frontend via `clearSubAgentTasksForParent` (`store.ts`),
+    dropping them from `subAgentTasks`/`subAgentThreads` and closing any of
+    their open `chatTabs`.
+  - `/model` just opens the model/agent picker (`setModelPickerOpen(true)`)
+    — `ModelPickerPopover` was refactored from an internally-toggled popover
+    to a controlled one (`open`/`onOpenChange` props, lifted into
+    `ChatPanel.tsx`) purely so this command has something to flip.
+  - `/help` doesn't touch the transcript at all — it lists every available
+    command (local + agent-advertised) in an overlay (`helpOpen`) absolutely
+    positioned over the messages area (a `relative` wrapper now sits between
+    the outer flex column and the scrollable messages `div`, sized to
+    exactly that area so the overlay never covers the input bar below it).
+    Closes via its own X button or, more usually, implicitly: `send()`
+    unconditionally clears `helpOpen` as its very first line, so submitting
+    the next message (or another local command) dismisses it without any
+    special-casing at the call site.
+  - `/compact` only exists for the built-in provider loop — `localCommands`
+    excludes `COMPACT_COMMAND` entirely whenever `isAcp`, so it neither
+    shows in the popover nor gets intercepted for an ACP conversation,
+    letting an agent-advertised "/compact" (some do implement their own)
+    pass straight through as a normal prompt like any other agent command;
+    an ACP agent's real context lives in its own subprocess anyway, so
+    there'd be nothing to compact from out here even if we wanted to.
+    For the built-in loop, `compact_conversation(session_id, provider,
+    model)` (`chat.rs`) loads the existing history via
+    `load_conversation_history`, appends one more `user` message asking the
+    model to summarize the conversation so far, and sends the whole thing
+    through `provider::complete` — a new, plain non-streaming, tool-free
+    completion call (no `tools` key in the request body at all, unlike
+    `stream_turn`, which always includes at least the built-in file tools)
+    that exists solely for this one-shot use. On success it wipes the
+    session exactly like `clear_conversation` does, then reseeds it with a
+    single synthetic `user` message carrying the summary (`user`, not
+    `assistant`, since it's not something the model actually said) so the
+    *next* real turn still has it as context, and returns the summary text
+    directly so the frontend can show it without a second round-trip
+    through `load_conversation_history`. `runLocalCommand` renders it as a
+    one-off `LocalInfoEntry` (`kind: "info"`) appended straight to
+    `entries`, rather than a normal chat bubble — a display-only entry type
+    that exists solely in this component's state, distinct from the shared
+    `Entry` union (`chatEntries.ts`) since it's never persisted or replayed
+    from disk. The four streaming-update helpers there (`appendThinking`,
+    `appendChunk`, `appendToolCall`, `applyToolResult`) only look at the
+    *last* entry's `kind` to decide whether to extend or append, so an
+    `"info"` entry sitting in the array ahead of them is harmless — it just
+    doesn't match, and they fall through to "append a new entry" the same
+    as for any other kind they don't recognize. `ChatPanel.tsx` casts
+    through this at the four call sites rather than teaching
+    `chatEntries.ts` about a type it has no other reason to know about.
+    `runLocalCommand` also toggles `sending` around the call so it can't
+    overlap a real turn (or another compact) the same way `/clear` guards
+    itself.
 
 ### Providers and ACP agents share one picker
 
@@ -787,5 +885,5 @@ favoriting, or category rail, since nothing in this app needed those yet.
 It's a plain positioned `<div>` (`absolute bottom-full`, since the chat
 input is pinned to the bottom of the panel) with a document-level
 mousedown/Escape listener to close, not a portal or dedicated popover
-library — consistent with `PermissionModal.tsx`'s existing preference for
+library — consistent with `PermissionPopover.tsx`'s existing preference for
 hand-rolled UI over adding a new dependency.

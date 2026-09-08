@@ -40,6 +40,31 @@ export interface AcpModelOptions {
   options: { value: string; name: string }[];
 }
 
+// Payload of the `chat://{sessionId}/acp_commands` event, emitted whenever
+// the connected ACP agent (re-)announces its slash commands — typically
+// once, right after the session opens, but an agent can send this again if
+// its command set changes mid-conversation. `hint` is the agent's
+// placeholder text for the command's argument (e.g. "<file>"), null when
+// the command takes no input.
+export interface AcpCommandInfo {
+  name: string;
+  description: string;
+  hint: string | null;
+}
+
+// Payload of the global `permission://request` event — one listener for the
+// whole app (see `LeftBar.tsx`), not per-session, since `sessionId` here is
+// what routes it to the right project (see `permissionForSession` in
+// `store.ts`). `sessionId` is a sub-agent's own synthetic id when the
+// request came from one of its tool calls, not its parent's.
+export interface PermissionRequestPayload {
+  id: string;
+  sessionId: string;
+  kind: "shell" | "edit" | "acp";
+  title: string;
+  detail: string;
+}
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -68,6 +93,9 @@ export const api = {
     invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
+  clearConversation: (sessionId: string) => invoke<void>("clear_conversation", { sessionId }),
+  compactConversation: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
+    invoke<string>("compact_conversation", { sessionId, provider, model }),
   sendPrompt: (
     sessionId: string,
     provider: ProviderConfigPayload,
@@ -84,6 +112,8 @@ export const api = {
   fetchAcpModels: (launchCommand: string) =>
     invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
+  respondPermission: (id: string, approved: boolean) =>
+    invoke<void>("respond_permission", { id, approved }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),

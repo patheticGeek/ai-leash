@@ -30,7 +30,7 @@ export default function SidePanel() {
 
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-l border-[#26272c]">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-[#26272c] px-1.5 overflow-x-auto">
+      <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =
             tab.kind === "file" && !!openFiles.find((f) => f.path === tab.path)?.dirty;

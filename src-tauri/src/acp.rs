@@ -3,13 +3,13 @@ use crate::commands;
 use crate::state::{AcpSession, AppState};
 use crate::tools;
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, NewSessionRequest,
-    PermissionOption, PermissionOptionId, PermissionOptionKind, PromptRequest,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionConfigId, SessionConfigKind, SessionConfigOption,
-    SessionConfigOptionCategory, SessionConfigSelectOptions, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, TextContent, ToolCall, ToolCallContent, ToolCallStatus,
-    ToolCallUpdate,
+    AvailableCommand, AvailableCommandInput, CancelNotification, ClientCapabilities, ContentBlock,
+    InitializeRequest, NewSessionRequest, PermissionOption, PermissionOptionId,
+    PermissionOptionKind, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionConfigId, SessionConfigKind,
+    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent, ToolCall,
+    ToolCallContent, ToolCallStatus, ToolCallUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, AcpAgent, Client, ConnectionTo};
@@ -240,6 +240,7 @@ async fn drive_acp_connection(
     let notif_session_id = session_id.clone();
     let notif_turn_text = turn_text.clone();
     let perm_app = app.clone();
+    let perm_session_id = session_id.clone();
 
     Client
         .builder()
@@ -257,7 +258,7 @@ async fn drive_acp_connection(
         )
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _cx| {
-                let outcome = bridge_acp_permission(&perm_app, &request).await;
+                let outcome = bridge_acp_permission(&perm_app, &perm_session_id, &request).await;
                 responder.respond(RequestPermissionResponse::new(outcome))
             },
             agent_client_protocol::on_receive_request!(),
@@ -444,6 +445,30 @@ fn model_options_payload(option: &SessionConfigOption) -> serde_json::Value {
     })
 }
 
+/// An agent can (re-)announce its slash commands at any point in a session
+/// (typically once, right after `NewSessionRequest`, but nothing stops it
+/// from changing the set mid-conversation — e.g. after `cd`-ing elsewhere),
+/// which is why this rebuilds and re-emits the whole list rather than
+/// diffing against a previous one. `input`'s `hint` (when present) is the
+/// only shape ACP defines today — "all text typed after the command name is
+/// passed through as-is" — so there's nothing structured to expose beyond
+/// the placeholder text.
+fn available_commands_payload(commands: &[AvailableCommand]) -> serde_json::Value {
+    let list: Vec<serde_json::Value> = commands
+        .iter()
+        .map(|c| {
+            let hint = match &c.input {
+                Some(AvailableCommandInput::Unstructured(u)) => Some(u.hint.clone()),
+                // `#[non_exhaustive]` for forward compatibility with the
+                // protocol — nothing else is defined today.
+                Some(_) | None => None,
+            };
+            json!({ "name": c.name, "description": c.description, "hint": hint })
+        })
+        .collect();
+    json!(list)
+}
+
 fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
@@ -464,10 +489,16 @@ fn handle_session_notification(
         }
         SessionUpdate::ToolCall(tool_call) => emit_tool_call(app, session_id, &tool_call),
         SessionUpdate::ToolCallUpdate(update) => emit_tool_call_update(app, session_id, &update),
+        SessionUpdate::AvailableCommandsUpdate(update) => {
+            let _ = app.emit(
+                &format!("chat://{session_id}/acp_commands"),
+                available_commands_payload(&update.available_commands),
+            );
+        }
         // UserMessageChunk is just an echo of what we already persisted
-        // before sending the prompt; Plan/AvailableCommandsUpdate/
-        // CurrentModeUpdate/ConfigOptionUpdate/SessionInfoUpdate/UsageUpdate
-        // and anything else are out of scope for this phase.
+        // before sending the prompt; Plan/CurrentModeUpdate/ConfigOptionUpdate/
+        // SessionInfoUpdate/UsageUpdate and anything else are out of scope
+        // for this phase.
         _ => {}
     }
 }
@@ -578,6 +609,7 @@ fn summarize_tool_call_content(content: &[ToolCallContent]) -> String {
 
 async fn bridge_acp_permission(
     app: &AppHandle,
+    session_id: &str,
     request: &RequestPermissionRequest,
 ) -> RequestPermissionOutcome {
     let title = request
@@ -590,7 +622,7 @@ async fn bridge_acp_permission(
     let detail = summarize_tool_call_content(&content);
 
     let state = app.state::<AppState>();
-    let approved = tools::request_permission(app, &state, "acp", title, detail).await;
+    let approved = tools::request_permission(app, &state, session_id, "acp", title, detail).await;
 
     match select_permission_option(&request.options, approved) {
         Some(option_id) => {
@@ -679,6 +711,27 @@ mod tests {
     fn deny_always_maps_to_none() {
         let options = vec![option("allow-once", PermissionOptionKind::AllowOnce)];
         assert!(select_permission_option(&options, false).is_none());
+    }
+
+    #[test]
+    fn available_commands_payload_flattens_hint_and_omits_it_when_absent() {
+        use agent_client_protocol::schema::v1::UnstructuredCommandInput;
+
+        let commands = vec![
+            AvailableCommand::new("create_plan", "Draft an implementation plan")
+                .input(AvailableCommandInput::Unstructured(UnstructuredCommandInput::new(
+                    "<goal>",
+                ))),
+            AvailableCommand::new("research_codebase", "Explore the codebase"),
+        ];
+        let payload = available_commands_payload(&commands);
+        assert_eq!(
+            payload,
+            json!([
+                { "name": "create_plan", "description": "Draft an implementation plan", "hint": "<goal>" },
+                { "name": "research_codebase", "description": "Explore the codebase", "hint": null },
+            ])
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
-# ai-leash features
+# AI Leash features
 
-ai-leash is a dark-mode-only agentic harness built on Tauri, with a
+AI Leash is a dark-mode-only agentic harness built on Tauri, with a
 built-in agent runtime that talks to Ollama or an OpenAI-compatible
 provider and executes tools (shell, file read/edit, search) with user
 permission gating — or, as an alternative agent backend, drives an
@@ -56,7 +56,7 @@ src/
   components/SubAgentChatTab.tsx   read-only sub-agent transcript (a CenterPanel tab)
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
-  components/PermissionModal.tsx   shell/edit approval dialog
+  components/PermissionPopover.tsx  shell/edit/ACP approval box popover, anchored above ChatPanel.tsx's textarea
   components/SettingsModal.tsx     side-nav settings dialog; "Providers" (agent backend, Ollama host, OpenAI-compatible config), "Crash log", and "About" sections
   components/StatusBar.tsx         aggregate connected/total across all configured providers
   components/ErrorBoundary.tsx     catches render-time crashes app-wide, reports + shows a fallback instead of a white screen
