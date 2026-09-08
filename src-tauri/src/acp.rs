@@ -1,6 +1,6 @@
 use crate::chat::{self, ChatMessage};
 use crate::commands;
-use crate::state::AppState;
+use crate::state::{AcpSession, AppState};
 use crate::tools;
 use agent_client_protocol::schema::v1::{
     CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, NewSessionRequest,
@@ -57,7 +57,7 @@ pub async fn set_acp_model(
 ) -> Result<(), String> {
     let sender = {
         let sessions = state.acp_sessions.lock().unwrap();
-        sessions.get(&session_id).cloned()
+        sessions.get(&session_id).map(|s| s.sender.clone())
     };
     let sender = sender.ok_or_else(|| {
         "ACP agent process is no longer running; send a message first to start it.".to_string()
@@ -125,6 +125,17 @@ pub async fn fetch_acp_models(
 /// Holds `state.acp_sessions`'s lock across the whole check-then-insert (no
 /// `.await` in between) so two concurrent calls for the same session can't
 /// double-spawn a subprocess.
+///
+/// A session_id can outlive the agent it was first spawned for — ACP agent
+/// choice is per-conversation on the frontend (see `ChatPanel.tsx`'s
+/// `acpActiveId`), so the same project can switch from Claude Code to
+/// Copilot and back without a session_id ever changing. If the requested
+/// `launch_command` doesn't match the one the currently-running subprocess
+/// was started with, drop our handle to it (letting it wind down once it's
+/// idle — no explicit shutdown needed, it exits when its last sender clone
+/// is dropped and `commands.recv()` returns `None`) and spawn a fresh one
+/// for the newly-selected agent instead of silently keeping the old
+/// conversation's agent live.
 fn ensure_acp_session(
     app: &AppHandle,
     state: &State<'_, AppState>,
@@ -132,11 +143,17 @@ fn ensure_acp_session(
     launch_command: &str,
 ) -> mpsc::UnboundedSender<AcpCommand> {
     let mut sessions = state.acp_sessions.lock().unwrap();
-    if let Some(sender) = sessions.get(session_id) {
-        return sender.clone();
+    if let Some(existing) = sessions.get(session_id) {
+        if existing.launch_command == launch_command {
+            return existing.sender.clone();
+        }
+        sessions.remove(session_id);
     }
     let (tx, rx) = mpsc::unbounded_channel::<AcpCommand>();
-    sessions.insert(session_id.to_string(), tx.clone());
+    sessions.insert(
+        session_id.to_string(),
+        AcpSession { launch_command: launch_command.to_string(), sender: tx.clone() },
+    );
     drop(sessions);
 
     tokio::spawn(run_acp_session(
@@ -146,6 +163,20 @@ fn ensure_acp_session(
         rx,
     ));
     tx
+}
+
+/// Removes this session_id's map entry only if it's still the one *this*
+/// task spawned (matched by `launch_command`) — a slow-to-exit subprocess
+/// finishing its cleanup after `ensure_acp_session` has already replaced it
+/// with a different agent (see its doc comment) must not delete the *new*
+/// entry out from under it, or the new subprocess would be silently
+/// orphaned (still running, but no longer reachable via `acp_sessions`).
+fn remove_if_still_current(app: &AppHandle, session_id: &str, launch_command: &str) {
+    let state = app.state::<AppState>();
+    let mut sessions = state.acp_sessions.lock().unwrap();
+    if sessions.get(session_id).is_some_and(|s| s.launch_command == launch_command) {
+        sessions.remove(session_id);
+    }
 }
 
 async fn run_acp_session(
@@ -160,7 +191,7 @@ async fn run_acp_session(
             Ok(r) => r,
             Err(e) => {
                 let _ = app.emit(&format!("chat://{session_id}/error"), format!("ACP: {e}"));
-                app.state::<AppState>().acp_sessions.lock().unwrap().remove(&session_id);
+                remove_if_still_current(&app, &session_id, &launch_command);
                 return;
             }
         }
@@ -173,7 +204,7 @@ async fn run_acp_session(
                 &format!("chat://{session_id}/error"),
                 format!("Failed to parse ACP launch command: {}", format_acp_error(&e)),
             );
-            app.state::<AppState>().acp_sessions.lock().unwrap().remove(&session_id);
+            remove_if_still_current(&app, &session_id, &launch_command);
             return;
         }
     };
@@ -187,7 +218,7 @@ async fn run_acp_session(
         );
     }
 
-    app.state::<AppState>().acp_sessions.lock().unwrap().remove(&session_id);
+    remove_if_still_current(&app, &session_id, &launch_command);
 }
 
 async fn drive_acp_connection(

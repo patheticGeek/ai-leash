@@ -10,6 +10,12 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 
+#[derive(Clone)]
+pub struct AcpSession {
+    pub launch_command: String,
+    pub sender: mpsc::UnboundedSender<AcpCommand>,
+}
+
 #[derive(Default)]
 pub struct AppState {
     pub project_root: Mutex<Option<PathBuf>>,
@@ -32,7 +38,10 @@ pub struct AppState {
     /// SQLite-backed conversation history — see `db.rs`.
     pub db: Db,
     /// One entry per session_id (a project's path) that currently has a live
-    /// external ACP agent subprocess — the channel used to send it prompts
-    /// and cancellations. See `acp.rs::run_acp_session`.
-    pub acp_sessions: Mutex<HashMap<String, mpsc::UnboundedSender<AcpCommand>>>,
+    /// external ACP agent subprocess — the launch command it was started
+    /// with (so a later call for the same session_id but a *different*
+    /// agent, since agent choice is per-conversation, knows to replace it
+    /// instead of silently reusing the old agent's process) and the channel
+    /// used to send it prompts/cancellations. See `acp.rs::ensure_acp_session`.
+    pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
 }

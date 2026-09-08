@@ -34,8 +34,8 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
     if let Some(flag) = state.cancellations.lock().unwrap().get(&session_id) {
         flag.store(true, Ordering::SeqCst);
     }
-    if let Some(sender) = state.acp_sessions.lock().unwrap().get(&session_id) {
-        let _ = sender.send(crate::acp::AcpCommand::Cancel);
+    if let Some(session) = state.acp_sessions.lock().unwrap().get(&session_id) {
+        let _ = session.sender.send(crate::acp::AcpCommand::Cancel);
     }
     Ok(())
 }

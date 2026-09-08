@@ -505,8 +505,9 @@ only the *default* a brand-new conversation starts from — which one a
 given conversation is actually using is its own `conversationBackend`
 entry (see "Providers and ACP agents share one picker" below); switching
 which agent a *conversation* has active is what that conversation picks up
-on its next `send_prompt_acp` call (mid-session switches don't restart an
-already-running subprocess — see "Process lifecycle" below).
+on its next `send_prompt_acp` call — including replacing an
+already-running subprocess for that same session_id, if it was for a
+different agent (see "Process lifecycle" below).
 `loadAgentBackend()` migrates the pre-multi-agent shape (a bare
 `{kind: "acp", launchCommand}`) into a single saved entry on first load, so
 existing users don't lose their setup.
@@ -596,17 +597,32 @@ out of scope for now.
   message)` calls `ensure_acp_session`, which spawns (via
   `AcpAgent::from_str(launch_command)`, a shell-style command line) a
   `tokio::spawn`ed connection actor the first time a given `session_id`
-  is used, storing an `mpsc::UnboundedSender<AcpCommand>` in
-  `AppState.acp_sessions` keyed by `session_id`. Subsequent prompts for
-  the same session reuse the same subprocess/connection — spawning a new
-  one per turn would lose the agent's own conversation state entirely,
-  since ACP semantics are `Initialize` → one `NewSessionRequest` → many
-  serial `PromptRequest`s over that session. The subprocess stays alive
-  for the life of the running app; there's no `session/load`/resume
-  across app restarts, so a fresh run's respawned subprocess has no
-  memory of earlier turns even though the persisted transcript (see
-  below) still shows them — the same category of limitation already
-  accepted for the built-in loop's crash-recovery behavior.
+  is used, storing an `AcpSession { launch_command, sender }` (`state.rs`)
+  in `AppState.acp_sessions` keyed by `session_id`. Subsequent prompts for
+  the same session *and same agent* reuse the same subprocess/connection —
+  spawning a new one per turn would lose the agent's own conversation state
+  entirely, since ACP semantics are `Initialize` → one `NewSessionRequest`
+  → many serial `PromptRequest`s over that session. But since ACP agent
+  choice is per-conversation on the frontend (a project's session_id
+  doesn't change when you switch agents — see "Providers and ACP agents
+  share one picker" below), `ensure_acp_session` compares the requested
+  `launch_command` against the running subprocess's own — a mismatch means
+  the conversation switched agents, so it drops its handle to the old one
+  (letting it wind down once idle, once its last sender clone is dropped
+  and `commands.recv()` returns `None` — no explicit shutdown command
+  needed) and spawns a fresh one for the new agent instead of silently
+  keeps talking to the old one. The old task's own cleanup, when it finally
+  runs, only removes the map entry if it's still the one it originally
+  inserted (`remove_if_still_current`, matched by `launch_command`) — a
+  slow-to-exit old subprocess finishing after the replacement was already
+  spawned must not delete the *new* entry out from under it, or the new
+  subprocess would be silently orphaned (running, but unreachable). The
+  subprocess stays alive for the life of the running app (or until its
+  conversation switches agents); there's no `session/load`/resume across
+  app restarts, so a fresh run's respawned subprocess has no memory of
+  earlier turns even though the persisted transcript (see below) still
+  shows them — the same category of limitation already accepted for the
+  built-in loop's crash-recovery behavior.
 - **Event mapping**: the connection's `on_receive_notification` handler
   maps `SessionUpdate` variants onto the *same* `chat://{sessionId}/...`
   events the built-in loop emits, so `ChatPanel.tsx` needed zero
