@@ -1,10 +1,15 @@
 # Agent chat runtime
 
-There are two independent "agent backends" a chat session can use, chosen
-globally in `SettingsModal.tsx` (`store.ts`'s `agentBackend`, not
-per-project): the **built-in** loop (`chat.rs`, described in this whole
-file below), or an **external ACP agent subprocess** (`acp.rs`, see
-"External ACP agent backend" at the end of this file). The built-in
+There are two independent "agent backends" a chat session can use: the
+**built-in** loop (`chat.rs`, described in this whole file below), or an
+**external ACP agent subprocess** (`acp.rs`, see "External ACP agent
+backend" at the end of this file). *Which one* — and which specific
+provider/model or ACP agent — is chosen **per conversation** in
+`ChatPanel.tsx`'s chat-bar picker (`conversationBackend` in `store.ts`, see
+"Providers and ACP agents share one picker" below); `SettingsModal.tsx`'s
+"Agent backend"/"Active provider" only set the *default* a brand-new
+conversation starts from, not a single shared active choice — see that
+section for why. The built-in
 runtime talks directly to a local Ollama server or an OpenAI-compatible
 HTTP API (see "Provider" below) and does not go through the Agent Client
 Protocol (ACP) itself — it uses its own simple session/event model that
@@ -62,9 +67,8 @@ used to call Ollama directly:
 returns `[]` — many OpenAI-compatible hosts don't implement `GET
 /v1/models` reliably, and it has no `context_length` equivalent anyway —
 so the frontend uses a free-text model-id input for this provider kind
-(`ChatPanel.tsx` swaps its `<select>` for an `<input>` when
-`providerSettings.activeId !== "ollama"`) instead of a populated
-dropdown.
+(shown next to `ModelPickerPopover` in `ChatPanel.tsx` whenever
+`providerSettings.activeId !== "ollama"`) instead of a populated list.
 
 A provider call can fail two ways, expressed as `ProviderError` rather
 than a plain `String` so `run_agent_loop`'s retry logic doesn't have to
@@ -435,19 +439,23 @@ sub-agent thread), and `SubAgentChatTab.tsx` (the standalone tab).
 
 Two independent checks exist, because they answer different questions.
 
-**Active-provider check** (drives the model dropdown/chat warnings):
-`store.ts` holds `ollamaConnected: boolean | null` (`null` = not yet
-checked, name kept from before multi-provider support to avoid churn —
-see [Provider](#provider) above) and `ollamaModels: ModelSummary[]`,
-refreshed via `refreshOllama()` which calls `api.listProviderModels
-(activeProviderConfig())` and sets connected/models on success or
-`ollamaConnected: false` + empty models on failure. `App.tsx` triggers
-one check on mount; `ChatPanel` polls every **5 seconds** via
-`setInterval`, but the effect bails out (and its cleanup stops the
-interval) whenever `sending` is `true` — no polling while a turn is
-actively in flight.
+**Ollama's own model list** (drives the picker's per-model Ollama rows):
+`store.ts` holds `ollamaModels: ModelSummary[]`, refreshed via
+`refreshOllama()`, which calls `api.listProviderModels(...)` against
+`providerSettings.ollama` specifically — *always* Ollama, regardless of
+which provider any given conversation currently has active, since one
+conversation being on an OpenAI-compatible provider shouldn't make
+Ollama's rows vanish from the picker for every other conversation. (An
+earlier version of this called through `activeProviderConfig()`, the
+single global "active provider" — that's gone now that provider choice is
+per-conversation; see "Providers and ACP agents share one picker" below.)
+`App.tsx` triggers one check on mount; `ChatPanel` polls every **5
+seconds** via `setInterval`, but the effect bails out (and its cleanup
+stops the interval) whenever `sending` is `true` — no polling while a turn
+is actively in flight.
 
-**All-providers check** (drives the status bar's aggregate indicator):
+**All-providers check** (drives both the status bar's aggregate indicator
+and each conversation's own "could not reach ___" chat warning):
 `store.ts` holds `providerConnectivity: Record<string, boolean | null>`,
 keyed by `"ollama"` or an `openAiCompatible` config's `id`. Refreshed via
 `refreshProviderConnectivity()`, which calls the new
@@ -463,11 +471,16 @@ credential validity. `App.tsx` triggers one check on mount and polls every
 5 seconds unconditionally (no `sending`-gated pause, since this isn't tied
 to any one chat's turn).
 
-`StatusBar.tsx` reads `providerConnectivity` (not `ollamaConnected`) to
-show "`N`/`M` providers connected" with a dot: gray until at least one
-result comes back, green if all connected, amber if some, red if none.
-Hovering shows a per-provider breakdown (`title` tooltip) — each
-provider's label and "checking…" / "connected" / "disconnected".
+`StatusBar.tsx` reads `providerConnectivity` to show "`N`/`M` providers
+connected" with a dot: gray until at least one result comes back, green if
+all connected, amber if some, red if none. Hovering shows a per-provider
+breakdown (`title` tooltip) — each provider's label and "checking…" /
+"connected" / "disconnected". `ChatPanel.tsx` also reads this same map,
+looked up by *its own conversation's* active provider id
+(`providerConnectivity[providerActiveId]`), to decide whether to show the
+"could not reach ___" warning — this is what replaced the old
+`ollamaConnected`-based check now that "the active provider" isn't a
+single global thing anymore.
 
 ## External ACP agent backend
 
@@ -481,13 +494,30 @@ goes to, with `run_agent_loop`/`tools::execute_tool`/every built-in tool
 staying identical regardless; the ACP backend *replaces*
 `run_agent_loop` entirely for a session, and none of our own tools run —
 the external agent does its own file I/O directly as a real OS process.
-Chosen globally (not per-project) via `store.ts`'s `agentBackend: {kind:
-"builtin"} | {kind: "acp", launchCommand}`, set in
-`SettingsModal.tsx`'s "Agent backend" section. `launchCommand` is a free-text
-shell command, but the settings UI also offers two quick-select preset
-buttons (`ACP_PRESETS` in `SettingsModal.tsx`) that fill it in and switch
-to `acp` in one click, for CLIs the user already has installed and
-authenticated — no API key entry needed for either:
+The saved *list* of ACP agents (`store.ts`'s `agentBackend:
+AgentBackendSettings { kind: "builtin" | "acp", acpAgents: AcpAgentConfig[],
+activeAcpId: string | null }`) is global config, managed in
+`SettingsModal.tsx`'s "Agent backend" section — same
+list/add/edit/delete shape as `providerSettings.openAiCompatible` (see
+[Provider](#provider) above), each just a `{id, label, launchCommand}`
+shell command. `agentBackend.kind`/`activeAcpId` themselves, though, are
+only the *default* a brand-new conversation starts from — which one a
+given conversation is actually using is its own `conversationBackend`
+entry (see "Providers and ACP agents share one picker" below); switching
+which agent a *conversation* has active is what that conversation picks up
+on its next `send_prompt_acp` call (mid-session switches don't restart an
+already-running subprocess — see "Process lifecycle" below).
+`loadAgentBackend()` migrates the pre-multi-agent shape (a bare
+`{kind: "acp", launchCommand}`) into a single saved entry on first load, so
+existing users don't lose their setup.
+
+Two well-known agents are pre-seeded into the saved-agents list by default
+(`DEFAULT_ACP_PRESETS` in `store.ts`, merged in by `withDefaultAcpAgents()`
+— matched by `launchCommand`, so deleting one sticks and re-adding a config
+with the same command reuses it instead of duplicating), rather than living
+behind a separate "quick add" button — they just show up in the list like
+anything the user added by hand, for CLIs most users already have installed
+and authenticated, no API key entry needed for either:
 - **Claude Code**: `npx -y @agentclientprotocol/claude-agent-acp@latest`
   — wraps the official Claude Agent SDK over ACP, reusing an existing
   `claude` CLI login.
@@ -559,6 +589,113 @@ out of scope for now.
   *our own* `chat_sessions` history; the ACP agent's real conversation
   state lives inside the subprocess and can't be truncated from outside
   without `session/load` (unimplemented). `ChatPanel.tsx` just hides the
-  retry button, and the model selector/token-usage ring, while
-  `agentBackend.kind === "acp"` — there's no "model" concept from this
-  side either, the agent decides.
+  retry button and the token-usage ring while `agentBackend.kind ===
+  "acp"` — ACP has no usage-reporting equivalent either.
+- **Model selection, when the agent supports it**: ACP lets an agent
+  optionally advertise a "model" session config option
+  (`SessionConfigOption` with `category: Model`) in its `NewSessionResponse`
+  — a fixed list of choices the agent defines (a `Select`, never freeform
+  text), settable via `session/set_config_option`. Most agents won't expose
+  one. `find_model_config_option` (`acp.rs`) looks for it right after
+  `NewSessionRequest` resolves; if found, its id is kept as
+  `model_config_id` for the life of the connection and its choices are
+  emitted as `chat://{sessionId}/acp_model_options` (flattening any grouped
+  options — the UI doesn't model group headers). Setting one calls the new
+  `set_acp_model(session_id, value)` command, which sends
+  `AcpCommand::SetModel` into the running connection actor
+  (`SetSessionConfigOptionRequest`) and re-emits the (possibly updated)
+  option list from the response. Setting a model with no session running
+  yet, or on an agent with no such option, surfaces a `chat://.../error`
+  instead of failing silently.
+- **Discovering models before ever chatting**: waiting for a real turn just
+  to find out what models an agent offers would leave the picker (below)
+  empty on first use. `fetch_acp_models(launch_command)` (`acp.rs`) spawns
+  a throwaway connection — `Initialize` + `NewSessionRequest`, same as a
+  real session — reads `config_options` the same way, then returns without
+  ever entering a prompt loop; `connect_with`'s `ChildGuard` kills the
+  subprocess the instant that closure returns, so the "fake session" needs
+  no explicit teardown. Incoming permission requests during this window are
+  auto-denied rather than surfaced, since nothing was actually asked to run.
+  `store.ts`'s `fetchAcpModelsFor(agentId)` calls this once per saved agent
+  and caches the result in `acpModelCache` (`Record<agentId, AcpModelOptions
+  | null>` — missing key means "not fetched yet", `null` means "fetched,
+  nothing to show"), deduped against concurrent calls via a module-level
+  `Set`. `App.tsx` triggers `refreshAcpModelCache()` once per launch (not
+  polled — each miss is a real subprocess spawn); `saveAcpAgentConfig`
+  invalidates and re-fetches a single entry when that agent's
+  `launchCommand` actually changes, so edits don't serve stale data.
+
+### Providers and ACP agents share one picker
+
+From the chat bar's point of view, "which Ollama model", "which saved
+OpenAI-compatible config", and "which specific model of a saved ACP agent"
+are all just answers to the same question — who answers this turn — so
+`ChatPanel.tsx` exposes them through one combined `ModelPickerPopover`
+(`ModelPickerPopover.tsx`) instead of three mutually-exclusive `<select>`s
+gated on `isAcp`/`isOpenAiCompatible`. Its option list is built fresh each
+render: every loaded Ollama model gets its own entry (key `ollama:{name}`),
+every saved OpenAI-compatible config gets one entry (`openai:{id}`), and
+every saved ACP agent contributes one entry *per model* it's known to offer
+(key `acp:{agentId}:{modelValue}`, subtitle `"{agent label} · ACP"` —
+model name on top, agent identity below, same shape as the Ollama rows) —
+using `acpModelCache`, falling back to the *live* `acpModelOptions` for
+whichever agent is currently connected (fresher than the cache, and covers
+the rare case where the discovery fetch failed but a real chat still
+succeeded), or a single bare `acp:{agentId}` row with no model suffix if
+neither source has anything yet.
+
+**This choice is per-conversation, not global.** Each `ChatPanel` instance
+keeps its own `kind`/`providerActiveId`/`acpActiveId`/`model`/
+`acpModelChoice` local state, lazily initialized once at mount (this
+component remounts per project — see the `sessionId` comment at the top of
+the file) from `conversationBackend[sessionId]` if that conversation's
+picked something before, else from the shared defaults
+(`providerSettings.activeId`, `agentBackend.kind`/`activeAcpId`). An effect
+mirrors the current values back into `conversationBackend` on every change,
+so reopening a conversation later — even after an app restart — restores
+exactly what it was last using, rather than showing whatever any other
+conversation most recently touched. This is a deliberate reversal of an
+earlier version of this doc, which described provider/agent choice as
+"global, not per-project" — that was true until a global choice bleeding
+across unrelated conversations turned out to be exactly the confusing
+behavior it sounds like (e.g. picking Claude Code in one project making it
+show as the "selected model" in every other project too).
+
+Picking any option (`selectBackendOption`) updates this conversation's own
+local state, *and* nudges the shared defaults (`setAgentBackendKind`/
+`setActiveProvider`/`setActiveAcpAgent`) so a brand-new conversation opened
+later starts from whatever was most recently picked anywhere — but an
+already-touched conversation's own choice always wins over that default
+from then on. Two race conditions this creates, both solved the same way (a
+ref flag that suppresses exactly one otherwise-clobbering effect run):
+- Picking a specific model of a not-yet-active ACP agent changes
+  `acpActiveId` and sets `acpModelChoice` in the same click, racing the
+  effect that clears both `acpModelOptions` and `acpModelChoice` on an
+  agent change — `skipNextAcpResetRef`. `acpModelChoice` itself is applied
+  once a real connection actually reports options for that agent (a
+  `useEffect` on `[acpModelOptions, acpModelChoice]` calls `selectAcpModel`,
+  tracked via `appliedAcpModelRef` so it isn't resent redundantly) —
+  picking a model ahead of a session existing doesn't take effect until one
+  does; picking a different model of an *already-connected* agent applies
+  immediately, since `acpModelOptions` is already non-null when
+  `acpModelChoice` changes. Because `acpModelChoice` is restored from
+  `conversationBackend` at mount too, reopening a conversation re-applies
+  its last chosen model to the freshly (re)connected subprocess — ACP
+  subprocesses don't survive an app restart (see "Process lifecycle"
+  above), so without this the model choice would silently revert to
+  the agent's own default every time.
+- Picking an Ollama or OpenAI-compatible option, by contrast, needs no such
+  guard: `model` is set directly and unconditionally as part of the same
+  handler branch that changes `providerActiveId`, rather than through a
+  separate reactive effect watching for a provider change — there's nothing
+  left to race.
+
+`ModelPickerPopover` itself is deliberately minimal — modeled visually on
+Claude Desktop's model switcher (search input on top, plain name+subtitle
+rows below, active row highlighted) but without its keyboard shortcuts,
+favoriting, or category rail, since nothing in this app needed those yet.
+It's a plain positioned `<div>` (`absolute bottom-full`, since the chat
+input is pinned to the bottom of the panel) with a document-level
+mousedown/Escape listener to close, not a portal or dedicated popover
+library — consistent with `PermissionModal.tsx`'s existing preference for
+hand-rolled UI over adding a new dependency.

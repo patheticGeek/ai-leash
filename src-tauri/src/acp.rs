@@ -6,8 +6,10 @@ use agent_client_protocol::schema::v1::{
     CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, NewSessionRequest,
     PermissionOption, PermissionOptionId, PermissionOptionKind, PromptRequest,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionNotification, SessionUpdate, TextContent, ToolCall,
-    ToolCallContent, ToolCallStatus, ToolCallUpdate,
+    SelectedPermissionOutcome, SessionConfigId, SessionConfigKind, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOptions, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, TextContent, ToolCall, ToolCallContent, ToolCallStatus,
+    ToolCallUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, AcpAgent, Client, ConnectionTo};
@@ -22,6 +24,11 @@ use tokio::sync::mpsc;
 pub enum AcpCommand {
     Prompt(String),
     Cancel,
+    /// Sets the agent's "model" session config option, if it exposes one
+    /// (see `find_model_config_option`) — a no-op (with a surfaced error) if
+    /// it doesn't. `String` is the `SessionConfigValueId` to select, as
+    /// offered in the `chat://{session_id}/acp_model_options` event.
+    SetModel(String),
 }
 
 #[tauri::command]
@@ -36,6 +43,83 @@ pub async fn send_prompt_acp(
     sender.send(AcpCommand::Prompt(message)).map_err(|_| {
         "ACP agent process is no longer running; send another message to restart it.".to_string()
     })
+}
+
+/// Only meaningful once a session is already connected (send a prompt
+/// first) and only has any effect if that agent advertised a Model config
+/// option — see `find_model_config_option`. Doesn't spawn a session on its
+/// own since there'd be nothing to set a model on yet.
+#[tauri::command]
+pub async fn set_acp_model(
+    state: State<'_, AppState>,
+    session_id: String,
+    value: String,
+) -> Result<(), String> {
+    let sender = {
+        let sessions = state.acp_sessions.lock().unwrap();
+        sessions.get(&session_id).cloned()
+    };
+    let sender = sender.ok_or_else(|| {
+        "ACP agent process is no longer running; send a message first to start it.".to_string()
+    })?;
+    sender
+        .send(AcpCommand::SetModel(value))
+        .map_err(|_| "ACP agent process is no longer running.".to_string())
+}
+
+/// Spawns a throwaway ACP subprocess purely to ask "what models do you
+/// offer" (via the same Model config option `drive_acp_connection` checks
+/// for), then lets the connection close immediately without ever sending a
+/// prompt — `connect_with`'s `ChildGuard` kills the subprocess once this
+/// closure returns, so there's no separate teardown step: the "fake
+/// session" cleans itself up. Not registered in `AppState.acp_sessions`,
+/// since it's not a real session anything else should be able to find.
+/// Returns `Ok(None)` (not an error) when the agent connects fine but
+/// simply doesn't expose a model option.
+#[tauri::command]
+pub async fn fetch_acp_models(
+    app: AppHandle,
+    launch_command: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let root = {
+        let state = app.state::<AppState>();
+        commands::get_root_path(state.inner())?
+    };
+    let agent = AcpAgent::from_str(&launch_command).map_err(|e| format_acp_error(&e))?;
+
+    Client
+        .builder()
+        .on_receive_notification(
+            async move |_notification: SessionNotification, _cx| Ok(()),
+            agent_client_protocol::on_receive_notification!(),
+        )
+        .on_receive_request(
+            async move |_request: RequestPermissionRequest, responder, _cx| {
+                // Discovery never sends a prompt, so the agent has nothing
+                // to ask permission for — deny by construction rather than
+                // popping up the real permission UI for a session the user
+                // never asked to start.
+                responder.respond(RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
+        .connect_with(agent, async move |connection: ConnectionTo<Agent>| {
+            connection
+                .send_request(
+                    InitializeRequest::new(ProtocolVersion::V1)
+                        .client_capabilities(ClientCapabilities::new()),
+                )
+                .block_task()
+                .await?;
+            let new_session = connection.send_request(NewSessionRequest::new(root)).block_task().await?;
+            Ok(new_session
+                .config_options
+                .as_ref()
+                .and_then(|opts| find_model_config_option(opts))
+                .map(model_options_payload))
+        })
+        .await
+        .map_err(|e| format_acp_error(&e))
 }
 
 /// Holds `state.acp_sessions`'s lock across the whole check-then-insert (no
@@ -162,6 +246,23 @@ async fn drive_acp_connection(
                 .await?;
             let acp_session_id = new_session.session_id;
 
+            // If this agent exposes a Model config option, tell the
+            // frontend what's selectable; most agents won't have one, in
+            // which case no event fires and the chat bar shows nothing for
+            // model selection (there's nothing to select).
+            let mut model_config_id: Option<SessionConfigId> = None;
+            if let Some(option) = new_session
+                .config_options
+                .as_ref()
+                .and_then(|opts| find_model_config_option(opts))
+            {
+                model_config_id = Some(option.id.clone());
+                let _ = app.emit(
+                    &format!("chat://{session_id}/acp_model_options"),
+                    model_options_payload(option),
+                );
+            }
+
             while let Some(cmd) = commands.recv().await {
                 match cmd {
                     AcpCommand::Prompt(text) => {
@@ -229,12 +330,87 @@ async fn drive_acp_connection(
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
                     }
+                    AcpCommand::SetModel(value) => {
+                        let Some(config_id) = model_config_id.clone() else {
+                            let _ = app.emit(
+                                &format!("chat://{session_id}/error"),
+                                "This ACP agent doesn't expose a model to select.".to_string(),
+                            );
+                            continue;
+                        };
+                        match connection
+                            .send_request(SetSessionConfigOptionRequest::new(
+                                acp_session_id.clone(),
+                                config_id,
+                                value.as_str(),
+                            ))
+                            .block_task()
+                            .await
+                        {
+                            Ok(resp) => {
+                                if let Some(option) = find_model_config_option(&resp.config_options) {
+                                    let _ = app.emit(
+                                        &format!("chat://{session_id}/acp_model_options"),
+                                        model_options_payload(option),
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                let _ = app.emit(
+                                    &format!("chat://{session_id}/error"),
+                                    format!("Failed to set model: {}", format_acp_error(&e)),
+                                );
+                            }
+                        }
+                    }
                 }
             }
 
             Ok(())
         })
         .await
+}
+
+/// ACP lets an agent advertise a "model" selector as one of its session
+/// config options, but it's agent-defined and optional — most agents won't
+/// have one. When present it's always a fixed list of choices (a `Select`),
+/// never freeform text, so this is the only way a model can legitimately be
+/// set for an ACP-backed session; there's no separate "type any model name"
+/// path because the protocol doesn't support one.
+fn find_model_config_option(options: &[SessionConfigOption]) -> Option<&SessionConfigOption> {
+    options.iter().find(|o| {
+        matches!(o.category, Some(SessionConfigOptionCategory::Model))
+            && matches!(o.kind, SessionConfigKind::Select(_))
+    })
+}
+
+/// Flattens grouped options (`SessionConfigSelectOptions::Grouped`) into a
+/// single list, dropping group headers — the frontend just needs a picker,
+/// not nested categories.
+fn model_options_payload(option: &SessionConfigOption) -> serde_json::Value {
+    let SessionConfigKind::Select(select) = &option.kind else {
+        return json!(null);
+    };
+    let flat: Vec<serde_json::Value> = match &select.options {
+        SessionConfigSelectOptions::Ungrouped(opts) => opts
+            .iter()
+            .map(|o| json!({ "value": o.value.to_string(), "name": o.name }))
+            .collect(),
+        SessionConfigSelectOptions::Grouped(groups) => groups
+            .iter()
+            .flat_map(|g| &g.options)
+            .map(|o| json!({ "value": o.value.to_string(), "name": o.name }))
+            .collect(),
+        // `#[non_exhaustive]` for forward compatibility with the protocol —
+        // nothing else is defined today.
+        _ => vec![],
+    };
+    json!({
+        "id": option.id.to_string(),
+        "name": option.name,
+        "currentValue": select.current_value.to_string(),
+        "options": flat,
+    })
 }
 
 fn handle_session_notification(

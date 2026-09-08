@@ -15,6 +15,7 @@ function App() {
   const refreshProviderConnectivity = useAppStore((s) => s.refreshProviderConnectivity);
   const restoreLastProject = useAppStore((s) => s.restoreLastProject);
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
+  const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
   const [leftBarWidth, onLeftBarResize] = useResizableWidth(
     "ai-leash:leftBarWidth",
@@ -48,6 +49,13 @@ function App() {
   useEffect(() => {
     loadSubAgentTasks();
   }, [loadSubAgentTasks]);
+
+  // One-shot per launch, not polled — each fetch briefly spawns and kills a
+  // real subprocess per uncached ACP agent (see fetch_acp_models/acp.rs),
+  // so this is a "figure it out once at startup" cache, not a live check.
+  useEffect(() => {
+    refreshAcpModelCache();
+  }, [refreshAcpModelCache]);
 
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">

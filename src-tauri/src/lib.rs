@@ -35,6 +35,8 @@ pub fn run() {
             chat::list_sub_agents,
             tools::respond_permission,
             acp::send_prompt_acp,
+            acp::set_acp_model,
+            acp::fetch_acp_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

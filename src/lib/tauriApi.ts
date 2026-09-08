@@ -29,6 +29,17 @@ export interface PersistedMessage {
   createdAt: number;
 }
 
+// Payload of the `chat://{sessionId}/acp_model_options` event, emitted only
+// when the connected ACP agent exposes a "model" session config option (see
+// docs/features/agent-chat.md) — most agents won't, so this event may never
+// fire for a given session.
+export interface AcpModelOptions {
+  id: string; // the agent's own SessionConfigId, opaque — passed back verbatim to setAcpModel
+  name: string;
+  currentValue: string;
+  options: { value: string; name: string }[];
+}
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -68,5 +79,9 @@ export const api = {
   cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
   sendPromptAcp: (sessionId: string, launchCommand: string, message: string) =>
     invoke<void>("send_prompt_acp", { sessionId, launchCommand, message }),
+  setAcpModel: (sessionId: string, value: string) =>
+    invoke<void>("set_acp_model", { sessionId, value }),
+  fetchAcpModels: (launchCommand: string) =>
+    invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
 };

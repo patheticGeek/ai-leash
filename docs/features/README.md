@@ -46,6 +46,7 @@ src/
   components/TabPicker.tsx         "open a tab" tile grid shown when SidePanel has no tabs open
   components/CenterPanel.tsx       center tab strip (permanent Agent tab + sub-agent tabs)
   components/ChatPanel.tsx         the primary agent chat UI
+  components/ModelPickerPopover.tsx  search-and-pick popover shared by the backend/model and ACP-model pickers in ChatPanel.tsx
   components/SubAgentChatTab.tsx   read-only sub-agent transcript (a CenterPanel tab)
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
