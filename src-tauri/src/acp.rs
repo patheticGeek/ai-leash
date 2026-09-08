@@ -240,6 +240,7 @@ async fn drive_acp_connection(
     let notif_session_id = session_id.clone();
     let notif_turn_text = turn_text.clone();
     let perm_app = app.clone();
+    let perm_session_id = session_id.clone();
 
     Client
         .builder()
@@ -257,7 +258,7 @@ async fn drive_acp_connection(
         )
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _cx| {
-                let outcome = bridge_acp_permission(&perm_app, &request).await;
+                let outcome = bridge_acp_permission(&perm_app, &perm_session_id, &request).await;
                 responder.respond(RequestPermissionResponse::new(outcome))
             },
             agent_client_protocol::on_receive_request!(),
@@ -608,6 +609,7 @@ fn summarize_tool_call_content(content: &[ToolCallContent]) -> String {
 
 async fn bridge_acp_permission(
     app: &AppHandle,
+    session_id: &str,
     request: &RequestPermissionRequest,
 ) -> RequestPermissionOutcome {
     let title = request
@@ -620,7 +622,7 @@ async fn bridge_acp_permission(
     let detail = summarize_tool_call_content(&content);
 
     let state = app.state::<AppState>();
-    let approved = tools::request_permission(app, &state, "acp", title, detail).await;
+    let approved = tools::request_permission(app, &state, session_id, "acp", title, detail).await;
 
     match select_permission_option(&request.options, approved) {
         Some(option_id) => {

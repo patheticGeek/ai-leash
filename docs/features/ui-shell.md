@@ -145,9 +145,17 @@ monitoring) lives in a multi-tab panel on the right:
   `localStorage` (`ai-leash:leftBarWidth`, `ai-leash:rightPanelWidth`).
   Chat fills whatever space remains between them.
 
-`PermissionModal` is mounted at the top of `App.tsx` as a fixed overlay
-(`fixed inset-0 z-50`) — it renders `null` when there's no pending
-permission request, so it has no visual presence otherwise.
+Permission requests are per-project, not a single app-wide overlay:
+`PermissionPopover.tsx` renders inside `ChatPanel.tsx`, anchored above
+that project's own textarea, only when `permissionForSession` (`store.ts`)
+resolves a pending request for the currently open session (or a sub-agent
+it spawned). `LeftBar.tsx` is where the one global `permission://request`/
+`permission://resolved` listener pair lives (mounted regardless of which
+project is open, same as its existing `generating` listeners) — a project
+awaiting approval in the background gets a pulsing amber glow on its
+sidebar row (`ProjectRow`'s `awaitingApproval`) rather than being silently
+invisible until you happen to switch to it. See
+[tools.md](./tools.md#permissions).
 
 ## Dark mode only
 

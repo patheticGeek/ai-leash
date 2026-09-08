@@ -99,11 +99,16 @@ command exits.
 before doing anything. `request_permission()` (`tools.rs`) generates a UUID, stores a
 `tokio::sync::oneshot::Sender<bool>` for it in
 `AppState.pending_permissions`, emits a `permission://request` event
-with `{ id, kind: "shell" | "edit", title, detail }`, and `.await`s the
-receiver — the whole tool call (and the agent loop) blocks until the
-user responds.
+with `{ id, sessionId, kind: "shell" | "edit" | "acp", title, detail }`,
+and `.await`s the receiver — the whole tool call (and the agent loop)
+blocks until the user responds. `sessionId` is what routes the request to
+the right project's UI — a sub-agent's tool call carries its own synthetic
+session id, not its parent's (see [ui-shell.md](./ui-shell.md)).
 
-`PermissionModal.tsx` listens for that event and renders:
+`ChatPanel.tsx` renders it via `PermissionPopover.tsx`, a box popover
+anchored above that project's textarea (only shown when
+`permissionForSession` — `store.ts` — resolves a match for the currently
+open session):
 - `shell` — the raw command in a monospace block.
 - `edit` — a line-by-line diff (`+`/`-`/` ` prefixed, colored
   green/red/gray), built server-side by `diff_text()` using the
@@ -111,10 +116,13 @@ user responds.
   `write_file`, and `update_memory`.
 
 Approve/Deny calls `respond_permission(id, approved)`, which looks up
-and fires the stored oneshot sender. If denied, the tool returns a
-plain-text "the user denied permission..." result (not an error) so the
-model can adapt (e.g. ask the user what they'd prefer) rather than the
-turn just failing.
+and fires the stored oneshot sender, then emits `permission://resolved
+{ id }` so every subscriber (not just whichever popover instance called
+it) clears it from `pendingPermissions` — needed since a sub-agent's
+request is answered from its *parent* project's popover, not one of its
+own. If denied, the tool returns a plain-text "the user denied
+permission..." result (not an error) so the model can adapt (e.g. ask the
+user what they'd prefer) rather than the turn just failing.
 
 There's currently no "always allow" / remembered-permission option —
 every shell command and every edit is approved individually, every

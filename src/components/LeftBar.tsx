@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
-import { useAppStore, type RecentProject } from "../store";
+import { useAppStore, permissionForSession, type RecentProject } from "../store";
+import type { PermissionRequestPayload } from "../lib/tauriApi";
 import Logo from "./Logo";
 import { PlusIcon, SettingsIcon } from "lucide-react";
 
@@ -15,13 +16,19 @@ function ProjectRow({
   onClick: () => void;
 }) {
   const generating = useAppStore((s) => !!s.generatingSessions[project.path]);
+  const pendingPermissions = useAppStore((s) => s.pendingPermissions);
+  const awaitingApproval = !!permissionForSession(pendingPermissions, project.path);
 
   return (
     <div
       onClick={onClick}
-      title={project.path}
+      title={awaitingApproval ? `${project.path} — needs your approval` : project.path}
       className={`mx-1.5 mb-0.5 flex items-center gap-2 rounded px-2 py-1.5 text-sm cursor-default ${
         active ? "bg-white/10 text-zinc-100" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+      } ${
+        awaitingApproval
+          ? "animate-pulse ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
+          : ""
       }`}
     >
       <span className="min-w-0 flex-1 truncate">{project.name}</span>
@@ -42,6 +49,28 @@ export default function LeftBar() {
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
   const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const addPendingPermission = useAppStore((s) => s.addPendingPermission);
+  const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
+
+  // Unlike `chat://{sessionId}/generating`, `permission://request` isn't
+  // path-templated per project — it's one global event carrying its own
+  // `sessionId` (see `tools::request_permission`) — so this only needs one
+  // listener each, not one per known project. Still lives here rather than
+  // e.g. `App.tsx` so it's colocated with the other always-mounted,
+  // cross-project state this component already owns.
+  useEffect(() => {
+    const unlistens = [
+      listen<PermissionRequestPayload>("permission://request", (e) => {
+        addPendingPermission(e.payload);
+      }),
+      listen<{ id: string }>("permission://resolved", (e) => {
+        resolvePendingPermission(e.payload.id);
+      }),
+    ];
+    return () => {
+      unlistens.forEach((u) => u.then((f) => f()));
+    };
+  }, [addPendingPermission, resolvePendingPermission]);
 
   // Always mounted regardless of which project (if any) is currently open,
   // so a session's `generating` state is tracked even while you're looking

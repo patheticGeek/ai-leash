@@ -52,6 +52,19 @@ export interface AcpCommandInfo {
   hint: string | null;
 }
 
+// Payload of the global `permission://request` event — one listener for the
+// whole app (see `LeftBar.tsx`), not per-session, since `sessionId` here is
+// what routes it to the right project (see `permissionForSession` in
+// `store.ts`). `sessionId` is a sub-agent's own synthetic id when the
+// request came from one of its tool calls, not its parent's.
+export interface PermissionRequestPayload {
+  id: string;
+  sessionId: string;
+  kind: "shell" | "edit" | "acp";
+  title: string;
+  detail: string;
+}
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -99,6 +112,8 @@ export const api = {
   fetchAcpModels: (launchCommand: string) =>
     invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
+  respondPermission: (id: string, approved: boolean) =>
+    invoke<void>("respond_permission", { id, approved }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),

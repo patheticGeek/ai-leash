@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { api, type AcpModelOptions, type ModelSummary, type ProviderConfigPayload } from "./lib/tauriApi";
+import {
+  api,
+  type AcpModelOptions,
+  type ModelSummary,
+  type PermissionRequestPayload,
+  type ProviderConfigPayload,
+} from "./lib/tauriApi";
 import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
@@ -308,6 +314,19 @@ interface AppStore {
   // actually waiting on; `LeftBar.tsx`'s busy dot ignores it (any activity
   // still lights it up).
   autonomousGeneratingSessions: Record<string, boolean>;
+  // Keyed by the *exact* session id the request came from — for a sub-agent
+  // that's its own synthetic `{parentSessionId}::spawn_sub_agent::{uuid}`
+  // id, not its parent's. `permissionForSession` (below) is what resolves
+  // "does this project have anything pending", checking both an exact match
+  // and any child sub-agent id, since a sub-agent's tool calls have nowhere
+  // of their own to surface a popover — they're shown above the *parent*
+  // project's textarea instead. One global `permission://request`/
+  // `permission://resolved` listener pair maintains this (see
+  // `LeftBar.tsx`) — unlike `generatingSessions`, no per-project listener
+  // is needed since the backend event itself now carries `sessionId`.
+  pendingPermissions: Record<string, PermissionRequestPayload>;
+  addPendingPermission: (payload: PermissionRequestPayload) => void;
+  resolvePendingPermission: (id: string) => void;
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -357,6 +376,22 @@ function panelTabIdFor(kind: PanelTabKind, path?: string): string {
   return kind;
 }
 
+// Resolves "does this project have a permission request waiting" — an
+// exact match (a top-level conversation's own tool call), or a sub-agent
+// spawned from it (`{sessionId}::spawn_sub_agent::{uuid}`, see
+// `spawn_sub_agent` in tools.rs), since a sub-agent has no textarea of its
+// own to show a popover above. Used by both `ChatPanel.tsx` (to render the
+// popover) and `LeftBar.tsx` (to glow the row) so the two never disagree
+// about which project a given request belongs to.
+export function permissionForSession(
+  pending: Record<string, PermissionRequestPayload>,
+  sessionId: string,
+): PermissionRequestPayload | null {
+  if (pending[sessionId]) return pending[sessionId];
+  const childPrefix = `${sessionId}::spawn_sub_agent::`;
+  return Object.values(pending).find((p) => p.sessionId.startsWith(childPrefix)) ?? null;
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   projectRoot: null,
   openFiles: [],
@@ -378,6 +413,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   recentProjects: loadRecentProjects(),
   generatingSessions: {},
   autonomousGeneratingSessions: {},
+  pendingPermissions: {},
 
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
@@ -805,6 +841,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
         delete nextAutonomous[sessionId];
       }
       return { generatingSessions: next, autonomousGeneratingSessions: nextAutonomous };
+    }),
+
+  addPendingPermission: (payload) =>
+    set((s) => ({ pendingPermissions: { ...s.pendingPermissions, [payload.sessionId]: payload } })),
+
+  resolvePendingPermission: (id) =>
+    set((s) => {
+      const entry = Object.entries(s.pendingPermissions).find(([, p]) => p.id === id);
+      if (!entry) return s;
+      const pendingPermissions = { ...s.pendingPermissions };
+      delete pendingPermissions[entry[0]];
+      return { pendingPermissions };
     }),
 
   touchProjectActivity: (path) =>

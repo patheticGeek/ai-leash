@@ -16,7 +16,7 @@ Protocol (ACP) itself — it uses its own simple session/event model that
 happens to look ACP-shaped (session id, streamed message chunks, tool
 calls, permission requests) so the UI code isn't tied to one backend
 shape, which is exactly what let the ACP backend reuse the same
-`chat://{sessionId}/...` event names and the same `PermissionModal.tsx`
+`chat://{sessionId}/...` event names and the same `PermissionPopover.tsx`
 flow without any redesign.
 
 ## Provider
@@ -631,8 +631,9 @@ out of scope for now.
   `AgentThoughtChunk` → `thinking`, `ToolCall`/`ToolCallUpdate` →
   `tool_call`/`tool_result` (only once `status` reaches
   `Completed`/`Failed`; content rendered via `summarize_tool_call_content`,
-  a best-effort text join). `Plan`/`AvailableCommandsUpdate`/
-  `CurrentModeUpdate`/etc. are ignored — no UI concept for them yet.
+  a best-effort text join), and `AvailableCommandsUpdate` → the
+  `chat://{sessionId}/acp_commands` event covered above. `Plan`/
+  `CurrentModeUpdate`/etc. are still ignored — no UI concept for them yet.
   `generating` is bracketed true/false around each `PromptRequest`
   exactly like `run_with_cancellation` does for the built-in loop, so
   `LeftBar.tsx`'s busy dot and `ChatPanel.tsx`'s `sending` state work
@@ -640,13 +641,13 @@ out of scope for now.
 - **Permission bridge**: `RequestPermissionRequest` (ACP's permission
   ask, which offers a list of named options — allow once/always, reject
   once/always) is bridged onto the *existing* boolean approve/deny
-  `PermissionModal.tsx` flow rather than redesigning it — `tools::
+  `PermissionPopover.tsx` flow rather than redesigning it — `tools::
   request_permission` (now `pub(crate)`, previously private) is reused
   as-is. `select_permission_option` collapses the outcome: approve →
   first `AllowOnce`, else first `AllowAlways`, else the first option
   offered at all; deny → `RequestPermissionOutcome::Cancelled`
   unconditionally, a legitimate protocol response. `PermissionRequestPayload
-  .kind` gained a third literal, `"acp"`, for the modal's header copy.
+  .kind` gained a third literal, `"acp"`, for the popover's header copy.
 - **Cancellation**: `chat::cancel_prompt` (same command, same signature —
   the frontend's `stop()` needed no changes) now also checks
   `AppState.acp_sessions` and sends `AcpCommand::Cancel`, which the
@@ -875,5 +876,5 @@ favoriting, or category rail, since nothing in this app needed those yet.
 It's a plain positioned `<div>` (`absolute bottom-full`, since the chat
 input is pinned to the bottom of the panel) with a document-level
 mousedown/Escape listener to close, not a portal or dedicated popover
-library — consistent with `PermissionModal.tsx`'s existing preference for
+library — consistent with `PermissionPopover.tsx`'s existing preference for
 hand-rolled UI over adding a new dependency.

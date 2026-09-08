@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Bot, Wrench } from "lucide-react";
-import { useAppStore } from "../store";
+import { useAppStore, permissionForSession } from "../store";
 import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
+import PermissionPopover from "./PermissionPopover";
 import {
   type Entry,
   type ToolCallPayload,
@@ -304,6 +305,14 @@ export default function ChatPanel() {
   // entry to the transcript — closed by its own X button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
   const [helpOpen, setHelpOpen] = useState(false);
+  // Resolves to a real request only while this project (or a sub-agent it
+  // spawned) has one pending — see `permissionForSession`. Global listeners
+  // that populate `pendingPermissions` live in `LeftBar.tsx`, always
+  // mounted regardless of which project is currently open, same pattern as
+  // `generatingSessions`.
+  const pendingPermissions = useAppStore((s) => s.pendingPermissions);
+  const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
+  const pendingPermission = permissionForSession(pendingPermissions, sessionId);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -789,6 +798,21 @@ export default function ChatPanel() {
     setSending(false);
   }
 
+  // Clears the popover immediately (optimistic — no round-trip flicker)
+  // rather than waiting for the backend's own `permission://resolved`,
+  // which still fires regardless and is what makes this safe even when a
+  // sub-agent's request got answered from its *parent's* popover instance.
+  async function respondPermission(approved: boolean) {
+    if (!pendingPermission) return;
+    const id = pendingPermission.id;
+    resolvePendingPermission(id);
+    try {
+      await api.respondPermission(id, approved);
+    } catch (e) {
+      setOllamaError(String(e));
+    }
+  }
+
   async function selectAcpModel(value: string) {
     setAcpModelOptions((prev) => (prev ? { ...prev, currentValue: value } : prev));
     try {
@@ -1160,7 +1184,10 @@ export default function ChatPanel() {
       </div>
       <div className="p-2">
         <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
-          {showSlashPopover && (
+          {pendingPermission ? (
+            <PermissionPopover request={pendingPermission} onRespond={respondPermission} />
+          ) : (
+            showSlashPopover && (
             <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
               {slashMatches.map((c, i) => (
                 <button
@@ -1182,6 +1209,7 @@ export default function ChatPanel() {
                 </button>
               ))}
             </div>
+            )
           )}
           <textarea
             ref={textareaRef}
