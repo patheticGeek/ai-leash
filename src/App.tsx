@@ -1,17 +1,19 @@
 import { useEffect } from "react";
-import LeftBar from "./components/LeftBar";
-import SidePanel from "./components/SidePanel";
-import ResizeHandle from "./components/ResizeHandle";
 import CenterPanel from "./components/CenterPanel";
-import StatusBar from "./components/StatusBar";
+import LeftBar from "./components/LeftBar";
+import ResizeHandle from "./components/ResizeHandle";
 import SettingsModal from "./components/SettingsModal";
-import { useAppStore } from "./store";
+import SidePanel from "./components/SidePanel";
+import StatusBar from "./components/StatusBar";
 import { useResizableWidth } from "./hooks/useResizableWidth";
+import { useAppStore } from "./store";
 
 function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
-  const refreshProviderConnectivity = useAppStore((s) => s.refreshProviderConnectivity);
+  const refreshProviderConnectivity = useAppStore(
+    (s) => s.refreshProviderConnectivity,
+  );
   const restoreLastProject = useAppStore((s) => s.restoreLastProject);
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);

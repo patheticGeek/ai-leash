@@ -83,7 +83,8 @@ export const api = {
     invoke<void>("write_file_text", { path, contents }),
   ptySpawn: (cwd: string | undefined, cols: number, rows: number) =>
     invoke<string>("pty_spawn", { cwd, cols, rows }),
-  ptyWrite: (id: string, data: string) => invoke<void>("pty_write", { id, data }),
+  ptyWrite: (id: string, data: string) =>
+    invoke<void>("pty_write", { id, data }),
   ptyResize: (id: string, cols: number, rows: number) =>
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
@@ -93,18 +94,26 @@ export const api = {
     invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
-  clearConversation: (sessionId: string) => invoke<void>("clear_conversation", { sessionId }),
-  compactConversation: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
-    invoke<string>("compact_conversation", { sessionId, provider, model }),
+  clearConversation: (sessionId: string) =>
+    invoke<void>("clear_conversation", { sessionId }),
+  compactConversation: (
+    sessionId: string,
+    provider: ProviderConfigPayload,
+    model: string,
+  ) => invoke<string>("compact_conversation", { sessionId, provider, model }),
   sendPrompt: (
     sessionId: string,
     provider: ProviderConfigPayload,
     model: string,
     message: string,
   ) => invoke<void>("send_prompt", { sessionId, provider, model, message }),
-  retryLast: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
-    invoke<void>("retry_last", { sessionId, provider, model }),
-  cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
+  retryLast: (
+    sessionId: string,
+    provider: ProviderConfigPayload,
+    model: string,
+  ) => invoke<void>("retry_last", { sessionId, provider, model }),
+  cancelPrompt: (sessionId: string) =>
+    invoke<void>("cancel_prompt", { sessionId }),
   // The `!command` chat-input escape — runs `command` as a shell command
   // directly (no LLM turn, no permission prompt) and returns its output;
   // the backend also records it as a real tool-call/result pair (see

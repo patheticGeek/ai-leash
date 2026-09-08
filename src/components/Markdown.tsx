@@ -3,14 +3,22 @@ import remarkGfm from "remark-gfm";
 
 const components: Components = {
   a: ({ children, ...props }) => (
-    <a {...props} target="_blank" rel="noreferrer" className="text-blue-400 underline hover:text-blue-300">
+    <a
+      {...props}
+      target="_blank"
+      rel="noreferrer"
+      className="text-blue-400 underline hover:text-blue-300"
+    >
       {children}
     </a>
   ),
   code: ({ className, children, ...props }) => {
     if (!/language-/.test(className ?? "")) {
       return (
-        <code className="rounded bg-[#101114] px-1 py-0.5 text-[0.85em] text-zinc-300" {...props}>
+        <code
+          className="rounded bg-[#101114] px-1 py-0.5 text-[0.85em] text-zinc-300"
+          {...props}
+        >
           {children}
         </code>
       );
@@ -45,7 +53,10 @@ const components: Components = {
     </ol>
   ),
   blockquote: ({ children, ...props }) => (
-    <blockquote className="mb-2 border-l-2 border-[#3a5f8f] pl-2.5 text-zinc-400 last:mb-0" {...props}>
+    <blockquote
+      className="mb-2 border-l-2 border-[#3a5f8f] pl-2.5 text-zinc-400 last:mb-0"
+      {...props}
+    >
       {children}
     </blockquote>
   ),
@@ -73,7 +84,10 @@ const components: Components = {
     </div>
   ),
   th: ({ children, ...props }) => (
-    <th className="border border-[#26272c] bg-[#141518] px-2 py-1 text-left font-medium" {...props}>
+    <th
+      className="border border-[#26272c] bg-[#141518] px-2 py-1 text-left font-medium"
+      {...props}
+    >
       {children}
     </th>
   ),

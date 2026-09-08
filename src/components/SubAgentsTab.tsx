@@ -48,7 +48,9 @@ export default function SubAgentsTab() {
             >
               {task.status === "running" ? "running…" : task.status}
             </span>
-            <span className="min-w-0 flex-1 truncate text-zinc-300">{task.description}</span>
+            <span className="min-w-0 flex-1 truncate text-zinc-300">
+              {task.description}
+            </span>
           </div>
           <div className="mt-1 text-[10px] text-zinc-600">
             started {formatTime(task.startedAt)}

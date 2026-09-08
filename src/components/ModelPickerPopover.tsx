@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Button from "./Button";
 
 export interface PickerOption {
@@ -104,7 +104,9 @@ export default function ModelPickerPopover({
                   o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"
                 }`}
               >
-                <div className="text-sm font-medium text-zinc-100">{o.label}</div>
+                <div className="text-sm font-medium text-zinc-100">
+                  {o.label}
+                </div>
                 <div className="text-xs text-zinc-500">{o.subtitle}</div>
               </Button>
             ))}

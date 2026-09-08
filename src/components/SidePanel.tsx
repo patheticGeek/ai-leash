@@ -1,12 +1,12 @@
-import { useState } from "react";
 import { Plus, X } from "lucide-react";
-import { useAppStore, type PanelTabKind } from "../store";
+import { useState } from "react";
+import { type PanelTabKind, useAppStore } from "../store";
+import Button from "./Button";
+import FileEditorTab from "./FileEditorTab";
 import FileTree from "./FileTree";
 import SubAgentsTab from "./SubAgentsTab";
-import FileEditorTab from "./FileEditorTab";
-import TerminalPanel from "./TerminalPanel";
 import TabPicker from "./TabPicker";
-import Button from "./Button";
+import TerminalPanel from "./TerminalPanel";
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
@@ -35,7 +35,8 @@ export default function SidePanel() {
       <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =
-            tab.kind === "file" && !!openFiles.find((f) => f.path === tab.path)?.dirty;
+            tab.kind === "file" &&
+            !!openFiles.find((f) => f.path === tab.path)?.dirty;
           const active = tab.id === activePanelTabId && !showPicker;
           return (
             <div
@@ -45,7 +46,9 @@ export default function SidePanel() {
                 setPickerOpen(false);
               }}
               className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs cursor-default ${
-                active ? "bg-white/10 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                active
+                  ? "bg-white/10 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <span className="max-w-[10rem] truncate">{tab.label}</span>
@@ -54,7 +57,9 @@ export default function SidePanel() {
                   {runningSubAgents}
                 </span>
               )}
-              {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />}
+              {dirty && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+              )}
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -84,13 +89,21 @@ export default function SidePanel() {
         {terminalTabs.map((tab) => (
           <div
             key={tab.id}
-            className={tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"}
+            className={
+              tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"
+            }
           >
             <TerminalPanel />
           </div>
         ))}
         {filetreeTab && (
-          <div className={filetreeTab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"}>
+          <div
+            className={
+              filetreeTab.id === activePanelTabId && !showPicker
+                ? "h-full"
+                : "hidden"
+            }
+          >
             <FileTree />
           </div>
         )}

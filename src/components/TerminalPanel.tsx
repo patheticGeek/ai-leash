@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Terminal } from "@xterm/xterm";
+import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../lib/tauriApi";
@@ -40,7 +40,11 @@ export default function TerminalPanel() {
     let unlistenData: (() => void) | undefined;
 
     (async () => {
-      const id = await api.ptySpawn(projectRoot ?? undefined, term.cols, term.rows);
+      const id = await api.ptySpawn(
+        projectRoot ?? undefined,
+        term.cols,
+        term.rows,
+      );
       if (disposed) {
         api.ptyKill(id);
         return;

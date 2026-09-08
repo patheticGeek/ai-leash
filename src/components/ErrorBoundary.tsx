@@ -1,5 +1,5 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
 import { RotateCcw } from "lucide-react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reportReactError } from "../lib/crashReporting";
 import Button from "./Button";
 
@@ -24,22 +24,31 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    reportReactError(error.message, error.stack ?? info.componentStack ?? undefined);
+    reportReactError(
+      error.message,
+      error.stack ?? info.componentStack ?? undefined,
+    );
   }
 
   render() {
     if (this.state.error) {
       return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[#0e0f12] text-zinc-300">
-          <div className="text-sm font-medium text-zinc-100">Something went wrong.</div>
+          <div className="text-sm font-medium text-zinc-100">
+            Something went wrong.
+          </div>
           <div className="max-w-md text-center text-xs text-zinc-500">
-            The error has been logged — open Settings → Crash log to see it, or reload to keep
-            working.
+            The error has been logged — open Settings → Crash log to see it, or
+            reload to keep working.
           </div>
           <pre className="max-w-lg overflow-auto rounded border border-[#26272c] bg-[#141518] p-2 text-[10px] text-zinc-600">
             {this.state.error.message}
           </pre>
-          <Button variant="primary" size="sm" onClick={() => window.location.reload()}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => window.location.reload()}
+          >
             <RotateCcw size={13} />
             Reload
           </Button>

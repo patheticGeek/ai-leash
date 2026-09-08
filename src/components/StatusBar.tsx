@@ -5,7 +5,11 @@ export default function StatusBar() {
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);
 
   const providers = [
-    { id: "ollama", label: "Ollama", connected: providerConnectivity.ollama ?? null },
+    {
+      id: "ollama",
+      label: "Ollama",
+      connected: providerConnectivity.ollama ?? null,
+    },
     ...providerSettings.openAiCompatible.map((c) => ({
       id: c.id,
       label: c.label,
@@ -26,7 +30,10 @@ export default function StatusBar() {
         : "bg-amber-500";
 
   const tooltip = providers
-    .map((p) => `${p.label}: ${p.connected === null ? "checking…" : p.connected ? "connected" : "disconnected"}`)
+    .map(
+      (p) =>
+        `${p.label}: ${p.connected === null ? "checking…" : p.connected ? "connected" : "disconnected"}`,
+    )
     .join("\n");
 
   return (

@@ -1,12 +1,12 @@
 import { create } from "zustand";
+import type { Entry } from "./lib/chatEntries";
 import {
-  api,
   type AcpModelOptions,
+  api,
   type ModelSummary,
   type PermissionRequestPayload,
   type ProviderConfigPayload,
 } from "./lib/tauriApi";
-import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
 const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
@@ -31,7 +31,9 @@ export interface RecentProject {
 
 function loadRecentProjects(): RecentProject[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]");
+    const parsed = JSON.parse(
+      localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]",
+    );
     if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed.map((p) => ({ ...p, lastMessageAt: p.lastMessageAt ?? 0 }));
     }
@@ -42,7 +44,11 @@ function loadRecentProjects(): RecentProject[] {
   const legacy = localStorage.getItem("ai-leash:lastProjectRoot");
   if (!legacy) return [];
   const migrated = [
-    { path: legacy, name: legacy.split("/").filter(Boolean).pop() ?? legacy, lastMessageAt: 0 },
+    {
+      path: legacy,
+      name: legacy.split("/").filter(Boolean).pop() ?? legacy,
+      lastMessageAt: 0,
+    },
   ];
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(migrated));
   localStorage.removeItem("ai-leash:lastProjectRoot");
@@ -67,7 +73,9 @@ export interface OpenAiCompatibleProviderConfig {
   model: string; // free-text — see docs/features/agent-chat.md on why there's no live model list for this provider kind
 }
 
-export type ProviderConfig = OllamaProviderConfig | OpenAiCompatibleProviderConfig;
+export type ProviderConfig =
+  | OllamaProviderConfig
+  | OpenAiCompatibleProviderConfig;
 
 interface ProviderSettings {
   ollama: OllamaProviderConfig;
@@ -83,11 +91,18 @@ const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function loadProviderSettings(): ProviderSettings {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null");
+    const parsed = JSON.parse(
+      localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null",
+    );
     if (parsed && typeof parsed === "object") {
       return {
-        ollama: { kind: "ollama", host: parsed.ollama?.host ?? "localhost:11434" },
-        openAiCompatible: Array.isArray(parsed.openAiCompatible) ? parsed.openAiCompatible : [],
+        ollama: {
+          kind: "ollama",
+          host: parsed.ollama?.host ?? "localhost:11434",
+        },
+        openAiCompatible: Array.isArray(parsed.openAiCompatible)
+          ? parsed.openAiCompatible
+          : [],
         activeId: parsed.activeId ?? "ollama",
       };
     }
@@ -104,11 +119,17 @@ function saveProviderSettings(settings: ProviderSettings) {
 // Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like
 // `id`/`label`/`model`) down to exactly the shape the backend's
 // `ProviderConfig` enum expects.
-function toProviderConfigPayload(config: ProviderConfig): ProviderConfigPayload {
+function toProviderConfigPayload(
+  config: ProviderConfig,
+): ProviderConfigPayload {
   if (config.kind === "ollama") {
     return { kind: "ollama", host: config.host };
   }
-  return { kind: "openAiCompatible", baseUrl: config.baseUrl, apiKey: config.apiKey };
+  return {
+    kind: "openAiCompatible",
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+  };
 }
 
 // One global agent backend setting (not per-project), same reasoning as
@@ -143,7 +164,11 @@ const DEFAULT_ACP_PRESETS: AcpAgentConfig[] = [
     label: "Claude Code",
     launchCommand: "npx -y @agentclientprotocol/claude-agent-acp@latest",
   },
-  { id: "acp-preset-github-copilot", label: "GitHub Copilot", launchCommand: "copilot --acp" },
+  {
+    id: "acp-preset-github-copilot",
+    label: "GitHub Copilot",
+    launchCommand: "copilot --acp",
+  },
 ];
 
 function withDefaultAcpAgents(agents: AcpAgentConfig[]): AcpAgentConfig[] {
@@ -166,16 +191,24 @@ const DEFAULT_AGENT_BACKEND: AgentBackendSettings = {
 
 function loadAgentBackend(): AgentBackendSettings {
   try {
-    const parsed = JSON.parse(localStorage.getItem(AGENT_BACKEND_KEY) ?? "null");
+    const parsed = JSON.parse(
+      localStorage.getItem(AGENT_BACKEND_KEY) ?? "null",
+    );
     if (parsed && typeof parsed === "object") {
       // Pre-multi-agent shape was `{kind: "acp", launchCommand}` — migrate
       // it into a single saved entry (seeding the presets alongside it too,
       // as a one-time thing) so existing users don't lose their setup.
-      if (parsed.kind === "acp" && typeof parsed.launchCommand === "string" && !Array.isArray(parsed.acpAgents)) {
+      if (
+        parsed.kind === "acp" &&
+        typeof parsed.launchCommand === "string" &&
+        !Array.isArray(parsed.acpAgents)
+      ) {
         const id = crypto.randomUUID();
         return {
           kind: "acp",
-          acpAgents: withDefaultAcpAgents([{ id, label: "ACP agent", launchCommand: parsed.launchCommand }]),
+          acpAgents: withDefaultAcpAgents([
+            { id, label: "ACP agent", launchCommand: parsed.launchCommand },
+          ]),
           activeAcpId: id,
         };
       }
@@ -185,7 +218,9 @@ function loadAgentBackend(): AgentBackendSettings {
         // silently bring it back on the next reload.
         return {
           kind: parsed.kind,
-          acpAgents: Array.isArray(parsed.acpAgents) ? parsed.acpAgents : withDefaultAcpAgents([]),
+          acpAgents: Array.isArray(parsed.acpAgents)
+            ? parsed.acpAgents
+            : withDefaultAcpAgents([]),
           activeAcpId: parsed.activeAcpId ?? null,
         };
       }
@@ -219,9 +254,14 @@ export interface ConversationBackendSelection {
   acpModel: string | null; // last explicitly chosen model for the active ACP agent, if any
 }
 
-function loadConversationBackend(): Record<string, ConversationBackendSelection> {
+function loadConversationBackend(): Record<
+  string,
+  ConversationBackendSelection
+> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(CONVERSATION_BACKEND_KEY) ?? "{}");
+    const parsed = JSON.parse(
+      localStorage.getItem(CONVERSATION_BACKEND_KEY) ?? "{}",
+    );
     if (parsed && typeof parsed === "object") return parsed;
   } catch {
     // fall through
@@ -229,7 +269,9 @@ function loadConversationBackend(): Record<string, ConversationBackendSelection>
   return {};
 }
 
-function saveConversationBackendMap(map: Record<string, ConversationBackendSelection>) {
+function saveConversationBackendMap(
+  map: Record<string, ConversationBackendSelection>,
+) {
   localStorage.setItem(CONVERSATION_BACKEND_KEY, JSON.stringify(map));
 }
 
@@ -264,7 +306,11 @@ export interface ChatTab {
   label: string;
 }
 
-const PRIMARY_CHAT_TAB: ChatTab = { id: "primary", kind: "primary", label: "Agent" };
+const PRIMARY_CHAT_TAB: ChatTab = {
+  id: "primary",
+  kind: "primary",
+  label: "Agent",
+};
 
 interface AppStore {
   projectRoot: string | null;
@@ -347,7 +393,10 @@ interface AppStore {
   setActiveAcpAgent: (id: string) => void;
   fetchAcpModelsFor: (agentId: string) => Promise<void>;
   refreshAcpModelCache: () => Promise<void>;
-  setConversationBackend: (sessionId: string, selection: ConversationBackendSelection) => void;
+  setConversationBackend: (
+    sessionId: string,
+    selection: ConversationBackendSelection,
+  ) => void;
   startSubAgentTask: (task: {
     subSessionId: string;
     parentSessionId: string;
@@ -368,14 +417,24 @@ interface AppStore {
   // a `subtask_start`/`done`/`error` event may have already applied. Safe
   // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`).
   loadSubAgentTasks: () => Promise<void>;
-  openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
+  openPanelTab: (
+    kind: PanelTabKind,
+    opts?: { path?: string; label?: string },
+  ) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
   openChatTab: (subSessionId: string, label: string) => void;
   closeChatTab: (id: string) => void;
   setActiveChatTab: (id: string) => void;
-  setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
-  setSessionGenerating: (sessionId: string, generating: boolean, autonomous: boolean) => void;
+  setSubAgentEntries: (
+    subSessionId: string,
+    updater: (prev: Entry[]) => Entry[],
+  ) => void;
+  setSessionGenerating: (
+    sessionId: string,
+    generating: boolean,
+    autonomous: boolean,
+  ) => void;
   touchProjectActivity: (path: string) => void;
 }
 
@@ -398,7 +457,10 @@ export function permissionForSession(
 ): PermissionRequestPayload | null {
   if (pending[sessionId]) return pending[sessionId];
   const childPrefix = `${sessionId}::spawn_sub_agent::`;
-  return Object.values(pending).find((p) => p.sessionId.startsWith(childPrefix)) ?? null;
+  return (
+    Object.values(pending).find((p) => p.sessionId.startsWith(childPrefix)) ??
+    null
+  );
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -457,7 +519,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return {
         projectRoot: root,
         openFiles: [],
-        activePath: restoredActiveTab?.kind === "file" ? (restoredActiveTab.path ?? null) : null,
+        activePath:
+          restoredActiveTab?.kind === "file"
+            ? (restoredActiveTab.path ?? null)
+            : null,
         panelTabs: restored?.panelTabs ?? [],
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
@@ -487,7 +552,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set((s) => ({
           openFiles: s.openFiles.some((f) => f.path === tab.path)
             ? s.openFiles
-            : [...s.openFiles, { path: tab.path, name: tab.label, content, dirty: false }],
+            : [
+                ...s.openFiles,
+                { path: tab.path, name: tab.label, content, dirty: false },
+              ],
         }));
       } catch {
         get().closePanelTab(tab.id);
@@ -498,12 +566,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   restoreLastProject: async () => {
     const projects = get().recentProjects;
     if (projects.length === 0) return;
-    const last = projects.reduce((a, b) => (b.lastMessageAt > a.lastMessageAt ? b : a));
+    const last = projects.reduce((a, b) =>
+      b.lastMessageAt > a.lastMessageAt ? b : a,
+    );
     try {
       await get().openProject(last.path);
     } catch {
       set((s) => {
-        const recentProjects = s.recentProjects.filter((p) => p.path !== last.path);
+        const recentProjects = s.recentProjects.filter(
+          (p) => p.path !== last.path,
+        );
         saveRecentProjects(recentProjects);
         return { recentProjects };
       });
@@ -566,7 +638,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (activeId === "ollama") {
       return toProviderConfigPayload(providerSettings.ollama);
     }
-    const found = providerSettings.openAiCompatible.find((c) => c.id === activeId);
+    const found = providerSettings.openAiCompatible.find(
+      (c) => c.id === activeId,
+    );
     return toProviderConfigPayload(found ?? providerSettings.ollama);
   },
 
@@ -577,12 +651,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { providerSettings } = get();
     const targets: [string, ProviderConfig][] = [
       ["ollama", providerSettings.ollama],
-      ...providerSettings.openAiCompatible.map((c): [string, ProviderConfig] => [c.id, c]),
+      ...providerSettings.openAiCompatible.map(
+        (c): [string, ProviderConfig] => [c.id, c],
+      ),
     ];
     const results = await Promise.all(
       targets.map(async ([id, config]) => {
         try {
-          const connected = await api.checkProviderConnection(toProviderConfigPayload(config));
+          const connected = await api.checkProviderConnection(
+            toProviderConfigPayload(config),
+          );
           return [id, connected] as const;
         } catch {
           return [id, false] as const;
@@ -590,7 +668,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }),
     );
     set((s) => ({
-      providerConnectivity: { ...s.providerConnectivity, ...Object.fromEntries(results) },
+      providerConnectivity: {
+        ...s.providerConnectivity,
+        ...Object.fromEntries(results),
+      },
     }));
   },
 
@@ -598,16 +679,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setOllamaHost: (host) =>
     set((s) => {
-      const providerSettings = { ...s.providerSettings, ollama: { kind: "ollama" as const, host } };
+      const providerSettings = {
+        ...s.providerSettings,
+        ollama: { kind: "ollama" as const, host },
+      };
       saveProviderSettings(providerSettings);
       return { providerSettings };
     }),
 
   saveOpenAiCompatibleConfig: (config) =>
     set((s) => {
-      const exists = s.providerSettings.openAiCompatible.some((c) => c.id === config.id);
+      const exists = s.providerSettings.openAiCompatible.some(
+        (c) => c.id === config.id,
+      );
       const openAiCompatible = exists
-        ? s.providerSettings.openAiCompatible.map((c) => (c.id === config.id ? config : c))
+        ? s.providerSettings.openAiCompatible.map((c) =>
+            c.id === config.id ? config : c,
+          )
         : [...s.providerSettings.openAiCompatible, config];
       const providerSettings = { ...s.providerSettings, openAiCompatible };
       saveProviderSettings(providerSettings);
@@ -616,9 +704,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   deleteOpenAiCompatibleConfig: (id) =>
     set((s) => {
-      const openAiCompatible = s.providerSettings.openAiCompatible.filter((c) => c.id !== id);
-      const activeId = s.providerSettings.activeId === id ? "ollama" : s.providerSettings.activeId;
-      const providerSettings = { ...s.providerSettings, openAiCompatible, activeId };
+      const openAiCompatible = s.providerSettings.openAiCompatible.filter(
+        (c) => c.id !== id,
+      );
+      const activeId =
+        s.providerSettings.activeId === id
+          ? "ollama"
+          : s.providerSettings.activeId;
+      const providerSettings = {
+        ...s.providerSettings,
+        openAiCompatible,
+        activeId,
+      };
       saveProviderSettings(providerSettings);
       return { providerSettings };
     }),
@@ -641,7 +738,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     let commandChanged = true;
     set((s) => {
       const existing = s.agentBackend.acpAgents.find((c) => c.id === config.id);
-      commandChanged = !existing || existing.launchCommand !== config.launchCommand;
+      commandChanged =
+        !existing || existing.launchCommand !== config.launchCommand;
       const acpAgents = existing
         ? s.agentBackend.acpAgents.map((c) => (c.id === config.id ? config : c))
         : [...s.agentBackend.acpAgents, config];
@@ -667,7 +765,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((s) => {
       const acpAgents = s.agentBackend.acpAgents.filter((c) => c.id !== id);
       const activeAcpId =
-        s.agentBackend.activeAcpId === id ? (acpAgents[0]?.id ?? null) : s.agentBackend.activeAcpId;
+        s.agentBackend.activeAcpId === id
+          ? (acpAgents[0]?.id ?? null)
+          : s.agentBackend.activeAcpId;
       const agentBackend = { ...s.agentBackend, acpAgents, activeAcpId };
       saveAgentBackend(agentBackend);
       const acpModelCache = Object.fromEntries(
@@ -684,13 +784,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }),
 
   fetchAcpModelsFor: async (agentId) => {
-    if (agentId in get().acpModelCache || acpModelFetchesInFlight.has(agentId)) return;
+    if (agentId in get().acpModelCache || acpModelFetchesInFlight.has(agentId))
+      return;
     const agent = get().agentBackend.acpAgents.find((c) => c.id === agentId);
     if (!agent) return;
     acpModelFetchesInFlight.add(agentId);
     try {
       const options = await api.fetchAcpModels(agent.launchCommand);
-      set((s) => ({ acpModelCache: { ...s.acpModelCache, [agentId]: options } }));
+      set((s) => ({
+        acpModelCache: { ...s.acpModelCache, [agentId]: options },
+      }));
     } catch {
       // Agent failed to launch/connect for discovery — cache the miss too,
       // so a broken command doesn't get retried on every popover open.
@@ -708,7 +811,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setConversationBackend: (sessionId, selection) =>
     set((s) => {
-      const conversationBackend = { ...s.conversationBackend, [sessionId]: selection };
+      const conversationBackend = {
+        ...s.conversationBackend,
+        [sessionId]: selection,
+      };
       saveConversationBackendMap(conversationBackend);
       return { conversationBackend };
     }),
@@ -717,7 +823,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((s) => ({
       subAgentTasks: [
         ...s.subAgentTasks,
-        { subSessionId, parentSessionId, description, status: "running", startedAt: Date.now() },
+        {
+          subSessionId,
+          parentSessionId,
+          description,
+          status: "running",
+          startedAt: Date.now(),
+        },
       ],
     })),
 
@@ -734,7 +846,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           status: r.status,
           startedAt: r.startedAt * 1000,
         }));
-      return fromDb.length ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] } : s;
+      return fromDb.length
+        ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] }
+        : s;
     });
   },
 
@@ -754,7 +868,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       );
       if (removedIds.size === 0) return s;
 
-      const subAgentTasks = s.subAgentTasks.filter((t) => !removedIds.has(t.subSessionId));
+      const subAgentTasks = s.subAgentTasks.filter(
+        (t) => !removedIds.has(t.subSessionId),
+      );
       const subAgentThreads = Object.fromEntries(
         Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
       );
@@ -768,10 +884,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }),
 
   openPanelTab: (kind, opts) => {
-    const id = kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);
+    const id =
+      kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);
     const existing = get().panelTabs.find((t) => t.id === id);
     if (existing) {
-      set({ activePanelTabId: id, activePath: existing.kind === "file" ? existing.path! : null });
+      set({
+        activePanelTabId: id,
+        activePath: existing.kind === "file" ? existing.path! : null,
+      });
       return;
     }
     const defaultLabels: Record<PanelTabKind, string> = {
@@ -800,7 +920,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const closed = s.panelTabs[idx];
       const panelTabs = s.panelTabs.filter((t) => t.id !== id);
       const openFiles =
-        closed.kind === "file" ? s.openFiles.filter((f) => f.path !== closed.path) : s.openFiles;
+        closed.kind === "file"
+          ? s.openFiles.filter((f) => f.path !== closed.path)
+          : s.openFiles;
 
       let activePanelTabId = s.activePanelTabId;
       let activePath = s.activePath;
@@ -828,7 +950,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         return { activeChatTabId: id };
       }
       return {
-        chatTabs: [...s.chatTabs, { id, kind: "subagent", subSessionId, label }],
+        chatTabs: [
+          ...s.chatTabs,
+          { id, kind: "subagent", subSessionId, label },
+        ],
         activeChatTabId: id,
       };
     });
@@ -838,7 +963,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((s) => {
       if (id === "primary") return s;
       const chatTabs = s.chatTabs.filter((t) => t.id !== id);
-      const activeChatTabId = s.activeChatTabId === id ? "primary" : s.activeChatTabId;
+      const activeChatTabId =
+        s.activeChatTabId === id ? "primary" : s.activeChatTabId;
       return { chatTabs, activeChatTabId };
     }),
 
@@ -871,15 +997,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
         delete next[sessionId];
         delete nextAutonomous[sessionId];
       }
-      return { generatingSessions: next, autonomousGeneratingSessions: nextAutonomous };
+      return {
+        generatingSessions: next,
+        autonomousGeneratingSessions: nextAutonomous,
+      };
     }),
 
   addPendingPermission: (payload) =>
-    set((s) => ({ pendingPermissions: { ...s.pendingPermissions, [payload.sessionId]: payload } })),
+    set((s) => ({
+      pendingPermissions: {
+        ...s.pendingPermissions,
+        [payload.sessionId]: payload,
+      },
+    })),
 
   resolvePendingPermission: (id) =>
     set((s) => {
-      const entry = Object.entries(s.pendingPermissions).find(([, p]) => p.id === id);
+      const entry = Object.entries(s.pendingPermissions).find(
+        ([, p]) => p.id === id,
+      );
       if (!entry) return s;
       const pendingPermissions = { ...s.pendingPermissions };
       delete pendingPermissions[entry[0]];

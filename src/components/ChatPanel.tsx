@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   Bot,
@@ -12,23 +11,28 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { useAppStore, permissionForSession } from "../store";
-import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
+import { useEffect, useRef, useState } from "react";
+import {
+  appendChunk,
+  appendThinking,
+  appendToolCall,
+  applyToolResult,
+  type Entry,
+  isToolError,
+  messagesToEntries,
+  type ToolCallPayload,
+  type ToolResultPayload,
+} from "../lib/chatEntries";
+import {
+  type AcpCommandInfo,
+  type AcpModelOptions,
+  api,
+} from "../lib/tauriApi";
+import { permissionForSession, useAppStore } from "../store";
+import Button from "./Button";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
 import PermissionPopover from "./PermissionPopover";
-import Button from "./Button";
-import {
-  type Entry,
-  type ToolCallPayload,
-  type ToolResultPayload,
-  appendThinking,
-  appendChunk,
-  appendToolCall,
-  applyToolResult,
-  isToolError,
-  messagesToEntries,
-} from "../lib/chatEntries";
 
 interface SubtaskThread {
   subSessionId: string;
@@ -73,7 +77,10 @@ function addSubtaskThread(
     entry.kind === "tool" && entry.callId === callId
       ? {
           ...entry,
-          subtasks: [...(entry.subtasks ?? []), { subSessionId, description, entries: [] }],
+          subtasks: [
+            ...(entry.subtasks ?? []),
+            { subSessionId, description, entries: [] },
+          ],
         }
       : entry,
   );
@@ -86,11 +93,17 @@ function updateSubtaskThread(
   updater: (entries: Entry[]) => Entry[],
 ): PanelEntry[] {
   return prev.map((entry) => {
-    if (entry.kind !== "tool" || entry.callId !== callId || !entry.subtasks) return entry;
-    const idx = entry.subtasks.findIndex((t) => t.subSessionId === subSessionId);
+    if (entry.kind !== "tool" || entry.callId !== callId || !entry.subtasks)
+      return entry;
+    const idx = entry.subtasks.findIndex(
+      (t) => t.subSessionId === subSessionId,
+    );
     if (idx === -1) return entry;
     const subtasks = [...entry.subtasks];
-    subtasks[idx] = { ...subtasks[idx], entries: updater(subtasks[idx].entries) };
+    subtasks[idx] = {
+      ...subtasks[idx],
+      entries: updater(subtasks[idx].entries),
+    };
     return { ...entry, subtasks };
   });
 }
@@ -107,7 +120,9 @@ function Chevron({ expanded }: { expanded: boolean }) {
 function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
-      <div className={entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}>
+      <div
+        className={entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}
+      >
         <div className="text-[9px] uppercase tracking-wide text-zinc-700">
           {entry.role === "user" ? "task" : "sub-agent"}
         </div>
@@ -172,7 +187,11 @@ const INPUT_MAX_ROWS = 6;
 // `acpCommands`) so they show up in the same autocomplete popover; a
 // local command wins over an agent-advertised one of the same name.
 const LOCAL_COMMANDS: AcpCommandInfo[] = [
-  { name: "clear", description: "Clear this conversation's history", hint: null },
+  {
+    name: "clear",
+    description: "Clear this conversation's history",
+    hint: null,
+  },
   { name: "model", description: "Open the model/agent picker", hint: null },
   { name: "help", description: "List available commands", hint: null },
 ];
@@ -223,22 +242,32 @@ export default function ChatPanel() {
   });
   const [providerActiveId, setProviderActiveId] = useState<string>(() => {
     const st = useAppStore.getState();
-    return st.conversationBackend[sessionId]?.providerActiveId ?? st.providerSettings.activeId;
+    return (
+      st.conversationBackend[sessionId]?.providerActiveId ??
+      st.providerSettings.activeId
+    );
   });
   const [acpActiveId, setAcpActiveId] = useState<string | null>(() => {
     const st = useAppStore.getState();
-    return st.conversationBackend[sessionId]?.acpActiveId ?? st.agentBackend.activeAcpId;
+    return (
+      st.conversationBackend[sessionId]?.acpActiveId ??
+      st.agentBackend.activeAcpId
+    );
   });
   const [acpModelChoice, setAcpModelChoice] = useState<string | null>(
-    () => useAppStore.getState().conversationBackend[sessionId]?.acpModel ?? null,
+    () =>
+      useAppStore.getState().conversationBackend[sessionId]?.acpModel ?? null,
   );
   const isAcp = kind === "acp";
   const isOpenAiCompatible = !isAcp && providerActiveId !== "ollama";
-  const activeAcpAgent = agentBackend.acpAgents.find((c) => c.id === acpActiveId);
+  const activeAcpAgent = agentBackend.acpAgents.find(
+    (c) => c.id === acpActiveId,
+  );
   // Only set if the connected ACP agent advertises a Model config option
   // (see docs/features/agent-chat.md) — most agents won't, in which case
   // this stays null and no model dropdown shows for ACP mode.
-  const [acpModelOptions, setAcpModelOptions] = useState<AcpModelOptions | null>(null);
+  const [acpModelOptions, setAcpModelOptions] =
+    useState<AcpModelOptions | null>(null);
   // Slash commands the connected ACP agent advertises, if any — most agents
   // won't send this notification at all, in which case typing "/" does
   // nothing special. See `chat://{sessionId}/acp_commands` below.
@@ -258,11 +287,15 @@ export default function ChatPanel() {
   // mounted regardless of which project is currently open, same pattern as
   // `generatingSessions`.
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
-  const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
+  const resolvePendingPermission = useAppStore(
+    (s) => s.resolvePendingPermission,
+  );
   const pendingPermission = permissionForSession(pendingPermissions, sessionId);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
-  const clearSubAgentTasksForParent = useAppStore((s) => s.clearSubAgentTasksForParent);
+  const clearSubAgentTasksForParent = useAppStore(
+    (s) => s.clearSubAgentTasksForParent,
+  );
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
   // Backend-driven, independent of this component's mount lifecycle (see
@@ -274,13 +307,17 @@ export default function ChatPanel() {
   // on those, so they shouldn't show the Stop button or block a new send;
   // see `autonomousGeneratingSessions`.
   const generating = useAppStore(
-    (s) => !!s.generatingSessions[sessionId] && !s.autonomousGeneratingSessions[sessionId],
+    (s) =>
+      !!s.generatingSessions[sessionId] &&
+      !s.autonomousGeneratingSessions[sessionId],
   );
   const [model, setModel] = useState(
     () => useAppStore.getState().conversationBackend[sessionId]?.model ?? "",
   );
   const [entries, setEntries] = useState<PanelEntry[]>([]);
-  const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
+  const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
+    {},
+  );
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [input, setInput] = useState("");
   // Initialized from the global (backend-driven) state so a session that's
@@ -289,14 +326,20 @@ export default function ChatPanel() {
   // too, for instant feedback ahead of the round-trip.
   const [sending, setSending] = useState(() => {
     const st = useAppStore.getState();
-    return !!st.generatingSessions[sessionId] && !st.autonomousGeneratingSessions[sessionId];
+    return (
+      !!st.generatingSessions[sessionId] &&
+      !st.autonomousGeneratingSessions[sessionId]
+    );
   });
 
   useEffect(() => {
     setSending(generating);
   }, [generating]);
   const [ollamaError, setOllamaError] = useState<string | null>(null);
-  const [usage, setUsage] = useState<{ prompt: number; completion: number } | null>(null);
+  const [usage, setUsage] = useState<{
+    prompt: number;
+    completion: number;
+  } | null>(null);
   const [showUsagePopover, setShowUsagePopover] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
@@ -351,7 +394,15 @@ export default function ChatPanel() {
       model,
       acpModel: acpModelChoice,
     });
-  }, [sessionId, kind, providerActiveId, acpActiveId, model, acpModelChoice, setConversationBackend]);
+  }, [
+    sessionId,
+    kind,
+    providerActiveId,
+    acpActiveId,
+    model,
+    acpModelChoice,
+    setConversationBackend,
+  ]);
 
   // Model options are per-connection (they only exist once a session's ACP
   // subprocess replies to session/new) — clear the stale ones, and the
@@ -429,7 +480,12 @@ export default function ChatPanel() {
     } else if (connected === true) {
       setOllamaError(null);
     }
-  }, [providerConnectivity, providerActiveId, isAcp, providerSettings.ollama.host]);
+  }, [
+    providerConnectivity,
+    providerActiveId,
+    isAcp,
+    providerSettings.ollama.host,
+  ]);
 
   useEffect(() => {
     const unlistens: Promise<() => void>[] = [];
@@ -450,22 +506,30 @@ export default function ChatPanel() {
     // real type hole.
     unlistens.push(
       listen<string>(`chat://${sessionId}/thinking`, (e) => {
-        setEntries((prev) => appendThinking(prev as Entry[], e.payload) as PanelEntry[]);
+        setEntries(
+          (prev) => appendThinking(prev as Entry[], e.payload) as PanelEntry[],
+        );
       }),
     );
     unlistens.push(
       listen<string>(`chat://${sessionId}/chunk`, (e) => {
-        setEntries((prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[]);
+        setEntries(
+          (prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[],
+        );
       }),
     );
     unlistens.push(
       listen<ToolCallPayload>(`chat://${sessionId}/tool_call`, (e) => {
-        setEntries((prev) => appendToolCall(prev as Entry[], e.payload) as PanelEntry[]);
+        setEntries(
+          (prev) => appendToolCall(prev as Entry[], e.payload) as PanelEntry[],
+        );
       }),
     );
     unlistens.push(
       listen<ToolResultPayload>(`chat://${sessionId}/tool_result`, (e) => {
-        setEntries((prev) => applyToolResult(prev as Entry[], e.payload) as PanelEntry[]);
+        setEntries(
+          (prev) => applyToolResult(prev as Entry[], e.payload) as PanelEntry[],
+        );
       }),
     );
     unlistens.push(
@@ -508,8 +572,14 @@ export default function ChatPanel() {
         const { subSessionId, description } = e.payload;
         const callId = String(e.payload.callId);
 
-        setEntries((prev) => addSubtaskThread(prev, callId, subSessionId, description));
-        startSubAgentTask({ subSessionId, parentSessionId: sessionId, description });
+        setEntries((prev) =>
+          addSubtaskThread(prev, callId, subSessionId, description),
+        );
+        startSubAgentTask({
+          subSessionId,
+          parentSessionId: sessionId,
+          description,
+        });
         // Surface the running sub-agent immediately rather than leaving the
         // user to notice it under a collapsed tool-call entry.
         openPanelTab("subagents");
@@ -531,7 +601,9 @@ export default function ChatPanel() {
                 appendThinking(sub, ev.payload),
               ),
             );
-            setSubAgentEntries(subSessionId, (prev) => appendThinking(prev, ev.payload));
+            setSubAgentEntries(subSessionId, (prev) =>
+              appendThinking(prev, ev.payload),
+            );
           }),
         );
         unlistens.push(
@@ -541,7 +613,9 @@ export default function ChatPanel() {
                 appendChunk(sub, ev.payload),
               ),
             );
-            setSubAgentEntries(subSessionId, (prev) => appendChunk(prev, ev.payload));
+            setSubAgentEntries(subSessionId, (prev) =>
+              appendChunk(prev, ev.payload),
+            );
           }),
         );
         unlistens.push(
@@ -551,18 +625,25 @@ export default function ChatPanel() {
                 appendToolCall(sub, ev.payload),
               ),
             );
-            setSubAgentEntries(subSessionId, (prev) => appendToolCall(prev, ev.payload));
+            setSubAgentEntries(subSessionId, (prev) =>
+              appendToolCall(prev, ev.payload),
+            );
           }),
         );
         unlistens.push(
-          listen<ToolResultPayload>(`chat://${subSessionId}/tool_result`, (ev) => {
-            setEntries((prev) =>
-              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                applyToolResult(sub, ev.payload),
-              ),
-            );
-            setSubAgentEntries(subSessionId, (prev) => applyToolResult(prev, ev.payload));
-          }),
+          listen<ToolResultPayload>(
+            `chat://${subSessionId}/tool_result`,
+            (ev) => {
+              setEntries((prev) =>
+                updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                  applyToolResult(sub, ev.payload),
+                ),
+              );
+              setSubAgentEntries(subSessionId, (prev) =>
+                applyToolResult(prev, ev.payload),
+              );
+            },
+          ),
         );
       }),
     );
@@ -570,7 +651,13 @@ export default function ChatPanel() {
     return () => {
       unlistens.forEach((u) => u.then((f) => f()));
     };
-  }, [sessionId, startSubAgentTask, finishSubAgentTask, openPanelTab, setSubAgentEntries]);
+  }, [
+    sessionId,
+    startSubAgentTask,
+    finishSubAgentTask,
+    openPanelTab,
+    setSubAgentEntries,
+  ]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
@@ -610,7 +697,9 @@ export default function ChatPanel() {
   // `COMPACT_COMMAND`. Local commands first, then whatever the connected
   // ACP agent advertises (skipping any name a local command already
   // covers) — see `LOCAL_COMMANDS`.
-  const localCommands = isAcp ? LOCAL_COMMANDS : [...LOCAL_COMMANDS, COMPACT_COMMAND];
+  const localCommands = isAcp
+    ? LOCAL_COMMANDS
+    : [...LOCAL_COMMANDS, COMPACT_COMMAND];
   const allCommands = [
     ...localCommands,
     ...acpCommands.filter((c) => !localCommands.some((l) => l.name === c.name)),
@@ -653,9 +742,17 @@ export default function ChatPanel() {
       setOllamaError(null);
       setSending(true);
       try {
-        const summary = await api.compactConversation(sessionId, providerConfigFor(providerActiveId), model);
+        const summary = await api.compactConversation(
+          sessionId,
+          providerConfigFor(providerActiveId),
+          model,
+        );
         setEntries([
-          { kind: "info", content: `Conversation compacted:\n\n${summary}`, time: Date.now() },
+          {
+            kind: "info",
+            content: `Conversation compacted:\n\n${summary}`,
+            time: Date.now(),
+          },
         ]);
         setUsage(null);
       } catch (e) {
@@ -706,7 +803,8 @@ export default function ChatPanel() {
       await runLocalCommand(localMatch[1]);
       return;
     }
-    if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent)) return;
+    if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent))
+      return;
     setInput("");
     setOllamaError(null);
     setEntries((prev) => [
@@ -718,7 +816,12 @@ export default function ChatPanel() {
       if (isAcp && activeAcpAgent) {
         await api.sendPromptAcp(sessionId, activeAcpAgent.launchCommand, text);
       } else {
-        await api.sendPrompt(sessionId, providerConfigFor(providerActiveId), model, text);
+        await api.sendPrompt(
+          sessionId,
+          providerConfigFor(providerActiveId),
+          model,
+          text,
+        );
       }
     } catch (e) {
       setOllamaError(String(e));
@@ -734,9 +837,12 @@ export default function ChatPanel() {
   const slashQuery = /^\/(\S*)$/.exec(input)?.[1] ?? null;
   const slashMatches =
     slashQuery !== null
-      ? allCommands.filter((c) => c.name.toLowerCase().startsWith(slashQuery.toLowerCase()))
+      ? allCommands.filter((c) =>
+          c.name.toLowerCase().startsWith(slashQuery.toLowerCase()),
+        )
       : [];
-  const showSlashPopover = slashMatches.length > 0 && slashDismissed !== slashQuery;
+  const showSlashPopover =
+    slashMatches.length > 0 && slashDismissed !== slashQuery;
   const slashActiveIndex = Math.min(slashIndex, slashMatches.length - 1);
   // Mirrors `send()`'s own check — a leading space ("!" escaped as " !")
   // means "just send this as text", so it's not shell mode either.
@@ -802,7 +908,9 @@ export default function ChatPanel() {
   }
 
   async function selectAcpModel(value: string) {
-    setAcpModelOptions((prev) => (prev ? { ...prev, currentValue: value } : prev));
+    setAcpModelOptions((prev) =>
+      prev ? { ...prev, currentValue: value } : prev,
+    );
     try {
       await api.setAcpModel(sessionId, value);
     } catch (e) {
@@ -830,7 +938,11 @@ export default function ChatPanel() {
     });
     setSending(true);
     try {
-      await api.retryLast(sessionId, providerConfigFor(providerActiveId), model);
+      await api.retryLast(
+        sessionId,
+        providerConfigFor(providerActiveId),
+        model,
+      );
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -859,8 +971,18 @@ export default function ChatPanel() {
   // (unfetched yet, or the agent doesn't expose a model to pick).
   const backendOptions: PickerOption[] = [
     ...(models.length > 0
-      ? models.map((m) => ({ key: `ollama:${m.name}`, label: m.name, subtitle: "Ollama" }))
-      : [{ key: "ollama", label: "Ollama", subtitle: providerSettings.ollama.host || "localhost:11434" }]),
+      ? models.map((m) => ({
+          key: `ollama:${m.name}`,
+          label: m.name,
+          subtitle: "Ollama",
+        }))
+      : [
+          {
+            key: "ollama",
+            label: "Ollama",
+            subtitle: providerSettings.ollama.host || "localhost:11434",
+          },
+        ]),
     ...providerSettings.openAiCompatible.map((c) => ({
       key: `openai:${c.id}`,
       label: c.label,
@@ -873,7 +995,8 @@ export default function ChatPanel() {
       // this conversation is actually connected to right now — that's
       // strictly fresher, and covers the rare case where the cache fetch
       // failed but a real chat still succeeded.
-      const known = acpModelCache[c.id] ?? (c.id === acpActiveId ? acpModelOptions : null);
+      const known =
+        acpModelCache[c.id] ?? (c.id === acpActiveId ? acpModelOptions : null);
       if (known && known.options.length > 0) {
         return known.options.map((o) => ({
           key: `acp:${c.id}:${o.value}`,
@@ -896,7 +1019,9 @@ export default function ChatPanel() {
   const activeAcpModelValue =
     acpModelChoice ??
     acpModelOptions?.currentValue ??
-    (activeAcpAgent ? acpModelCache[activeAcpAgent.id]?.currentValue : undefined) ??
+    (activeAcpAgent
+      ? acpModelCache[activeAcpAgent.id]?.currentValue
+      : undefined) ??
     null;
   const activeBackendKey = isAcp
     ? activeAcpAgent
@@ -919,12 +1044,13 @@ export default function ChatPanel() {
       // model would be actively wrong, not just imprecise. Only fall back
       // to the agent label when no model has actually been chosen at all.
       (backendOptions.find((o) => o.key === activeBackendKey)?.label ??
-        activeAcpModelValue ??
-        activeAcpAgent?.label ??
-        "select agent")
+      activeAcpModelValue ??
+      activeAcpAgent?.label ??
+      "select agent")
     : isOpenAiCompatible
-      ? (providerSettings.openAiCompatible.find((c) => c.id === providerActiveId)?.label ??
-        "select provider")
+      ? (providerSettings.openAiCompatible.find(
+          (c) => c.id === providerActiveId,
+        )?.label ?? "select provider")
       : model || "select model";
 
   function selectBackendOption(key: string) {
@@ -971,111 +1097,196 @@ export default function ChatPanel() {
   }
 
   const usagePct =
-    usedTokens !== null && contextLength ? Math.min(100, (usedTokens / contextLength) * 100) : null;
+    usedTokens !== null && contextLength
+      ? Math.min(100, (usedTokens / contextLength) * 100)
+      : null;
 
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
       <div className="relative flex-1 overflow-hidden">
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="h-full overflow-y-auto p-3 space-y-3 text-sm"
-      >
-        {systemPrompt && (
-          <div className="text-xs">
-            <Button
-              variant="unstyled"
-              size="none"
-              onClick={() => setSystemPromptExpanded((v) => !v)}
-              className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
-            >
-              <Chevron expanded={systemPromptExpanded} />
-              <span className="italic">system prompt</span>
-            </Button>
-            {systemPromptExpanded && (
-              <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 text-zinc-600">
-                {systemPrompt}
-              </pre>
-            )}
-          </div>
-        )}
-        {entries.length === 0 && !ollamaError && (
-          <div className="text-zinc-500">
-            Ask the agent anything about this project.
-          </div>
-        )}
-        {ollamaError && (
-          <div className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-            {ollamaError}
-          </div>
-        )}
-        {entries.map((entry, i) => {
-          if (entry.kind === "info") {
-            return (
-              <div
-                key={i}
-                className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
+        <div
+          ref={scrollRef}
+          onScroll={onScroll}
+          className="h-full overflow-y-auto p-3 space-y-3 text-sm"
+        >
+          {systemPrompt && (
+            <div className="text-xs">
+              <Button
+                variant="unstyled"
+                size="none"
+                onClick={() => setSystemPromptExpanded((v) => !v)}
+                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
               >
-                <Markdown content={entry.content} />
-              </div>
-            );
-          }
-          if (entry.kind === "text") {
-            const isLast = i === entries.length - 1;
-            const isUser = entry.role === "user";
-            return (
-              <div
-                key={i}
-                className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
-              >
-                <Markdown content={entry.content} />
-                  
+                <Chevron expanded={systemPromptExpanded} />
+                <span className="italic">system prompt</span>
+              </Button>
+              {systemPromptExpanded && (
+                <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 text-zinc-600">
+                  {systemPrompt}
+                </pre>
+              )}
+            </div>
+          )}
+          {entries.length === 0 && !ollamaError && (
+            <div className="text-zinc-500">
+              Ask the agent anything about this project.
+            </div>
+          )}
+          {ollamaError && (
+            <div className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+              {ollamaError}
+            </div>
+          )}
+          {entries.map((entry, i) => {
+            if (entry.kind === "info") {
+              return (
                 <div
-                  className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                  key={i}
+                  className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
                 >
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => copyText(i, entry.content)}
-                    title="Copy"
-                    className="text-zinc-600 hover:text-zinc-300"
+                  <Markdown content={entry.content} />
+                </div>
+              );
+            }
+            if (entry.kind === "text") {
+              const isLast = i === entries.length - 1;
+              const isUser = entry.role === "user";
+              return (
+                <div
+                  key={i}
+                  className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
+                >
+                  <Markdown content={entry.content} />
+
+                  <div
+                    className={`mt-2 flex items-center gap-2 mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                   >
-                    {copiedIndex === i ? <Check size={13} /> : <Copy size={13} />}
-                  </Button>
-                  {!sending && isLast && !isAcp && (
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={retry}
-                      title="Retry"
+                      onClick={() => copyText(i, entry.content)}
+                      title="Copy"
                       className="text-zinc-600 hover:text-zinc-300"
                     >
-                      <RotateCcw size={13} />
+                      {copiedIndex === i ? (
+                        <Check size={13} />
+                      ) : (
+                        <Copy size={13} />
+                      )}
                     </Button>
-                  )}
-                  <span className="normal-case tracking-normal text-zinc-700">
-                    {formatTime(entry.time)}
-                  </span>
+                    {!sending && isLast && !isAcp && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={retry}
+                        title="Retry"
+                        className="text-zinc-600 hover:text-zinc-300"
+                      >
+                        <RotateCcw size={13} />
+                      </Button>
+                    )}
+                    <span className="normal-case tracking-normal text-zinc-700">
+                      {formatTime(entry.time)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          }
-          if (entry.kind === "thinking") {
+              );
+            }
+            if (entry.kind === "thinking") {
+              const expanded = isExpanded(i);
+              return (
+                <div key={i} className="text-xs">
+                  <Button
+                    variant="unstyled"
+                    size="none"
+                    onClick={() => toggle(i)}
+                    className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                  >
+                    <Chevron expanded={expanded} />
+                    <span className="italic">generating slop…</span>
+                  </Button>
+                  {expanded && (
+                    <div className="mt-1 ml-4 whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 italic text-zinc-600">
+                      {entry.content}
+                    </div>
+                  )}
+                </div>
+              );
+            }
             const expanded = isExpanded(i);
+            const failed = isToolError(entry.result);
             return (
-              <div key={i} className="text-xs">
+              <div
+                key={i}
+                className={`rounded border px-2.5 py-1.5 text-xs ${
+                  failed
+                    ? "border-red-900/50 bg-red-950/10"
+                    : "border-[#26272c] bg-[#141518]"
+                }`}
+              >
                 <Button
                   variant="unstyled"
                   size="none"
                   onClick={() => toggle(i)}
-                  className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                  className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
                 >
                   <Chevron expanded={expanded} />
-                  <span className="italic">generating slop…</span>
+                  {entry.name === "spawn_sub_agent" ||
+                  entry.name === "sub_agent_result" ? (
+                    <Bot
+                      size={12}
+                      className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+                    />
+                  ) : (
+                    <Wrench
+                      size={12}
+                      className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+                    />
+                  )}
+                  <span className="shrink-0">{entry.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-zinc-600">
+                    {!expanded ? JSON.stringify(entry.args) : ""}
+                  </span>
+                  {entry.result === undefined && (
+                    <span className="shrink-0 text-zinc-600">running…</span>
+                  )}
+                  {failed && (
+                    <span className="shrink-0 text-red-400">failed</span>
+                  )}
                 </Button>
                 {expanded && (
-                  <div className="mt-1 ml-4 whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 italic text-zinc-600">
-                    {entry.content}
+                  <div className="mt-1 pl-4">
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
+                      {JSON.stringify(entry.args, null, 2)}
+                    </pre>
+                    {entry.subtasks && entry.subtasks.length > 0 && (
+                      <div className="mt-1.5 space-y-2">
+                        {entry.subtasks.map((t) => (
+                          <div
+                            key={t.subSessionId}
+                            className="border-l-2 border-[#26272c] pl-2"
+                          >
+                            <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+                              {t.description}
+                            </div>
+                            <div className="space-y-1.5">
+                              {t.entries.map((sub, j) => (
+                                <SubEntryLine key={j} entry={sub} />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {entry.result !== undefined && (
+                      <pre
+                        className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
+                          failed ? "text-red-300" : "text-zinc-500"
+                        }`}
+                      >
+                        {entry.result}
+                      </pre>
+                    )}
                   </div>
                 )}
               </div>
@@ -1087,7 +1298,9 @@ export default function ChatPanel() {
             <div
               key={i}
               className={`rounded border px-2.5 py-1.5 text-xs ${
-                failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
+                failed
+                  ? "border-red-900/50 bg-red-950/10"
+                  : "border-[#26272c] bg-[#141518]"
               }`}
             >
               <Button
@@ -1097,19 +1310,28 @@ export default function ChatPanel() {
                 className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
               >
                 <Chevron expanded={expanded} />
-                {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
-                  <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+                {entry.name === "spawn_sub_agent" ||
+                entry.name === "sub_agent_result" ? (
+                  <Bot
+                    size={12}
+                    className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+                  />
                 ) : (
-                  <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+                  <Wrench
+                    size={12}
+                    className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+                  />
                 )}
                 <span className="shrink-0">{entry.name}</span>
                 <span className="min-w-0 flex-1 truncate text-zinc-600">
-                  {!expanded ? JSON.stringify(entry.args) : ''}
+                  {!expanded ? JSON.stringify(entry.args) : ""}
                 </span>
                 {entry.result === undefined && (
                   <span className="shrink-0 text-zinc-600">running…</span>
                 )}
-                {failed && <span className="shrink-0 text-red-400">failed</span>}
+                {failed && (
+                  <span className="shrink-0 text-red-400">failed</span>
+                )}
               </Button>
               {expanded && (
                 <div className="mt-1 pl-4">
@@ -1119,7 +1341,10 @@ export default function ChatPanel() {
                   {entry.subtasks && entry.subtasks.length > 0 && (
                     <div className="mt-1.5 space-y-2">
                       {entry.subtasks.map((t) => (
-                        <div key={t.subSessionId} className="border-l-2 border-[#26272c] pl-2">
+                        <div
+                          key={t.subSessionId}
+                          className="border-l-2 border-[#26272c] pl-2"
+                        >
                           <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
                             {t.description}
                           </div>
@@ -1146,7 +1371,9 @@ export default function ChatPanel() {
             </div>
           );
         })}
-        {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
+        {awaitingFirstToken && (
+          <div className="text-zinc-600 text-xs">generating slop…</div>
+        )}
       </div>
       {helpOpen && (
         <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
@@ -1154,7 +1381,12 @@ export default function ChatPanel() {
             <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
               Commands
             </span>
-            <Button variant="ghost" size="icon-sm" onClick={() => setHelpOpen(false)} title="Close">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setHelpOpen(false)}
+              title="Close"
+            >
               <X size={14} />
             </Button>
           </div>
@@ -1164,8 +1396,9 @@ export default function ChatPanel() {
                 !<span className="text-zinc-500"> command</span>
               </div>
               <div className="text-xs text-zinc-500">
-                Run a shell command directly — no permission prompt, result shown as a tool
-                call. Start with a space (" !...") to send a literal message instead.
+                Run a shell command directly — no permission prompt, result shown
+                as a tool call. Start with a space (" !...") to send a literal
+                message instead.
               </div>
             </div>
             {allCommands.map((c) => (
@@ -1183,41 +1416,41 @@ export default function ChatPanel() {
           </div>
         </div>
       )}
-      </div>
       <div className="p-2">
-        <div
-          className={`relative flex flex-col rounded-md border bg-[#17181c] ${
-            shellMode
-              ? "border-emerald-500/60"
-              : "border-[#26272c] focus-within:border-[#3a5f8f]"
-          }`}
-        >
+        <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
           {pendingPermission ? (
-            <PermissionPopover request={pendingPermission} onRespond={respondPermission} />
+            <PermissionPopover
+              request={pendingPermission}
+              onRespond={respondPermission}
+            />
           ) : (
             showSlashPopover && (
-            <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
-              {slashMatches.map((c, i) => (
-                <Button
-                  key={c.name}
-                  variant="unstyled"
-                  size="none"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    acceptSlashCommand(c);
-                  }}
-                  className={`block w-full px-3 py-1.5 text-left ${
-                    i === slashActiveIndex ? "bg-white/10" : "hover:bg-white/5"
-                  }`}
-                >
-                  <div className="text-sm font-medium text-zinc-100">
-                    /{c.name}
-                    {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
-                  </div>
-                  <div className="text-xs text-zinc-500">{c.description}</div>
-                </Button>
-              ))}
-            </div>
+              <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
+                {slashMatches.map((c, i) => (
+                  <Button
+                    key={c.name}
+                    variant="unstyled"
+                    size="none"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      acceptSlashCommand(c);
+                    }}
+                    className={`block w-full px-3 py-1.5 text-left ${
+                      i === slashActiveIndex
+                        ? "bg-white/10"
+                        : "hover:bg-white/5"
+                    }`}
+                  >
+                    <div className="text-sm font-medium text-zinc-100">
+                      /{c.name}
+                      {c.hint && (
+                        <span className="text-zinc-500"> {c.hint}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-zinc-500">{c.description}</div>
+                  </Button>
+                ))}
+              </div>
             )
           )}
           <div className="relative">
@@ -1259,66 +1492,75 @@ export default function ChatPanel() {
               )}
             </div>
             <div className="flex items-center gap-1.5">
-            {!isAcp && usedTokens !== null && (
-              <div
-                className="relative"
-                onMouseEnter={() => setShowUsagePopover(true)}
-                onMouseLeave={() => setShowUsagePopover(false)}
-              >
+              {!isAcp && usedTokens !== null && (
                 <div
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-                  style={{
-                    background:
-                      usagePct !== null
-                        ? `conic-gradient(#3a5f8f ${usagePct}%, #26272c ${usagePct}% 100%)`
-                        : "#26272c",
-                  }}
+                  className="relative"
+                  onMouseEnter={() => setShowUsagePopover(true)}
+                  onMouseLeave={() => setShowUsagePopover(false)}
                 >
-                  <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#17181c] text-[7px] text-zinc-400">
-                    {usagePct !== null ? Math.round(usagePct) : "–"}
+                  <div
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    style={{
+                      background:
+                        usagePct !== null
+                          ? `conic-gradient(#3a5f8f ${usagePct}%, #26272c ${usagePct}% 100%)`
+                          : "#26272c",
+                    }}
+                  >
+                    <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#17181c] text-[7px] text-zinc-400">
+                      {usagePct !== null ? Math.round(usagePct) : "–"}
+                    </div>
                   </div>
+                  {showUsagePopover && (
+                    <div className="absolute bottom-full right-0 z-10 mb-2 w-48 rounded-md border border-[#26272c] bg-[#141518] p-2.5 shadow-xl">
+                      <div className="mb-1.5 flex items-center justify-between text-[10px] text-zinc-400">
+                        <span>Context usage</span>
+                        <span className="font-medium text-zinc-200">
+                          {usagePct !== null ? `${usagePct.toFixed(0)}%` : "–"}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1c1d21]">
+                        <div
+                          className="h-full bg-[#3a5f8f]"
+                          style={{ width: `${usagePct ?? 0}%` }}
+                        />
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-[10px] text-zinc-600">
+                        <span>{formatTokenCount(usedTokens)} used</span>
+                        <span>
+                          {contextLength
+                            ? formatTokenCount(contextLength)
+                            : "?"}{" "}
+                          total
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {showUsagePopover && (
-                  <div className="absolute bottom-full right-0 z-10 mb-2 w-48 rounded-md border border-[#26272c] bg-[#141518] p-2.5 shadow-xl">
-                    <div className="mb-1.5 flex items-center justify-between text-[10px] text-zinc-400">
-                      <span>Context usage</span>
-                      <span className="font-medium text-zinc-200">
-                        {usagePct !== null ? `${usagePct.toFixed(0)}%` : "–"}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1c1d21]">
-                      <div
-                        className="h-full bg-[#3a5f8f]"
-                        style={{ width: `${usagePct ?? 0}%` }}
-                      />
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-zinc-600">
-                      <span>{formatTokenCount(usedTokens)} used</span>
-                      <span>
-                        {contextLength ? formatTokenCount(contextLength) : "?"} total
-                      </span>
-                    </div>
-                  </div>
+              )}
+              <Button
+                variant="unstyled"
+                size="icon"
+                onClick={sending ? stop : send}
+                disabled={
+                  !sending &&
+                  (!input.trim() ||
+                    (!isAcp && !model) ||
+                    (isAcp && !activeAcpAgent))
+                }
+                title={sending ? "Stop" : "Send"}
+                className={`text-white ${
+                  sending
+                    ? "bg-red-600/80 hover:bg-red-600"
+                    : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
+                }`}
+              >
+                {sending ? (
+                  <Square size={13} fill="currentColor" />
+                ) : (
+                  <Send size={14} />
                 )}
-              </div>
-            )}
-            <Button
-              variant="unstyled"
-              size="icon"
-              onClick={sending ? stop : send}
-              disabled={
-                !sending &&
-                (!input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent))
-              }
-              title={sending ? "Stop" : "Send"}
-              className={`text-white ${
-                sending
-                  ? "bg-red-600/80 hover:bg-red-600"
-                  : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
-              }`}
-            >
-              {sending ? <Square size={13} fill="currentColor" /> : <Send size={14} />}
-            </Button>
+              </Button>
             </div>
           </div>
         </div>
