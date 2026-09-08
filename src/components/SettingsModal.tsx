@@ -487,21 +487,21 @@ function AboutSection() {
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
       <Logo className="h-14 w-auto" />
       <div className="text-xs text-zinc-600">
-        v{info?.version ?? "…"} · {info?.identifier ?? "…"}
+        v{info?.version ?? "…"} ({__COMMIT_HASH__}
+        {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}
       </div>
-      <div className="text-xs text-zinc-600">A local-first ACP IDE.</div>
       <div className="flex gap-2">
         <button
           onClick={() => openUrl(GITHUB_URL)}
           className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
         >
-          GitHub
+          source code
         </button>
         <button
           onClick={() => openUrl(WEBSITE_URL)}
           className="rounded border border-[#26272c] px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
         >
-          patheticgeek.dev
+          my website
         </button>
       </div>
     </div>
