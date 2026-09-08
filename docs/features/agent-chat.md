@@ -35,7 +35,7 @@ copy of provider settings (`store.ts`'s `providerSettings` — the Ollama
 host, zero or more saved OpenAI-compatible configs, and which one is
 active) lives in `localStorage` only (`ai-leash:providerConfig`),
 including API keys in plaintext — an explicit, deliberate tradeoff for
-this local-first single-user app rather than adding an OS-keychain
+this single-user desktop app rather than adding an OS-keychain
 dependency.
 
 `provider::stream_turn` dispatches on the enum to one of two functions,

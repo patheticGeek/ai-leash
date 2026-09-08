@@ -8,8 +8,7 @@ export const metadata = {
     template: "%s — Docs",
     default: "ai-leash",
   },
-  description:
-    "A local-first IDE with an agent chat built in, not bolted on.",
+  description: "A small, better agentic harness.",
 };
 
 export default async function RootLayout({ children }) {

@@ -1,7 +1,8 @@
 # ai-leash
 
-A small, local-first IDE with an agent chat built in instead of bolted
-on. Dark mode only, no cloud account, no telemetry — it talks to a local
+A small, better agentic harness — the editor, file tree, and terminal
+exist to support the agent chat, not the other way around. Dark mode
+only, no cloud account, no telemetry — it talks to a local
 [Ollama](https://ollama.com) install, with tool calling, permission
 prompts before anything destructive, and sub-agents for splitting up
 work.

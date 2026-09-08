@@ -1,6 +1,6 @@
 # ai-leash features
 
-ai-leash is a local-first, dark-mode-only IDE built on Tauri, with a
+ai-leash is a dark-mode-only agentic harness built on Tauri, with a
 built-in agent runtime that talks to Ollama or an OpenAI-compatible
 provider and executes tools (shell, file read/edit, search) with user
 permission gating — or, as an alternative agent backend, drives an
