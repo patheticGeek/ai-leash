@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import { api, type ModelSummary } from "./lib/tauriApi";
+import { api, type AcpModelOptions, type ModelSummary, type ProviderConfigPayload } from "./lib/tauriApi";
 import type { Entry } from "./lib/chatEntries";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
+const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
+const AGENT_BACKEND_KEY = "ai-leash:agentBackend";
 
 interface OpenFile {
   path: string;
@@ -45,22 +47,192 @@ function saveRecentProjects(projects: RecentProject[]) {
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(projects));
 }
 
+export interface OllamaProviderConfig {
+  kind: "ollama";
+  host: string; // e.g. "localhost:11434"; "" is treated as the default
+}
+
+export interface OpenAiCompatibleProviderConfig {
+  kind: "openAiCompatible";
+  id: string; // stable local id, survives label edits
+  label: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string; // free-text — see docs/features/agent-chat.md on why there's no live model list for this provider kind
+}
+
+export type ProviderConfig = OllamaProviderConfig | OpenAiCompatibleProviderConfig;
+
+interface ProviderSettings {
+  ollama: OllamaProviderConfig;
+  openAiCompatible: OpenAiCompatibleProviderConfig[];
+  activeId: "ollama" | string;
+}
+
+const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
+  ollama: { kind: "ollama", host: "localhost:11434" },
+  openAiCompatible: [],
+  activeId: "ollama",
+};
+
+function loadProviderSettings(): ProviderSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null");
+    if (parsed && typeof parsed === "object") {
+      return {
+        ollama: { kind: "ollama", host: parsed.ollama?.host ?? "localhost:11434" },
+        openAiCompatible: Array.isArray(parsed.openAiCompatible) ? parsed.openAiCompatible : [],
+        activeId: parsed.activeId ?? "ollama",
+      };
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_PROVIDER_SETTINGS;
+}
+
+function saveProviderSettings(settings: ProviderSettings) {
+  localStorage.setItem(PROVIDER_CONFIG_KEY, JSON.stringify(settings));
+}
+
+// Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like
+// `id`/`label`/`model`) down to exactly the shape the backend's
+// `ProviderConfig` enum expects.
+function toProviderConfigPayload(config: ProviderConfig): ProviderConfigPayload {
+  if (config.kind === "ollama") {
+    return { kind: "ollama", host: config.host };
+  }
+  return { kind: "openAiCompatible", baseUrl: config.baseUrl, apiKey: config.apiKey };
+}
+
+// One global agent backend setting (not per-project), same reasoning as
+// `providerSettings` — a session's chat "just uses whatever's active".
+// External ACP support replaces the entire built-in agent loop for a
+// session rather than varying which HTTP API a turn's model call goes to
+// (that's what `ProviderConfig` above is for) — see docs/features/agent-chat.md.
+// Multiple ACP agents can be saved (e.g. Claude Code and Copilot side by
+// side) — same list/activeId shape as `providerSettings.openAiCompatible`.
+export interface AcpAgentConfig {
+  id: string; // stable local id, survives label edits
+  label: string;
+  launchCommand: string; // shell-style command line, e.g. "npx -y @agentclientprotocol/claude-agent-acp@latest"
+}
+
+export interface AgentBackendSettings {
+  kind: "builtin" | "acp";
+  acpAgents: AcpAgentConfig[];
+  activeAcpId: string | null; // id into acpAgents; null if none saved yet
+}
+
+// Known-good launch commands for ACP agents most users already have
+// installed and authenticated via their own CLI login (see plan.md's
+// research notes) — shown in the saved-agents list by default rather than
+// behind a separate "quick add" affordance, so they're discoverable without
+// an extra click. Matched by `launchCommand` (not `id`) against whatever's
+// already saved, so this never creates a duplicate of an entry the user
+// added (or edited) themselves.
+const DEFAULT_ACP_PRESETS: AcpAgentConfig[] = [
+  {
+    id: "acp-preset-claude-code",
+    label: "Claude Code",
+    launchCommand: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+  },
+  { id: "acp-preset-github-copilot", label: "GitHub Copilot", launchCommand: "copilot --acp" },
+];
+
+function withDefaultAcpAgents(agents: AcpAgentConfig[]): AcpAgentConfig[] {
+  const missing = DEFAULT_ACP_PRESETS.filter(
+    (preset) => !agents.some((a) => a.launchCommand === preset.launchCommand),
+  );
+  return [...agents, ...missing];
+}
+
+// Not store state — this only dedupes concurrent `fetchAcpModelsFor` calls
+// for the same agent (e.g. `refreshAcpModelCache`'s `Promise.all` racing
+// against a popover open), it doesn't need to be reactive.
+const acpModelFetchesInFlight = new Set<string>();
+
+const DEFAULT_AGENT_BACKEND: AgentBackendSettings = {
+  kind: "builtin",
+  acpAgents: DEFAULT_ACP_PRESETS,
+  activeAcpId: null,
+};
+
+function loadAgentBackend(): AgentBackendSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AGENT_BACKEND_KEY) ?? "null");
+    if (parsed && typeof parsed === "object") {
+      // Pre-multi-agent shape was `{kind: "acp", launchCommand}` — migrate
+      // it into a single saved entry (seeding the presets alongside it too,
+      // as a one-time thing) so existing users don't lose their setup.
+      if (parsed.kind === "acp" && typeof parsed.launchCommand === "string" && !Array.isArray(parsed.acpAgents)) {
+        const id = crypto.randomUUID();
+        return {
+          kind: "acp",
+          acpAgents: withDefaultAcpAgents([{ id, label: "ACP agent", launchCommand: parsed.launchCommand }]),
+          activeAcpId: id,
+        };
+      }
+      if (parsed.kind === "acp" || parsed.kind === "builtin") {
+        // Once a real `acpAgents` array has been saved, it's authoritative
+        // as-is — no re-seeding here, or deleting a default preset would
+        // silently bring it back on the next reload.
+        return {
+          kind: parsed.kind,
+          acpAgents: Array.isArray(parsed.acpAgents) ? parsed.acpAgents : withDefaultAcpAgents([]),
+          activeAcpId: parsed.activeAcpId ?? null,
+        };
+      }
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_AGENT_BACKEND;
+}
+
+function saveAgentBackend(backend: AgentBackendSettings) {
+  localStorage.setItem(AGENT_BACKEND_KEY, JSON.stringify(backend));
+}
+
+const CONVERSATION_BACKEND_KEY = "ai-leash:conversationBackend";
+
+// Which provider/agent (and which specific model) a given conversation is
+// actually using — kept per-session-id so switching conversations restores
+// what that one last used instead of showing whatever any other
+// conversation most recently touched. `providerSettings.activeId` and
+// `agentBackend.kind`/`activeAcpId` still exist as the *default* a
+// brand-new conversation starts from (and `ChatPanel.tsx` keeps them in
+// sync with the most recent pick, so new conversations inherit something
+// sensible) — once a conversation has one of these, it's authoritative for
+// that conversation from then on, regardless of what changes elsewhere.
+export interface ConversationBackendSelection {
+  kind: "builtin" | "acp";
+  providerActiveId: string; // "ollama" | openAiCompatible config id — meaningful when kind === "builtin"
+  acpActiveId: string | null; // meaningful when kind === "acp"
+  model: string; // Ollama model name, or free-text OpenAI-compatible model id
+  acpModel: string | null; // last explicitly chosen model for the active ACP agent, if any
+}
+
+function loadConversationBackend(): Record<string, ConversationBackendSelection> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONVERSATION_BACKEND_KEY) ?? "{}");
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    // fall through
+  }
+  return {};
+}
+
+function saveConversationBackendMap(map: Record<string, ConversationBackendSelection>) {
+  localStorage.setItem(CONVERSATION_BACKEND_KEY, JSON.stringify(map));
+}
+
 export interface SubAgentTask {
   subSessionId: string;
   parentSessionId: string;
   description: string;
   status: "running" | "done" | "error";
   startedAt: number;
-}
-
-// The Sub Agents sidebar list is a cross-project history now (see
-// `openProject`), not cleared on every switch — capped by age instead, so
-// a long-running app doesn't accumulate it forever.
-export const SUB_AGENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-function dropExpiredSubAgentTasks(tasks: SubAgentTask[]): SubAgentTask[] {
-  const cutoff = Date.now() - SUB_AGENT_MAX_AGE_MS;
-  return tasks.filter((t) => t.startedAt >= cutoff);
 }
 
 export type PanelTabKind = "filetree" | "subagents" | "terminal" | "file";
@@ -92,8 +264,30 @@ interface AppStore {
   projectRoot: string | null;
   openFiles: OpenFile[];
   activePath: string | null;
-  ollamaConnected: boolean | null;
+  // Always Ollama's own list regardless of which provider any conversation
+  // has active — used to populate the picker's per-model Ollama rows (see
+  // ChatPanel.tsx), so it can't go empty just because some conversation
+  // happens to have an OpenAI-compatible provider selected.
   ollamaModels: ModelSummary[];
+  providerSettings: ProviderSettings;
+  // Live reachability per configured provider, keyed by "ollama" or an
+  // openAiCompatible config's `id`, refreshed regardless of which
+  // conversation (if any) currently has it active — each conversation looks
+  // up its own active provider's entry (see ChatPanel.tsx). `null` = not
+  // checked yet.
+  providerConnectivity: Record<string, boolean | null>;
+  agentBackend: AgentBackendSettings;
+  // Per-ACP-agent model list, keyed by `AcpAgentConfig.id`, populated by
+  // briefly spawning and discarding a real connection to that agent (see
+  // `fetchAcpModelsFor`) — an entry missing from this map means "not
+  // fetched yet"; `null` means "fetched, agent has no model option or
+  // failed to connect". Lets `ChatPanel`'s picker show per-model rows for
+  // an ACP agent before the user has ever actually chatted with it.
+  acpModelCache: Record<string, AcpModelOptions | null>;
+  // Per-conversation backend/model choice, keyed by session id — see
+  // `ConversationBackendSelection`'s doc comment.
+  conversationBackend: Record<string, ConversationBackendSelection>;
+  settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
@@ -107,6 +301,13 @@ interface AppStore {
   // backend's `chat://{sessionId}/generating` event rather than any
   // frontend action — see `LeftBar.tsx`, the always-mounted subscriber.
   generatingSessions: Record<string, boolean>;
+  // Which of those active sessions are running an *autonomous* turn right
+  // now — the model reacting to a finished background sub-agent, not
+  // anything the user just sent. `ChatPanel.tsx` uses this to avoid
+  // showing the Stop button / blocking new sends for a turn the user isn't
+  // actually waiting on; `LeftBar.tsx`'s busy dot ignores it (any activity
+  // still lights it up).
+  autonomousGeneratingSessions: Record<string, boolean>;
   openProject: (root: string) => Promise<void>;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
@@ -114,14 +315,31 @@ interface AppStore {
   updateContent: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   refreshOllama: () => Promise<void>;
-  setOllamaConnected: (connected: boolean) => void;
+  refreshProviderConnectivity: () => Promise<void>;
+  providerConfigFor: (activeId: string) => ProviderConfigPayload;
+  setSettingsModalOpen: (open: boolean) => void;
+  setOllamaHost: (host: string) => void;
+  saveOpenAiCompatibleConfig: (config: OpenAiCompatibleProviderConfig) => void;
+  deleteOpenAiCompatibleConfig: (id: string) => void;
+  setActiveProvider: (activeId: string) => void;
+  setAgentBackendKind: (kind: "builtin" | "acp") => void;
+  saveAcpAgentConfig: (config: AcpAgentConfig) => void;
+  deleteAcpAgentConfig: (id: string) => void;
+  setActiveAcpAgent: (id: string) => void;
+  fetchAcpModelsFor: (agentId: string) => Promise<void>;
+  refreshAcpModelCache: () => Promise<void>;
+  setConversationBackend: (sessionId: string, selection: ConversationBackendSelection) => void;
   startSubAgentTask: (task: {
     subSessionId: string;
     parentSessionId: string;
     description: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
-  pruneOldSubAgentTasks: () => void;
+  // Backend is the source of truth (SQLite, kept indefinitely) — this merges
+  // in anything not already known locally, without clobbering live updates
+  // a `subtask_start`/`done`/`error` event may have already applied. Safe
+  // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`).
+  loadSubAgentTasks: () => Promise<void>;
   openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
@@ -129,7 +347,7 @@ interface AppStore {
   closeChatTab: (id: string) => void;
   setActiveChatTab: (id: string) => void;
   setSubAgentEntries: (subSessionId: string, updater: (prev: Entry[]) => Entry[]) => void;
-  setSessionGenerating: (sessionId: string, generating: boolean) => void;
+  setSessionGenerating: (sessionId: string, generating: boolean, autonomous: boolean) => void;
   touchProjectActivity: (path: string) => void;
 }
 
@@ -143,8 +361,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   projectRoot: null,
   openFiles: [],
   activePath: null,
-  ollamaConnected: null,
   ollamaModels: [],
+  providerSettings: loadProviderSettings(),
+  providerConnectivity: {},
+  agentBackend: loadAgentBackend(),
+  acpModelCache: {},
+  conversationBackend: loadConversationBackend(),
+  settingsModalOpen: false,
   subAgentTasks: [],
   panelTabs: [],
   activePanelTabId: null,
@@ -154,6 +377,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   subAgentThreads: {},
   recentProjects: loadRecentProjects(),
   generatingSessions: {},
+  autonomousGeneratingSessions: {},
 
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
@@ -198,8 +422,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         // different project showing up here would be the wrong context, so
         // this still resets. `subAgentTasks`/`subAgentThreads` (the Sub
         // Agents sidebar list and its transcripts) deliberately do NOT
-        // reset here anymore — they're a cross-project history capped by
-        // age (see `SUB_AGENT_MAX_AGE_MS`), not per-conversation state.
+        // reset here anymore — they're a cross-project history stored
+        // indefinitely in SQLite (see `loadSubAgentTasks`), not
+        // per-conversation state.
         chatTabs: [PRIMARY_CHAT_TAB],
         activeChatTabId: "primary",
       };
@@ -273,31 +498,200 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   refreshOllama: async () => {
     try {
-      const models = await api.listOllamaModels();
-      set({ ollamaModels: models, ollamaConnected: true });
+      const models = await api.listProviderModels(
+        toProviderConfigPayload(get().providerSettings.ollama),
+      );
+      set({ ollamaModels: models });
     } catch {
-      set({ ollamaModels: [], ollamaConnected: false });
+      set({ ollamaModels: [] });
     }
   },
 
-  setOllamaConnected: (connected) => set({ ollamaConnected: connected }),
+  // Narrows `providerSettings` (which carries frontend-only bookkeeping like
+  // `id`/`label`/`model`) down to exactly the shape the backend's
+  // `ProviderConfig` enum expects, so callers can pass this straight into
+  // `api.listProviderModels`/`api.sendPrompt`/`api.retryLast`. Takes the
+  // provider id explicitly (`"ollama"` or an `openAiCompatible` config's
+  // `id`) rather than reading a single global "active" one, since which
+  // provider is active is now per-conversation (see `ChatPanel.tsx`'s own
+  // `providerActiveId` state) — a global default only still exists as the
+  // starting point for a conversation that's never picked one of its own.
+  providerConfigFor: (activeId) => {
+    const { providerSettings } = get();
+    if (activeId === "ollama") {
+      return toProviderConfigPayload(providerSettings.ollama);
+    }
+    const found = providerSettings.openAiCompatible.find((c) => c.id === activeId);
+    return toProviderConfigPayload(found ?? providerSettings.ollama);
+  },
+
+  // Checks reachability of every configured provider (not just the active
+  // one — see `providerConnectivity`'s doc comment), for the status bar's
+  // aggregate indicator.
+  refreshProviderConnectivity: async () => {
+    const { providerSettings } = get();
+    const targets: [string, ProviderConfig][] = [
+      ["ollama", providerSettings.ollama],
+      ...providerSettings.openAiCompatible.map((c): [string, ProviderConfig] => [c.id, c]),
+    ];
+    const results = await Promise.all(
+      targets.map(async ([id, config]) => {
+        try {
+          const connected = await api.checkProviderConnection(toProviderConfigPayload(config));
+          return [id, connected] as const;
+        } catch {
+          return [id, false] as const;
+        }
+      }),
+    );
+    set((s) => ({
+      providerConnectivity: { ...s.providerConnectivity, ...Object.fromEntries(results) },
+    }));
+  },
+
+  setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
+
+  setOllamaHost: (host) =>
+    set((s) => {
+      const providerSettings = { ...s.providerSettings, ollama: { kind: "ollama" as const, host } };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  saveOpenAiCompatibleConfig: (config) =>
+    set((s) => {
+      const exists = s.providerSettings.openAiCompatible.some((c) => c.id === config.id);
+      const openAiCompatible = exists
+        ? s.providerSettings.openAiCompatible.map((c) => (c.id === config.id ? config : c))
+        : [...s.providerSettings.openAiCompatible, config];
+      const providerSettings = { ...s.providerSettings, openAiCompatible };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  deleteOpenAiCompatibleConfig: (id) =>
+    set((s) => {
+      const openAiCompatible = s.providerSettings.openAiCompatible.filter((c) => c.id !== id);
+      const activeId = s.providerSettings.activeId === id ? "ollama" : s.providerSettings.activeId;
+      const providerSettings = { ...s.providerSettings, openAiCompatible, activeId };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  setActiveProvider: (activeId) =>
+    set((s) => {
+      const providerSettings = { ...s.providerSettings, activeId };
+      saveProviderSettings(providerSettings);
+      return { providerSettings };
+    }),
+
+  setAgentBackendKind: (kind) =>
+    set((s) => {
+      const agentBackend = { ...s.agentBackend, kind };
+      saveAgentBackend(agentBackend);
+      return { agentBackend };
+    }),
+
+  saveAcpAgentConfig: (config) => {
+    let commandChanged = true;
+    set((s) => {
+      const existing = s.agentBackend.acpAgents.find((c) => c.id === config.id);
+      commandChanged = !existing || existing.launchCommand !== config.launchCommand;
+      const acpAgents = existing
+        ? s.agentBackend.acpAgents.map((c) => (c.id === config.id ? config : c))
+        : [...s.agentBackend.acpAgents, config];
+      // Saving the first-ever ACP agent (or re-saving the active one) also
+      // makes it active, so a freshly added config is immediately usable
+      // without a second click — mirrors picking a preset.
+      const activeAcpId = s.agentBackend.activeAcpId ?? config.id;
+      const agentBackend = { ...s.agentBackend, acpAgents, activeAcpId };
+      saveAgentBackend(agentBackend);
+      // A changed launch command invalidates any cached model list fetched
+      // for the old one — drop it so `fetchAcpModelsFor` below re-fetches
+      // instead of trusting stale data.
+      if (!commandChanged) return { agentBackend };
+      const acpModelCache = Object.fromEntries(
+        Object.entries(s.acpModelCache).filter(([id]) => id !== config.id),
+      );
+      return { agentBackend, acpModelCache };
+    });
+    if (commandChanged) get().fetchAcpModelsFor(config.id);
+  },
+
+  deleteAcpAgentConfig: (id) =>
+    set((s) => {
+      const acpAgents = s.agentBackend.acpAgents.filter((c) => c.id !== id);
+      const activeAcpId =
+        s.agentBackend.activeAcpId === id ? (acpAgents[0]?.id ?? null) : s.agentBackend.activeAcpId;
+      const agentBackend = { ...s.agentBackend, acpAgents, activeAcpId };
+      saveAgentBackend(agentBackend);
+      const acpModelCache = Object.fromEntries(
+        Object.entries(s.acpModelCache).filter(([cachedId]) => cachedId !== id),
+      );
+      return { agentBackend, acpModelCache };
+    }),
+
+  setActiveAcpAgent: (activeAcpId) =>
+    set((s) => {
+      const agentBackend = { ...s.agentBackend, activeAcpId };
+      saveAgentBackend(agentBackend);
+      return { agentBackend };
+    }),
+
+  fetchAcpModelsFor: async (agentId) => {
+    if (agentId in get().acpModelCache || acpModelFetchesInFlight.has(agentId)) return;
+    const agent = get().agentBackend.acpAgents.find((c) => c.id === agentId);
+    if (!agent) return;
+    acpModelFetchesInFlight.add(agentId);
+    try {
+      const options = await api.fetchAcpModels(agent.launchCommand);
+      set((s) => ({ acpModelCache: { ...s.acpModelCache, [agentId]: options } }));
+    } catch {
+      // Agent failed to launch/connect for discovery — cache the miss too,
+      // so a broken command doesn't get retried on every popover open.
+      set((s) => ({ acpModelCache: { ...s.acpModelCache, [agentId]: null } }));
+    } finally {
+      acpModelFetchesInFlight.delete(agentId);
+    }
+  },
+
+  refreshAcpModelCache: async () => {
+    await Promise.all(
+      get().agentBackend.acpAgents.map((c) => get().fetchAcpModelsFor(c.id)),
+    );
+  },
+
+  setConversationBackend: (sessionId, selection) =>
+    set((s) => {
+      const conversationBackend = { ...s.conversationBackend, [sessionId]: selection };
+      saveConversationBackendMap(conversationBackend);
+      return { conversationBackend };
+    }),
 
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
     set((s) => ({
       subAgentTasks: [
-        ...dropExpiredSubAgentTasks(s.subAgentTasks),
+        ...s.subAgentTasks,
         { subSessionId, parentSessionId, description, status: "running", startedAt: Date.now() },
       ],
     })),
 
-  // Called on an interval by `SubAgentsTab` (the only thing rendering this
-  // list) so entries also age out of view when it's just sitting open with
-  // nothing new happening, not only when the next sub-agent starts.
-  pruneOldSubAgentTasks: () =>
+  loadSubAgentTasks: async () => {
+    const rows = await api.listSubAgents();
     set((s) => {
-      const subAgentTasks = dropExpiredSubAgentTasks(s.subAgentTasks);
-      return subAgentTasks.length === s.subAgentTasks.length ? s : { subAgentTasks };
-    }),
+      const known = new Set(s.subAgentTasks.map((t) => t.subSessionId));
+      const fromDb: SubAgentTask[] = rows
+        .filter((r) => !known.has(r.id))
+        .map((r) => ({
+          subSessionId: r.id,
+          parentSessionId: r.parentSessionId,
+          description: r.description,
+          status: r.status,
+          startedAt: r.startedAt * 1000,
+        }));
+      return fromDb.length ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] } : s;
+    });
+  },
 
   finishSubAgentTask: (subSessionId, status) =>
     set((s) => ({
@@ -391,17 +785,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     })),
 
-  setSessionGenerating: (sessionId, generating) =>
+  setSessionGenerating: (sessionId, generating, autonomous) =>
     set((s) => {
       const already = !!s.generatingSessions[sessionId];
-      if (generating === already) return s;
+      const alreadyAutonomous = !!s.autonomousGeneratingSessions[sessionId];
+      if (generating === already && autonomous === alreadyAutonomous) return s;
+
       const next = { ...s.generatingSessions };
+      const nextAutonomous = { ...s.autonomousGeneratingSessions };
       if (generating) {
         next[sessionId] = true;
+        if (autonomous) {
+          nextAutonomous[sessionId] = true;
+        } else {
+          delete nextAutonomous[sessionId];
+        }
       } else {
         delete next[sessionId];
+        delete nextAutonomous[sessionId];
       }
-      return { generatingSessions: next };
+      return { generatingSessions: next, autonomousGeneratingSessions: nextAutonomous };
     }),
 
   touchProjectActivity: (path) =>

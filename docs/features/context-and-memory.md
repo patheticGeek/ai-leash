@@ -33,10 +33,10 @@ across other tools later. Memory has not been moved to a similarly
 generic path yet — it's still under `.ai-leash/memory/`.
 
 Both memory files are just read as raw text (no parsing) and dropped
-into their own section of the system prompt — there's no frontmatter,
-no linking between files, and no write tool yet for the agent to update
-memory itself; a human (or you, editing the file directly) is the only
-way to add to it today.
+into their own section of the system prompt — there's no frontmatter or
+linking between files. The agent can update either file itself via the
+`update_memory` tool (see [tools.md](./tools.md)), or you can edit the
+files directly.
 
 ## AGENTS.md
 

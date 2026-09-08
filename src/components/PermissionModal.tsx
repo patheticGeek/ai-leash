@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 interface PermissionRequestPayload {
   id: string;
-  kind: "shell" | "edit";
+  kind: "shell" | "edit" | "acp";
   title: string;
   detail: string;
 }
@@ -39,7 +39,9 @@ export default function PermissionModal() {
           <div className="mt-0.5 text-xs text-zinc-500">
             {request.kind === "shell"
               ? "The agent wants to run a shell command"
-              : "The agent wants to edit this file"}
+              : request.kind === "edit"
+                ? "The agent wants to edit this file"
+                : "The external ACP agent wants permission to proceed"}
           </div>
         </div>
         <div className="flex-1 overflow-auto p-3 font-mono text-xs">

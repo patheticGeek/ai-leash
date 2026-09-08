@@ -22,10 +22,19 @@ fn global_agents_md() -> Option<String> {
     global_config_dir().and_then(|d| std::fs::read_to_string(d.join("AGENTS.md")).ok())
 }
 
+/// The project or global `MEMORY.md` path. Global has no fixed fallback (it
+/// depends on `dirs::config_dir()` resolving), so it's the only `None` case.
+pub fn memory_path(root: &Path, global: bool) -> Option<PathBuf> {
+    if global {
+        global_dir("memory").map(|d| d.join("MEMORY.md"))
+    } else {
+        Some(root.join(".ai-leash").join("memory").join("MEMORY.md"))
+    }
+}
+
 fn read_memory(root: &Path) -> (Option<String>, Option<String>) {
-    let global = global_dir("memory").and_then(|d| std::fs::read_to_string(d.join("MEMORY.md")).ok());
-    let project =
-        std::fs::read_to_string(root.join(".ai-leash").join("memory").join("MEMORY.md")).ok();
+    let global = memory_path(root, true).and_then(|p| std::fs::read_to_string(p).ok());
+    let project = memory_path(root, false).and_then(|p| std::fs::read_to_string(p).ok());
     (global, project)
 }
 

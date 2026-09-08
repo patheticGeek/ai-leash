@@ -1,8 +1,10 @@
 # ai-leash features
 
 ai-leash is a local-first, dark-mode-only IDE built on Tauri, with a
-built-in agent runtime that talks to Ollama and executes tools (shell,
-file read/edit, search) with user permission gating.
+built-in agent runtime that talks to Ollama or an OpenAI-compatible
+provider and executes tools (shell, file read/edit, search) with user
+permission gating — or, as an alternative agent backend, drives an
+external ACP agent subprocess instead.
 
 This directory documents each feature area as it exists today:
 
@@ -23,7 +25,9 @@ src-tauri/src/
   state.rs       shared AppState (project root, ptys, chat sessions, permissions, cancellations, db)
   commands.rs    project/fs Tauri commands, path-containment helper
   pty.rs         PTY-backed terminal commands
-  chat.rs        Ollama-backed agent loop, streaming, tool dispatch
+  chat.rs        built-in agent loop, streaming orchestration, tool dispatch
+  provider.rs    Provider abstraction (Ollama + OpenAI-compatible HTTP backends)
+  acp.rs         external ACP agent subprocess backend (alternative to chat.rs's loop)
   tools.rs       default tool definitions + execution + permission requests
   context.rs     AGENTS.md / memory / skills loading
   db.rs          SQLite-backed conversation history (save/load, schema)
@@ -42,11 +46,13 @@ src/
   components/TabPicker.tsx         "open a tab" tile grid shown when SidePanel has no tabs open
   components/CenterPanel.tsx       center tab strip (permanent Agent tab + sub-agent tabs)
   components/ChatPanel.tsx         the primary agent chat UI
+  components/ModelPickerPopover.tsx  search-and-pick popover shared by the backend/model and ACP-model pickers in ChatPanel.tsx
   components/SubAgentChatTab.tsx   read-only sub-agent transcript (a CenterPanel tab)
   components/Markdown.tsx          react-markdown + remark-gfm renderer for assistant/sub-agent text
   components/SubAgentsTab.tsx      running/finished sub-agents list (a SidePanel tab)
   components/PermissionModal.tsx   shell/edit approval dialog
-  components/StatusBar.tsx         project name + ollama status
+  components/SettingsModal.tsx     side-nav settings dialog; "Providers" section: agent backend (built-in/ACP), Ollama host, OpenAI-compatible provider config
+  components/StatusBar.tsx         aggregate connected/total across all configured providers
 ```
 
 This is a running build log, not a spec — if behavior in the code

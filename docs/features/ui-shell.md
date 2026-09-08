@@ -81,15 +81,19 @@ monitoring) lives in a multi-tab panel on the right:
   context. `subAgentTasks`/`subAgentThreads` deliberately do **not**
   reset on project switch, though — the Sub Agents sidebar list is a
   cross-project history, not per-conversation state, so it doesn't
-  empty out every time you switch away and back (a past bug). Capped
-  by age instead of project: `SUB_AGENT_MAX_AGE_MS` (24h) — pruned from
-  the store whenever a new sub-agent starts (`startSubAgentTask`) and
-  on a 5-minute interval in `SubAgentsTab` (`pruneOldSubAgentTasks`,
-  the only thing rendering this list) so entries also age out while
-  the tab just sits open with nothing new happening. `SubAgentsTab`
-  also re-filters by the same cutoff at render time, defensively, so
-  nothing past the cap is ever shown even for the moment between
-  prunes.
+  empty out every time you switch away and back (a past bug). It's also
+  no longer purely in-memory: `store.loadSubAgentTasks()` fetches every
+  persisted sub-agent from SQLite (`list_sub_agents`, see
+  [conversation-history.md](./conversation-history.md)) and merges in
+  anything not already known locally (by `subSessionId`, so it can't
+  clobber a live update), called once on `App` mount and again every
+  time `SubAgentsTab` mounts. There's no age cap anymore — sub-agents
+  are kept indefinitely. `SubAgentChatTab.tsx` does the equivalent for
+  an individual transcript: if `subAgentThreads[subSessionId]` is
+  `undefined` (never loaded — as opposed to `[]`, loaded but genuinely
+  empty) it calls `load_conversation_history(subSessionId)` and converts
+  the result with the same `messagesToEntries()` a top-level session's
+  history hydration already uses.
 - `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
   fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
   `activePanelTabId` track an arbitrary number of simultaneously open
@@ -171,13 +175,15 @@ palette that exists in the codebase.
 
 ## Status bar
 
-`StatusBar.tsx`:
-- **Bottom-left**: the currently open folder's base name (last path
-  segment), or the literal string `"ai-leash"` if no project is open.
-- **Bottom-right**: live Ollama connection status with a colored dot —
-  gray while unknown/checking, green when connected, red when a check
-  has failed. Backed by `store.ts`'s `ollamaConnected`/`refreshOllama`
-  (see [agent-chat.md](./agent-chat.md) for the polling behavior).
+`StatusBar.tsx`: aggregate connectivity across every configured provider
+(Ollama + each saved OpenAI-compatible config), as "`N`/`M` providers
+connected" with a colored dot — gray until at least one check has
+returned, green if all are connected, amber if some are, red if none are.
+Hovering the dot/text shows a per-provider tooltip (label + "checking…" /
+"connected" / "disconnected"). Backed by `store.ts`'s
+`providerConnectivity`/`refreshProviderConnectivity` (see
+[agent-chat.md](./agent-chat.md) for the polling behavior and how this
+differs from the active-provider-only `ollamaConnected` check).
 
 ## Window
 

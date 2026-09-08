@@ -5,13 +5,17 @@ import ResizeHandle from "./components/ResizeHandle";
 import CenterPanel from "./components/CenterPanel";
 import StatusBar from "./components/StatusBar";
 import PermissionModal from "./components/PermissionModal";
+import SettingsModal from "./components/SettingsModal";
 import { useAppStore } from "./store";
 import { useResizableWidth } from "./hooks/useResizableWidth";
 
 function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const refreshProviderConnectivity = useAppStore((s) => s.refreshProviderConnectivity);
   const restoreLastProject = useAppStore((s) => s.restoreLastProject);
+  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
+  const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
   const [leftBarWidth, onLeftBarResize] = useResizableWidth(
     "ai-leash:leftBarWidth",
@@ -33,12 +37,30 @@ function App() {
   }, [refreshOllama]);
 
   useEffect(() => {
+    refreshProviderConnectivity();
+    const interval = setInterval(refreshProviderConnectivity, 5000);
+    return () => clearInterval(interval);
+  }, [refreshProviderConnectivity]);
+
+  useEffect(() => {
     restoreLastProject();
   }, [restoreLastProject]);
+
+  useEffect(() => {
+    loadSubAgentTasks();
+  }, [loadSubAgentTasks]);
+
+  // One-shot per launch, not polled — each fetch briefly spawns and kills a
+  // real subprocess per uncached ACP agent (see fetch_acp_models/acp.rs),
+  // so this is a "figure it out once at startup" cache, not a live check.
+  useEffect(() => {
+    refreshAcpModelCache();
+  }, [refreshAcpModelCache]);
 
   return (
     <div className="flex h-screen w-screen flex-col text-zinc-200">
       <PermissionModal />
+      <SettingsModal />
       <div className="flex flex-1 min-h-0">
         <div style={{ width: leftBarWidth }} className="shrink-0">
           <LeftBar />

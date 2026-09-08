@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { Bot, Wrench } from "lucide-react";
 import { useAppStore } from "../store";
-import { api } from "../lib/tauriApi";
+import { api, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
+import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
 import {
   type Entry,
   type ToolCallPayload,
@@ -203,8 +203,47 @@ export default function ChatPanel() {
   // whenever `projectRoot` changes, so this only ever runs once per project.
   const [sessionId] = useState(() => projectRoot ?? crypto.randomUUID());
   const models = useAppStore((s) => s.ollamaModels);
-  const ollamaConnected = useAppStore((s) => s.ollamaConnected);
+  const providerConnectivity = useAppStore((s) => s.providerConnectivity);
   const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const providerConfigFor = useAppStore((s) => s.providerConfigFor);
+  const providerSettings = useAppStore((s) => s.providerSettings);
+  const setActiveProvider = useAppStore((s) => s.setActiveProvider);
+  const agentBackend = useAppStore((s) => s.agentBackend);
+  const setAgentBackendKind = useAppStore((s) => s.setAgentBackendKind);
+  const setActiveAcpAgent = useAppStore((s) => s.setActiveAcpAgent);
+  const acpModelCache = useAppStore((s) => s.acpModelCache);
+  // This conversation's own backend/model choice — read once at mount (this
+  // component remounts per project, so `sessionId` is stable for its whole
+  // lifetime) from whatever it last used, falling back to the shared
+  // defaults above only the very first time this conversation is opened.
+  // From here on this is the source of truth for *this* conversation;
+  // switching to a different one can't change what this shows, and picking
+  // something new here doesn't leak into other conversations (only into
+  // the shared defaults new, never-touched ones inherit — see
+  // `setConversationBackend` below).
+  const setConversationBackend = useAppStore((s) => s.setConversationBackend);
+  const [kind, setKind] = useState<"builtin" | "acp">(() => {
+    const st = useAppStore.getState();
+    return st.conversationBackend[sessionId]?.kind ?? st.agentBackend.kind;
+  });
+  const [providerActiveId, setProviderActiveId] = useState<string>(() => {
+    const st = useAppStore.getState();
+    return st.conversationBackend[sessionId]?.providerActiveId ?? st.providerSettings.activeId;
+  });
+  const [acpActiveId, setAcpActiveId] = useState<string | null>(() => {
+    const st = useAppStore.getState();
+    return st.conversationBackend[sessionId]?.acpActiveId ?? st.agentBackend.activeAcpId;
+  });
+  const [acpModelChoice, setAcpModelChoice] = useState<string | null>(
+    () => useAppStore.getState().conversationBackend[sessionId]?.acpModel ?? null,
+  );
+  const isAcp = kind === "acp";
+  const isOpenAiCompatible = !isAcp && providerActiveId !== "ollama";
+  const activeAcpAgent = agentBackend.acpAgents.find((c) => c.id === acpActiveId);
+  // Only set if the connected ACP agent advertises a Model config option
+  // (see docs/features/agent-chat.md) — most agents won't, in which case
+  // this stays null and no model dropdown shows for ACP mode.
+  const [acpModelOptions, setAcpModelOptions] = useState<AcpModelOptions | null>(null);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -213,9 +252,16 @@ export default function ChatPanel() {
   // `run_with_cancellation` in chat.rs and `LeftBar.tsx`'s always-mounted
   // subscriber) — this is what lets `sending` come back correctly true if
   // you switch back to a project whose turn kept running while you were
-  // looking at a different one.
-  const generating = useAppStore((s) => !!s.generatingSessions[sessionId]);
-  const [model, setModel] = useState("");
+  // looking at a different one. Excludes *autonomous* turns (the model
+  // reacting to a finished background sub-agent) — the user isn't waiting
+  // on those, so they shouldn't show the Stop button or block a new send;
+  // see `autonomousGeneratingSessions`.
+  const generating = useAppStore(
+    (s) => !!s.generatingSessions[sessionId] && !s.autonomousGeneratingSessions[sessionId],
+  );
+  const [model, setModel] = useState(
+    () => useAppStore.getState().conversationBackend[sessionId]?.model ?? "",
+  );
   const [entries, setEntries] = useState<PanelEntry[]>([]);
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -224,7 +270,10 @@ export default function ChatPanel() {
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `send`/`retry`/`stop` still set this directly
   // too, for instant feedback ahead of the round-trip.
-  const [sending, setSending] = useState(() => !!useAppStore.getState().generatingSessions[sessionId]);
+  const [sending, setSending] = useState(() => {
+    const st = useAppStore.getState();
+    return !!st.generatingSessions[sessionId] && !st.autonomousGeneratingSessions[sessionId];
+  });
 
   useEffect(() => {
     setSending(generating);
@@ -237,6 +286,29 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Suppresses exactly one *real* run of the reset effect below, for the
+  // "switch agent and pick one of its models in the same click" case (set
+  // by `selectBackendOption`). Deliberately *not* relied on to protect the
+  // effect's very first run at mount — see `lastResetAcpActiveIdRef` for
+  // why a consume-once flag alone isn't safe there.
+  const skipNextAcpResetRef = useRef(false);
+  // The reset effect only does its work when `acpActiveId` has actually
+  // changed since the last time it ran — tracked here instead of relying
+  // solely on `skipNextAcpResetRef`, because React StrictMode deliberately
+  // double-invokes every effect on mount (setup → cleanup → setup again) to
+  // catch non-idempotent effects, and a "run once, consume a flag" guard is
+  // exactly that: the first of the two mount-time invocations consumes the
+  // flag, so the *second* one runs for real and wipes the `acpModelChoice`
+  // this conversation just restored from persisted state, on every fresh
+  // mount. Comparing against the last value this effect actually processed
+  // is idempotent no matter how many times it's invoked with the same
+  // `acpActiveId`, which a plain boolean flag can't guarantee.
+  const lastResetAcpActiveIdRef = useRef(acpActiveId);
+  // Tracks the last `acpModelChoice` actually sent to the *current*
+  // connection, so the apply-effect doesn't resend it every time some
+  // unrelated dependency changes, and so a fresh connection (after an
+  // agent switch) knows it hasn't applied anything yet.
+  const appliedAcpModelRef = useRef<string | null>(null);
 
   useEffect(() => {
     api.loadConversationHistory(sessionId).then((messages) => {
@@ -249,6 +321,56 @@ export default function ChatPanel() {
     });
   }, [sessionId]);
 
+  // Keeps this conversation's own choice durable across remounts (a project
+  // switch away and back, or an app restart) — writes the full snapshot
+  // whenever any piece of it changes. Also backfills a record for a
+  // conversation that's never explicitly picked anything yet, which is
+  // harmless (it's just re-saving the same defaults it read at mount).
+  useEffect(() => {
+    setConversationBackend(sessionId, {
+      kind,
+      providerActiveId,
+      acpActiveId,
+      model,
+      acpModel: acpModelChoice,
+    });
+  }, [sessionId, kind, providerActiveId, acpActiveId, model, acpModelChoice, setConversationBackend]);
+
+  // Model options are per-connection (they only exist once a session's ACP
+  // subprocess replies to session/new) — clear the stale ones, and the
+  // previously-chosen model, whenever which ACP agent is active changes.
+  // Suppressed once by `selectBackendOption` when it's switching agent AND
+  // setting a model choice in the same click — otherwise this would wipe
+  // that choice right back out before it ever got a chance to apply.
+  useEffect(() => {
+    if (lastResetAcpActiveIdRef.current === acpActiveId) return;
+    lastResetAcpActiveIdRef.current = acpActiveId;
+    if (skipNextAcpResetRef.current) {
+      skipNextAcpResetRef.current = false;
+      return;
+    }
+    setAcpModelOptions(null);
+    setAcpModelChoice(null);
+    appliedAcpModelRef.current = null;
+  }, [acpActiveId]);
+
+  // Applies a model choice (from the unified popover's per-model ACP rows)
+  // once a real connection actually reports its options — either right
+  // after the first prompt connects, or immediately if the agent was
+  // already connected when a different model was picked. Reopening a
+  // conversation restores its last `acpModelChoice` from persisted state
+  // (see the lazy `useState` initializer above), so this also re-applies it
+  // to a freshly (re)connected subprocess after an app restart.
+  useEffect(() => {
+    if (!acpModelOptions || !acpModelChoice) return;
+    if (appliedAcpModelRef.current === acpModelChoice) return;
+    if (acpModelOptions.currentValue !== acpModelChoice) {
+      selectAcpModel(acpModelChoice);
+    }
+    appliedAcpModelRef.current = acpModelChoice;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acpModelOptions, acpModelChoice]);
+
   useEffect(() => {
     refreshOllama();
   }, [refreshOllama]);
@@ -259,22 +381,36 @@ export default function ChatPanel() {
     return () => clearInterval(interval);
   }, [sending, refreshOllama]);
 
+  // Ollama has no live models yet the first time a brand-new conversation
+  // opens on it — fill in a sensible one once the list loads. Conversations
+  // that already have a `model` (from their own persisted choice, or from
+  // just having picked one) are left alone.
   useEffect(() => {
+    if (isOpenAiCompatible || isAcp) return;
     if (model || !models.length) return;
     const last = localStorage.getItem(LAST_MODEL_KEY);
     const restored = last && models.some((m) => m.name === last) ? last : null;
     setModel(restored ?? models[0].name);
-  }, [models, model]);
+  }, [models, model, isOpenAiCompatible, isAcp]);
 
+  // This conversation's own active provider's reachability — looked up from
+  // the app-wide per-provider map (`providerConnectivity`, refreshed
+  // regardless of which conversation is open) rather than a single global
+  // "the active provider is connected" flag, since which provider counts as
+  // "active" is now per-conversation.
   useEffect(() => {
-    if (ollamaConnected === false) {
+    if (isAcp) return;
+    const connected = providerConnectivity[providerActiveId];
+    if (connected === false) {
       setOllamaError(
-        "Could not reach Ollama at localhost:11434. Is `ollama serve` running?",
+        providerActiveId === "ollama"
+          ? `Could not reach Ollama at ${providerSettings.ollama.host || "localhost:11434"}. Is \`ollama serve\` running?`
+          : "Could not reach the configured provider. Check the base URL and API key in provider settings.",
       );
-    } else if (ollamaConnected === true) {
+    } else if (connected === true) {
       setOllamaError(null);
     }
-  }, [ollamaConnected]);
+  }, [providerConnectivity, providerActiveId, isAcp, providerSettings.ollama.host]);
 
   useEffect(() => {
     const unlistens: Promise<() => void>[] = [];
@@ -321,6 +457,11 @@ export default function ChatPanel() {
     unlistens.push(
       listen<string>(`chat://${sessionId}/error`, (e) => {
         setOllamaError(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<AcpModelOptions>(`chat://${sessionId}/acp_model_options`, (e) => {
+        setAcpModelOptions(e.payload);
       }),
     );
 
@@ -434,7 +575,7 @@ export default function ChatPanel() {
 
   async function send() {
     const text = input.trim();
-    if (!text || sending || !model) return;
+    if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent)) return;
     setInput("");
     setOllamaError(null);
     setEntries((prev) => [
@@ -443,7 +584,11 @@ export default function ChatPanel() {
     ]);
     setSending(true);
     try {
-      await invoke("send_prompt", { sessionId, model, message: text });
+      if (isAcp && activeAcpAgent) {
+        await api.sendPromptAcp(sessionId, activeAcpAgent.launchCommand, text);
+      } else {
+        await api.sendPrompt(sessionId, providerConfigFor(providerActiveId), model, text);
+      }
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -458,8 +603,17 @@ export default function ChatPanel() {
   }
 
   async function stop() {
-    await invoke("cancel_prompt", { sessionId });
+    await api.cancelPrompt(sessionId);
     setSending(false);
+  }
+
+  async function selectAcpModel(value: string) {
+    setAcpModelOptions((prev) => (prev ? { ...prev, currentValue: value } : prev));
+    try {
+      await api.setAcpModel(sessionId, value);
+    } catch (e) {
+      setOllamaError(String(e));
+    }
   }
 
   async function copyText(i: number, text: string) {
@@ -482,7 +636,7 @@ export default function ChatPanel() {
     });
     setSending(true);
     try {
-      await invoke("retry_last", { sessionId, model });
+      await api.retryLast(sessionId, providerConfigFor(providerActiveId), model);
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -500,6 +654,128 @@ export default function ChatPanel() {
   const selectedModel = models.find((m) => m.name === model);
   const contextLength = selectedModel?.contextLength ?? null;
   const usedTokens = usage ? usage.prompt + usage.completion : null;
+
+  // Providers and ACP agents are both just "who answers this chat" from the
+  // user's point of view, so they share one picker instead of a hard
+  // `isAcp` fork — picking any option here can flip this conversation's own
+  // `kind` as a side effect. Ollama's own models are listed individually
+  // (one entry per model), and so are an ACP agent's — using its cached
+  // model list (see `acpModelCache`/`fetchAcpModelsFor` in store.ts) when
+  // one's known, falling back to a single bare-agent row otherwise
+  // (unfetched yet, or the agent doesn't expose a model to pick).
+  const backendOptions: PickerOption[] = [
+    ...(models.length > 0
+      ? models.map((m) => ({ key: `ollama:${m.name}`, label: m.name, subtitle: "Ollama" }))
+      : [{ key: "ollama", label: "Ollama", subtitle: providerSettings.ollama.host || "localhost:11434" }]),
+    ...providerSettings.openAiCompatible.map((c) => ({
+      key: `openai:${c.id}`,
+      label: c.label,
+      subtitle: "OpenAI-compatible",
+    })),
+    ...agentBackend.acpAgents.flatMap((c) => {
+      // Prefer the throwaway-session cache (available for every saved
+      // agent, not just the one this conversation has active), but fall
+      // back to the *live* connection's own options for whichever agent
+      // this conversation is actually connected to right now — that's
+      // strictly fresher, and covers the rare case where the cache fetch
+      // failed but a real chat still succeeded.
+      const known = acpModelCache[c.id] ?? (c.id === acpActiveId ? acpModelOptions : null);
+      if (known && known.options.length > 0) {
+        return known.options.map((o) => ({
+          key: `acp:${c.id}:${o.value}`,
+          label: o.name,
+          subtitle: `${c.label} · ACP`,
+        }));
+      }
+      return [{ key: `acp:${c.id}`, label: c.label, subtitle: "ACP agent" }];
+    }),
+  ];
+  // Falls all the way through to the cache's own `currentValue` (the
+  // agent's actual default model, as reported by the discovery fetch) when
+  // this conversation never explicitly chose one and isn't live-connected
+  // yet — without this, `activeBackendKey` below would point at the bare
+  // `acp:{agentId}` row, which stops existing in `backendOptions` the
+  // moment the cache hydrates (once an agent has known models, its rows
+  // are *only* per-model — see the `flatMap` above), so the lookup would
+  // fail and silently fall back to showing the agent's own name as if it
+  // were a model.
+  const activeAcpModelValue =
+    acpModelChoice ??
+    acpModelOptions?.currentValue ??
+    (activeAcpAgent ? acpModelCache[activeAcpAgent.id]?.currentValue : undefined) ??
+    null;
+  const activeBackendKey = isAcp
+    ? activeAcpAgent
+      ? activeAcpModelValue
+        ? `acp:${activeAcpAgent.id}:${activeAcpModelValue}`
+        : `acp:${activeAcpAgent.id}`
+      : null
+    : isOpenAiCompatible
+      ? `openai:${providerActiveId}`
+      : model
+        ? `ollama:${model}`
+        : "ollama";
+  const activeBackendLabel = isAcp
+    ? // A chosen model's friendly name comes from `backendOptions`, built
+      // from `acpModelCache`/live `acpModelOptions` — but that cache can
+      // still be loading (or have failed to load) right after switching to
+      // this conversation, before it's had a chance to resolve. In that
+      // window, fall back to the raw model value rather than the agent's
+      // own label — showing "Claude Code" as if *it* were the selected
+      // model would be actively wrong, not just imprecise. Only fall back
+      // to the agent label when no model has actually been chosen at all.
+      (backendOptions.find((o) => o.key === activeBackendKey)?.label ??
+        activeAcpModelValue ??
+        activeAcpAgent?.label ??
+        "select agent")
+    : isOpenAiCompatible
+      ? (providerSettings.openAiCompatible.find((c) => c.id === providerActiveId)?.label ??
+        "select provider")
+      : model || "select model";
+
+  function selectBackendOption(key: string) {
+    if (key.startsWith("acp:")) {
+      const rest = key.slice("acp:".length);
+      const sepIdx = rest.indexOf(":");
+      const agentId = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
+      const modelValue = sepIdx === -1 ? null : rest.slice(sepIdx + 1);
+      if (modelValue && agentId !== acpActiveId) {
+        // The agent-change reset effect (keyed on `acpActiveId`) would
+        // otherwise immediately null back out the `acpModelChoice` we're
+        // about to set in this same click. Only needed when we're setting
+        // a real choice — picking the bare fallback row (no model known
+        // yet) for a genuinely different agent should still let the reset
+        // effect clear out the previous agent's stale `acpModelOptions`.
+        skipNextAcpResetRef.current = true;
+      }
+      setKind("acp");
+      setAcpActiveId(agentId);
+      setAcpModelChoice(modelValue);
+      // Also nudges the shared defaults, so a brand-new conversation opened
+      // later starts from whatever was most recently picked anywhere.
+      setAgentBackendKind("acp");
+      setActiveAcpAgent(agentId);
+    } else if (key.startsWith("openai:")) {
+      const id = key.slice("openai:".length);
+      const config = providerSettings.openAiCompatible.find((c) => c.id === id);
+      setKind("builtin");
+      setProviderActiveId(id);
+      setModel(config?.model ?? "");
+      setAgentBackendKind("builtin");
+      setActiveProvider(id);
+    } else {
+      setKind("builtin");
+      setProviderActiveId("ollama");
+      setAgentBackendKind("builtin");
+      setActiveProvider("ollama");
+      if (key.startsWith("ollama:")) {
+        const name = key.slice("ollama:".length);
+        setModel(name);
+        localStorage.setItem(LAST_MODEL_KEY, name);
+      }
+    }
+  }
+
   const usagePct =
     usedTokens !== null && contextLength ? Math.min(100, (usedTokens / contextLength) * 100) : null;
 
@@ -557,7 +833,7 @@ export default function ChatPanel() {
                   >
                     {copiedIndex === i ? <CheckIcon /> : <CopyIcon />}
                   </button>
-                  {!sending && isLast && (
+                  {!sending && isLast && !isAcp && (
                     <button
                       onClick={retry}
                       title="Retry"
@@ -611,7 +887,7 @@ export default function ChatPanel() {
                 className="flex w-full min-w-0 items-center gap-1.5 text-left text-zinc-400"
               >
                 <Chevron expanded={expanded} />
-                {entry.name === "spawn_sub_agent" ? (
+                {entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result" ? (
                   <Bot size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
                 ) : (
                   <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
@@ -674,24 +950,24 @@ export default function ChatPanel() {
             className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
           />
           <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
-            <select
-              value={model}
-              onChange={(e) => {
-                const value = e.currentTarget.value;
-                setModel(value);
-                localStorage.setItem(LAST_MODEL_KEY, value);
-              }}
-              className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
-            >
-              {models.length === 0 && <option>no models</option>}
-              {models.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <ModelPickerPopover
+                options={backendOptions}
+                activeKey={activeBackendKey}
+                onSelect={selectBackendOption}
+                triggerLabel={activeBackendLabel}
+              />
+              {isOpenAiCompatible && !isAcp && (
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.currentTarget.value)}
+                  placeholder="model id"
+                  className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
+                />
+              )}
+            </div>
             <div className="flex items-center gap-1.5">
-            {usedTokens !== null && (
+            {!isAcp && usedTokens !== null && (
               <div
                 className="relative"
                 onMouseEnter={() => setShowUsagePopover(true)}
@@ -736,7 +1012,10 @@ export default function ChatPanel() {
             )}
             <button
               onClick={sending ? stop : send}
-              disabled={!sending && (!input.trim() || !model)}
+              disabled={
+                !sending &&
+                (!input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent))
+              }
               title={sending ? "Stop" : "Send"}
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white disabled:cursor-not-allowed disabled:opacity-40 ${
                 sending

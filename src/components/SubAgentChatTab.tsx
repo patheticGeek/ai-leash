@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Wrench } from "lucide-react";
 import { useAppStore } from "../store";
-import { isToolError, type Entry } from "../lib/chatEntries";
+import { api } from "../lib/tauriApi";
+import { isToolError, messagesToEntries, type Entry } from "../lib/chatEntries";
 import Markdown from "./Markdown";
 
 const statusStyles: Record<string, string> = {
@@ -60,10 +61,26 @@ function EntryBlock({ entry }: { entry: Entry }) {
 }
 
 export default function SubAgentChatTab({ subSessionId }: { subSessionId: string }) {
-  const entries = useAppStore((s) => s.subAgentThreads[subSessionId] ?? []);
+  const rawEntries = useAppStore((s) => s.subAgentThreads[subSessionId]);
+  const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
+  const entries = rawEntries ?? [];
   const task = useAppStore((s) => s.subAgentTasks.find((t) => t.subSessionId === subSessionId));
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  // Reopening this tab after an app restart (or after a live event listener
+  // never populated it, e.g. it started before this tab was ever mounted)
+  // has nothing in the store yet — fetch its transcript from disk. Distinct
+  // from "loaded, empty" (`rawEntries` is `[]`, not `undefined`) so this
+  // only ever fetches once.
+  useEffect(() => {
+    if (rawEntries !== undefined) return;
+    api.loadConversationHistory(subSessionId).then((messages) => {
+      setSubAgentEntries(subSessionId, (prev) =>
+        prev.length === 0 ? messagesToEntries(messages) : prev,
+      );
+    });
+  }, [subSessionId, rawEntries, setSubAgentEntries]);
 
   useEffect(() => {
     if (autoScrollRef.current) {
