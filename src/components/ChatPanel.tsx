@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { Bot, Check, ChevronRight, Copy, RotateCcw, Send, Square, Wrench, X } from "lucide-react";
+import {
+  Bot,
+  Check,
+  ChevronRight,
+  Copy,
+  RotateCcw,
+  Send,
+  Square,
+  SquareTerminal,
+  Wrench,
+  X,
+} from "lucide-react";
 import { useAppStore, permissionForSession } from "../store";
 import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
@@ -655,9 +666,41 @@ export default function ChatPanel() {
     }
   }
 
+  // "!<command>" never reaches the model — it runs `command` as a shell
+  // command right away (no permission prompt: typing it here *is* the
+  // approval) and the result lands in the transcript as a tool call, same
+  // as `/clear`'s "never sent as a prompt" local commands above, just with
+  // its own backend round trip instead of being purely client-side (see
+  // `run_shell_command` in `tools.rs` for why: it still needs to persist a
+  // real tool-call/result pair so this survives a reload).
+  async function runShellEscape(command: string) {
+    if (sending) return;
+    setInput("");
+    setOllamaError(null);
+    setSending(true);
+    try {
+      await api.runShellCommand(sessionId, command);
+    } catch (e) {
+      setOllamaError(String(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function send() {
     setHelpOpen(false);
+    // A leading space before "!" (" !foo") escapes out of shell mode — for
+    // when you actually want to send a message starting with "!" as text.
+    // Checked on the raw, untrimmed value, since trim() below would
+    // otherwise erase the one signal that distinguishes it from the shell
+    // escape below.
+    const isEscapedBang = input.startsWith(" !");
     const text = input.trim();
+    const bangMatch = !isEscapedBang && /^!(\S.*)$/s.exec(text);
+    if (bangMatch) {
+      await runShellEscape(bangMatch[1]);
+      return;
+    }
     const localMatch = /^\/(\S+)$/.exec(text);
     if (localMatch && localCommands.some((c) => c.name === localMatch[1])) {
       await runLocalCommand(localMatch[1]);
@@ -695,6 +738,9 @@ export default function ChatPanel() {
       : [];
   const showSlashPopover = slashMatches.length > 0 && slashDismissed !== slashQuery;
   const slashActiveIndex = Math.min(slashIndex, slashMatches.length - 1);
+  // Mirrors `send()`'s own check — a leading space ("!" escaped as " !")
+  // means "just send this as text", so it's not shell mode either.
+  const shellMode = input.startsWith("!");
 
   useEffect(() => {
     setSlashIndex(0);
@@ -1113,6 +1159,15 @@ export default function ChatPanel() {
             </Button>
           </div>
           <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+            <div className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2">
+              <div className="text-sm font-medium text-zinc-100">
+                !<span className="text-zinc-500"> command</span>
+              </div>
+              <div className="text-xs text-zinc-500">
+                Run a shell command directly — no permission prompt, result shown as a tool
+                call. Start with a space (" !...") to send a literal message instead.
+              </div>
+            </div>
             {allCommands.map((c) => (
               <div
                 key={c.name}
@@ -1130,7 +1185,13 @@ export default function ChatPanel() {
       )}
       </div>
       <div className="p-2">
-        <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+        <div
+          className={`relative flex flex-col rounded-md border bg-[#17181c] ${
+            shellMode
+              ? "border-emerald-500/60"
+              : "border-[#26272c] focus-within:border-[#3a5f8f]"
+          }`}
+        >
           {pendingPermission ? (
             <PermissionPopover request={pendingPermission} onRespond={respondPermission} />
           ) : (
@@ -1159,15 +1220,25 @@ export default function ChatPanel() {
             </div>
             )
           )}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.currentTarget.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Ask the agent..."
-            rows={INPUT_MIN_ROWS}
-            className="w-full resize-none bg-transparent px-3 pt-2 pb-1 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
-          />
+          <div className="relative">
+            {shellMode && (
+              <SquareTerminal
+                size={14}
+                className="pointer-events-none absolute left-3 top-[11px] text-emerald-400"
+              />
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.currentTarget.value)}
+              onKeyDown={onKeyDown}
+              placeholder="Ask the agent...  / commands  ! shell"
+              rows={INPUT_MIN_ROWS}
+              className={`w-full resize-none bg-transparent pt-2 pb-1 text-sm placeholder:text-zinc-600 outline-none ${
+                shellMode ? "pl-8 pr-3 font-mono text-emerald-200" : "px-3 text-zinc-200"
+              }`}
+            />
+          </div>
           <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
             <div className="flex min-w-0 items-center gap-1.5">
               <ModelPickerPopover

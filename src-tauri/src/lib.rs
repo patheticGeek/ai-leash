@@ -43,6 +43,7 @@ pub fn run() {
             chat::compact_conversation,
             chat::list_sub_agents,
             tools::respond_permission,
+            tools::run_shell_command,
             acp::send_prompt_acp,
             acp::set_acp_model,
             acp::fetch_acp_models,

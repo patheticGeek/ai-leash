@@ -105,6 +105,14 @@ export const api = {
   retryLast: (sessionId: string, provider: ProviderConfigPayload, model: string) =>
     invoke<void>("retry_last", { sessionId, provider, model }),
   cancelPrompt: (sessionId: string) => invoke<void>("cancel_prompt", { sessionId }),
+  // The `!command` chat-input escape — runs `command` as a shell command
+  // directly (no LLM turn, no permission prompt) and returns its output;
+  // the backend also records it as a real tool-call/result pair (see
+  // `run_shell_command` in `tools.rs`), so callers don't need to touch
+  // `entries` themselves — the existing `tool_call`/`tool_result` listeners
+  // in `ChatPanel.tsx` pick it up the same as a live agent turn would.
+  runShellCommand: (sessionId: string, command: string) =>
+    invoke<string>("run_shell_command", { sessionId, command }),
   sendPromptAcp: (sessionId: string, launchCommand: string, message: string) =>
     invoke<void>("send_prompt_acp", { sessionId, launchCommand, message }),
   setAcpModel: (sessionId: string, value: string) =>
