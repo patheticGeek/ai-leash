@@ -135,6 +135,22 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
     }
 }
 
+/// Wipes a conversation's transcript for the local "/clear" command (see
+/// `chat::clear_conversation`) — deletes its `messages` rows and its own
+/// `conversations` row, so `save_message`'s `ON CONFLICT` treats the next
+/// message as starting a brand new conversation rather than updating a
+/// leftover `updated_at`. Leaves `sub_agents` rows alone: those live in
+/// their own sidebar keyed by their own id, independent of this
+/// conversation's transcript.
+pub fn clear_conversation(db: &Db, conversation_id: &str) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1",
+        params![conversation_id],
+    );
+    let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![conversation_id]);
+}
+
 /// Metadata for one `spawn_sub_agent`-spawned sub-agent, as shown in the Sub
 /// Agents sidebar — the full transcript itself lives in `messages`/
 /// `conversations` like any other session, keyed by `id` (the sub-agent's
@@ -396,5 +412,49 @@ mod tests {
         assert_eq!(load_messages(&db, "/proj-a").len(), 1);
         assert_eq!(load_messages(&db, "/proj-b").len(), 1);
         assert_eq!(load_messages(&db, "/proj-a")[0].content, "in project a");
+    }
+
+    #[test]
+    fn clear_conversation_wipes_only_the_targeted_conversation() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj-a",
+            "/proj-a",
+            &ChatMessage { role: "user".into(), content: "in project a".into(), tool_calls: None },
+        );
+        save_message(
+            &db,
+            "/proj-b",
+            "/proj-b",
+            &ChatMessage { role: "user".into(), content: "in project b".into(), tool_calls: None },
+        );
+
+        clear_conversation(&db, "/proj-a");
+
+        assert_eq!(load_messages(&db, "/proj-a").len(), 0);
+        assert_eq!(load_messages(&db, "/proj-b").len(), 1);
+    }
+
+    #[test]
+    fn clear_conversation_lets_a_fresh_message_start_a_new_conversation_row() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage { role: "user".into(), content: "before clear".into(), tool_calls: None },
+        );
+        clear_conversation(&db, "/proj");
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage { role: "user".into(), content: "after clear".into(), tool_calls: None },
+        );
+
+        let loaded = load_messages(&db, "/proj");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].content, "after clear");
     }
 }

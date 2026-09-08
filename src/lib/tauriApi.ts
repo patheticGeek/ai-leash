@@ -40,6 +40,18 @@ export interface AcpModelOptions {
   options: { value: string; name: string }[];
 }
 
+// Payload of the `chat://{sessionId}/acp_commands` event, emitted whenever
+// the connected ACP agent (re-)announces its slash commands — typically
+// once, right after the session opens, but an agent can send this again if
+// its command set changes mid-conversation. `hint` is the agent's
+// placeholder text for the command's argument (e.g. "<file>"), null when
+// the command takes no input.
+export interface AcpCommandInfo {
+  name: string;
+  description: string;
+  hint: string | null;
+}
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -68,6 +80,7 @@ export const api = {
     invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
+  clearConversation: (sessionId: string) => invoke<void>("clear_conversation", { sessionId }),
   sendPrompt: (
     sessionId: string,
     provider: ProviderConfigPayload,

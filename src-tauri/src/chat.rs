@@ -40,6 +40,29 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
     Ok(())
 }
 
+/// The local "/clear" command — see `ChatPanel.tsx`'s `LOCAL_COMMANDS`. No
+/// ACP agent implements a matching request (the protocol doesn't define
+/// one), so this is entirely our own bookkeeping, not anything sent over
+/// the wire: wipes the on-disk and in-memory transcript for `session_id`,
+/// and — if an ACP subprocess is currently attached — drops our handle to
+/// it too. That subprocess isn't killed outright (a turn could still be
+/// in flight); it just winds down on its own once idle, the same as
+/// switching to a different agent does (see `ensure_acp_session`'s doc
+/// comment) — the *next* prompt for this session then starts a genuinely
+/// fresh `session/new` instead of continuing a conversation the agent
+/// still remembers everything about, since ACP has no session/truncate.
+/// The frontend only calls this while nothing is generating (mirroring
+/// `retry_last`), so there's no live turn whose `push_message` calls could
+/// otherwise land in the freshly-cleared history right after this runs.
+#[tauri::command]
+pub fn clear_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
+    state.chat_sessions.lock().unwrap().remove(&session_id);
+    state.touched_dirs.lock().unwrap().remove(&session_id);
+    state.acp_sessions.lock().unwrap().remove(&session_id);
+    db::clear_conversation(&state.db, &session_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn send_prompt(
     app: AppHandle,

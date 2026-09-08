@@ -714,6 +714,43 @@ out of scope for now.
   polled — each miss is a real subprocess spawn); `saveAcpAgentConfig`
   invalidates and re-fetches a single entry when that agent's
   `launchCommand` actually changes, so edits don't serve stale data.
+- **Slash commands, when the agent advertises them**: an ACP agent can send
+  a `SessionUpdate::AvailableCommandsUpdate` notification at any point in a
+  live session — typically once, right after it connects, but nothing stops
+  it from re-announcing a changed set later. `handle_session_notification`
+  (`acp.rs`) forwards each one, flattened by `available_commands_payload`
+  into `{ name, description, hint }` (`hint` is the agent's placeholder text
+  for the command's argument, from `AvailableCommandInput::Unstructured` —
+  the only input shape ACP defines; `null` for commands that take none), as
+  `chat://{sessionId}/acp_commands`. Unlike models, there's no throwaway-
+  session discovery path — commands are only known once a real session has
+  actually reported them, so `ChatPanel.tsx` just holds the latest list in
+  local state (`acpCommands`), reset to empty whenever `acpActiveId`
+  changes. Invoking a command isn't a distinct ACP request; the agent parses
+  it back out of the prompt's own text, so the UI's only job is
+  discoverability — `ChatPanel.tsx` shows an autocomplete popover above the
+  input box (`showSlashPopover`) whenever the entire input is `/` followed
+  by a partial command name (`/^\/(\S*)$/`), filtered by prefix; accepting
+  one (click, Tab, or Enter) fills in `/name ` and leaves the cursor ready
+  for arguments. Typing a space past the command name drops out of the
+  match automatically, and Escape dismisses the popover for that exact
+  query (tracked via `slashDismissed`) without clearing what's typed.
+- **Local commands (`/clear`)**: shown in the same popover as agent-
+  advertised ones (`LOCAL_COMMANDS` in `ChatPanel.tsx`, merged ahead of
+  `acpCommands` so a local name always wins), but never sent as a prompt —
+  no ACP agent implements a matching request, since the protocol doesn't
+  define one. `send()` intercepts an exact `/name` match against
+  `LOCAL_COMMANDS` before it ever reaches `sendPrompt`/`sendPromptAcp`.
+  `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
+  both the in-memory `chat_sessions` entry and the on-disk rows
+  (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
+  the map entry for it — not a kill, just lets it wind down once idle (same
+  mechanism as switching agents; see `ensure_acp_session`'s doc comment) —
+  so the *next* prompt starts a real fresh `session/new` rather than
+  continuing a conversation the agent still remembers, since ACP has no
+  session/truncate. Blocked client-side while `sending`, same as retry:
+  clearing mid-turn would let that turn's own `push_message` calls land
+  right back in the history that was just wiped.
 
 ### Providers and ACP agents share one picker
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Bot, Wrench } from "lucide-react";
 import { useAppStore } from "../store";
-import { api, type AcpModelOptions } from "../lib/tauriApi";
+import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
 import {
@@ -195,6 +195,16 @@ const LAST_MODEL_KEY = "ai-leash:lastModel";
 const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
 
+// Commands we handle ourselves, client-side, rather than sending as a
+// prompt — no ACP agent implements a matching request (the protocol
+// doesn't define one), so these exist purely as local UI bookkeeping.
+// Listed alongside whatever the connected ACP agent advertises (see
+// `acpCommands`) so they show up in the same autocomplete popover; a
+// local command wins over an agent-advertised one of the same name.
+const LOCAL_COMMANDS: AcpCommandInfo[] = [
+  { name: "clear", description: "Clear this conversation's history", hint: null },
+];
+
 export default function ChatPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   // A project's conversation id is its own path — stable across app
@@ -244,6 +254,12 @@ export default function ChatPanel() {
   // (see docs/features/agent-chat.md) — most agents won't, in which case
   // this stays null and no model dropdown shows for ACP mode.
   const [acpModelOptions, setAcpModelOptions] = useState<AcpModelOptions | null>(null);
+  // Slash commands the connected ACP agent advertises, if any — most agents
+  // won't send this notification at all, in which case typing "/" does
+  // nothing special. See `chat://{sessionId}/acp_commands` below.
+  const [acpCommands, setAcpCommands] = useState<AcpCommandInfo[]>([]);
+  const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -352,6 +368,8 @@ export default function ChatPanel() {
     setAcpModelOptions(null);
     setAcpModelChoice(null);
     appliedAcpModelRef.current = null;
+    setAcpCommands([]);
+    setSlashDismissed(null);
   }, [acpActiveId]);
 
   // Applies a model choice (from the unified popover's per-model ACP rows)
@@ -464,6 +482,11 @@ export default function ChatPanel() {
         setAcpModelOptions(e.payload);
       }),
     );
+    unlistens.push(
+      listen<AcpCommandInfo[]>(`chat://${sessionId}/acp_commands`, (e) => {
+        setAcpCommands(e.payload);
+      }),
+    );
 
     // A `spawn_sub_agent` tool call spawns an isolated sub-agent with its own
     // chat://{subSessionId}/... event stream, one per concurrently spawned
@@ -573,8 +596,33 @@ export default function ChatPanel() {
     setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
   }
 
+  // Runs a local command (currently just "/clear") entirely client-side —
+  // never sent to the model/agent as a prompt. Blocked while `sending`, same
+  // as `retry`: clearing mid-turn would let that turn's own `push_message`
+  // calls land right back in the history this just wiped (see
+  // `chat::clear_conversation`'s doc comment).
+  async function runLocalCommand(name: string) {
+    if (sending) return;
+    setInput("");
+    if (name === "clear") {
+      setOllamaError(null);
+      try {
+        await api.clearConversation(sessionId);
+        setEntries([]);
+        setUsage(null);
+      } catch (e) {
+        setOllamaError(String(e));
+      }
+    }
+  }
+
   async function send() {
     const text = input.trim();
+    const localMatch = /^\/(\S+)$/.exec(text);
+    if (localMatch && LOCAL_COMMANDS.some((c) => c.name === localMatch[1])) {
+      await runLocalCommand(localMatch[1]);
+      return;
+    }
     if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent)) return;
     setInput("");
     setOllamaError(null);
@@ -595,7 +643,61 @@ export default function ChatPanel() {
     }
   }
 
+  // Local commands first, then whatever the connected ACP agent advertises
+  // (skipping any name a local command already covers) — see
+  // `LOCAL_COMMANDS`. Available regardless of `isAcp`: "/clear" works the
+  // same for a plain Ollama/OpenAI-compatible conversation too.
+  const allCommands = [
+    ...LOCAL_COMMANDS,
+    ...acpCommands.filter((c) => !LOCAL_COMMANDS.some((l) => l.name === c.name)),
+  ];
+
+  // Slash-command autocomplete: only triggers when the *entire* input is
+  // "/" followed by a run of non-space characters — i.e. the user is still
+  // typing the command name itself. Typing a space (moving on to args) or
+  // anything else drops out of match automatically, no explicit "close"
+  // needed for that case.
+  const slashQuery = /^\/(\S*)$/.exec(input)?.[1] ?? null;
+  const slashMatches =
+    slashQuery !== null
+      ? allCommands.filter((c) => c.name.toLowerCase().startsWith(slashQuery.toLowerCase()))
+      : [];
+  const showSlashPopover = slashMatches.length > 0 && slashDismissed !== slashQuery;
+  const slashActiveIndex = Math.min(slashIndex, slashMatches.length - 1);
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashQuery]);
+
+  function acceptSlashCommand(cmd: AcpCommandInfo) {
+    setInput(`/${cmd.name} `);
+    setSlashDismissed(null);
+    textareaRef.current?.focus();
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (showSlashPopover) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => Math.min(i + 1, slashMatches.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Tab" || e.key === "Enter") {
+        e.preventDefault();
+        acceptSlashCommand(slashMatches[slashActiveIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashDismissed(slashQuery);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -939,7 +1041,30 @@ export default function ChatPanel() {
         {awaitingFirstToken && <div className="text-zinc-600 text-xs">generating slop…</div>}
       </div>
       <div className="border-t border-[#26272c] p-2">
-        <div className="flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+        <div className="relative flex flex-col rounded-md border border-[#26272c] bg-[#17181c] focus-within:border-[#3a5f8f]">
+          {showSlashPopover && (
+            <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
+              {slashMatches.map((c, i) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    acceptSlashCommand(c);
+                  }}
+                  className={`block w-full px-3 py-1.5 text-left ${
+                    i === slashActiveIndex ? "bg-white/10" : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-zinc-100">
+                    /{c.name}
+                    {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
+                  </div>
+                  <div className="text-xs text-zinc-500">{c.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={input}
