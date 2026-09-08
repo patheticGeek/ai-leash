@@ -31,7 +31,19 @@ function escapeMdxOutsideCode(markdown) {
   let lastIndex = 0;
   for (const match of markdown.matchAll(codeRunRe)) {
     result += escapeText(markdown.slice(lastIndex, match.index));
-    result += match[0];
+
+    // Inline code spans get soft-wrapped across source lines for
+    // readability in the .md source; CommonMark already renders an
+    // embedded line ending in a code span as a single space, so joining
+    // them here is a no-op for the rendered output. It's needed because a
+    // literal newline left in means a wrapped `{`/`<` can land as the
+    // first character of a "continuation" line — which trips up MDX's
+    // list/blockquote container detection ("unexpected lazy line") even
+    // though it's inside backticks. Fenced blocks (```-opened lines) are
+    // left alone since their line breaks are meaningful.
+    const lineStart = markdown.lastIndexOf("\n", match.index - 1) + 1;
+    const isFenced = /^\s*$/.test(markdown.slice(lineStart, match.index));
+    result += isFenced ? match[0] : match[0].replace(/\n[ \t]*/g, " ");
     lastIndex = match.index + match[0].length;
   }
   result += escapeText(markdown.slice(lastIndex));
