@@ -65,7 +65,10 @@ export function appendChunk(prev: Entry[], payload: string): Entry[] {
   ];
 }
 
-export function appendToolCall(prev: Entry[], payload: ToolCallPayload): Entry[] {
+export function appendToolCall(
+  prev: Entry[],
+  payload: ToolCallPayload,
+): Entry[] {
   return [
     ...finishThinking(prev),
     {
@@ -77,7 +80,10 @@ export function appendToolCall(prev: Entry[], payload: ToolCallPayload): Entry[]
   ];
 }
 
-export function applyToolResult(prev: Entry[], payload: ToolResultPayload): Entry[] {
+export function applyToolResult(
+  prev: Entry[],
+  payload: ToolResultPayload,
+): Entry[] {
   return prev.map((entry) =>
     entry.kind === "tool" && entry.callId === String(payload.id)
       ? { ...entry, result: payload.result }

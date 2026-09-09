@@ -1,7 +1,11 @@
-import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useAppStore, permissionForSession, type RecentProject } from "../store";
+import { useEffect } from "react";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
+import {
+  permissionForSession,
+  type RecentProject,
+  useAppStore,
+} from "../store";
 
 function ProjectRow({
   project,
@@ -14,14 +18,23 @@ function ProjectRow({
 }) {
   const generating = useAppStore((s) => !!s.generatingSessions[project.path]);
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
-  const awaitingApproval = !!permissionForSession(pendingPermissions, project.path);
+  const awaitingApproval = !!permissionForSession(
+    pendingPermissions,
+    project.path,
+  );
 
   return (
     <div
       onClick={onClick}
-      title={awaitingApproval ? `${project.path} — needs your approval` : project.path}
+      title={
+        awaitingApproval
+          ? `${project.path} — needs your approval`
+          : project.path
+      }
       className={`mx-1.5 mb-0.5 flex items-center gap-2 rounded px-2 py-1.5 text-sm cursor-default ${
-        active ? "bg-white/10 text-zinc-100" : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+        active
+          ? "bg-white/10 text-zinc-100"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
       } ${
         awaitingApproval
           ? "animate-pulse ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
@@ -46,7 +59,9 @@ export default function LeftBar() {
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
   const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
-  const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
+  const resolvePendingPermission = useAppStore(
+    (s) => s.resolvePendingPermission,
+  );
 
   // Unlike `chat://{sessionId}/generating`, `permission://request` isn't
   // path-templated per project — it's one global event carrying its own
@@ -77,23 +92,30 @@ export default function LeftBar() {
   // sidebar to look at things would keep reshuffling it.
   useEffect(() => {
     const unlistens = recentProjects.map((p) =>
-      listen<{ active: boolean; autonomous: boolean }>(`chat://${p.path}/generating`, (e) => {
-        setSessionGenerating(p.path, e.payload.active, e.payload.autonomous);
-        if (e.payload.active) touchProjectActivity(p.path);
-      }),
+      listen<{ active: boolean; autonomous: boolean }>(
+        `chat://${p.path}/generating`,
+        (e) => {
+          setSessionGenerating(p.path, e.payload.active, e.payload.autonomous);
+          if (e.payload.active) touchProjectActivity(p.path);
+        },
+      ),
     );
     return () => {
       unlistens.forEach((u) => u.then((f) => f()));
     };
   }, [recentProjects, setSessionGenerating, touchProjectActivity]);
 
-  const sortedProjects = [...recentProjects].sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+  const sortedProjects = [...recentProjects].sort(
+    (a, b) => b.lastMessageAt - a.lastMessageAt,
+  );
 
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
       <div className="flex-1 overflow-y-auto py-1.5">
         {sortedProjects.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-zinc-600">No projects yet</div>
+          <div className="px-3 py-6 text-center text-xs text-zinc-600">
+            No projects yet
+          </div>
         ) : (
           sortedProjects.map((p) => (
             <ProjectRow

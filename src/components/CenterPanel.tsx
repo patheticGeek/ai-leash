@@ -1,8 +1,8 @@
 import { X } from "lucide-react";
 import { useAppStore } from "../store";
+import Button from "./Button";
 import ChatPanel from "./ChatPanel";
 import SubAgentChatTab from "./SubAgentChatTab";
-import Button from "./Button";
 
 export default function CenterPanel() {
   const chatTabs = useAppStore((s) => s.chatTabs);
@@ -48,7 +48,10 @@ export default function CenterPanel() {
         {chatTabs
           .filter((tab) => tab.kind === "subagent")
           .map((tab) => (
-            <div key={tab.id} className={tab.id === activeChatTabId ? "h-full" : "hidden"}>
+            <div
+              key={tab.id}
+              className={tab.id === activeChatTabId ? "h-full" : "hidden"}
+            >
               <SubAgentChatTab subSessionId={tab.subSessionId!} />
             </div>
           ))}

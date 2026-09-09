@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
 import { api, type DirEntryInfo } from "../lib/tauriApi";
 import { useAppStore } from "../store";
 
@@ -34,7 +34,9 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
     <div>
       <div
         className={`flex items-center gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none ${
-          entry.path === activePath ? "bg-white/10 text-zinc-100" : "text-zinc-300"
+          entry.path === activePath
+            ? "bg-white/10 text-zinc-100"
+            : "text-zinc-300"
         }`}
         style={{ paddingLeft: depth * 14 + 8 }}
         onClick={toggle}
@@ -78,11 +80,11 @@ export default function FileTree() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto pb-2">
-        {!projectRoot ? null : (
-          rootEntries.map((entry) => (
-            <Node key={entry.path} entry={entry} depth={0} />
-          ))
-        )}
+        {!projectRoot
+          ? null
+          : rootEntries.map((entry) => (
+              <Node key={entry.path} entry={entry} depth={0} />
+            ))}
       </div>
     </div>
   );

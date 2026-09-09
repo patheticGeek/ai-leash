@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
 import { Square, Trash2 } from "lucide-react";
-import { useAppStore } from "../store";
+import { useEffect, useState } from "react";
 import { api } from "../lib/tauriApi";
+import { useAppStore } from "../store";
 import Button from "./Button";
 
 function formatTime(ms: number): string {
@@ -63,7 +63,9 @@ export default function SubAgentsTab() {
     <div className="flex h-full flex-col overflow-y-auto p-2 gap-2">
       {sorted.map((task) => {
         const running = task.status === "running";
-        const duration = formatDuration((running ? now : (task.endedAt ?? now)) - task.startedAt);
+        const duration = formatDuration(
+          (running ? now : (task.endedAt ?? now)) - task.startedAt,
+        );
         return (
           <div
             key={task.subSessionId}
@@ -76,7 +78,9 @@ export default function SubAgentsTab() {
               >
                 {task.status === "running" ? "running…" : task.status}
               </span>
-              <span className="min-w-0 flex-1 truncate text-zinc-300">{task.description}</span>
+              <span className="min-w-0 flex-1 truncate text-zinc-300">
+                {task.description}
+              </span>
               {running ? (
                 <Button
                   variant="danger"
@@ -106,7 +110,8 @@ export default function SubAgentsTab() {
               )}
             </div>
             <div className="mt-1 text-[10px] text-zinc-600">
-              started {formatTime(task.startedAt)} · {running ? "running" : "ran"} for {duration}
+              started {formatTime(task.startedAt)} ·{" "}
+              {running ? "running" : "ran"} for {duration}
             </div>
           </div>
         );

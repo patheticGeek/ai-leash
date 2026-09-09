@@ -21,12 +21,7 @@ body,
 body {
   background-color: var(--al-bg);
   color: var(--al-text);
-  font-family:
-    "Inter",
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
 }
 

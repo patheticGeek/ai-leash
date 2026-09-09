@@ -1,13 +1,13 @@
-import { useEffect, useRef } from "react";
-import { EditorView, basicSetup } from "codemirror";
-import { EditorState, type Extension } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { css } from "@codemirror/lang-css";
+import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
-import { json } from "@codemirror/lang-json";
-import { html } from "@codemirror/lang-html";
-import { css } from "@codemirror/lang-css";
+import { EditorState, type Extension } from "@codemirror/state";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { basicSetup, EditorView } from "codemirror";
+import { useEffect, useRef } from "react";
 import { useAppStore } from "../store";
 
 function languageFor(name: string): Extension {
@@ -86,5 +86,10 @@ export default function FileEditorTab() {
 
   if (!activeFile) return null;
 
-  return <div ref={containerRef} className="h-full min-h-0 overflow-hidden bg-[#101114]" />;
+  return (
+    <div
+      ref={containerRef}
+      className="h-full min-h-0 overflow-hidden bg-[#101114]"
+    />
+  );
 }

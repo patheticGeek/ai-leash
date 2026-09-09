@@ -9,5 +9,7 @@ import logoUrl from "../assets/logo.svg";
 // "ui-sans-serif" to — a real logo shouldn't vary with that, so it's no
 // longer text at all.
 export default function Logo({ className }: { className?: string }) {
-  return <img src={logoUrl} alt="ai leash" className={className ?? "h-5 w-auto"} />;
+  return (
+    <img src={logoUrl} alt="ai leash" className={className ?? "h-5 w-auto"} />
+  );
 }
