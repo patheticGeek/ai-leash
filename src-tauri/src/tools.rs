@@ -48,7 +48,11 @@ const MAX_TOOL_OUTPUT: usize = 20_000;
 const MAX_GREP_RESULTS: usize = 200;
 const DEFAULT_READ_LIMIT: usize = 2000;
 
-pub fn tool_definitions(root: Option<&Path>, touched_dirs: &[PathBuf], allow_subtasks: bool) -> Value {
+pub fn tool_definitions(
+    root: Option<&Path>,
+    touched_dirs: &[PathBuf],
+    allow_subtasks: bool,
+) -> Value {
     let mut tools = json!([
         {
             "type": "function",
@@ -276,7 +280,13 @@ fn truncate(mut s: String) -> String {
 /// same semantics either way: a trailing `[showing lines A-B of N in
 /// <label>; call <retry_hint> with offset=B+1 to continue]` note whenever the
 /// returned range doesn't cover the whole thing.
-fn paginate_lines(content: &str, offset: u64, limit: usize, label: &str, retry_hint: &str) -> String {
+fn paginate_lines(
+    content: &str,
+    offset: u64,
+    limit: usize,
+    label: &str,
+    retry_hint: &str,
+) -> String {
     let total_lines = content.lines().count();
     let offset = offset.max(1) as usize;
     let start_idx = offset - 1;
@@ -403,7 +413,13 @@ pub async fn execute_tool(
                 .map(|v| v as usize)
                 .unwrap_or(DEFAULT_READ_LIMIT);
 
-            Ok(truncate(paginate_lines(&content, offset, limit, path, "read_file again")))
+            Ok(truncate(paginate_lines(
+                &content,
+                offset,
+                limit,
+                path,
+                "read_file again",
+            )))
         }
         "list_dir" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
@@ -503,9 +519,15 @@ pub async fn execute_tool(
 
             let new_content = old_content.replacen(&old_string, &new_string, 1);
             let detail = diff_text(&old_content, &new_content);
-            let approved =
-                request_permission(app, state, session_id, "edit", format!("Edit {path}"), detail)
-                    .await;
+            let approved = request_permission(
+                app,
+                state,
+                session_id,
+                "edit",
+                format!("Edit {path}"),
+                detail,
+            )
+            .await;
             if !approved {
                 return Ok("The user denied permission to edit this file.".into());
             }
@@ -555,7 +577,11 @@ pub async fn execute_tool(
             let global = match scope {
                 "project" => false,
                 "global" => true,
-                other => return Err(format!("invalid `scope` {other:?}, expected \"project\" or \"global\"")),
+                other => {
+                    return Err(format!(
+                        "invalid `scope` {other:?}, expected \"project\" or \"global\""
+                    ))
+                }
             };
             let new_content = args
                 .get("content")
@@ -583,7 +609,10 @@ pub async fn execute_tool(
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
             std::fs::write(&path, &new_content).map_err(|e| e.to_string())?;
-            Ok(format!("Updated {scope} memory ({} bytes)", new_content.len()))
+            Ok(format!(
+                "Updated {scope} memory ({} bytes)",
+                new_content.len()
+            ))
         }
         "shell" => {
             let command = args
@@ -632,7 +661,9 @@ pub async fn execute_tool(
                     .or_else(|| t.get("instructions"))
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .ok_or_else(|| format!("a `tasks` entry is missing `prompt`. {TASK_SHAPE_HINT}"))?;
+                    .ok_or_else(|| {
+                        format!("a `tasks` entry is missing `prompt`. {TASK_SHAPE_HINT}")
+                    })?;
                 // If the model omitted a real description, derive a short,
                 // distinguishable one from the prompt itself rather than
                 // labeling every subtask identically as "Subtask".
@@ -660,7 +691,13 @@ pub async fn execute_tool(
                     }
                 }
 
-                db::record_sub_agent_started(&state.db, &sub_session_id, session_id, &description, &prompt);
+                db::record_sub_agent_started(
+                    &state.db,
+                    &sub_session_id,
+                    session_id,
+                    &description,
+                    &prompt,
+                );
                 let _ = app.emit(
                     &format!("chat://{session_id}/subtask_start"),
                     json!({
@@ -758,7 +795,9 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_str())
                 .ok_or("missing `sub_session_id`")?;
             let target = resolve_sub_agent_id(&state.db, session_id, given).ok_or_else(|| {
-                format!("no sub-agent found matching {given:?}. Use list_sub_agents to see valid ids.")
+                format!(
+                    "no sub-agent found matching {given:?}. Use list_sub_agents to see valid ids."
+                )
             })?;
             // resolve_sub_agent_id only returns ids it already confirmed exist.
             let meta = db::get_sub_agent(&state.db, &target).expect("resolved sub-agent id exists");
@@ -777,7 +816,13 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize)
                 .unwrap_or(DEFAULT_READ_LIMIT);
-            Ok(truncate(paginate_lines(&transcript, offset, limit, &target, "read_sub_agent again")))
+            Ok(truncate(paginate_lines(
+                &transcript,
+                offset,
+                limit,
+                &target,
+                "read_sub_agent again",
+            )))
         }
         "load_skill" => {
             let name = args
@@ -834,7 +879,10 @@ async fn run_shell(command: &str, cwd: &PathBuf) -> Result<String, String> {
         combined.push_str("\n[stderr]\n");
         combined.push_str(&String::from_utf8_lossy(&output.stderr));
     }
-    combined.push_str(&format!("\n[exit code: {}]", output.status.code().unwrap_or(-1)));
+    combined.push_str(&format!(
+        "\n[exit code: {}]",
+        output.status.code().unwrap_or(-1)
+    ));
     Ok(truncate(combined))
 }
 
@@ -855,7 +903,9 @@ pub async fn run_shell_command(
     command: String,
 ) -> Result<String, String> {
     let root = commands::get_root_path(state.inner())?;
-    let result = run_shell(&command, &root).await.unwrap_or_else(|e| format!("Error: {e}"));
+    let result = run_shell(&command, &root)
+        .await
+        .unwrap_or_else(|e| format!("Error: {e}"));
 
     let call_id = Uuid::new_v4().to_string();
     let arguments = json!({ "command": command });
@@ -868,7 +918,10 @@ pub async fn run_shell_command(
             content: String::new(),
             tool_calls: Some(vec![ToolCall {
                 id: Some(call_id.clone()),
-                function: ToolCallFunction { name: "shell".into(), arguments: arguments.clone() },
+                function: ToolCallFunction {
+                    name: "shell".into(),
+                    arguments: arguments.clone(),
+                },
             }]),
         },
     );
@@ -880,7 +933,11 @@ pub async fn run_shell_command(
     chat::push_message(
         &state,
         &session_id,
-        chat::ChatMessage { role: "tool".into(), content: result.clone(), tool_calls: None },
+        chat::ChatMessage {
+            role: "tool".into(),
+            content: result.clone(),
+            tool_calls: None,
+        },
     );
     let _ = app.emit(
         &format!("chat://{session_id}/tool_result"),
@@ -899,7 +956,12 @@ pub async fn run_shell_command(
 /// carry `id` — the store already knows how to find which session's entry
 /// that belongs to.
 #[tauri::command]
-pub fn respond_permission(app: AppHandle, state: State<AppState>, id: String, approved: bool) -> Result<(), String> {
+pub fn respond_permission(
+    app: AppHandle,
+    state: State<AppState>,
+    id: String,
+    approved: bool,
+) -> Result<(), String> {
     if let Some(tx) = state.pending_permissions.lock().unwrap().remove(&id) {
         let _ = tx.send(approved);
         let _ = app.emit("permission://resolved", json!({ "id": id }));
@@ -917,7 +979,11 @@ pub fn respond_permission(app: AppHandle, state: State<AppState>, id: String, ap
 /// mount to restore whatever the user last chose (it persists that choice
 /// itself, in localStorage).
 #[tauri::command]
-pub fn set_permission_mode(state: State<AppState>, session_id: String, bypass: bool) -> Result<(), String> {
+pub fn set_permission_mode(
+    state: State<AppState>,
+    session_id: String,
+    bypass: bool,
+) -> Result<(), String> {
     let mut bypass_set = state.permission_bypass.lock().unwrap();
     if bypass {
         bypass_set.insert(session_id);
@@ -963,14 +1029,20 @@ mod tests {
     fn resolves_a_truncated_id_with_an_ellipsis() {
         let db = temp_db();
         let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", "/proj::spawn_sub_agent::550e8400..."), Some(id));
+        assert_eq!(
+            resolve_sub_agent_id(&db, "/proj", "/proj::spawn_sub_agent::550e8400..."),
+            Some(id)
+        );
     }
 
     #[test]
     fn resolves_a_truncated_id_with_double_question_marks() {
         let db = temp_db();
         let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", "550e8400-e29b??"), Some(id));
+        assert_eq!(
+            resolve_sub_agent_id(&db, "/proj", "550e8400-e29b??"),
+            Some(id)
+        );
     }
 
     #[test]

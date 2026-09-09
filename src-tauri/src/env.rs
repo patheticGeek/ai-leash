@@ -96,7 +96,10 @@ mod tests {
     #[test]
     fn leaves_an_unrelated_ld_library_path_alone() {
         let app_dir = Path::new("/tmp/.mount_ai-leaOmKBEl");
-        assert!(!is_appimage_injected("/usr/local/lib:/opt/some-other-app/lib", app_dir));
+        assert!(!is_appimage_injected(
+            "/usr/local/lib:/opt/some-other-app/lib",
+            app_dir
+        ));
     }
 
     #[test]
