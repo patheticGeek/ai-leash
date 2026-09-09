@@ -32,10 +32,9 @@ pub fn run() {
             // session's `NewSessionRequest.mcp_servers`.
             let (std_listener, info) = mcp_bridge::server::bind()?;
             *app.state::<AppState>().mcp_bridge.lock().unwrap() = Some(info.clone());
-            let listener = tokio::net::TcpListener::from_std(std_listener)?;
             tauri::async_runtime::spawn(mcp_bridge::server::run(
                 app.handle().clone(),
-                listener,
+                std_listener,
                 info.token,
             ));
             Ok(())

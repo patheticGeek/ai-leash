@@ -21,7 +21,21 @@ pub fn bind() -> io::Result<(std::net::TcpListener, McpBridgeInfo)> {
     Ok((listener, McpBridgeInfo { port, token }))
 }
 
-pub async fn run(app: AppHandle, listener: tokio::net::TcpListener, token: String) {
+/// Takes the plain `std::net::TcpListener` (not yet adopted by tokio) and
+/// converts it here, on first poll — `tokio::net::TcpListener::from_std`
+/// registers with the current thread's reactor, which only exists once
+/// this future is actually being polled by the tokio runtime. Doing the
+/// conversion any earlier (e.g. synchronously inside Tauri's `.setup()`
+/// hook, before this task is ever spawned/polled) panics with "there is no
+/// reactor running".
+pub async fn run(app: AppHandle, std_listener: std::net::TcpListener, token: String) {
+    let listener = match tokio::net::TcpListener::from_std(std_listener) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("mcp_bridge: failed to register listener with tokio: {e}");
+            return;
+        }
+    };
     loop {
         let Ok((stream, _)) = listener.accept().await else {
             break;
