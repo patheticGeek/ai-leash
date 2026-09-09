@@ -19,13 +19,6 @@ makedepends=('cargo' 'git' 'npm')
 source=("git+https://github.com/patheticGeek/ai-leash.git#branch=master")
 sha256sums=('SKIP')
 
-pkgver() {
-  cd "$srcdir/ai-leash"
-  git describe --tags --match='ai-leash-*' --long 2>/dev/null \
-    | sed -E 's/^ai-leash-//; s/-([0-9]+)-g[0-9a-f]+/-\1/' \
-    || printf '%s\n' "$pkgver"
-}
-
 prepare() {
   cd "$srcdir/ai-leash"
   export CARGO_HOME="$srcdir/cargo"
