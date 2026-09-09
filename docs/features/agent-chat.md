@@ -557,35 +557,6 @@ different ways.
   appends an actionable hint pointing at a typo/PATH/missing-install
   cause, since the PATH fix can't help if the command itself is simply
   wrong.
-- **`LD_LIBRARY_PATH`** (Linux AppImage packaging only): the AppImage
-  runtime mounts its bundled squashfs and points `LD_LIBRARY_PATH` at its
-  own `usr/lib` so the app binary can find its bundled shared libraries —
-  confirmed directly against a real built AppImage's `AppRun`
-  (`linuxdeploy`-generated): `<mount-dir>/usr/lib/:<mount-dir>/usr/lib/
-  x86_64-linux-gnu/:...`. That bundle is the *entire* GTK/WebKitGTK stack
-  (~155 `.so` files — glib, cairo, pango, icu, krb5, nghttp2, sqlite3,
-  libxml2, zstd, and far more), not just `libpcre2-8.so.0` — plenty of
-  ordinary CLI tools link against one or more of these too. Same problem
-  as PATH: that variable is inherited by every child process we spawn,
-  including totally unrelated system binaries (`git`, anything run via
-  the `shell` tool, ACP agents). Those then load the AppImage's bundled
-  lib instead of their own system one — usually a noisy `"no version
-  information available"` warning, but a real ABI mismatch for a big
-  enough version gap. `env::strip_appimage_ld_library_path()` removes
-  `LD_LIBRARY_PATH` entirely once it's confirmed injected — not gated on
-  the `APPIMAGE` env var (the documented AppImage-runtime convention for
-  "we're running mounted"), since that couldn't be independently verified
-  against this build without either `strace` (unavailable) or risking a
-  real GTK window flashing mid-startup to catch a doomed process before it
-  crashed against a fake `DISPLAY`. Instead it's self-gating on the one
-  thing that *was* directly confirmed: whether any `LD_LIBRARY_PATH` entry
-  is actually a subdirectory of our own executable's directory (two levels
-  up from `usr/bin/<binary>`, matching `usr/lib`'s sibling root) — true
-  exactly when AppImage-injected, never true for a `.deb`/`.rpm` install
-  or `tauri dev`. Safe to do unconditionally when true: our own process
-  already finished loading its shared libraries before `main()` even runs,
-  so this only affects subprocesses spawned from this point on.
-
 Uses the `agent-client-protocol` crate's stable v1 client role
 (`Client.builder()...connect_with(...)`, following
 `examples/yolo_one_shot_client.rs`'s pattern), advertising
