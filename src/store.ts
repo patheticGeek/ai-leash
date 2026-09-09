@@ -327,12 +327,9 @@ interface ConversationPanelState {
 
 export type ChatTabKind = "primary" | "subagent";
 
-export interface ChatTab {
-  id: string;
-  kind: ChatTabKind;
-  subSessionId?: string;
-  label: string;
-}
+export type ChatTab =
+  | { id: string; kind: "primary"; label: string }
+  | { id: string; kind: "subagent"; subSessionId: string; label: string };
 
 const PRIMARY_CHAT_TAB: ChatTab = {
   id: "primary",
@@ -948,7 +945,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
       );
       const chatTabs = s.chatTabs.filter(
-        (t) => !t.subSessionId || !removedIds.has(t.subSessionId),
+        (t) => t.kind !== "subagent" || !removedIds.has(t.subSessionId),
       );
       const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
         ? s.activeChatTabId
@@ -966,7 +963,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await api.deleteSubAgent(subSessionId);
     set((s) => {
       const chatTabs = s.chatTabs.filter(
-        (t) => t.subSessionId !== subSessionId,
+        (t) => t.kind !== "subagent" || t.subSessionId !== subSessionId,
       );
       const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
         ? s.activeChatTabId
@@ -995,7 +992,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (existing) {
       set({
         activePanelTabId: id,
-        activePath: existing.kind === "file" ? existing.path! : null,
+        activePath: existing.kind === "file" ? (existing.path ?? null) : null,
       });
       return;
     }

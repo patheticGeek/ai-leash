@@ -18,14 +18,14 @@ function App() {
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
-  const [leftBarWidth, onLeftBarResize] = useResizableWidth(
+  const [leftBarWidth, leftBarResize] = useResizableWidth(
     "ai-leash:leftBarWidth",
     220,
     160,
     400,
     1,
   );
-  const [rightPanelWidth, onRightPanelResize] = useResizableWidth(
+  const [rightPanelWidth, rightPanelResize] = useResizableWidth(
     "ai-leash:rightPanelWidth",
     360,
     240,
@@ -69,11 +69,11 @@ function App() {
         <div style={{ width: leftBarWidth }} className="shrink-0">
           <LeftBar />
         </div>
-        <ResizeHandle onMouseDown={onLeftBarResize} />
+        <ResizeHandle width={leftBarWidth} {...leftBarResize} />
         <div className="flex-1 min-w-0">
           <CenterPanel key={projectRoot ?? "none"} />
         </div>
-        <ResizeHandle onMouseDown={onRightPanelResize} />
+        <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
         <div style={{ width: rightPanelWidth }} className="shrink-0">
           <SidePanel />
         </div>

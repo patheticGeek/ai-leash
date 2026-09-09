@@ -41,33 +41,36 @@ export default function SidePanel() {
           return (
             <div
               key={tab.id}
-              onClick={() => {
-                setActivePanelTab(tab.id);
-                setPickerOpen(false);
-              }}
               className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs cursor-default ${
                 active
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              <span className="max-w-[10rem] truncate">{tab.label}</span>
-              {tab.kind === "subagents" && runningSubAgents > 0 && (
-                <span className="rounded-full bg-[#3a5f8f] px-1.5 text-[10px] text-white">
-                  {runningSubAgents}
-                </span>
-              )}
-              {dirty && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
-              )}
+              <Button
+                variant="unstyled"
+                size="none"
+                onClick={() => {
+                  setActivePanelTab(tab.id);
+                  setPickerOpen(false);
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <span className="max-w-[10rem] truncate">{tab.label}</span>
+                {tab.kind === "subagents" && runningSubAgents > 0 && (
+                  <span className="rounded-full bg-[#3a5f8f] px-1.5 text-[10px] text-white">
+                    {runningSubAgents}
+                  </span>
+                )}
+                {dirty && (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+                )}
+              </Button>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 title="Close tab"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closePanelTab(tab.id);
-                }}
+                onClick={() => closePanelTab(tab.id)}
                 className="-my-1 -mr-2 text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />

@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import { api, type DirEntryInfo } from "../lib/tauriApi";
 import { useAppStore } from "../store";
+import Button from "./Button";
 
 function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
   const [expanded, setExpanded] = useState(false);
@@ -32,8 +33,10 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
 
   return (
     <div>
-      <div
-        className={`flex items-center gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none ${
+      <Button
+        variant="unstyled"
+        size="none"
+        className={`flex w-full items-center gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none text-left ${
           entry.path === activePath
             ? "bg-white/10 text-zinc-100"
             : "text-zinc-300"
@@ -45,7 +48,7 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
           {entry.isDir ? (expanded ? "▾" : "▸") : ""}
         </span>
         <span>{entry.name}</span>
-      </div>
+      </Button>
       {entry.isDir && expanded && children && (
         <div>
           {children.map((child) => (

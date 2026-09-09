@@ -136,6 +136,7 @@ export default function SubAgentChatTab({
           </div>
         )}
         {entries.map((entry, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
           <EntryBlock key={i} entry={entry} />
         ))}
       </div>

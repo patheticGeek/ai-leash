@@ -728,7 +728,9 @@ export default function ChatPanel() {
     );
 
     return () => {
-      unlistens.forEach((u) => u.then((f) => f()));
+      unlistens.forEach((u) => {
+        u.then((f) => f());
+      });
     };
   }, [
     sessionId,
@@ -1249,6 +1251,7 @@ export default function ChatPanel() {
                     </div>
                     <div className="space-y-1.5">
                       {t.entries.map((sub, j) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
                         <SubEntryLine key={j} entry={sub} />
                       ))}
                     </div>
@@ -1590,10 +1593,14 @@ export default function ChatPanel() {
             </div>
             <div className="flex items-center gap-1.5">
               {!isAcp && usedTokens !== null && (
-                <div
+                <Button
+                  variant="unstyled"
+                  size="none"
                   className="relative"
                   onMouseEnter={() => setShowUsagePopover(true)}
                   onMouseLeave={() => setShowUsagePopover(false)}
+                  onFocus={() => setShowUsagePopover(true)}
+                  onBlur={() => setShowUsagePopover(false)}
                 >
                   <div
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
@@ -1633,7 +1640,7 @@ export default function ChatPanel() {
                       </div>
                     </div>
                   )}
-                </div>
+                </Button>
               )}
               <Button
                 variant="unstyled"

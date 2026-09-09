@@ -69,27 +69,30 @@ export default function SubAgentsTab() {
         return (
           <div
             key={task.subSessionId}
-            onClick={() => openChatTab(task.subSessionId, task.description)}
             className="group cursor-default rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs hover:border-[#3a5f8f]"
           >
             <div className="flex items-center gap-2">
-              <span
-                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+              <Button
+                variant="unstyled"
+                size="none"
+                onClick={() => openChatTab(task.subSessionId, task.description)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                {task.status === "running" ? "running…" : task.status}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-zinc-300">
-                {task.description}
-              </span>
+                <span
+                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+                >
+                  {task.status === "running" ? "running…" : task.status}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-zinc-300">
+                  {task.description}
+                </span>
+              </Button>
               {running ? (
                 <Button
                   variant="danger"
                   size="icon-sm"
                   title="Stop sub-agent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void api.cancelPrompt(task.subSessionId);
-                  }}
+                  onClick={() => void api.cancelPrompt(task.subSessionId)}
                   className="shrink-0 opacity-0 group-hover:opacity-100"
                 >
                   <Square size={12} />
@@ -99,10 +102,7 @@ export default function SubAgentsTab() {
                   variant="danger"
                   size="icon-sm"
                   title="Delete sub-agent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteSubAgentTask(task.subSessionId);
-                  }}
+                  onClick={() => deleteSubAgentTask(task.subSessionId)}
                   className="shrink-0 opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 size={12} />

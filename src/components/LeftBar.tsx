@@ -6,6 +6,7 @@ import {
   type RecentProject,
   useAppStore,
 } from "../store";
+import Button from "./Button";
 
 function ProjectRow({
   project,
@@ -24,14 +25,16 @@ function ProjectRow({
   );
 
   return (
-    <div
+    <Button
+      variant="unstyled"
+      size="none"
       onClick={onClick}
       title={
         awaitingApproval
           ? `${project.path} — needs your approval`
           : project.path
       }
-      className={`mx-1.5 mb-0.5 flex items-center gap-2 rounded px-2 py-1.5 text-sm cursor-default ${
+      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded px-2 py-1.5 text-sm text-left cursor-default ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -48,7 +51,7 @@ function ProjectRow({
           className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
         />
       )}
-    </div>
+    </Button>
   );
 }
 
@@ -79,7 +82,9 @@ export default function LeftBar() {
       }),
     ];
     return () => {
-      unlistens.forEach((u) => u.then((f) => f()));
+      unlistens.forEach((u) => {
+        u.then((f) => f());
+      });
     };
   }, [addPendingPermission, resolvePendingPermission]);
 
@@ -101,7 +106,9 @@ export default function LeftBar() {
       ),
     );
     return () => {
-      unlistens.forEach((u) => u.then((f) => f()));
+      unlistens.forEach((u) => {
+        u.then((f) => f());
+      });
     };
   }, [recentProjects, setSessionGenerating, touchProjectActivity]);
 

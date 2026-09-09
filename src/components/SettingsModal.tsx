@@ -294,14 +294,18 @@ function ProvidersSection() {
                 ) : (
                   <div
                     key={c.id}
-                    onClick={() => setActiveAcpAgent(c.id)}
-                    className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-2 text-sm ${
+                    className={`flex items-center gap-2 rounded border px-2 py-2 text-sm ${
                       agentBackend.activeAcpId === c.id
                         ? "border-[#3a5f8f] bg-[#3a5f8f]/10"
                         : "border-[#26272c] bg-[#17181c]"
                     }`}
                   >
-                    <div className="min-w-0 flex-1">
+                    <Button
+                      variant="unstyled"
+                      size="none"
+                      onClick={() => setActiveAcpAgent(c.id)}
+                      className="min-w-0 flex-1 cursor-pointer text-left"
+                    >
                       <div className="text-zinc-200">
                         {c.label}
                         {agentBackend.activeAcpId === c.id && (
@@ -313,15 +317,12 @@ function ProvidersSection() {
                       <div className="truncate text-zinc-600">
                         {c.launchCommand}
                       </div>
-                    </div>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       title="Edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditAcp(c);
-                      }}
+                      onClick={() => startEditAcp(c)}
                     >
                       <Pencil size={13} />
                     </Button>
@@ -329,10 +330,7 @@ function ProvidersSection() {
                       variant="danger"
                       size="icon-sm"
                       title="Delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteAcpAgentConfig(c.id);
-                      }}
+                      onClick={() => deleteAcpAgentConfig(c.id)}
                     >
                       <Trash2 size={13} />
                     </Button>

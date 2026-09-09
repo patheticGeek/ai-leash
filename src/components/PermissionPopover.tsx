@@ -33,6 +33,7 @@ export default function PermissionPopover({
         {request.kind === "edit" ? (
           request.detail.split("\n").map((line, i) => (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed diff text split into lines, no stable id available
               key={i}
               className={
                 line.startsWith("+ ")

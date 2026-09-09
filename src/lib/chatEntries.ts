@@ -92,7 +92,7 @@ export function applyToolResult(
 }
 
 export function isToolError(result: string | undefined): boolean {
-  return result !== undefined && result.startsWith("Error:");
+  return result?.startsWith("Error:") ?? false;
 }
 
 function isPendingTool(e: Entry): e is Extract<Entry, { kind: "tool" }> {
