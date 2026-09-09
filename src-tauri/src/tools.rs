@@ -690,6 +690,16 @@ pub async fn execute_tool(
                 tokio::spawn(async move {
                     let state = app_owned.state::<AppState>();
                     let cancel_flag = Arc::new(AtomicBool::new(false));
+                    // Registered under its own sub_session_id (not the
+                    // parent's) so the Sub Agents tab's Stop button
+                    // (`cancel_prompt`) can target this one task without
+                    // touching the parent conversation or its siblings —
+                    // see the Stop button in `SubAgentsTab.tsx`.
+                    state
+                        .cancellations
+                        .lock()
+                        .unwrap()
+                        .insert(sub_session_id.clone(), cancel_flag.clone());
                     let outcome = chat::run_sub_agent(
                         &app_owned,
                         &state,
@@ -701,6 +711,7 @@ pub async fn execute_tool(
                         &cancel_flag,
                     )
                     .await;
+                    state.cancellations.lock().unwrap().remove(&sub_session_id);
                     let (status, result) = match outcome {
                         Ok(text) => ("done", text),
                         Err(e) => ("error", format!("Error: {e}")),

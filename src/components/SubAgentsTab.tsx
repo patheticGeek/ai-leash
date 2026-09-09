@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Square, Trash2 } from "lucide-react";
 import { useAppStore } from "../store";
+import { api } from "../lib/tauriApi";
 import Button from "./Button";
 
 function formatTime(ms: number): string {
@@ -76,7 +77,20 @@ export default function SubAgentsTab() {
                 {task.status === "running" ? "running…" : task.status}
               </span>
               <span className="min-w-0 flex-1 truncate text-zinc-300">{task.description}</span>
-              {!running && (
+              {running ? (
+                <Button
+                  variant="danger"
+                  size="icon-sm"
+                  title="Stop sub-agent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void api.cancelPrompt(task.subSessionId);
+                  }}
+                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                >
+                  <Square size={12} />
+                </Button>
+              ) : (
                 <Button
                   variant="danger"
                   size="icon-sm"
