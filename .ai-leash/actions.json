@@ -1,0 +1,12 @@
+[
+  {
+    "id": "1625deab-971b-4aa1-b132-a4ad92628549",
+    "name": "dev",
+    "command": "npm run tauri dev"
+  },
+  {
+    "id": "783f5bdd-30dd-4892-9feb-e3e78163f849",
+    "name": "lint fix",
+    "command": "npm run lint:fix"
+  }
+]
