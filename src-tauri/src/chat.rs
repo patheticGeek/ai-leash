@@ -695,3 +695,13 @@ pub fn list_sub_agents(state: State<AppState>) -> Result<Vec<db::SubAgentSummary
     Ok(db::list_all_sub_agents(&state.db))
 }
 
+/// Removes one entry from the Sub Agents sidebar for good — see
+/// `db::delete_sub_agent`. The frontend only offers this for sub-agents that
+/// are no longer `running`, so there's no live turn that could still be
+/// writing to this id's transcript.
+#[tauri::command]
+pub fn delete_sub_agent(state: State<AppState>, sub_session_id: String) -> Result<(), String> {
+    db::delete_sub_agent(&state.db, &sub_session_id);
+    Ok(())
+}
+

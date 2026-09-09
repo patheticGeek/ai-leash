@@ -120,6 +120,8 @@ export const api = {
   fetchAcpModels: (launchCommand: string) =>
     invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
+  deleteSubAgent: (subSessionId: string) =>
+    invoke<void>("delete_sub_agent", { subSessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>

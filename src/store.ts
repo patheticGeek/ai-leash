@@ -239,6 +239,7 @@ export interface SubAgentTask {
   description: string;
   status: "running" | "done" | "error";
   startedAt: number;
+  endedAt?: number;
 }
 
 export type PanelTabKind = "filetree" | "subagents" | "terminal" | "file";
@@ -295,6 +296,11 @@ interface AppStore {
   conversationBackend: Record<string, ConversationBackendSelection>;
   settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
+  // Bumped every time `clearSubAgentTasksForParent` runs. Lets an in-flight
+  // `loadSubAgentTasks()` fetch (started before the clear) detect that its
+  // result is now stale and must not merge stale rows back in — see
+  // `loadSubAgentTasks`.
+  subAgentTasksEpoch: number;
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
   panelStateByConversation: Record<string, ConversationPanelState>;
@@ -363,10 +369,17 @@ interface AppStore {
   // 404 the next time `load_conversation_history` runs for it) and drops
   // their live `subAgentThreads`.
   clearSubAgentTasksForParent: (parentSessionId: string) => void;
+  // Removes a single finished sub-agent (Sub Agents tab's delete button —
+  // see `SubAgentsTab.tsx`), both on the backend (`db::delete_sub_agent`)
+  // and from local state/tabs, the same bookkeeping
+  // `clearSubAgentTasksForParent` does for a whole parent's worth at once.
+  deleteSubAgentTask: (subSessionId: string) => Promise<void>;
   // Backend is the source of truth (SQLite, kept indefinitely) — this merges
   // in anything not already known locally, without clobbering live updates
   // a `subtask_start`/`done`/`error` event may have already applied. Safe
-  // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`).
+  // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`). Discards
+  // its result if `clearSubAgentTasksForParent` ran while the fetch was in
+  // flight, so a stale read can't resurrect rows a `/clear` just removed.
   loadSubAgentTasks: () => Promise<void>;
   openPanelTab: (kind: PanelTabKind, opts?: { path?: string; label?: string }) => void;
   closePanelTab: (id: string) => void;
@@ -413,6 +426,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   conversationBackend: loadConversationBackend(),
   settingsModalOpen: false,
   subAgentTasks: [],
+  subAgentTasksEpoch: 0,
   panelTabs: [],
   activePanelTabId: null,
   panelStateByConversation: {},
@@ -722,8 +736,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     })),
 
   loadSubAgentTasks: async () => {
+    const epochAtStart = get().subAgentTasksEpoch;
     const rows = await api.listSubAgents();
     set((s) => {
+      // A `/clear` ran while this fetch was in flight — `rows` reflects a
+      // pre-clear snapshot, so merging it back in would resurrect entries
+      // `clearSubAgentTasksForParent` just removed. Drop it.
+      if (s.subAgentTasksEpoch !== epochAtStart) return s;
       const known = new Set(s.subAgentTasks.map((t) => t.subSessionId));
       const fromDb: SubAgentTask[] = rows
         .filter((r) => !known.has(r.id))
@@ -733,6 +752,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           description: r.description,
           status: r.status,
           startedAt: r.startedAt * 1000,
+          endedAt: r.finishedAt ? r.finishedAt * 1000 : undefined,
         }));
       return fromDb.length ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] } : s;
     });
@@ -741,7 +761,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   finishSubAgentTask: (subSessionId, status) =>
     set((s) => ({
       subAgentTasks: s.subAgentTasks.map((t) =>
-        t.subSessionId === subSessionId ? { ...t, status } : t,
+        t.subSessionId === subSessionId ? { ...t, status, endedAt: Date.now() } : t,
       ),
     })),
 
@@ -752,7 +772,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
           .filter((t) => t.parentSessionId === parentSessionId)
           .map((t) => t.subSessionId),
       );
-      if (removedIds.size === 0) return s;
+      // Always bump the epoch, even with nothing locally known to remove yet:
+      // an initial `loadSubAgentTasks()` fetch may still be in flight and
+      // would otherwise merge in this parent's now-deleted rows once it
+      // resolves (see `loadSubAgentTasks`).
+      if (removedIds.size === 0) return { subAgentTasksEpoch: s.subAgentTasksEpoch + 1 };
 
       const subAgentTasks = s.subAgentTasks.filter((t) => !removedIds.has(t.subSessionId));
       const subAgentThreads = Object.fromEntries(
@@ -764,8 +788,36 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
         ? s.activeChatTabId
         : "primary";
-      return { subAgentTasks, subAgentThreads, chatTabs, activeChatTabId };
+      return {
+        subAgentTasks,
+        subAgentThreads,
+        chatTabs,
+        activeChatTabId,
+        subAgentTasksEpoch: s.subAgentTasksEpoch + 1,
+      };
     }),
+
+  deleteSubAgentTask: async (subSessionId) => {
+    await api.deleteSubAgent(subSessionId);
+    set((s) => {
+      const chatTabs = s.chatTabs.filter((t) => t.subSessionId !== subSessionId);
+      const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
+        ? s.activeChatTabId
+        : "primary";
+      const subAgentThreads = { ...s.subAgentThreads };
+      delete subAgentThreads[subSessionId];
+      return {
+        subAgentTasks: s.subAgentTasks.filter((t) => t.subSessionId !== subSessionId),
+        subAgentThreads,
+        chatTabs,
+        activeChatTabId,
+        // Guards against a `loadSubAgentTasks()` fetch that was already in
+        // flight from re-adding this id once it resolves with stale data —
+        // same reasoning as `clearSubAgentTasksForParent`.
+        subAgentTasksEpoch: s.subAgentTasksEpoch + 1,
+      };
+    });
+  },
 
   openPanelTab: (kind, opts) => {
     const id = kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);

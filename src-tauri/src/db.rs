@@ -35,7 +35,7 @@ fn now() -> i64 {
 }
 
 impl Db {
-    fn open(path: PathBuf) -> Self {
+    pub(crate) fn open(path: PathBuf) -> Self {
         let conn = Connection::open(path).expect("failed to open history database");
         let _ = conn.pragma_update(None, "journal_mode", "WAL");
         conn.execute_batch(
@@ -256,6 +256,20 @@ pub fn list_all_sub_agents(db: &Db) -> Vec<SubAgentSummary> {
     let mut items = query_sub_agents(&conn, "", params![]);
     items.truncate(500);
     items
+}
+
+/// Deletes one sub-agent's `sub_agents` row plus its own `messages`/
+/// `conversations` rows (same per-row deletion `clear_conversation` does for
+/// each of a parent's sub-agents, just for a single id instead of every one
+/// under a parent). Intended for finished (`done`/`error`) sub-agents only —
+/// the frontend's delete button only offers this once a sub-agent is no
+/// longer `running`, since a still-running one may still be writing messages
+/// for this id and would otherwise resurrect a row right after this deletes it.
+pub fn delete_sub_agent(db: &Db, id: &str) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute("DELETE FROM messages WHERE conversation_id = ?1", params![id]);
+    let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![id]);
+    let _ = conn.execute("DELETE FROM sub_agents WHERE id = ?1", params![id]);
 }
 
 pub fn get_sub_agent(db: &Db, id: &str) -> Option<SubAgentMeta> {
