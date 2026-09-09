@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Copy, Minus, PlusIcon, SettingsIcon, Square, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
-import Logo from "./Logo";
 import Button from "./Button";
+import Logo from "./Logo";
 
 export const TITLEBAR_HEIGHT = 36;
 
@@ -85,7 +85,9 @@ export default function TitleBar({
   const openProject = useAppStore((s) => s.openProject);
 
   const projectName = recentProjects.find((p) => p.path === projectRoot)?.name;
-  const conversationTitle = chatTabs.find((t) => t.id === activeChatTabId)?.label;
+  const conversationTitle = chatTabs.find(
+    (t) => t.id === activeChatTabId,
+  )?.label;
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -115,7 +117,12 @@ export default function TitleBar({
           >
             <SettingsIcon size={14} />
           </Button>
-          <Button variant="ghost" size="icon" onClick={pickProject} title="Open project">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={pickProject}
+            title="Open project"
+          >
             <PlusIcon size={14} />
           </Button>
         </div>
@@ -129,7 +136,9 @@ export default function TitleBar({
         {projectName && (
           <span className="truncate">
             {projectName}
-            {conversationTitle && <span className="text-zinc-600"> / {conversationTitle}</span>}
+            {conversationTitle && (
+              <span className="text-zinc-600"> / {conversationTitle}</span>
+            )}
           </span>
         )}
       </div>

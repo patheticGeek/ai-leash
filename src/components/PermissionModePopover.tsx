@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
 import { ShieldCheck, ShieldOff } from "lucide-react";
+import { useEffect, useRef } from "react";
 import type { PermissionMode } from "../store";
 import Button from "./Button";
 
@@ -14,12 +14,14 @@ const OPTIONS: { key: PermissionMode; label: string; subtitle: string }[] = [
   {
     key: "ask",
     label: "Ask",
-    subtitle: "Prompt before edits, shell commands, and other tool calls that need approval",
+    subtitle:
+      "Prompt before edits, shell commands, and other tool calls that need approval",
   },
   {
     key: "bypass",
     label: "Bypass",
-    subtitle: "Auto-approve every permission request for this conversation — no prompts",
+    subtitle:
+      "Auto-approve every permission request for this conversation — no prompts",
   },
 ];
 
@@ -68,7 +70,11 @@ export default function PermissionModePopover({
             : "border-[#26272c] bg-[#17181c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
         }`}
       >
-        {mode === "bypass" ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
+        {mode === "bypass" ? (
+          <ShieldOff size={12} />
+        ) : (
+          <ShieldCheck size={12} />
+        )}
         {active.label}
       </Button>
       {open && (
@@ -87,7 +93,9 @@ export default function PermissionModePopover({
                   o.key === mode ? "bg-white/10" : "hover:bg-white/5"
                 }`}
               >
-                <div className="text-sm font-medium text-zinc-100">{o.label}</div>
+                <div className="text-sm font-medium text-zinc-100">
+                  {o.label}
+                </div>
                 <div className="text-xs text-zinc-500">{o.subtitle}</div>
               </Button>
             ))}

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import Button from "./Button";
 
 export interface PickerOption {
@@ -80,6 +80,7 @@ export default function ModelPickerPopover({
           <div className="flex items-center gap-2 border-b border-[#26272c] px-3 py-2.5">
             <Search size={14} className="shrink-0 text-zinc-500" />
             <input
+              // biome-ignore lint/a11y/noAutofocus: popover opens from an explicit click, not on page load
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
@@ -104,7 +105,9 @@ export default function ModelPickerPopover({
                   o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"
                 }`}
               >
-                <div className="text-sm font-medium text-zinc-100">{o.label}</div>
+                <div className="text-sm font-medium text-zinc-100">
+                  {o.label}
+                </div>
                 <div className="text-xs text-zinc-500">{o.subtitle}</div>
               </Button>
             ))}

@@ -42,5 +42,22 @@ export function useResizableWidth(
     [width, min, max, direction],
   );
 
-  return [width, onMouseDown] as const;
+  // Keyboard equivalent of the drag handle, for the `role="separator"` in
+  // ResizeHandle — left/right always maps to shrink/grow regardless of
+  // which edge the handle sits on.
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = 16;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setWidth((w) => Math.min(max, Math.max(min, w - step)));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setWidth((w) => Math.min(max, Math.max(min, w + step)));
+      }
+    },
+    [min, max],
+  );
+
+  return [width, { onMouseDown, onKeyDown, min, max }] as const;
 }

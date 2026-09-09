@@ -1,11 +1,24 @@
-import { useEffect, useState } from "react";
 import { getIdentifier, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, Copy, ExternalLink, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
-import { useAppStore, type AcpAgentConfig, type OpenAiCompatibleProviderConfig } from "../store";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/tauriApi";
-import Logo from "./Logo";
+import {
+  type AcpAgentConfig,
+  type OpenAiCompatibleProviderConfig,
+  useAppStore,
+} from "../store";
 import Button from "./Button";
+import Logo from "./Logo";
 
 const emptyForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 
@@ -25,7 +38,8 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
 export default function SettingsModal() {
   const open = useAppStore((s) => s.settingsModalOpen);
   const setOpen = useAppStore((s) => s.setSettingsModalOpen);
-  const [activeSection, setActiveSection] = useState<SettingsSection>("providers");
+  const [activeSection, setActiveSection] =
+    useState<SettingsSection>("providers");
 
   if (!open) return null;
 
@@ -34,7 +48,12 @@ export default function SettingsModal() {
       <div className="flex h-[620px] w-[840px] flex-col rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="text-base font-medium text-zinc-100">Settings</div>
-          <Button variant="ghost" size="icon" onClick={() => setOpen(false)} title="Close">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(false)}
+            title="Close"
+          >
             <X size={16} />
           </Button>
         </div>
@@ -72,8 +91,12 @@ const emptyAcpForm = { label: "", launchCommand: "" };
 function ProvidersSection() {
   const providerSettings = useAppStore((s) => s.providerSettings);
   const setOllamaHost = useAppStore((s) => s.setOllamaHost);
-  const saveOpenAiCompatibleConfig = useAppStore((s) => s.saveOpenAiCompatibleConfig);
-  const deleteOpenAiCompatibleConfig = useAppStore((s) => s.deleteOpenAiCompatibleConfig);
+  const saveOpenAiCompatibleConfig = useAppStore(
+    (s) => s.saveOpenAiCompatibleConfig,
+  );
+  const deleteOpenAiCompatibleConfig = useAppStore(
+    (s) => s.deleteOpenAiCompatibleConfig,
+  );
   const setActiveProvider = useAppStore((s) => s.setActiveProvider);
   const agentBackend = useAppStore((s) => s.agentBackend);
   const setAgentBackendKind = useAppStore((s) => s.setAgentBackendKind);
@@ -122,13 +145,17 @@ function ProvidersSection() {
       <div className="space-y-2 rounded border border-[#3a5f8f] bg-[#17181c] p-2.5">
         <input
           value={acpForm.label}
-          onChange={(e) => setAcpForm({ ...acpForm, label: e.currentTarget.value })}
+          onChange={(e) =>
+            setAcpForm({ ...acpForm, label: e.currentTarget.value })
+          }
           placeholder="Label, e.g. Claude Code"
           className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
         />
         <input
           value={acpForm.launchCommand}
-          onChange={(e) => setAcpForm({ ...acpForm, launchCommand: e.currentTarget.value })}
+          onChange={(e) =>
+            setAcpForm({ ...acpForm, launchCommand: e.currentTarget.value })
+          }
           placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
           className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
         />
@@ -234,7 +261,9 @@ function ProvidersSection() {
         </div>
         <select
           value={agentBackend.kind}
-          onChange={(e) => setAgentBackendKind(e.currentTarget.value as "builtin" | "acp")}
+          onChange={(e) =>
+            setAgentBackendKind(e.currentTarget.value as "builtin" | "acp")
+          }
           className="w-full rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
         >
           <option value="builtin">Built-in (this app's own tool loop)</option>
@@ -253,7 +282,9 @@ function ProvidersSection() {
             </div>
 
             {agentBackend.acpAgents.length === 0 && !showAcpForm && (
-              <div className="text-sm text-zinc-600">No ACP agents saved yet — add one.</div>
+              <div className="text-sm text-zinc-600">
+                No ACP agents saved yet — add one.
+              </div>
             )}
 
             <div className="space-y-1.5">
@@ -263,30 +294,35 @@ function ProvidersSection() {
                 ) : (
                   <div
                     key={c.id}
-                    onClick={() => setActiveAcpAgent(c.id)}
-                    className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-2 text-sm ${
+                    className={`flex items-center gap-2 rounded border px-2 py-2 text-sm ${
                       agentBackend.activeAcpId === c.id
                         ? "border-[#3a5f8f] bg-[#3a5f8f]/10"
                         : "border-[#26272c] bg-[#17181c]"
                     }`}
                   >
-                    <div className="min-w-0 flex-1">
+                    <Button
+                      variant="unstyled"
+                      size="none"
+                      onClick={() => setActiveAcpAgent(c.id)}
+                      className="flex min-w-0 flex-1 flex-col items-start gap-0 cursor-pointer text-left"
+                    >
                       <div className="text-zinc-200">
                         {c.label}
                         {agentBackend.activeAcpId === c.id && (
-                          <span className="ml-1.5 text-xs text-[#6a9fd8]">active</span>
+                          <span className="ml-1.5 text-xs text-[#6a9fd8]">
+                            active
+                          </span>
                         )}
                       </div>
-                      <div className="truncate text-zinc-600">{c.launchCommand}</div>
-                    </div>
+                      <div className="truncate text-zinc-600">
+                        {c.launchCommand}
+                      </div>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"
                       title="Edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditAcp(c);
-                      }}
+                      onClick={() => startEditAcp(c)}
                     >
                       <Pencil size={13} />
                     </Button>
@@ -294,10 +330,7 @@ function ProvidersSection() {
                       variant="danger"
                       size="icon-sm"
                       title="Delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteAcpAgentConfig(c.id);
-                      }}
+                      onClick={() => deleteAcpAgentConfig(c.id)}
                     >
                       <Trash2 size={13} />
                     </Button>
@@ -334,8 +367,8 @@ function ProvidersSection() {
           ))}
         </select>
         <div className="mt-1 text-xs text-zinc-600">
-          Each conversation remembers its own provider/agent and model once
-          you pick one from the chat bar — this is only what a brand-new
+          Each conversation remembers its own provider/agent and model once you
+          pick one from the chat bar — this is only what a brand-new
           conversation starts from.
         </div>
       </div>
@@ -351,7 +384,11 @@ function ProvidersSection() {
             placeholder="localhost:11434"
             className="flex-1 rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
           />
-          <Button variant="primary" size="md" onClick={() => setOllamaHost(hostInput)}>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setOllamaHost(hostInput)}
+          >
             <Check size={14} />
             Save
           </Button>
@@ -370,7 +407,9 @@ function ProvidersSection() {
         </div>
 
         {providerSettings.openAiCompatible.length === 0 && !showForm && (
-          <div className="text-sm text-zinc-600">No providers configured yet.</div>
+          <div className="text-sm text-zinc-600">
+            No providers configured yet.
+          </div>
         )}
 
         <div className="space-y-1.5">
@@ -386,7 +425,12 @@ function ProvidersSection() {
                   <div className="text-zinc-200">{c.label}</div>
                   <div className="truncate text-zinc-600">{c.baseUrl}</div>
                 </div>
-                <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => startEdit(c)}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Edit"
+                  onClick={() => startEdit(c)}
+                >
                   <Pencil size={13} />
                 </Button>
                 <Button
@@ -434,7 +478,9 @@ function CrashLogSection() {
   return (
     <div className="flex h-full flex-col space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">Crash log</div>
+        <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
+          Crash log
+        </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={refresh}>
             <RefreshCw size={13} />
@@ -451,9 +497,10 @@ function CrashLogSection() {
         </div>
       </div>
       <div className="text-xs text-zinc-600">
-        Backend panics and frontend errors (uncaught exceptions, unhandled promise
-        rejections, React crashes) are appended here as they happen — including ones from
-        a previous run, so you can find out what happened after restarting the app.
+        Backend panics and frontend errors (uncaught exceptions, unhandled
+        promise rejections, React crashes) are appended here as they happen —
+        including ones from a previous run, so you can find out what happened
+        after restarting the app.
       </div>
       <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded border border-[#26272c] bg-[#0e0f12] p-2.5 text-xs text-zinc-400">
         {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
@@ -463,7 +510,10 @@ function CrashLogSection() {
 }
 
 function AboutSection() {
-  const [info, setInfo] = useState<{ version: string; identifier: string } | null>(null);
+  const [info, setInfo] = useState<{
+    version: string;
+    identifier: string;
+  } | null>(null);
 
   useEffect(() => {
     Promise.all([getVersion(), getIdentifier()]).then(([version, identifier]) =>
@@ -479,11 +529,19 @@ function AboutSection() {
         {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}
       </div>
       <div className="flex gap-2">
-        <Button variant="secondary" size="sm" onClick={() => openUrl(GITHUB_URL)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => openUrl(GITHUB_URL)}
+        >
           <ExternalLink size={13} />
           source code
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => openUrl(WEBSITE_URL)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => openUrl(WEBSITE_URL)}
+        >
           <ExternalLink size={13} />
           my website
         </Button>

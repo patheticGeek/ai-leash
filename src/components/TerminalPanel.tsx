@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Terminal } from "@xterm/xterm";
+import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../lib/tauriApi";
@@ -17,6 +17,7 @@ export default function TerminalPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const projectRoot = useAppStore((s) => s.projectRoot);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. projectRoot can't actually change under a mounted TerminalPanel: switching projects replaces panelTabs wholesale (see openProject in store.ts), which unmounts every terminal tab via its key rather than updating this one in place.
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -40,7 +41,11 @@ export default function TerminalPanel() {
     let unlistenData: (() => void) | undefined;
 
     (async () => {
-      const id = await api.ptySpawn(projectRoot ?? undefined, term.cols, term.rows);
+      const id = await api.ptySpawn(
+        projectRoot ?? undefined,
+        term.cols,
+        term.rows,
+      );
       if (disposed) {
         api.ptyKill(id);
         return;
@@ -67,7 +72,6 @@ export default function TerminalPanel() {
       if (ptyId) api.ptyKill(ptyId);
       term.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <div ref={containerRef} className="h-full bg-[#0b0c0e] px-2 py-1" />;

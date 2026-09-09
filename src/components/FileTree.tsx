@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
 import { api, type DirEntryInfo } from "../lib/tauriApi";
 import { useAppStore } from "../store";
+import Button from "./Button";
 
 function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
   const [expanded, setExpanded] = useState(false);
@@ -32,9 +33,13 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
 
   return (
     <div>
-      <div
-        className={`flex items-center gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none ${
-          entry.path === activePath ? "bg-white/10 text-zinc-100" : "text-zinc-300"
+      <Button
+        variant="unstyled"
+        size="none"
+        className={`flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none text-left ${
+          entry.path === activePath
+            ? "bg-white/10 text-zinc-100"
+            : "text-zinc-300"
         }`}
         style={{ paddingLeft: depth * 14 + 8 }}
         onClick={toggle}
@@ -43,7 +48,7 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
           {entry.isDir ? (expanded ? "▾" : "▸") : ""}
         </span>
         <span>{entry.name}</span>
-      </div>
+      </Button>
       {entry.isDir && expanded && children && (
         <div>
           {children.map((child) => (
@@ -78,11 +83,11 @@ export default function FileTree() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto pb-2">
-        {!projectRoot ? null : (
-          rootEntries.map((entry) => (
-            <Node key={entry.path} entry={entry} depth={0} />
-          ))
-        )}
+        {!projectRoot
+          ? null
+          : rootEntries.map((entry) => (
+              <Node key={entry.path} entry={entry} depth={0} />
+            ))}
       </div>
     </div>
   );

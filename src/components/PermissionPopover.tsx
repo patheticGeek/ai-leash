@@ -13,7 +13,10 @@ interface PermissionPopoverProps {
 // `docs/features/agent-chat.md`). Always open when there's a request for
 // this session (no internal open/close state of its own); `ChatPanel.tsx`
 // decides *whether* to render it via `permissionForSession`.
-export default function PermissionPopover({ request, onRespond }: PermissionPopoverProps) {
+export default function PermissionPopover({
+  request,
+  onRespond,
+}: PermissionPopoverProps) {
   return (
     <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex max-h-[60vh] flex-col overflow-hidden rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
       <div className="px-3 py-2.5">
@@ -30,6 +33,7 @@ export default function PermissionPopover({ request, onRespond }: PermissionPopo
         {request.kind === "edit" ? (
           request.detail.split("\n").map((line, i) => (
             <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed diff text split into lines, no stable id available
               key={i}
               className={
                 line.startsWith("+ ")
@@ -43,7 +47,9 @@ export default function PermissionPopover({ request, onRespond }: PermissionPopo
             </div>
           ))
         ) : (
-          <pre className="whitespace-pre-wrap text-zinc-300">{request.detail}</pre>
+          <pre className="whitespace-pre-wrap text-zinc-300">
+            {request.detail}
+          </pre>
         )}
       </div>
       <div className="flex items-center justify-end gap-2 px-3 py-2.5">

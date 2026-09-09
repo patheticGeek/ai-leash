@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
 import { Wrench } from "lucide-react";
-import { useAppStore } from "../store";
+import { useEffect, useRef } from "react";
+import { type Entry, isToolError, messagesToEntries } from "../lib/chatEntries";
 import { api } from "../lib/tauriApi";
-import { isToolError, messagesToEntries, type Entry } from "../lib/chatEntries";
+import { useAppStore } from "../store";
 import Markdown from "./Markdown";
 
 const statusStyles: Record<string, string> = {
@@ -14,7 +14,9 @@ const statusStyles: Record<string, string> = {
 function EntryBlock({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
-      <div className={entry.role === "user" ? "text-zinc-200" : "text-zinc-300"}>
+      <div
+        className={entry.role === "user" ? "text-zinc-200" : "text-zinc-300"}
+      >
         <div className="mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600">
           {entry.role === "user" ? "task" : "sub-agent"}
         </div>
@@ -38,14 +40,23 @@ function EntryBlock({ entry }: { entry: Entry }) {
   return (
     <div
       className={`rounded border px-2.5 py-1.5 text-xs ${
-        failed ? "border-red-900/50 bg-red-950/10" : "border-[#26272c] bg-[#141518]"
+        failed
+          ? "border-red-900/50 bg-red-950/10"
+          : "border-[#26272c] bg-[#141518]"
       }`}
     >
       <div className="flex min-w-0 items-center gap-1.5 text-zinc-400">
-        <Wrench size={12} className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`} />
+        <Wrench
+          size={12}
+          className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+        />
         <span className="shrink-0">{entry.name}</span>
-        <span className="min-w-0 flex-1 truncate text-zinc-600">{JSON.stringify(entry.args)}</span>
-        {entry.result === undefined && <span className="shrink-0 text-zinc-600">running…</span>}
+        <span className="min-w-0 flex-1 truncate text-zinc-600">
+          {JSON.stringify(entry.args)}
+        </span>
+        {entry.result === undefined && (
+          <span className="shrink-0 text-zinc-600">running…</span>
+        )}
       </div>
       {entry.result !== undefined && (
         <pre
@@ -60,11 +71,17 @@ function EntryBlock({ entry }: { entry: Entry }) {
   );
 }
 
-export default function SubAgentChatTab({ subSessionId }: { subSessionId: string }) {
+export default function SubAgentChatTab({
+  subSessionId,
+}: {
+  subSessionId: string;
+}) {
   const rawEntries = useAppStore((s) => s.subAgentThreads[subSessionId]);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
   const entries = rawEntries ?? [];
-  const task = useAppStore((s) => s.subAgentTasks.find((t) => t.subSessionId === subSessionId));
+  const task = useAppStore((s) =>
+    s.subAgentTasks.find((t) => t.subSessionId === subSessionId),
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -82,6 +99,7 @@ export default function SubAgentChatTab({ subSessionId }: { subSessionId: string
     });
   }, [subSessionId, rawEntries, setSubAgentEntries]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is a trigger-only dep — re-run the scroll check on every new message, its value isn't read in the body
   useEffect(() => {
     if (autoScrollRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -90,7 +108,8 @@ export default function SubAgentChatTab({ subSessionId }: { subSessionId: string
 
   function onScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget;
-    autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    autoScrollRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }
 
   return (
@@ -103,13 +122,22 @@ export default function SubAgentChatTab({ subSessionId }: { subSessionId: string
         >
           {task?.status === "running" ? "running…" : (task?.status ?? "done")}
         </span>
-        <span className="min-w-0 flex-1 truncate text-zinc-300">{task?.description}</span>
+        <span className="min-w-0 flex-1 truncate text-zinc-300">
+          {task?.description}
+        </span>
       </div>
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="flex-1 overflow-y-auto p-3 space-y-3"
+      >
         {entries.length === 0 && (
-          <div className="text-sm text-zinc-600">Waiting for sub-agent output…</div>
+          <div className="text-sm text-zinc-600">
+            Waiting for sub-agent output…
+          </div>
         )}
         {entries.map((entry, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
           <EntryBlock key={i} entry={entry} />
         ))}
       </div>

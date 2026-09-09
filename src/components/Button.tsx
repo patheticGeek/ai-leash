@@ -1,6 +1,6 @@
-import { forwardRef } from "react";
-import type { ButtonHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import type { ButtonHTMLAttributes } from "react";
+import { forwardRef } from "react";
 import { twMerge } from "tailwind-merge";
 
 // Every clickable control in the app should render through this so cursor,
@@ -13,7 +13,8 @@ const buttonStyles = cva(
     variants: {
       variant: {
         primary: "bg-[#3a5f8f] text-white hover:bg-[#4a6f9f]",
-        secondary: "border border-[#26272c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+        secondary:
+          "border border-[#26272c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
         ghost: "text-zinc-500 hover:bg-white/10 hover:text-zinc-200",
         danger: "text-zinc-500 hover:bg-red-500/10 hover:text-red-400",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
