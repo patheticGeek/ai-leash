@@ -44,6 +44,7 @@ pub fn run() {
             chat::list_sub_agents,
             chat::delete_sub_agent,
             tools::respond_permission,
+            tools::set_permission_mode,
             tools::run_shell_command,
             acp::send_prompt_acp,
             acp::set_acp_model,

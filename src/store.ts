@@ -233,6 +233,31 @@ function saveConversationBackendMap(map: Record<string, ConversationBackendSelec
   localStorage.setItem(CONVERSATION_BACKEND_KEY, JSON.stringify(map));
 }
 
+const PERMISSION_MODE_KEY = "ai-leash:permissionMode";
+
+export type PermissionMode = "ask" | "bypass";
+
+// Per-session Ask/Bypass choice for tool-call permission prompts (edits,
+// shell commands, ACP's own permission requests) — see the selector next to
+// the model picker in `ChatPanel.tsx`. Persisted here so it survives an app
+// restart, but the actual enforcement lives backend-side (`request_permission`
+// in tools.rs, gated by `AppState.permission_bypass`) — that's in-memory
+// only, so `ChatPanel` re-sends whatever's stored here once per mount to
+// keep the backend in sync (see `setPermissionMode`'s doc comment below).
+function loadPermissionMode(): Record<string, PermissionMode> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PERMISSION_MODE_KEY) ?? "{}");
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    // fall through
+  }
+  return {};
+}
+
+function savePermissionModeMap(map: Record<string, PermissionMode>) {
+  localStorage.setItem(PERMISSION_MODE_KEY, JSON.stringify(map));
+}
+
 export interface SubAgentTask {
   subSessionId: string;
   parentSessionId: string;
@@ -294,6 +319,9 @@ interface AppStore {
   // Per-conversation backend/model choice, keyed by session id — see
   // `ConversationBackendSelection`'s doc comment.
   conversationBackend: Record<string, ConversationBackendSelection>;
+  // Per-conversation Ask/Bypass permission choice — see `loadPermissionMode`'s
+  // doc comment. Missing entry means "ask" (the default).
+  permissionMode: Record<string, PermissionMode>;
   settingsModalOpen: boolean;
   subAgentTasks: SubAgentTask[];
   // Bumped every time `clearSubAgentTasksForParent` runs. Lets an in-flight
@@ -354,6 +382,12 @@ interface AppStore {
   fetchAcpModelsFor: (agentId: string) => Promise<void>;
   refreshAcpModelCache: () => Promise<void>;
   setConversationBackend: (sessionId: string, selection: ConversationBackendSelection) => void;
+  // Persists the choice locally and pushes it to the backend
+  // (`set_permission_mode`) so `request_permission` actually honors it —
+  // see `loadPermissionMode`'s doc comment. `ChatPanel.tsx` also calls this
+  // once on mount with whatever's already stored, to re-sync the backend's
+  // in-memory state after an app restart.
+  setPermissionMode: (sessionId: string, mode: PermissionMode) => void;
   startSubAgentTask: (task: {
     subSessionId: string;
     parentSessionId: string;
@@ -424,6 +458,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   agentBackend: loadAgentBackend(),
   acpModelCache: {},
   conversationBackend: loadConversationBackend(),
+  permissionMode: loadPermissionMode(),
   settingsModalOpen: false,
   subAgentTasks: [],
   subAgentTasksEpoch: 0,
@@ -726,6 +761,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       saveConversationBackendMap(conversationBackend);
       return { conversationBackend };
     }),
+
+  setPermissionMode: (sessionId, mode) => {
+    set((s) => {
+      const permissionMode = { ...s.permissionMode, [sessionId]: mode };
+      savePermissionModeMap(permissionMode);
+      return { permissionMode };
+    });
+    void api.setPermissionMode(sessionId, mode === "bypass");
+  },
 
   startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
     set((s) => ({

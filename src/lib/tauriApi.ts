@@ -124,6 +124,8 @@ export const api = {
     invoke<void>("delete_sub_agent", { subSessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
+  setPermissionMode: (sessionId: string, bypass: boolean) =>
+    invoke<void>("set_permission_mode", { sessionId, bypass }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),

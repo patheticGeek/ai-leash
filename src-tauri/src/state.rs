@@ -44,4 +44,12 @@ pub struct AppState {
     /// instead of silently reusing the old agent's process) and the channel
     /// used to send it prompts/cancellations. See `acp.rs::ensure_acp_session`.
     pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
+    /// Sessions currently in "bypass" permission mode — `request_permission`
+    /// (tools.rs) auto-approves instead of prompting for any session_id in
+    /// here. Set via the `set_permission_mode` command, which the frontend
+    /// calls from the Ask/Bypass selector next to the model picker
+    /// (`ChatPanel.tsx`). A sub-agent inherits its parent's membership at
+    /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
+    /// parent's cancellation flag the same way.
+    pub permission_bypass: Mutex<HashSet<String>>,
 }

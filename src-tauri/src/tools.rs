@@ -241,6 +241,9 @@ pub(crate) async fn request_permission(
     title: String,
     detail: String,
 ) -> bool {
+    if state.permission_bypass.lock().unwrap().contains(session_id) {
+        return true;
+    }
     let id = Uuid::new_v4().to_string();
     let (tx, rx) = tokio::sync::oneshot::channel();
     state
@@ -646,6 +649,16 @@ pub async fn execute_tool(
                     }
                 });
                 let sub_session_id = format!("{session_id}::spawn_sub_agent::{}", Uuid::new_v4());
+                // Inherit the parent's bypass setting — same reasoning as
+                // sharing its cancellation flag (see `run_sub_agent`'s doc
+                // comment in chat.rs): a sub-agent has no textarea of its
+                // own to show a permission popover above anyway.
+                {
+                    let mut bypass_set = state.permission_bypass.lock().unwrap();
+                    if bypass_set.contains(session_id) {
+                        bypass_set.insert(sub_session_id.clone());
+                    }
+                }
 
                 db::record_sub_agent_started(&state.db, &sub_session_id, session_id, &description, &prompt);
                 let _ = app.emit(
@@ -883,6 +896,24 @@ pub fn respond_permission(app: AppHandle, state: State<AppState>, id: String, ap
     } else {
         Err("no such permission request".into())
     }
+}
+
+/// Flips a session between "ask" (the default — every edit/shell/ACP
+/// permission request goes through `request_permission`'s popover) and
+/// "bypass" (auto-approved, no prompt at all) — see the Ask/Bypass selector
+/// in `ChatPanel.tsx`, next to the model picker. Backend-only state (not
+/// persisted to SQLite), so the frontend re-sends this once per session on
+/// mount to restore whatever the user last chose (it persists that choice
+/// itself, in localStorage).
+#[tauri::command]
+pub fn set_permission_mode(state: State<AppState>, session_id: String, bypass: bool) -> Result<(), String> {
+    let mut bypass_set = state.permission_bypass.lock().unwrap();
+    if bypass {
+        bypass_set.insert(session_id);
+    } else {
+        bypass_set.remove(&session_id);
+    }
+    Ok(())
 }
 
 #[cfg(test)]

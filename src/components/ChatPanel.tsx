@@ -17,6 +17,7 @@ import { useAppStore, permissionForSession } from "../store";
 import { api, type AcpCommandInfo, type AcpModelOptions } from "../lib/tauriApi";
 import Markdown from "./Markdown";
 import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
+import PermissionModePopover from "./PermissionModePopover";
 import PermissionPopover from "./PermissionPopover";
 import Button from "./Button";
 import {
@@ -254,6 +255,18 @@ export default function ChatPanel() {
   // Lifted out of `ModelPickerPopover` so the "/model" local command can
   // open it without a real click.
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // Ask/Bypass permission mode for this conversation — see
+  // `setPermissionMode`'s doc comment in store.ts. Enforcement is
+  // backend-side and in-memory only, so this pushes whatever's already
+  // stored down to it once per mount (this component remounts per project,
+  // same as `sessionId` above) to restore it after an app restart.
+  const permissionMode = useAppStore((s) => s.permissionMode[sessionId] ?? "ask");
+  const setPermissionMode = useAppStore((s) => s.setPermissionMode);
+  const [permissionModePickerOpen, setPermissionModePickerOpen] = useState(false);
+  useEffect(() => {
+    setPermissionMode(sessionId, permissionMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
   // "/help" shows an overlay over the messages area rather than adding an
   // entry to the transcript — closed by its own X button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
@@ -1381,6 +1394,12 @@ export default function ChatPanel() {
                 triggerLabel={activeBackendLabel}
                 open={modelPickerOpen}
                 onOpenChange={setModelPickerOpen}
+              />
+              <PermissionModePopover
+                mode={permissionMode}
+                onSelect={(mode) => setPermissionMode(sessionId, mode)}
+                open={permissionModePickerOpen}
+                onOpenChange={setPermissionModePickerOpen}
               />
               {isOpenAiCompatible && !isAcp && (
                 <input
