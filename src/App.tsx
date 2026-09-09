@@ -3,7 +3,6 @@ import LeftBar from "./components/LeftBar";
 import SidePanel from "./components/SidePanel";
 import ResizeHandle from "./components/ResizeHandle";
 import CenterPanel from "./components/CenterPanel";
-import StatusBar from "./components/StatusBar";
 import SettingsModal from "./components/SettingsModal";
 import { useAppStore } from "./store";
 import { useResizableWidth } from "./hooks/useResizableWidth";
@@ -72,7 +71,6 @@ function App() {
           <SidePanel />
         </div>
       </div>
-      <StatusBar />
     </div>
   );
 }
