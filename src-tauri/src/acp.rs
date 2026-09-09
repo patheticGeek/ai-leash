@@ -12,7 +12,7 @@ use agent_client_protocol::schema::v1::{
     ToolCallContent, ToolCallStatus, ToolCallUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
-use agent_client_protocol::{Agent, AcpAgent, Client, ConnectionTo};
+use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex as StdMutex};
@@ -99,7 +99,9 @@ pub async fn fetch_acp_models(
                 // to ask permission for — deny by construction rather than
                 // popping up the real permission UI for a session the user
                 // never asked to start.
-                responder.respond(RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled))
+                responder.respond(RequestPermissionResponse::new(
+                    RequestPermissionOutcome::Cancelled,
+                ))
             },
             agent_client_protocol::on_receive_request!(),
         )
@@ -111,7 +113,10 @@ pub async fn fetch_acp_models(
                 )
                 .block_task()
                 .await?;
-            let new_session = connection.send_request(NewSessionRequest::new(root)).block_task().await?;
+            let new_session = connection
+                .send_request(NewSessionRequest::new(root))
+                .block_task()
+                .await?;
             Ok(new_session
                 .config_options
                 .as_ref()
@@ -152,7 +157,10 @@ fn ensure_acp_session(
     let (tx, rx) = mpsc::unbounded_channel::<AcpCommand>();
     sessions.insert(
         session_id.to_string(),
-        AcpSession { launch_command: launch_command.to_string(), sender: tx.clone() },
+        AcpSession {
+            launch_command: launch_command.to_string(),
+            sender: tx.clone(),
+        },
     );
     drop(sessions);
 
@@ -174,7 +182,10 @@ fn ensure_acp_session(
 fn remove_if_still_current(app: &AppHandle, session_id: &str, launch_command: &str) {
     let state = app.state::<AppState>();
     let mut sessions = state.acp_sessions.lock().unwrap();
-    if sessions.get(session_id).is_some_and(|s| s.launch_command == launch_command) {
+    if sessions
+        .get(session_id)
+        .is_some_and(|s| s.launch_command == launch_command)
+    {
         sessions.remove(session_id);
     }
 }
@@ -202,7 +213,10 @@ async fn run_acp_session(
         Err(e) => {
             let _ = app.emit(
                 &format!("chat://{session_id}/error"),
-                format!("Failed to parse ACP launch command: {}", format_acp_error(&e)),
+                format!(
+                    "Failed to parse ACP launch command: {}",
+                    format_acp_error(&e)
+                ),
             );
             remove_if_still_current(&app, &session_id, &launch_command);
             return;
@@ -380,7 +394,8 @@ async fn drive_acp_connection(
                             .await
                         {
                             Ok(resp) => {
-                                if let Some(option) = find_model_config_option(&resp.config_options) {
+                                if let Some(option) = find_model_config_option(&resp.config_options)
+                                {
                                     let _ = app.emit(
                                         &format!("chat://{session_id}/acp_model_options"),
                                         model_options_payload(option),
@@ -513,8 +528,17 @@ fn emit_tool_call(app: &AppHandle, session_id: &str, tool_call: &ToolCall) {
             "arguments": tool_call.raw_input,
         }),
     );
-    persist_tool_call(app, session_id, &call_id, &tool_call.title, &tool_call.raw_input);
-    if matches!(tool_call.status, ToolCallStatus::Completed | ToolCallStatus::Failed) {
+    persist_tool_call(
+        app,
+        session_id,
+        &call_id,
+        &tool_call.title,
+        &tool_call.raw_input,
+    );
+    if matches!(
+        tool_call.status,
+        ToolCallStatus::Completed | ToolCallStatus::Failed
+    ) {
         let result = summarize_tool_call_content(&tool_call.content);
         let _ = app.emit(
             &format!("chat://{session_id}/tool_result"),
@@ -583,7 +607,11 @@ fn persist_tool_result(app: &AppHandle, session_id: &str, result: &str) {
     chat::push_message(
         &state,
         session_id,
-        ChatMessage { role: "tool".into(), content: result.to_string(), tool_calls: None },
+        ChatMessage {
+            role: "tool".into(),
+            content: result.to_string(),
+            tool_calls: None,
+        },
     );
 }
 
@@ -638,14 +666,21 @@ async fn bridge_acp_permission(
 /// back to the first option offered. Deny always maps to `None` (the caller
 /// turns that into `RequestPermissionOutcome::Cancelled`, a legitimate
 /// protocol response), regardless of what options were offered.
-fn select_permission_option(options: &[PermissionOption], approved: bool) -> Option<PermissionOptionId> {
+fn select_permission_option(
+    options: &[PermissionOption],
+    approved: bool,
+) -> Option<PermissionOptionId> {
     if !approved {
         return None;
     }
     options
         .iter()
         .find(|o| o.kind == PermissionOptionKind::AllowOnce)
-        .or_else(|| options.iter().find(|o| o.kind == PermissionOptionKind::AllowAlways))
+        .or_else(|| {
+            options
+                .iter()
+                .find(|o| o.kind == PermissionOptionKind::AllowAlways)
+        })
         .or_else(|| options.first())
         .map(|o| o.option_id.clone())
 }
@@ -718,10 +753,9 @@ mod tests {
         use agent_client_protocol::schema::v1::UnstructuredCommandInput;
 
         let commands = vec![
-            AvailableCommand::new("create_plan", "Draft an implementation plan")
-                .input(AvailableCommandInput::Unstructured(UnstructuredCommandInput::new(
-                    "<goal>",
-                ))),
+            AvailableCommand::new("create_plan", "Draft an implementation plan").input(
+                AvailableCommandInput::Unstructured(UnstructuredCommandInput::new("<goal>")),
+            ),
             AvailableCommand::new("research_codebase", "Explore the codebase"),
         ];
         let payload = available_commands_payload(&commands);
@@ -747,9 +781,13 @@ mod tests {
 
     #[test]
     fn formats_error_with_string_data() {
-        let err = agent_client_protocol::Error::new(-32000, "Internal error")
-            .data(serde_json::Value::String("Process exited with 1: boom".to_string()));
-        assert_eq!(format_acp_error(&err), "Internal error: Process exited with 1: boom");
+        let err = agent_client_protocol::Error::new(-32000, "Internal error").data(
+            serde_json::Value::String("Process exited with 1: boom".to_string()),
+        );
+        assert_eq!(
+            format_acp_error(&err),
+            "Internal error: Process exited with 1: boom"
+        );
     }
 
     #[test]
@@ -770,8 +808,9 @@ mod tests {
 
     #[test]
     fn does_not_hint_for_an_unrelated_error() {
-        let err = agent_client_protocol::Error::new(-32000, "Internal error")
-            .data(serde_json::Value::String("Process exited with 1: boom".to_string()));
+        let err = agent_client_protocol::Error::new(-32000, "Internal error").data(
+            serde_json::Value::String("Process exited with 1: boom".to_string()),
+        );
         assert!(!format_acp_error(&err).contains("couldn't be found"));
     }
 }

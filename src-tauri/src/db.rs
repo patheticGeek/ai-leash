@@ -121,7 +121,8 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
         let content: String = row.get(1)?;
         let tool_calls_json: Option<String> = row.get(2)?;
         let created_at: i64 = row.get(3)?;
-        let tool_calls = tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
+        let tool_calls =
+            tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
         Ok(PersistedMessage {
             role,
             content,
@@ -162,7 +163,10 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
             "DELETE FROM messages WHERE conversation_id = ?1",
             params![sub_agent_id],
         );
-        let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![sub_agent_id]);
+        let _ = conn.execute(
+            "DELETE FROM conversations WHERE id = ?1",
+            params![sub_agent_id],
+        );
     }
     let _ = conn.execute(
         "DELETE FROM sub_agents WHERE parent_session_id = ?1",
@@ -173,7 +177,10 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
         "DELETE FROM messages WHERE conversation_id = ?1",
         params![conversation_id],
     );
-    let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![conversation_id]);
+    let _ = conn.execute(
+        "DELETE FROM conversations WHERE id = ?1",
+        params![conversation_id],
+    );
 }
 
 /// Metadata for one `spawn_sub_agent`-spawned sub-agent, as shown in the Sub
@@ -218,7 +225,11 @@ pub fn record_sub_agent_finished(db: &Db, id: &str, status: &str, result: &str) 
     );
 }
 
-fn query_sub_agents(conn: &Connection, where_clause: &str, params: &[&dyn rusqlite::ToSql]) -> Vec<SubAgentSummary> {
+fn query_sub_agents(
+    conn: &Connection,
+    where_clause: &str,
+    params: &[&dyn rusqlite::ToSql],
+) -> Vec<SubAgentSummary> {
     let sql = format!(
         "SELECT id, parent_session_id, description, status, started_at, finished_at FROM sub_agents {where_clause} ORDER BY started_at DESC"
     );
@@ -241,9 +252,17 @@ fn query_sub_agents(conn: &Connection, where_clause: &str, params: &[&dyn rusqli
     }
 }
 
-pub fn list_sub_agents_for_parent(db: &Db, parent_session_id: &str, limit: usize) -> Vec<SubAgentSummary> {
+pub fn list_sub_agents_for_parent(
+    db: &Db,
+    parent_session_id: &str,
+    limit: usize,
+) -> Vec<SubAgentSummary> {
     let conn = db.0.lock().unwrap();
-    let mut items = query_sub_agents(&conn, "WHERE parent_session_id = ?1", params![parent_session_id]);
+    let mut items = query_sub_agents(
+        &conn,
+        "WHERE parent_session_id = ?1",
+        params![parent_session_id],
+    );
     items.truncate(limit);
     items
 }
@@ -267,7 +286,10 @@ pub fn list_all_sub_agents(db: &Db) -> Vec<SubAgentSummary> {
 /// for this id and would otherwise resurrect a row right after this deletes it.
 pub fn delete_sub_agent(db: &Db, id: &str) {
     let conn = db.0.lock().unwrap();
-    let _ = conn.execute("DELETE FROM messages WHERE conversation_id = ?1", params![id]);
+    let _ = conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1",
+        params![id],
+    );
     let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![id]);
     let _ = conn.execute("DELETE FROM sub_agents WHERE id = ?1", params![id]);
 }
@@ -350,7 +372,10 @@ mod tests {
         );
 
         let loaded = load_messages(&db, "/proj");
-        let calls = loaded[0].tool_calls.as_ref().expect("tool_calls survived round trip");
+        let calls = loaded[0]
+            .tool_calls
+            .as_ref()
+            .expect("tool_calls survived round trip");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].id.as_deref(), Some("call-1"));
         assert_eq!(calls[0].function.name, "read_file");
@@ -395,14 +420,25 @@ mod tests {
     #[test]
     fn records_and_finishes_sub_agent_lifecycle() {
         let db = temp_db();
-        record_sub_agent_started(&db, "/proj::spawn_sub_agent::abc", "/proj", "count files", "count the files");
+        record_sub_agent_started(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "/proj",
+            "count files",
+            "count the files",
+        );
 
         let running = list_sub_agents_for_parent(&db, "/proj", 50);
         assert_eq!(running.len(), 1);
         assert_eq!(running[0].status, "running");
         assert!(running[0].finished_at.is_none());
 
-        record_sub_agent_finished(&db, "/proj::spawn_sub_agent::abc", "done", "there are 3 files");
+        record_sub_agent_finished(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "done",
+            "there are 3 files",
+        );
 
         let meta = get_sub_agent(&db, "/proj::spawn_sub_agent::abc").expect("sub-agent exists");
         assert_eq!(meta.status, "done");
@@ -416,8 +452,20 @@ mod tests {
     #[test]
     fn list_all_sub_agents_spans_parents() {
         let db = temp_db();
-        record_sub_agent_started(&db, "/proj-a::spawn_sub_agent::1", "/proj-a", "task a", "do a");
-        record_sub_agent_started(&db, "/proj-b::spawn_sub_agent::2", "/proj-b", "task b", "do b");
+        record_sub_agent_started(
+            &db,
+            "/proj-a::spawn_sub_agent::1",
+            "/proj-a",
+            "task a",
+            "do a",
+        );
+        record_sub_agent_started(
+            &db,
+            "/proj-b::spawn_sub_agent::2",
+            "/proj-b",
+            "task b",
+            "do b",
+        );
 
         assert_eq!(list_all_sub_agents(&db).len(), 2);
         assert_eq!(list_sub_agents_for_parent(&db, "/proj-a", 50).len(), 1);
@@ -460,13 +508,21 @@ mod tests {
             &db,
             "/proj-a",
             "/proj-a",
-            &ChatMessage { role: "user".into(), content: "in project a".into(), tool_calls: None },
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project a".into(),
+                tool_calls: None,
+            },
         );
         save_message(
             &db,
             "/proj-b",
             "/proj-b",
-            &ChatMessage { role: "user".into(), content: "in project b".into(), tool_calls: None },
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project b".into(),
+                tool_calls: None,
+            },
         );
 
         clear_conversation(&db, "/proj-a");
@@ -482,14 +538,22 @@ mod tests {
             &db,
             "/proj",
             "/proj",
-            &ChatMessage { role: "user".into(), content: "before clear".into(), tool_calls: None },
+            &ChatMessage {
+                role: "user".into(),
+                content: "before clear".into(),
+                tool_calls: None,
+            },
         );
         clear_conversation(&db, "/proj");
         save_message(
             &db,
             "/proj",
             "/proj",
-            &ChatMessage { role: "user".into(), content: "after clear".into(), tool_calls: None },
+            &ChatMessage {
+                role: "user".into(),
+                content: "after clear".into(),
+                tool_calls: None,
+            },
         );
 
         let loaded = load_messages(&db, "/proj");
@@ -500,12 +564,22 @@ mod tests {
     #[test]
     fn clear_conversation_also_wipes_its_own_sub_agents_but_not_unrelated_ones() {
         let db = temp_db();
-        record_sub_agent_started(&db, "/proj::spawn_sub_agent::abc", "/proj", "count files", "count the files");
+        record_sub_agent_started(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "/proj",
+            "count files",
+            "count the files",
+        );
         save_message(
             &db,
             "/proj::spawn_sub_agent::abc",
             "/proj",
-            &ChatMessage { role: "user".into(), content: "sub-agent prompt".into(), tool_calls: None },
+            &ChatMessage {
+                role: "user".into(),
+                content: "sub-agent prompt".into(),
+                tool_calls: None,
+            },
         );
         record_sub_agent_started(
             &db,

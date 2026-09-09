@@ -124,7 +124,10 @@ fn collect_agents_md(root: &Path, touched_dirs: &[PathBuf]) -> Vec<(String, Stri
         let label = if dir == root {
             "AGENTS.md".to_string()
         } else {
-            path.strip_prefix(root).unwrap_or(&path).display().to_string()
+            path.strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string()
         };
         out.push((label, content));
     }
@@ -193,7 +196,9 @@ pub fn build_system_prompt(root: &Path, touched_dirs: &[PathBuf]) -> Option<Stri
     let mut sections = vec![];
 
     if let Some(global_agents) = global_agents_md() {
-        sections.push(format!("# Global instructions (AGENTS.md)\n\n{global_agents}"));
+        sections.push(format!(
+            "# Global instructions (AGENTS.md)\n\n{global_agents}"
+        ));
     }
 
     for (label, content) in collect_agents_md(root, touched_dirs) {

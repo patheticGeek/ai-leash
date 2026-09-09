@@ -129,7 +129,11 @@ pub async fn complete(
     }
 }
 
-async fn complete_ollama(host: &str, model: &str, messages: &[ChatMessage]) -> Result<String, String> {
+async fn complete_ollama(
+    host: &str,
+    model: &str,
+    messages: &[ChatMessage],
+) -> Result<String, String> {
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
@@ -162,7 +166,9 @@ async fn complete_openai(
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
-    let mut request = client.post(format!("{base_url}/chat/completions")).json(&body);
+    let mut request = client
+        .post(format!("{base_url}/chat/completions"))
+        .json(&body);
     if !api_key.is_empty() {
         request = request.header("Authorization", format!("Bearer {api_key}"));
     }
@@ -360,7 +366,13 @@ fn accumulate_ollama_line(line: &str, accum: &mut OllamaAccum) -> LineEffects {
     effects
 }
 
-fn emit_line_effects(app: &AppHandle, chunk_event: &str, thinking_event: &str, error_event: &str, effects: LineEffects) {
+fn emit_line_effects(
+    app: &AppHandle,
+    chunk_event: &str,
+    thinking_event: &str,
+    error_event: &str,
+    effects: LineEffects,
+) {
     if let Some(c) = effects.chunk {
         let _ = app.emit(chunk_event, &c);
     }
@@ -551,7 +563,8 @@ impl OpenAiAccum {
             .filter_map(|idx| {
                 let builder = self.tool_calls.get(idx)?;
                 let name = builder.name.clone().unwrap_or_default();
-                let arguments: Value = serde_json::from_str(&builder.arguments).unwrap_or(Value::Null);
+                let arguments: Value =
+                    serde_json::from_str(&builder.arguments).unwrap_or(Value::Null);
                 Some(ToolCall {
                     id: builder.id.clone(),
                     function: tools::ToolCallFunction { name, arguments },
@@ -785,7 +798,10 @@ mod tests {
         let calls = accum.finalize_tool_calls().expect("tool calls");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].function.name, "read_file");
-        assert_eq!(calls[0].function.arguments, serde_json::json!({"path": "a.rs"}));
+        assert_eq!(
+            calls[0].function.arguments,
+            serde_json::json!({"path": "a.rs"})
+        );
     }
 
     #[test]
@@ -794,7 +810,10 @@ mod tests {
             host: "localhost:11434".into(),
         };
         let v = serde_json::to_value(&ollama).unwrap();
-        assert_eq!(v, serde_json::json!({"kind": "ollama", "host": "localhost:11434"}));
+        assert_eq!(
+            v,
+            serde_json::json!({"kind": "ollama", "host": "localhost:11434"})
+        );
 
         let openai = ProviderConfig::OpenAiCompatible {
             base_url: "https://api.openai.com/v1".into(),

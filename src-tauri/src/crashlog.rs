@@ -26,7 +26,11 @@ fn append_capped(path: &std::path::Path, entry: &str, max_bytes: u64) {
     if std::fs::metadata(path).map(|m| m.len()).unwrap_or(0) > max_bytes {
         let _ = std::fs::remove_file(path);
     }
-    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
         let _ = writeln!(file, "{entry}\n");
     }
 }
@@ -75,8 +79,10 @@ fn panic_message(info: &std::panic::PanicHookInfo<'_>) -> String {
 }
 
 fn frontend_crash_entry(kind: &str, message: &str, stack: Option<&str>) -> String {
-    let mut entry =
-        format!("=== frontend {kind} at unix:{} ===\nmessage: {message}", unix_timestamp());
+    let mut entry = format!(
+        "=== frontend {kind} at unix:{} ===\nmessage: {message}",
+        unix_timestamp()
+    );
     if let Some(stack) = stack {
         entry.push_str(&format!("\nstack:\n{stack}"));
     }
@@ -113,7 +119,10 @@ mod tests {
     use super::*;
 
     fn temp_log_path() -> PathBuf {
-        std::env::temp_dir().join(format!("ai-leash-test-crashlog-{}.log", uuid::Uuid::new_v4()))
+        std::env::temp_dir().join(format!(
+            "ai-leash-test-crashlog-{}.log",
+            uuid::Uuid::new_v4()
+        ))
     }
 
     #[test]

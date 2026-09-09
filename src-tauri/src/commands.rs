@@ -46,7 +46,11 @@ pub fn get_root_path(state: &AppState) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn set_project_root(app: AppHandle, state: State<AppState>, path: String) -> Result<(), String> {
+pub fn set_project_root(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.is_dir() {
         return Err("not a directory".into());
@@ -66,13 +70,12 @@ pub fn set_project_root(app: AppHandle, state: State<AppState>, path: String) ->
 /// thread exits on its own once the channel closes.
 fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher =
-        notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if res.is_ok() {
-                let _ = tx.send(());
-            }
-        })
-        .map_err(|e| e.to_string())?;
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if res.is_ok() {
+            let _ = tx.send(());
+        }
+    })
+    .map_err(|e| e.to_string())?;
     watcher
         .watch(root, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
@@ -108,10 +111,7 @@ pub fn get_project_root(state: State<AppState>) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn list_dir(
-    state: State<AppState>,
-    path: Option<String>,
-) -> Result<Vec<DirEntryInfo>, String> {
+pub fn list_dir(state: State<AppState>, path: Option<String>) -> Result<Vec<DirEntryInfo>, String> {
     let root_guard = state.project_root.lock().unwrap();
     let root = root_guard.as_ref().ok_or("no project open")?;
     let target = match path {

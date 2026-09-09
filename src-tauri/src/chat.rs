@@ -94,7 +94,11 @@ pub async fn compact_conversation(
 
     let mut prompt_history: Vec<ChatMessage> = history
         .into_iter()
-        .map(|m| ChatMessage { role: m.role, content: m.content, tool_calls: m.tool_calls })
+        .map(|m| ChatMessage {
+            role: m.role,
+            content: m.content,
+            tool_calls: m.tool_calls,
+        })
         .collect();
     prompt_history.push(ChatMessage {
         role: "user".into(),
@@ -143,8 +147,17 @@ pub async fn send_prompt(
         },
     );
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true, false)
-        .await
+    run_with_cancellation(
+        &app,
+        &state,
+        &session_id,
+        &session_id,
+        &provider,
+        &model,
+        true,
+        false,
+    )
+    .await
 }
 
 /// Runs an isolated sub-agent for the `spawn_sub_agent` tool: its own fresh
@@ -299,7 +312,14 @@ pub fn resume_after_background_subtask(
         );
 
         let _ = run_with_cancellation(
-            &app, &state, &session_id, &session_id, &provider, &model, true, true,
+            &app,
+            &state,
+            &session_id,
+            &session_id,
+            &provider,
+            &model,
+            true,
+            true,
         )
         .await;
     })
@@ -321,7 +341,10 @@ fn refresh_system_prompt(
     let system_prompt = context::build_system_prompt(root, touched_dirs);
     let has_system_first = history.first().is_some_and(|m| m.role == "system");
 
-    let _ = app.emit(&format!("chat://{session_id}/system_prompt"), &system_prompt);
+    let _ = app.emit(
+        &format!("chat://{session_id}/system_prompt"),
+        &system_prompt,
+    );
 
     match (has_system_first, system_prompt) {
         (true, Some(content)) => history[0].content = content,
@@ -363,8 +386,17 @@ pub async fn retry_last(
         }
     }
 
-    run_with_cancellation(&app, &state, &session_id, &session_id, &provider, &model, true, false)
-        .await
+    run_with_cancellation(
+        &app,
+        &state,
+        &session_id,
+        &session_id,
+        &provider,
+        &model,
+        true,
+        false,
+    )
+    .await
 }
 
 fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()>> {
@@ -704,4 +736,3 @@ pub fn delete_sub_agent(state: State<AppState>, sub_session_id: String) -> Resul
     db::delete_sub_agent(&state.db, &sub_session_id);
     Ok(())
 }
-
