@@ -13,6 +13,9 @@ use uuid::Uuid;
 /// calls with this token, passed to it only via its own env block.
 pub fn bind() -> io::Result<(std::net::TcpListener, McpBridgeInfo)> {
     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+    // Required before handing this to `tokio::net::TcpListener::from_std` —
+    // tokio refuses to register a blocking-mode fd with its reactor.
+    listener.set_nonblocking(true)?;
     let port = listener.local_addr()?.port();
     let token = Uuid::new_v4().to_string();
     Ok((listener, McpBridgeInfo { port, token }))
@@ -100,5 +103,21 @@ async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
     {
         Ok(result) => BridgeResponse::Ok { result },
         Err(message) => BridgeResponse::Err { message },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bind;
+
+    /// Regression test for a real startup panic: tokio refuses (as of
+    /// tokio-rs/tokio#7172) to register a still-blocking-mode socket with
+    /// its reactor — `bind()` must set the listener non-blocking before
+    /// handing it to `tokio::net::TcpListener::from_std`, or this panics.
+    #[tokio::test]
+    async fn bind_produces_a_listener_tokio_can_register() {
+        let (std_listener, _info) = bind().expect("bind should succeed");
+        tokio::net::TcpListener::from_std(std_listener)
+            .expect("registering the bound listener with tokio must not panic or error");
     }
 }
