@@ -311,11 +311,19 @@ export interface SubAgentTask {
   endedAt?: number;
 }
 
-export type PanelTabKind = "filetree" | "subagents" | "terminal" | "file";
+export type PanelTabKind =
+  | "filetree"
+  | "subagents"
+  | "terminal"
+  | "file"
+  | "actions"
+  | "action";
 
 export interface PanelTab {
   id: string;
   kind: PanelTabKind;
+  /** Also doubles as the Action id when kind is "action", same as it
+   * already doubles as a filesystem path when kind is "file". */
   path?: string;
   label: string;
 }
@@ -486,6 +494,7 @@ interface AppStore {
 
 function panelTabIdFor(kind: PanelTabKind, path?: string): string {
   if (kind === "file") return `file:${path}`;
+  if (kind === "action") return `action:${path}`;
   if (kind === "terminal") return `terminal:${crypto.randomUUID()}`;
   return kind;
 }
@@ -987,7 +996,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   openPanelTab: (kind, opts) => {
     const id =
-      kind === "file" ? panelTabIdFor(kind, opts?.path) : panelTabIdFor(kind);
+      kind === "file" || kind === "action"
+        ? panelTabIdFor(kind, opts?.path)
+        : panelTabIdFor(kind);
     const existing = get().panelTabs.find((t) => t.id === id);
     if (existing) {
       set({
@@ -1001,6 +1012,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       subagents: "Sub Agents",
       terminal: `Terminal ${get().panelTabs.filter((t) => t.kind === "terminal").length + 1}`,
       file: opts?.label ?? "file",
+      actions: "Actions",
+      action: opts?.label ?? "action",
     };
     const tab: PanelTab = {
       id,

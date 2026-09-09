@@ -1,6 +1,8 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { type PanelTabKind, useAppStore } from "../store";
+import ActionsTab from "./ActionsTab";
+import ActionTerminalTab from "./ActionTerminalTab";
 import Button from "./Button";
 import FileEditorTab from "./FileEditorTab";
 import FileTree from "./FileTree";
@@ -22,6 +24,7 @@ export default function SidePanel() {
 
   const activeTab = panelTabs.find((t) => t.id === activePanelTabId) ?? null;
   const terminalTabs = panelTabs.filter((t) => t.kind === "terminal");
+  const actionTabs = panelTabs.filter((t) => t.kind === "action");
   const filetreeTab = panelTabs.find((t) => t.kind === "filetree");
   const showPicker = pickerOpen || panelTabs.length === 0;
 
@@ -112,6 +115,17 @@ export default function SidePanel() {
         )}
         {!showPicker && activeTab?.kind === "subagents" && <SubAgentsTab />}
         {!showPicker && activeTab?.kind === "file" && <FileEditorTab />}
+        {!showPicker && activeTab?.kind === "actions" && <ActionsTab />}
+        {actionTabs.map((tab) => (
+          <div
+            key={tab.id}
+            className={
+              tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"
+            }
+          >
+            {tab.path && <ActionTerminalTab actionId={tab.path} />}
+          </div>
+        ))}
         {showPicker && <TabPicker onPick={pick} />}
       </div>
     </div>

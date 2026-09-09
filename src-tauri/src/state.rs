@@ -1,4 +1,5 @@
 use crate::acp::AcpCommand;
+use crate::actions::ActionRun;
 use crate::chat::ChatMessage;
 use crate::db::Db;
 use crate::mcp_bridge::McpBridgeInfo;
@@ -67,4 +68,8 @@ pub struct AppState {
     /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
     /// parent's cancellation flag the same way.
     pub permission_bypass: Mutex<HashSet<String>>,
+    /// Live/most-recent run per Action, keyed by the Action's stable `id`
+    /// (not its pty id) — see `actions.rs`. Persisted Action *definitions*
+    /// live in `.ai-leash/actions.json` under the project root, not here.
+    pub action_runs: Mutex<HashMap<String, ActionRun>>,
 }

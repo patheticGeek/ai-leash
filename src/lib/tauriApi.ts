@@ -74,6 +74,15 @@ export interface SubAgentSummary {
   finishedAt: number | null;
 }
 
+export interface ActionSummary {
+  id: string;
+  name: string;
+  command: string;
+  running: boolean;
+  startedAt: number | null;
+  ptyId: string | null;
+}
+
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
@@ -151,4 +160,16 @@ export const api = {
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),
   clearCrashLog: () => invoke<void>("clear_crash_log"),
+  listActions: () => invoke<ActionSummary[]>("list_actions"),
+  createAction: (name: string, command: string) =>
+    invoke<{ id: string; name: string; command: string }>("create_action", {
+      name,
+      command,
+    }),
+  updateAction: (id: string, name: string, command: string) =>
+    invoke<void>("update_action", { id, name, command }),
+  deleteAction: (id: string) => invoke<void>("delete_action", { id }),
+  runAction: (id: string) => invoke<string>("run_action_cmd", { id }),
+  stopAction: (id: string) => invoke<string>("stop_action_cmd", { id }),
+  actionBacklog: (id: string) => invoke<string>("action_backlog", { id }),
 };

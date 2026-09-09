@@ -81,7 +81,15 @@ async fn handle_connection(app: AppHandle, stream: TcpStream, token: String) {
 /// deliberately not the full native tool set (no `read_file`/`shell`/etc,
 /// which the ACP agent already has its own equivalents for as a normal ACP
 /// client).
-const RELAYED_TOOLS: &[&str] = &["spawn_sub_agent", "list_sub_agents", "read_sub_agent"];
+const RELAYED_TOOLS: &[&str] = &[
+    "spawn_sub_agent",
+    "list_sub_agents",
+    "read_sub_agent",
+    "run_action",
+    "stop_action",
+    "list_actions",
+    "read_action",
+];
 
 async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
     if !RELAYED_TOOLS.contains(&req.name.as_str()) {

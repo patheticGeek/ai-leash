@@ -1,4 +1,4 @@
-import { Bot, FolderTree, SquareTerminal } from "lucide-react";
+import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
 import type { PanelTabKind } from "../store";
 import Button from "./Button";
 
@@ -25,6 +25,12 @@ const TILES: {
     label: "Sub Agents",
     hint: "Watch running sub-agent tasks",
     icon: Bot,
+  },
+  {
+    kind: "actions",
+    label: "Actions",
+    hint: "Run and manage project actions",
+    icon: Zap,
   },
 ];
 

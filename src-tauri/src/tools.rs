@@ -1,4 +1,5 @@
 use crate::acp::AcpCommand;
+use crate::actions;
 use crate::chat;
 use crate::commands::{self, IGNORED_NAMES};
 use crate::context;
@@ -45,7 +46,7 @@ struct PermissionRequest {
     detail: String,
 }
 
-const MAX_TOOL_OUTPUT: usize = 20_000;
+pub(crate) const MAX_TOOL_OUTPUT: usize = 20_000;
 const MAX_GREP_RESULTS: usize = 200;
 const DEFAULT_READ_LIMIT: usize = 2000;
 
@@ -235,6 +236,63 @@ pub fn tool_definitions(
             }));
         }
     }
+
+    let has_actions = root.is_some_and(|r| !actions::load_actions(r).is_empty());
+    if has_actions {
+        if let Value::Array(arr) = &mut tools {
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "run_action",
+                    "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            }));
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "stop_action",
+                    "description": "Stop a running Action by name. A no-op if it isn't running.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            }));
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "list_actions",
+                    "description": "List this project's defined Actions and whether each is currently running.",
+                    "parameters": { "type": "object", "properties": {}, "required": [] }
+                }
+            }));
+            arr.push(json!({
+                "type": "function",
+                "function": {
+                    "name": "read_action",
+                    "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                        },
+                        "required": ["name"]
+                    }
+                }
+            }));
+        }
+    }
+
     tools
 }
 
@@ -269,7 +327,7 @@ pub(crate) async fn request_permission(
     rx.await.unwrap_or(false)
 }
 
-fn truncate(mut s: String) -> String {
+pub(crate) fn truncate(mut s: String) -> String {
     if s.len() > MAX_TOOL_OUTPUT {
         s.truncate(MAX_TOOL_OUTPUT);
         s.push_str("\n...[truncated]");
@@ -884,6 +942,28 @@ pub async fn execute_tool(
                     ))
                 }
             }
+        }
+        "run_action" => {
+            let action_name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `name`")?;
+            actions::run_action(app, &root, action_name)
+        }
+        "stop_action" => {
+            let action_name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `name`")?;
+            actions::stop_action(app, &root, action_name)
+        }
+        "list_actions" => Ok(actions::list_actions_status(app, &root)),
+        "read_action" => {
+            let action_name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or("missing `name`")?;
+            actions::read_action_output(app, &root, action_name)
         }
         other => Err(format!("unknown tool `{other}`")),
     }
