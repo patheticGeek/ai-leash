@@ -92,7 +92,7 @@ jobs:
             webkit2gtk-4.1
           useradd --create-home builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
-          su builder -c 'cd "$GITHUB_WORKSPACE" && makepkg --noconfirm --syncdeps --clean'
+          su builder -c 'cd "$GITHUB_WORKSPACE/packaging/arch" && makepkg --noconfirm --syncdeps --clean'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
