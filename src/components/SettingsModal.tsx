@@ -304,7 +304,7 @@ function ProvidersSection() {
                       variant="unstyled"
                       size="none"
                       onClick={() => setActiveAcpAgent(c.id)}
-                      className="min-w-0 flex-1 cursor-pointer text-left"
+                      className="flex min-w-0 flex-1 flex-col items-start gap-0 cursor-pointer text-left"
                     >
                       <div className="text-zinc-200">
                         {c.label}
