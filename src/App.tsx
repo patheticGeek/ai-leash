@@ -4,6 +4,7 @@ import SidePanel from "./components/SidePanel";
 import ResizeHandle from "./components/ResizeHandle";
 import CenterPanel from "./components/CenterPanel";
 import SettingsModal from "./components/SettingsModal";
+import TitleBar, { TITLEBAR_HEIGHT } from "./components/TitleBar";
 import { useAppStore } from "./store";
 import { useResizableWidth } from "./hooks/useResizableWidth";
 
@@ -56,9 +57,10 @@ function App() {
   }, [refreshAcpModelCache]);
 
   return (
-    <div className="flex h-screen w-screen flex-col text-zinc-200">
+    <div className="relative flex h-screen w-screen flex-col text-zinc-200">
+      <TitleBar leftBarWidth={leftBarWidth} rightPanelWidth={rightPanelWidth} />
       <SettingsModal />
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0" style={{ marginTop: TITLEBAR_HEIGHT }}>
         <div style={{ width: leftBarWidth }} className="shrink-0">
           <LeftBar />
         </div>

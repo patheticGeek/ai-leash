@@ -1,11 +1,7 @@
 import { useEffect } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore, permissionForSession, type RecentProject } from "../store";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
-import Logo from "./Logo";
-import { PlusIcon, SettingsIcon } from "lucide-react";
-import Button from "./Button";
 
 function ProjectRow({
   project,
@@ -49,7 +45,6 @@ export default function LeftBar() {
   const openProject = useAppStore((s) => s.openProject);
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
   const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
-  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
   const resolvePendingPermission = useAppStore((s) => s.resolvePendingPermission);
 
@@ -94,31 +89,8 @@ export default function LeftBar() {
 
   const sortedProjects = [...recentProjects].sort((a, b) => b.lastMessageAt - a.lastMessageAt);
 
-  async function pickProject() {
-    const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") {
-      await openProject(dir);
-    }
-  }
-
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
-      <div className="flex h-9 shrink-0 items-center justify-between px-2.5">
-        <Logo className="h-5 w-auto shrink-0" />
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSettingsModalOpen(true)}
-            title="Provider settings"
-          >
-            <SettingsIcon size={14} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={pickProject} title="Open project">
-            <PlusIcon size={14} />
-          </Button>
-        </div>
-      </div>
       <div className="flex-1 overflow-y-auto py-1.5">
         {sortedProjects.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">No projects yet</div>
