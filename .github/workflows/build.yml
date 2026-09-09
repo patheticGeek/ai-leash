@@ -7,24 +7,11 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu
-            runner: ubuntu-latest
-          - os: macos
-            runner: macos-latest
-          - os: arch
-            runner: ubuntu-latest
-            container: archlinux:latest
+        os: [ubuntu-latest, macos-latest]
     steps:
-      - name: Bootstrap Arch runner
-        if: matrix.os == 'arch'
-        run: |
-          pacman -Syu --noconfirm --needed git nodejs npm
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -33,7 +20,6 @@ jobs:
         with:
           node-version: "26.7.0"
           cache: "npm"
-        if: matrix.os != 'arch'
 
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -44,14 +30,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-        if: matrix.os != 'arch'
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        if: matrix.os != 'arch'
 
       - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -68,37 +52,19 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
-        if: matrix.os != 'arch'
 
       - name: Bundle macOS dmg
-        if: matrix.os == 'macos'
+        if: runner.os == 'macOS'
         run: npx tauri build --bundles dmg
 
       - name: Bundle Linux Debian package
-        if: matrix.os == 'ubuntu'
+        if: runner.os == 'Linux'
         run: npx tauri build --bundles deb
-
-      - name: Build Arch package
-        if: matrix.os == 'arch'
-        run: |
-          pacman -S --noconfirm --needed \
-            base-devel \
-            cargo \
-            git \
-            gtk3 \
-            libayatana-appindicator \
-            librsvg \
-            npm \
-            webkit2gtk-4.1
-          useradd --create-home builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
-          su builder -c 'cd "$GITHUB_WORKSPACE/packaging/arch" && makepkg --noconfirm --syncdeps --clean'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
-        if: matrix.os != 'arch'
         with:
-          name: ${{ matrix.os }}-build
+          name: ${{ runner.os }}-build
           path: |
             src-tauri/target/release/bundle/dmg
             src-tauri/target/release/bundle/deb
