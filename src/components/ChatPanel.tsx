@@ -901,7 +901,13 @@ export default function ChatPanel() {
     setSending(true);
     try {
       if (isAcp && activeAcpAgent) {
-        await api.sendPromptAcp(sessionId, activeAcpAgent.launchCommand, text);
+        await api.sendPromptAcp(
+          sessionId,
+          activeAcpAgent.launchCommand,
+          providerConfigFor(providerActiveId),
+          model,
+          text,
+        );
       } else {
         await api.sendPrompt(
           sessionId,

@@ -1,3 +1,4 @@
+use crate::acp::AcpCommand;
 use crate::chat;
 use crate::commands::{self, IGNORED_NAMES};
 use crate::context;
@@ -754,16 +755,44 @@ pub async fn execute_tool(
                         Err(e) => ("error", format!("Error: {e}")),
                     };
                     db::record_sub_agent_finished(&state.db, &sub_session_id, status, &result);
-                    chat::resume_after_background_subtask(
-                        app_owned,
-                        session_id_owned,
-                        provider_owned,
-                        model_owned,
-                        sub_session_id,
-                        description,
-                        result,
-                    )
-                    .await;
+
+                    // If the parent session is currently an external ACP
+                    // agent's conversation (not AI Leash's own native
+                    // loop), its real "agent" is that subprocess, waiting
+                    // on its own command channel — resuming via the native
+                    // `resume_after_background_subtask` would instead spin
+                    // up a second, parallel native agent loop talking in
+                    // the same transcript, while the actual ACP subprocess
+                    // never learns the sub-agent finished. Notify it over
+                    // its existing channel instead, the same mechanism a
+                    // real user message uses (`send_prompt_acp`). ACP has
+                    // no equivalent of injecting a synthetic tool-call/
+                    // tool-result pair without generating a turn, so this
+                    // is necessarily a plain user-role message rather than
+                    // the tool-call-shaped pair built below.
+                    let acp_sender = state
+                        .acp_sessions
+                        .lock()
+                        .unwrap()
+                        .get(&session_id_owned)
+                        .map(|s| s.sender.clone());
+
+                    if let Some(sender) = acp_sender {
+                        let _ = sender.send(AcpCommand::Prompt(format!(
+                            "[Sub-agent \"{description}\" finished]\n\n{result}"
+                        )));
+                    } else {
+                        chat::resume_after_background_subtask(
+                            app_owned,
+                            session_id_owned,
+                            provider_owned,
+                            model_owned,
+                            sub_session_id,
+                            description,
+                            result,
+                        )
+                        .await;
+                    }
                 });
             }
 

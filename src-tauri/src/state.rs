@@ -1,6 +1,8 @@
 use crate::acp::AcpCommand;
 use crate::chat::ChatMessage;
 use crate::db::Db;
+use crate::mcp_bridge::McpBridgeInfo;
+use crate::provider::ProviderConfig;
 use crate::pty::PtyHandle;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -14,6 +16,14 @@ use tokio::sync::Mutex as AsyncMutex;
 pub struct AcpSession {
     pub launch_command: String,
     pub sender: mpsc::UnboundedSender<AcpCommand>,
+    /// The native provider/model this conversation is currently configured
+    /// with — refreshed on every `send_prompt_acp` call, same as
+    /// `launch_command`. Needed so a `spawn_sub_agent` call relayed through
+    /// `mcp_bridge` (arriving from the ACP subprocess asynchronously, with
+    /// no frontend-invoked command call site to attach a fresh
+    /// provider/model argument to) has something to run the sub-agent with.
+    pub provider: ProviderConfig,
+    pub model: String,
 }
 
 #[derive(Default)]
@@ -44,6 +54,11 @@ pub struct AppState {
     /// instead of silently reusing the old agent's process) and the channel
     /// used to send it prompts/cancellations. See `acp.rs::ensure_acp_session`.
     pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
+    /// Loopback bridge external ACP agent subprocesses relay a handful of
+    /// tool calls through — see `mcp_bridge`. Bound once at startup
+    /// (`lib.rs`'s `.setup()` hook); `None` only in the brief window before
+    /// that finishes.
+    pub mcp_bridge: Mutex<Option<McpBridgeInfo>>,
     /// Sessions currently in "bypass" permission mode — `request_permission`
     /// (tools.rs) auto-approves instead of prompting for any session_id in
     /// here. Set via the `set_permission_mode` command, which the frontend

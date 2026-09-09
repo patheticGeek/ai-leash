@@ -1,15 +1,17 @@
 use crate::chat::{self, ChatMessage};
 use crate::commands;
+use crate::mcp_bridge;
+use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use crate::tools;
 use agent_client_protocol::schema::v1::{
     AvailableCommand, AvailableCommandInput, CancelNotification, ClientCapabilities, ContentBlock,
-    InitializeRequest, NewSessionRequest, PermissionOption, PermissionOptionId,
-    PermissionOptionKind, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionConfigId, SessionConfigKind,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOptions,
-    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent, ToolCall,
-    ToolCallContent, ToolCallStatus, ToolCallUpdate,
+    EnvVariable, InitializeRequest, McpServer, McpServerStdio, NewSessionRequest, PermissionOption,
+    PermissionOptionId, PermissionOptionKind, PromptRequest, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
+    SessionConfigId, SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
+    SessionConfigSelectOptions, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    TextContent, ToolCall, ToolCallContent, ToolCallStatus, ToolCallUpdate,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
@@ -37,9 +39,11 @@ pub async fn send_prompt_acp(
     state: State<'_, AppState>,
     session_id: String,
     launch_command: String,
+    provider: ProviderConfig,
+    model: String,
     message: String,
 ) -> Result<(), String> {
-    let sender = ensure_acp_session(&app, &state, &session_id, &launch_command);
+    let sender = ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
     sender.send(AcpCommand::Prompt(message)).map_err(|_| {
         "ACP agent process is no longer running; send another message to restart it.".to_string()
     })
@@ -146,10 +150,14 @@ fn ensure_acp_session(
     state: &State<'_, AppState>,
     session_id: &str,
     launch_command: &str,
+    provider: ProviderConfig,
+    model: String,
 ) -> mpsc::UnboundedSender<AcpCommand> {
     let mut sessions = state.acp_sessions.lock().unwrap();
-    if let Some(existing) = sessions.get(session_id) {
+    if let Some(existing) = sessions.get_mut(session_id) {
         if existing.launch_command == launch_command {
+            existing.provider = provider;
+            existing.model = model;
             return existing.sender.clone();
         }
         sessions.remove(session_id);
@@ -160,6 +168,8 @@ fn ensure_acp_session(
         AcpSession {
             launch_command: launch_command.to_string(),
             sender: tx.clone(),
+            provider,
+            model,
         },
     );
     drop(sessions);
@@ -286,8 +296,9 @@ async fn drive_acp_connection(
                 .block_task()
                 .await?;
 
+            let mcp_servers = mcp_servers_for(&app, &session_id, &cwd);
             let new_session = connection
-                .send_request(NewSessionRequest::new(cwd))
+                .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
                 .block_task()
                 .await?;
             let acp_session_id = new_session.session_id;
@@ -416,6 +427,30 @@ async fn drive_acp_connection(
             Ok(())
         })
         .await
+}
+
+/// Attaches AI Leash's own MCP bridge (see `mcp_bridge`) to a new ACP
+/// session so it can delegate sub-agents and read/write memory notes —
+/// empty if the bridge hasn't finished binding yet (`lib.rs`'s `.setup()`
+/// hook) or `current_exe()` fails, in which case the session just proceeds
+/// without those tools rather than failing to connect at all.
+fn mcp_servers_for(app: &AppHandle, session_id: &str, root: &std::path::Path) -> Vec<McpServer> {
+    let Some(bridge) = app.state::<AppState>().mcp_bridge.lock().unwrap().clone() else {
+        return Vec::new();
+    };
+    let Ok(exe) = std::env::current_exe() else {
+        return Vec::new();
+    };
+    vec![McpServer::Stdio(
+        McpServerStdio::new("ai-leash", exe)
+            .args(vec!["--mcp-bridge".to_string()])
+            .env(vec![
+                EnvVariable::new(mcp_bridge::PORT_ENV, bridge.port.to_string()),
+                EnvVariable::new(mcp_bridge::TOKEN_ENV, bridge.token),
+                EnvVariable::new(mcp_bridge::SESSION_ID_ENV, session_id.to_string()),
+                EnvVariable::new(mcp_bridge::PROJECT_ROOT_ENV, root.display().to_string()),
+            ]),
+    )]
 }
 
 /// ACP lets an agent advertise a "model" selector as one of its session

@@ -5,12 +5,14 @@ mod context;
 mod crashlog;
 mod db;
 mod env;
+pub mod mcp_bridge;
 mod provider;
 mod pty;
 mod state;
 mod tools;
 
 use state::AppState;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +25,20 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(|app| {
+            // Loopback listener external ACP agent subprocesses relay a
+            // handful of tool calls through — see `mcp_bridge` and
+            // `acp.rs::drive_acp_connection`, which attaches it to each ACP
+            // session's `NewSessionRequest.mcp_servers`.
+            let (std_listener, info) = mcp_bridge::server::bind()?;
+            *app.state::<AppState>().mcp_bridge.lock().unwrap() = Some(info.clone());
+            tauri::async_runtime::spawn(mcp_bridge::server::run(
+                app.handle().clone(),
+                std_listener,
+                info.token,
+            ));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::set_project_root,
             commands::get_project_root,
