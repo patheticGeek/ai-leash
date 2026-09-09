@@ -43,6 +43,7 @@ export default function FileEditorTab() {
   const viewRef = useRef<EditorView | null>(null);
   const activeFile = openFiles.find((f) => f.path === activePath);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only recreates the CodeMirror view on file switch (activePath). activeFile.* / updateContent must NOT be deps — activeFile.content changes on every keystroke via updateContent's own updateListener callback below, and depending on it would destroy+recreate the editor (losing cursor, selection, undo history) on every character typed. updateContent is a stable Zustand action reference anyway.
   useEffect(() => {
     viewRef.current?.destroy();
     viewRef.current = null;
@@ -70,7 +71,6 @@ export default function FileEditorTab() {
     });
     viewRef.current = view;
     return () => view.destroy();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePath]);
 
   useEffect(() => {

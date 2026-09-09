@@ -99,6 +99,7 @@ export default function SubAgentChatTab({
     });
   }, [subSessionId, rawEntries, setSubAgentEntries]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is a trigger-only dep — re-run the scroll check on every new message, its value isn't read in the body
   useEffect(() => {
     if (autoScrollRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });

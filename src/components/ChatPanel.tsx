@@ -295,9 +295,9 @@ export default function ChatPanel() {
   const setPermissionMode = useAppStore((s) => s.setPermissionMode);
   const [permissionModePickerOpen, setPermissionModePickerOpen] =
     useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only re-sync (see comment above) — must not re-fire when permissionMode itself changes
   useEffect(() => {
     setPermissionMode(sessionId, permissionMode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
   // "/help" shows an overlay over the messages area rather than adding an
   // entry to the transcript — closed by its own X button or, more usually,
@@ -510,6 +510,7 @@ export default function ChatPanel() {
   // conversation restores its last `acpModelChoice` from persisted state
   // (see the lazy `useState` initializer above), so this also re-applies it
   // to a freshly (re)connected subprocess after an app restart.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectAcpModel is a fresh function reference every render (not memoized) and would make this effect re-run every render for no reason; appliedAcpModelRef already makes the call idempotent per acpModelChoice
   useEffect(() => {
     if (!acpModelOptions || !acpModelChoice) return;
     if (appliedAcpModelRef.current === acpModelChoice) return;
@@ -517,7 +518,6 @@ export default function ChatPanel() {
       selectAcpModel(acpModelChoice);
     }
     appliedAcpModelRef.current = acpModelChoice;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acpModelOptions, acpModelChoice]);
 
   useEffect(() => {
@@ -740,6 +740,7 @@ export default function ChatPanel() {
     setSubAgentEntries,
   ]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is a trigger-only dep — re-run the scroll check on every new message, its value isn't read in the body
   useEffect(() => {
     if (autoScrollRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -752,6 +753,7 @@ export default function ChatPanel() {
     autoScrollRef.current = distanceFromBottom < 40;
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: input is a trigger-only dep — recompute textarea height on every keystroke, its value isn't read in the body
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -933,6 +935,7 @@ export default function ChatPanel() {
   // means "just send this as text", so it's not shell mode either.
   const shellMode = input.startsWith("!");
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: slashQuery is a trigger-only dep — reset the highlighted index whenever the typed query changes, its value isn't read in the body
   useEffect(() => {
     setSlashIndex(0);
   }, [slashQuery]);
