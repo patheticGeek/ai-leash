@@ -108,6 +108,8 @@ from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/lates
 
 ### Linux
 
+#### Debian/Ubuntu
+
 Download the `.deb` package from the
 [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest)
 and install it:
@@ -116,8 +118,7 @@ and install it:
 sudo apt install ./ai-leash_*.deb
 ```
 
-The Debian package uses your distribution's native WebKitGTK and
-Wayland libraries.
+#### Arch
 
 Arch users can build the native package from the checked-in PKGBUILD:
 
@@ -127,8 +128,9 @@ cd ai-leash/packaging/arch
 makepkg -si
 ```
 
-The Arch package builds from source and uses Arch's native GTK,
-WebKitGTK, and Wayland libraries. It does not require AUR access.
+The Arch package builds from source.
+
+#### Fedora?
 
 ### macOS
 
