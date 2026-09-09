@@ -63,7 +63,7 @@ export default function SidePanel() {
                   e.stopPropagation();
                   closePanelTab(tab.id);
                 }}
-                className="-mr-1 text-zinc-600 hover:text-zinc-300"
+                className="-my-1 -mr-2 text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />
               </Button>

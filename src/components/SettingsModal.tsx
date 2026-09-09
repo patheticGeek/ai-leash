@@ -32,14 +32,14 @@ export default function SettingsModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="flex h-[620px] w-[840px] flex-col rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#26272c] px-4 py-3">
+        <div className="flex items-center justify-between px-4 py-3">
           <div className="text-base font-medium text-zinc-100">Settings</div>
           <Button variant="ghost" size="icon" onClick={() => setOpen(false)} title="Close">
             <X size={16} />
           </Button>
         </div>
         <div className="flex flex-1 min-h-0">
-          <div className="w-48 shrink-0 space-y-0.5 border-r border-[#26272c] p-2">
+          <div className="w-48 shrink-0 space-y-0.5 p-2">
             {SECTIONS.map((section) => (
               <Button
                 key={section.id}
