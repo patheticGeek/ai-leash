@@ -120,15 +120,17 @@ sudo apt install ./ai-leash_*.deb
 
 #### Arch
 
-Arch users can build the native package from the checked-in PKGBUILD:
+Grab `ai-leash-bin.tar.gz` from the
+[Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) —
+it bundles the prebuilt binary alongside a PKGBUILD that just installs the
+files already sitting next to it, so `makepkg` needs no build toolchain or
+network access:
 
 ```bash
-git clone https://github.com/patheticGeek/ai-leash.git
-cd ai-leash/packaging/arch
+tar xf ai-leash-bin.tar.gz
+cd ai-leash-bin
 makepkg -si
 ```
-
-The Arch package builds from source.
 
 #### Fedora?
 
