@@ -1,0 +1,86 @@
+//! SQLite-backed persistence, split by table: `conversations.rs`,
+//! `messages.rs`, `sub_agents.rs` each own the SQL for their own table
+//! (`conversations.rs` additionally owns whole-conversation deletes, which
+//! cascade into the other two tables). This module holds only what's
+//! genuinely shared: the `Db` handle itself, connection/schema setup, and
+//! the `now()` timestamp helper the other two files call into.
+
+use rusqlite::Connection;
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+mod conversations;
+mod messages;
+mod sub_agents;
+
+pub use conversations::clear_conversation;
+pub use messages::{
+    finish_streaming_message, load_messages, save_message, start_streaming_message,
+    update_streaming_message, PersistedMessage,
+};
+pub use sub_agents::{
+    delete_sub_agent, get_sub_agent, list_all_sub_agents, list_sub_agents_for_parent,
+    record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
+};
+
+pub struct Db(Mutex<Connection>);
+
+fn db_path() -> PathBuf {
+    let dir = dirs::config_dir()
+        .map(|d| d.join("ai-leash"))
+        .unwrap_or_else(std::env::temp_dir);
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("history.db")
+}
+
+fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+impl Db {
+    pub(crate) fn open(path: PathBuf) -> Self {
+        let conn = Connection::open(path).expect("failed to open history database");
+        let _ = conn.pragma_update(None, "journal_mode", "WAL");
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                project_root TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id TEXT NOT NULL REFERENCES conversations(id),
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                tool_calls TEXT,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
+            CREATE TABLE IF NOT EXISTS sub_agents (
+                id TEXT PRIMARY KEY,
+                parent_session_id TEXT NOT NULL,
+                description TEXT NOT NULL,
+                prompt TEXT NOT NULL,
+                status TEXT NOT NULL,
+                result TEXT,
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_sub_agents_parent ON sub_agents(parent_session_id, started_at);
+            ",
+        )
+        .expect("failed to initialize history database schema");
+        Db(Mutex::new(conn))
+    }
+}
+
+impl Default for Db {
+    fn default() -> Self {
+        Self::open(db_path())
+    }
+}
