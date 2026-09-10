@@ -13,16 +13,16 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "26.7.0"
           cache: "npm"
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -80,11 +80,31 @@ jobs:
             cp src-tauri/target/release/bundle/dmg/*.dmg workflow-artifacts/
           fi
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Debian package
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ runner.os }}-release
-          path: workflow-artifacts/*
+          name: Linux-deb
+          path: workflow-artifacts/*.deb
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload Arch tarball
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-tar-gz
+          path: workflow-artifacts/ai-leash-bin.tar.gz
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload macOS disk image
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: macOS-dmg
+          path: workflow-artifacts/*.dmg
+          archive: false
           if-no-files-found: error
 
   release:
@@ -94,10 +114,26 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
+      - name: Download Debian package
+        uses: actions/download-artifact@v8
         with:
+          pattern: "*.deb"
           path: artifacts
+          merge-multiple: true
+
+      - name: Download Arch tarball
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "ai-leash-bin.tar.gz"
+          path: artifacts
+          merge-multiple: true
+
+      - name: Download macOS disk image
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*.dmg"
+          path: artifacts
+          merge-multiple: true
 
       - name: Create release
         env:
@@ -110,6 +146,6 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
             --notes "Automated build from commit ${{ github.sha }}." \
-            artifacts/Linux-release/*.deb \
-            artifacts/Linux-release/ai-leash-bin.tar.gz \
-            artifacts/macOS-release/*.dmg
+            artifacts/*.deb \
+            artifacts/ai-leash-bin.tar.gz \
+            artifacts/*.dmg
