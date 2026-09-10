@@ -1,4 +1,5 @@
 mod acp;
+mod actions;
 mod chat;
 mod commands;
 mod context;
@@ -65,10 +66,38 @@ pub fn run() {
             acp::send_prompt_acp,
             acp::set_acp_model,
             acp::fetch_acp_models,
+            actions::list_actions,
+            actions::create_action,
+            actions::update_action,
+            actions::delete_action,
+            actions::run_action_cmd,
+            actions::stop_action_cmd,
+            actions::action_backlog,
             crashlog::report_frontend_crash,
             crashlog::get_crash_log,
             crashlog::clear_crash_log,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Kill every still-running Action's process when AI Leash
+            // exits — otherwise a `npm run dev`-style background process
+            // the user forgot about would keep running invisibly. Ordinary
+            // interactive terminal ptys are left alone (unchanged
+            // pre-existing behavior): only Actions get this treatment
+            // since they're the ones meant to run unattended.
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<AppState>();
+                let pty_ids: Vec<String> = state
+                    .action_runs
+                    .lock()
+                    .unwrap()
+                    .values()
+                    .map(|run| run.pty_id.clone())
+                    .collect();
+                for id in pty_ids {
+                    let _ = pty::pty_kill(state.clone(), id);
+                }
+            }
+        });
 }

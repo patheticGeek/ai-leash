@@ -84,73 +84,127 @@ fn initialize_result(req: &Value) -> Value {
 }
 
 fn tools_list_result() -> Value {
-    json!({
-        "tools": [
-            {
-                "name": "spawn_sub_agent",
-                "description": "Delegate one or more self-contained subtasks to fresh AI Leash sub-agents, each with its own isolated context. Runs via AI Leash's own configured native provider (not this agent). Each result is appended to AI Leash's Sub Agents tab, and this conversation gets a follow-up message once it's ready.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "tasks": {
-                            "type": "array",
-                            "description": "One entry per independent subtask to run concurrently",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "description": { "type": "string", "description": "Short (3-6 word) label for this subtask" },
-                                    "prompt": { "type": "string", "description": "Full, self-contained instructions for the sub-agent" }
-                                },
-                                "required": ["description", "prompt"]
-                            }
+    let mut tools = vec![
+        json!({
+            "name": "spawn_sub_agent",
+            "description": "Delegate one or more self-contained subtasks to fresh AI Leash sub-agents, each with its own isolated context. Runs via AI Leash's own configured native provider (not this agent). Each result is appended to AI Leash's Sub Agents tab, and this conversation gets a follow-up message once it's ready.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "description": "One entry per independent subtask to run concurrently",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": { "type": "string", "description": "Short (3-6 word) label for this subtask" },
+                                "prompt": { "type": "string", "description": "Full, self-contained instructions for the sub-agent" }
+                            },
+                            "required": ["description", "prompt"]
                         }
-                    },
-                    "required": ["tasks"]
-                }
-            },
-            {
-                "name": "list_sub_agents",
-                "description": "List sub-agents spawned from this conversation (running and finished), most recent first.",
-                "inputSchema": { "type": "object", "properties": {}, "required": [] }
-            },
-            {
-                "name": "read_sub_agent",
-                "description": "Read the full prompt and transcript of one sub-agent spawned from this conversation, by its sub_session_id.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
-                        "offset": { "type": "integer", "description": "1-based line number to start reading from" },
-                        "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
-                    },
-                    "required": ["sub_session_id"]
-                }
-            },
-            {
-                "name": "read_memory",
-                "description": "Read AI Leash's persistent memory notes for this project or globally.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "scope": { "type": "string", "enum": ["project", "global"], "description": "\"project\" for notes specific to this project, \"global\" for notes that apply across all projects" }
-                    },
-                    "required": ["scope"]
-                }
-            },
-            {
-                "name": "update_memory",
-                "description": "Add to or update AI Leash's persistent memory notes for this project or globally, shown to its native-provider agent in every future session. Pass the complete new contents, not just an addition — this replaces the whole file.",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "scope": { "type": "string", "enum": ["project", "global"] },
-                        "content": { "type": "string", "description": "The complete new markdown contents of the memory file for this scope" }
-                    },
-                    "required": ["scope", "content"]
-                }
+                    }
+                },
+                "required": ["tasks"]
             }
-        ]
-    })
+        }),
+        json!({
+            "name": "list_sub_agents",
+            "description": "List sub-agents spawned from this conversation (running and finished), most recent first.",
+            "inputSchema": { "type": "object", "properties": {}, "required": [] }
+        }),
+        json!({
+            "name": "read_sub_agent",
+            "description": "Read the full prompt and transcript of one sub-agent spawned from this conversation, by its sub_session_id.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
+                    "offset": { "type": "integer", "description": "1-based line number to start reading from" },
+                    "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
+                },
+                "required": ["sub_session_id"]
+            }
+        }),
+        json!({
+            "name": "read_memory",
+            "description": "Read AI Leash's persistent memory notes for this project or globally.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "scope": { "type": "string", "enum": ["project", "global"], "description": "\"project\" for notes specific to this project, \"global\" for notes that apply across all projects" }
+                },
+                "required": ["scope"]
+            }
+        }),
+        json!({
+            "name": "update_memory",
+            "description": "Add to or update AI Leash's persistent memory notes for this project or globally, shown to its native-provider agent in every future session. Pass the complete new contents, not just an addition — this replaces the whole file.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "scope": { "type": "string", "enum": ["project", "global"] },
+                    "content": { "type": "string", "description": "The complete new markdown contents of the memory file for this scope" }
+                },
+                "required": ["scope", "content"]
+            }
+        }),
+    ];
+
+    // Always advertised (not gated on whether the project has any Actions
+    // defined yet) — same as tools.rs::tool_definitions — so the agent
+    // knows this capability exists and can offer create_action itself.
+    tools.push(json!({
+        "name": "create_action",
+        "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "Short human-readable name, e.g. \"dev\"" },
+                "command": { "type": "string", "description": "The shell command to run in the background, e.g. \"npm run dev\"" }
+            },
+            "required": ["name", "command"]
+        }
+    }));
+    tools.push(json!({
+        "name": "run_action",
+        "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
+    tools.push(json!({
+        "name": "stop_action",
+        "description": "Stop a running Action by name. A no-op if it isn't running.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
+    tools.push(json!({
+        "name": "list_actions",
+        "description": "List this project's defined Actions and whether each is currently running.",
+        "inputSchema": { "type": "object", "properties": {}, "required": [] }
+    }));
+    tools.push(json!({
+        "name": "read_action",
+        "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
+
+    json!({ "tools": tools })
 }
 
 fn tools_call_result(
@@ -173,7 +227,8 @@ fn tools_call_result(
     let outcome: Result<String, String> = match name {
         "read_memory" => read_memory_tool(root, &arguments),
         "update_memory" => update_memory_tool(root, &arguments),
-        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" => {
+        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "create_action"
+        | "run_action" | "stop_action" | "list_actions" | "read_action" => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         other => Err(format!("unknown tool `{other}`")),
