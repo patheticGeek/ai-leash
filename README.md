@@ -102,21 +102,35 @@ You'll need [Ollama](https://ollama.com) running locally with at least
 one model pulled (`ollama pull qwen2.5-coder` or whatever you like) —
 that's the only agent backend wired up on `master` right now.
 
-Every push to `master` builds and publishes fresh binaries via
+Every push to `master` builds and publishes fresh packages via
 [GitHub Actions](./.github/workflows/build.yml) — grab the latest one
 from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest).
 
 ### Linux
 
-Download the `.AppImage`, make it executable, and run it:
+#### Debian/Ubuntu
+
+Download the `.deb` package from the
+[Releases page](https://github.com/patheticGeek/ai-leash/releases/latest)
+and install it:
 
 ```bash
-chmod +x ai-leash_*.AppImage
-./ai-leash_*.AppImage
+sudo apt install ./ai-leash_*.deb
 ```
 
-Requires a webkit2gtk-based desktop (GNOME, KDE, most mainstream
-distros already have this).
+#### Arch
+
+Arch users can build the native package from the checked-in PKGBUILD:
+
+```bash
+git clone https://github.com/patheticGeek/ai-leash.git
+cd ai-leash/packaging/arch
+makepkg -si
+```
+
+The Arch package builds from source.
+
+#### Fedora?
 
 ### macOS
 
@@ -139,6 +153,12 @@ npm run tauri dev
 
 # a real installer/bundle for your current platform
 npm run tauri build
+```
+
+To build the Debian package explicitly:
+
+```bash
+npx tauri build --bundles deb
 ```
 
 On Linux you'll also need the system packages Tauri itself needs —
