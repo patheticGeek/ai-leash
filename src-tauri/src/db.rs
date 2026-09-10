@@ -112,7 +112,12 @@ pub fn save_message(db: &Db, conversation_id: &str, project_root: &str, message:
 /// arrived since the last flush, not the entire reply. Mirrors
 /// `save_message`'s conversation upsert so the row shows up under the same
 /// `conversations` bookkeeping.
-pub fn start_streaming_message(db: &Db, conversation_id: &str, project_root: &str, role: &str) -> i64 {
+pub fn start_streaming_message(
+    db: &Db,
+    conversation_id: &str,
+    project_root: &str,
+    role: &str,
+) -> i64 {
     let conn = db.0.lock().unwrap();
     let ts = now();
     let _ = conn.execute(

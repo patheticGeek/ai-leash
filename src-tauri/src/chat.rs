@@ -695,7 +695,11 @@ pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, messag
 /// turn to disk incrementally as it streams (see `provider::stream_turn`'s
 /// `message_id` param) rather than in one `save_message` INSERT at the end,
 /// so this is all that's left to do once the turn is fully known.
-pub(crate) fn remember_in_memory(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
+pub(crate) fn remember_in_memory(
+    state: &State<'_, AppState>,
+    session_id: &str,
+    message: ChatMessage,
+) {
     state
         .chat_sessions
         .lock()
@@ -713,7 +717,10 @@ pub(crate) fn remember_in_memory(state: &State<'_, AppState>, session_id: &str, 
 /// when there's no resolvable project root (mirrors `push_message`'s own
 /// `commands::get_root_path` guard) — callers fall back to a plain
 /// `push_message` at the end in that case.
-pub(crate) fn start_streaming_assistant_message(state: &State<'_, AppState>, session_id: &str) -> Option<i64> {
+pub(crate) fn start_streaming_assistant_message(
+    state: &State<'_, AppState>,
+    session_id: &str,
+) -> Option<i64> {
     let root = commands::get_root_path(state.inner()).ok()?;
     Some(db::start_streaming_message(
         &state.db,
