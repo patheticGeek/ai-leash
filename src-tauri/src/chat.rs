@@ -520,6 +520,13 @@ async fn run_agent_loop(
             sessions.get(session_id).cloned().unwrap_or_default()
         };
 
+        // Reserved before the first attempt so `stream_turn` can flush the
+        // reply to disk as it streams — see `start_streaming_assistant_message`.
+        // Reused (reset to empty) across retries below rather than
+        // re-reserved, so a retried turn doesn't leave a stale empty row
+        // behind from the failed attempt.
+        let assistant_message_id = start_streaming_assistant_message(state, session_id);
+
         // Providers occasionally fail a turn outright with a transient hiccup
         // (e.g. Ollama's "error parsing tool call" 500 when the model's own
         // output mixes raw reasoning text into where clean JSON is expected,
@@ -528,6 +535,9 @@ async fn run_agent_loop(
         // usually gets a well-formed response without bothering the user.
         let mut attempt = 0;
         let turn = loop {
+            if let Some(id) = assistant_message_id {
+                db::update_streaming_message(&state.db, id, "");
+            }
             match provider::stream_turn(
                 app,
                 provider,
@@ -540,6 +550,7 @@ async fn run_agent_loop(
                 root.as_deref(),
                 &touched,
                 allow_subtasks,
+                assistant_message_id,
             )
             .await
             {
@@ -566,15 +577,23 @@ async fn run_agent_loop(
             );
         }
 
-        push_message(
-            state,
-            session_id,
-            ChatMessage {
-                role: "assistant".into(),
-                content: turn.content,
-                tool_calls: turn.tool_calls.clone(),
-            },
-        );
+        let assistant_message = ChatMessage {
+            role: "assistant".into(),
+            content: turn.content,
+            tool_calls: turn.tool_calls.clone(),
+        };
+        match assistant_message_id {
+            Some(id) => {
+                db::finish_streaming_message(
+                    &state.db,
+                    id,
+                    &assistant_message.content,
+                    &assistant_message.tool_calls,
+                );
+                remember_in_memory(state, session_id, assistant_message);
+            }
+            None => push_message(state, session_id, assistant_message),
+        }
 
         if cancel_flag.load(Ordering::SeqCst) {
             let _ = app.emit(&done_event, ());
@@ -668,6 +687,15 @@ pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, messag
     if let Ok(root) = commands::get_root_path(state.inner()) {
         db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);
     }
+    remember_in_memory(state, session_id, message);
+}
+
+/// The in-memory half of `push_message`, split out for
+/// `start_streaming_assistant_message`'s callers: they persist the assistant
+/// turn to disk incrementally as it streams (see `provider::stream_turn`'s
+/// `message_id` param) rather than in one `save_message` INSERT at the end,
+/// so this is all that's left to do once the turn is fully known.
+pub(crate) fn remember_in_memory(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
     state
         .chat_sessions
         .lock()
@@ -675,6 +703,24 @@ pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, messag
         .entry(session_id.to_string())
         .or_default()
         .push(message);
+}
+
+/// Reserves a row for the assistant's reply before a single token of it has
+/// arrived, so `provider::stream_turn` can flush accumulated content into it
+/// on every chunk (`db::update_streaming_message`) instead of only once the
+/// full turn finishes — otherwise an app crash mid-reply loses the whole
+/// message instead of just whatever arrived after the last flush. `None`
+/// when there's no resolvable project root (mirrors `push_message`'s own
+/// `commands::get_root_path` guard) — callers fall back to a plain
+/// `push_message` at the end in that case.
+pub(crate) fn start_streaming_assistant_message(state: &State<'_, AppState>, session_id: &str) -> Option<i64> {
+    let root = commands::get_root_path(state.inner()).ok()?;
+    Some(db::start_streaming_message(
+        &state.db,
+        session_id,
+        &root.to_string_lossy(),
+        "assistant",
+    ))
 }
 
 /// Hydrates `session_id`'s in-memory history from disk the first time it's

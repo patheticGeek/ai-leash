@@ -1,5 +1,6 @@
 use crate::chat::{self, ChatMessage};
 use crate::commands;
+use crate::db;
 use crate::mcp_bridge;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
@@ -259,10 +260,18 @@ async fn drive_acp_connection(
     // assistant text" for a turn since we never run our own model-turn loop
     // for ACP sessions.
     let turn_text: Arc<StdMutex<String>> = Arc::new(StdMutex::new(String::new()));
+    // Row id of the in-progress assistant reply, created lazily by
+    // `handle_session_notification` on the first text chunk of a turn (not
+    // upfront) so a turn that only makes tool calls, with no reply text at
+    // all, never leaves a stray empty message behind — see its call site
+    // below for why this mirrors `chat::start_streaming_assistant_message`
+    // rather than reusing it directly.
+    let assistant_message_id: Arc<StdMutex<Option<i64>>> = Arc::new(StdMutex::new(None));
 
     let notif_app = app.clone();
     let notif_session_id = session_id.clone();
     let notif_turn_text = turn_text.clone();
+    let notif_message_id = assistant_message_id.clone();
     let perm_app = app.clone();
     let perm_session_id = session_id.clone();
 
@@ -274,6 +283,7 @@ async fn drive_acp_connection(
                     &notif_app,
                     &notif_session_id,
                     &notif_turn_text,
+                    &notif_message_id,
                     notification.update,
                 );
                 Ok(())
@@ -324,6 +334,7 @@ async fn drive_acp_connection(
                 match cmd {
                     AcpCommand::Prompt(text) => {
                         turn_text.lock().unwrap().clear();
+                        *assistant_message_id.lock().unwrap() = None;
                         let _ = app.emit(
                             &format!("chat://{session_id}/generating"),
                             json!({ "active": true, "autonomous": false }),
@@ -363,15 +374,42 @@ async fn drive_acp_connection(
                                 let final_text = turn_text.lock().unwrap().clone();
                                 if !final_text.is_empty() {
                                     let state = app.state::<AppState>();
-                                    chat::push_message(
-                                        &state,
-                                        &session_id,
-                                        ChatMessage {
-                                            role: "assistant".into(),
-                                            content: final_text,
-                                            tool_calls: None,
-                                        },
-                                    );
+                                    // Content was already kept current on
+                                    // disk chunk-by-chunk (see
+                                    // `handle_session_notification`) — this
+                                    // is only reached with `id: None` if
+                                    // every prior flush failed to resolve a
+                                    // project root, in which case falling
+                                    // back to a plain insert is the best we
+                                    // can do.
+                                    match *assistant_message_id.lock().unwrap() {
+                                        Some(id) => {
+                                            db::finish_streaming_message(
+                                                &state.db,
+                                                id,
+                                                &final_text,
+                                                &None,
+                                            );
+                                            chat::remember_in_memory(
+                                                &state,
+                                                &session_id,
+                                                ChatMessage {
+                                                    role: "assistant".into(),
+                                                    content: final_text,
+                                                    tool_calls: None,
+                                                },
+                                            );
+                                        }
+                                        None => chat::push_message(
+                                            &state,
+                                            &session_id,
+                                            ChatMessage {
+                                                role: "assistant".into(),
+                                                content: final_text,
+                                                tool_calls: None,
+                                            },
+                                        ),
+                                    }
                                 }
                                 let _ = app.emit(&format!("chat://{session_id}/done"), ());
                             }
@@ -523,13 +561,32 @@ fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
     turn_text: &Arc<StdMutex<String>>,
+    assistant_message_id: &Arc<StdMutex<Option<i64>>>,
     update: SessionUpdate,
 ) {
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {
-                turn_text.lock().unwrap().push_str(&text.text);
+                let accumulated = {
+                    let mut turn_text = turn_text.lock().unwrap();
+                    turn_text.push_str(&text.text);
+                    turn_text.clone()
+                };
                 let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);
+
+                // Reserve the row on the first chunk of a turn (rather than
+                // upfront in `drive_acp_connection`) so a turn that only
+                // makes tool calls never leaves a stray empty message behind
+                // — see the doc comment where `assistant_message_id` is
+                // declared. Every chunk after that just overwrites it.
+                let state = app.state::<AppState>();
+                let mut id_slot = assistant_message_id.lock().unwrap();
+                if id_slot.is_none() {
+                    *id_slot = chat::start_streaming_assistant_message(&state, session_id);
+                }
+                if let Some(id) = *id_slot {
+                    db::update_streaming_message(&state.db, id, &accumulated);
+                }
             }
         }
         SessionUpdate::AgentThoughtChunk(chunk) => {

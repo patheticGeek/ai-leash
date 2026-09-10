@@ -1,4 +1,6 @@
 use crate::chat::{ChatMessage, TurnResult};
+use crate::db;
+use crate::state::AppState;
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -7,7 +9,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Sent from the frontend on every call that talks to a model — there is no
 /// backend-persisted provider config, this mirrors how `model: String` is
@@ -237,6 +239,7 @@ pub async fn stream_turn(
     root: Option<&Path>,
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
+    message_id: Option<i64>,
 ) -> Result<TurnResult, ProviderError> {
     match provider {
         ProviderConfig::Ollama { host } => {
@@ -252,6 +255,7 @@ pub async fn stream_turn(
                 root,
                 touched_dirs,
                 allow_subtasks,
+                message_id,
             )
             .await
         }
@@ -269,9 +273,20 @@ pub async fn stream_turn(
                 root,
                 touched_dirs,
                 allow_subtasks,
+                message_id,
             )
             .await
         }
+    }
+}
+
+/// Flushes the turn's accumulated content to disk on every chunk that
+/// carries new text — see `chat::start_streaming_assistant_message`. A no-op
+/// when `message_id` is `None` (no resolvable project root to persist under).
+fn persist_chunk(app: &AppHandle, message_id: Option<i64>, full_content: &str) {
+    if let Some(id) = message_id {
+        let state = app.state::<AppState>();
+        db::update_streaming_message(&state.db, id, full_content);
     }
 }
 
@@ -397,6 +412,7 @@ async fn stream_turn_ollama(
     root: Option<&Path>,
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
+    message_id: Option<i64>,
 ) -> Result<TurnResult, ProviderError> {
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
@@ -457,6 +473,9 @@ async fn stream_turn_ollama(
                 continue;
             }
             let effects = accumulate_ollama_line(&line, &mut accum);
+            if effects.chunk.is_some() {
+                persist_chunk(app, message_id, &accum.full_content);
+            }
             emit_line_effects(app, chunk_event, thinking_event, error_event, effects);
             if accum.done {
                 break 'outer;
@@ -654,6 +673,7 @@ async fn stream_turn_openai(
     root: Option<&Path>,
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
+    message_id: Option<i64>,
 ) -> Result<TurnResult, ProviderError> {
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
@@ -725,7 +745,11 @@ async fn stream_turn_openai(
                 done = true;
                 break 'outer;
             }
-            for effects in accumulate_openai_data(data, &mut accum) {
+            let choice_effects = accumulate_openai_data(data, &mut accum);
+            if choice_effects.iter().any(|e| e.chunk.is_some()) {
+                persist_chunk(app, message_id, &accum.full_content);
+            }
+            for effects in choice_effects {
                 emit_line_effects(app, chunk_event, thinking_event, error_event, effects);
             }
         }

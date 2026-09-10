@@ -105,6 +105,60 @@ pub fn save_message(db: &Db, conversation_id: &str, project_root: &str, message:
     );
 }
 
+/// Inserts a new message starting from empty content and returns its row id,
+/// so a streaming turn can be persisted incrementally via
+/// `update_streaming_message` as chunks arrive instead of only once the whole
+/// turn finishes — an app crash mid-stream then loses at most whatever
+/// arrived since the last flush, not the entire reply. Mirrors
+/// `save_message`'s conversation upsert so the row shows up under the same
+/// `conversations` bookkeeping.
+pub fn start_streaming_message(db: &Db, conversation_id: &str, project_root: &str, role: &str) -> i64 {
+    let conn = db.0.lock().unwrap();
+    let ts = now();
+    let _ = conn.execute(
+        "INSERT INTO conversations (id, project_root, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
+         ON CONFLICT(id) DO UPDATE SET updated_at = ?3",
+        params![conversation_id, project_root, ts],
+    );
+    let _ = conn.execute(
+        "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at) VALUES (?1, ?2, '', NULL, ?3)",
+        params![conversation_id, role, ts],
+    );
+    conn.last_insert_rowid()
+}
+
+/// Overwrites a streaming message's content in place — see
+/// `start_streaming_message`. Called on every chunk, so this is deliberately
+/// the cheapest possible write (no conversation-row upsert, no tool_calls
+/// touched).
+pub fn update_streaming_message(db: &Db, message_id: i64, content: &str) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE messages SET content = ?1 WHERE id = ?2",
+        params![content, message_id],
+    );
+}
+
+/// Final write for a streamed message: content was already kept current by
+/// `update_streaming_message` throughout, so this mainly attaches
+/// `tool_calls` (never known until the turn is fully parsed) and makes sure
+/// the last chunk landed even if the model's own "done" signal outraced it.
+pub fn finish_streaming_message(
+    db: &Db,
+    message_id: i64,
+    content: &str,
+    tool_calls: &Option<Vec<ToolCall>>,
+) {
+    let conn = db.0.lock().unwrap();
+    let tool_calls_json = tool_calls
+        .as_ref()
+        .map(|c| serde_json::to_string(c).unwrap_or_default());
+    let _ = conn.execute(
+        "UPDATE messages SET content = ?1, tool_calls = ?2 WHERE id = ?3",
+        params![content, tool_calls_json, message_id],
+    );
+}
+
 /// Loads a conversation's full history, oldest first, timestamps attached —
 /// used both to re-seed `chat_sessions` (so the conversation can continue)
 /// and, as-is, for the frontend to render.
