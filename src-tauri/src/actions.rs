@@ -219,6 +219,18 @@ pub fn list_actions(state: State<AppState>) -> Result<Vec<ActionWithStatus>, Str
         .collect())
 }
 
+fn new_action(root: &Path, name: String, command: String) -> Result<ActionDef, String> {
+    let mut defs = load_actions(root);
+    let def = ActionDef {
+        id: Uuid::new_v4().to_string(),
+        name,
+        command,
+    };
+    defs.push(def.clone());
+    save_actions(root, &defs)?;
+    Ok(def)
+}
+
 #[tauri::command]
 pub fn create_action(
     state: State<AppState>,
@@ -226,15 +238,19 @@ pub fn create_action(
     command: String,
 ) -> Result<ActionDef, String> {
     let root = commands::get_root_path(state.inner())?;
-    let mut defs = load_actions(&root);
-    let def = ActionDef {
-        id: Uuid::new_v4().to_string(),
-        name,
-        command,
-    };
-    defs.push(def.clone());
-    save_actions(&root, &defs)?;
-    Ok(def)
+    new_action(&root, name, command)
+}
+
+/// Agent-facing counterpart to `create_action`, gated behind the same
+/// write/edit permission prompt as `write_file`/`edit_file` (see
+/// `tools.rs`'s `create_action` arm) — unlike `run_action`/`stop_action`,
+/// this introduces a *new* command the user hasn't vetted yet.
+pub fn create_action_tool(root: &Path, name: &str, command: &str) -> Result<String, String> {
+    let def = new_action(root, name.to_string(), command.to_string())?;
+    Ok(format!(
+        "Created action `{}` ({}). Run it with run_action.",
+        def.name, def.command
+    ))
 }
 
 #[tauri::command]

@@ -1,5 +1,4 @@
 use super::{BridgeRequest, BridgeResponse};
-use crate::actions;
 use crate::context;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
@@ -40,7 +39,7 @@ pub fn run() {
         let outcome = match method {
             "initialize" => Some(RpcOutcome::Result(initialize_result(&req))),
             "notifications/initialized" => None,
-            "tools/list" => Some(RpcOutcome::Result(tools_list_result(&root))),
+            "tools/list" => Some(RpcOutcome::Result(tools_list_result())),
             "tools/call" => Some(tools_call_result(&req, port, &token, &session_id, &root)),
             _ => id.as_ref().map(|_| RpcOutcome::Error {
                 code: -32601,
@@ -84,7 +83,7 @@ fn initialize_result(req: &Value) -> Value {
     })
 }
 
-fn tools_list_result(root: &Path) -> Value {
+fn tools_list_result() -> Value {
     let mut tools = vec![
         json!({
             "name": "spawn_sub_agent",
@@ -151,48 +150,59 @@ fn tools_list_result(root: &Path) -> Value {
         }),
     ];
 
-    // Same gating as the native tool set (tools.rs::tool_definitions):
-    // only advertise Action tools if the project actually has any defined.
-    if !actions::load_actions(root).is_empty() {
-        tools.push(json!({
-            "name": "run_action",
-            "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                },
-                "required": ["name"]
-            }
-        }));
-        tools.push(json!({
-            "name": "stop_action",
-            "description": "Stop a running Action by name. A no-op if it isn't running.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                },
-                "required": ["name"]
-            }
-        }));
-        tools.push(json!({
-            "name": "list_actions",
-            "description": "List this project's defined Actions and whether each is currently running.",
-            "inputSchema": { "type": "object", "properties": {}, "required": [] }
-        }));
-        tools.push(json!({
-            "name": "read_action",
-            "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                },
-                "required": ["name"]
-            }
-        }));
-    }
+    // Always advertised (not gated on whether the project has any Actions
+    // defined yet) — same as tools.rs::tool_definitions — so the agent
+    // knows this capability exists and can offer create_action itself.
+    tools.push(json!({
+        "name": "create_action",
+        "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "Short human-readable name, e.g. \"dev\"" },
+                "command": { "type": "string", "description": "The shell command to run in the background, e.g. \"npm run dev\"" }
+            },
+            "required": ["name", "command"]
+        }
+    }));
+    tools.push(json!({
+        "name": "run_action",
+        "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
+    tools.push(json!({
+        "name": "stop_action",
+        "description": "Stop a running Action by name. A no-op if it isn't running.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
+    tools.push(json!({
+        "name": "list_actions",
+        "description": "List this project's defined Actions and whether each is currently running.",
+        "inputSchema": { "type": "object", "properties": {}, "required": [] }
+    }));
+    tools.push(json!({
+        "name": "read_action",
+        "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+            },
+            "required": ["name"]
+        }
+    }));
 
     json!({ "tools": tools })
 }
@@ -217,8 +227,8 @@ fn tools_call_result(
     let outcome: Result<String, String> = match name {
         "read_memory" => read_memory_tool(root, &arguments),
         "update_memory" => update_memory_tool(root, &arguments),
-        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "run_action" | "stop_action"
-        | "list_actions" | "read_action" => {
+        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "create_action"
+        | "run_action" | "stop_action" | "list_actions" | "read_action" => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         other => Err(format!("unknown tool `{other}`")),

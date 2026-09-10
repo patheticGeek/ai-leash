@@ -85,6 +85,7 @@ const RELAYED_TOOLS: &[&str] = &[
     "spawn_sub_agent",
     "list_sub_agents",
     "read_sub_agent",
+    "create_action",
     "run_action",
     "stop_action",
     "list_actions",
