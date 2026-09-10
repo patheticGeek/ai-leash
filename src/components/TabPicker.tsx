@@ -44,7 +44,10 @@ export default function TabPicker({
       <div className="text-xs uppercase tracking-wide text-zinc-600">
         Open a tab
       </div>
-      <div className="grid w-full max-w-xs grid-cols-2 gap-2">
+      <div
+        className="grid w-full gap-2"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
+      >
         {TILES.map((tile) => (
           <Button
             key={tile.kind}

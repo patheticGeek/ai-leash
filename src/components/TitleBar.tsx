@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
 import Button from "./Button";
 import Logo from "./Logo";
+import TitleBarActions from "./TitleBarActions";
 
 export const TITLEBAR_HEIGHT = 36;
 
@@ -134,13 +135,16 @@ export default function TitleBar({
         className="flex min-w-0 flex-1 items-center px-3 text-xs text-zinc-400 bg-[#0e0f12]"
       >
         {projectName && (
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             {projectName}
             {conversationTitle && (
               <span className="text-zinc-600"> / {conversationTitle}</span>
             )}
           </span>
         )}
+        <div className="ml-auto flex shrink-0 items-center pl-3">
+          <TitleBarActions />
+        </div>
       </div>
       {/* matches the 4px ResizeHandle between CenterPanel and SidePanel below */}
       <div className="w-1 shrink-0" />

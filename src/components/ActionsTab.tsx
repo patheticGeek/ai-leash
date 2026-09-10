@@ -1,5 +1,6 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useActions } from "../hooks/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
 import Button from "./Button";
@@ -8,26 +9,10 @@ const emptyForm = { name: "", command: "" };
 
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const [actions, setActions] = useState<ActionSummary[]>([]);
+  const { actions, refresh } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-
-  async function refresh() {
-    setActions(await api.listActions());
-  }
-
-  // Polls rather than reacting to events — Actions don't have a push
-  // channel the way sub-agents do (see `chat://.../subtask_start`), and a
-  // 2s interval is more than responsive enough for "is this still running"
-  // status shown here (SubAgentsTab's duration ticker uses the same
-  // lightweight-polling approach).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once poll setup — refresh is a fresh function reference every render (not memoized) and would restart the interval every render if added as a dep
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 2000);
-    return () => clearInterval(id);
-  }, []);
 
   function startAdd() {
     setEditingId(null);
