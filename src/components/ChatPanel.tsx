@@ -1513,7 +1513,7 @@ export default function ChatPanel() {
           </div>
         )}
       </div>
-      <div className="p-2">
+      <div className="px-2 py-3">
         <div
           className={`relative flex flex-col rounded-lg bg-[#17181c] transition-shadow duration-150 ${
             shellMode
@@ -1664,10 +1664,10 @@ export default function ChatPanel() {
                     (isAcp && !activeAcpAgent))
                 }
                 title={sending ? "Stop" : "Send"}
-                className={`text-white ${
+                className={`text-white transition-all duration-150 ${
                   sending
-                    ? "bg-red-600/80 hover:bg-red-600"
-                    : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
+                    ? "bg-red-600/90 shadow-[0_1px_4px_rgba(220,38,38,0.45),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-red-500 hover:shadow-[0_2px_9px_rgba(220,38,38,0.55),0_0_0_1px_rgba(255,255,255,0.1)]"
+                    : "bg-[#3a5f8f] shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-[#4a6f9f] hover:shadow-[0_2px_9px_rgba(58,95,143,0.6),0_0_0_1px_rgba(255,255,255,0.1)] disabled:hover:bg-[#3a5f8f] disabled:hover:shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)]"
                 }`}
               >
                 {sending ? (
