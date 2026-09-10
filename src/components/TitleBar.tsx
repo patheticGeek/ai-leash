@@ -131,7 +131,7 @@ export default function TitleBar({
       <div className="w-1 shrink-0" />
       <div
         data-tauri-drag-region
-        className="flex min-w-0 flex-1 items-center px-3 text-xs text-zinc-400"
+        className="flex min-w-0 flex-1 items-center px-3 text-xs text-zinc-400 bg-[#0e0f12]"
       >
         {projectName && (
           <span className="truncate">

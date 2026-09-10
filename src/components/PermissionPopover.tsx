@@ -29,7 +29,7 @@ export default function PermissionPopover({
               : "The external ACP agent wants permission to proceed"}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-3 font-mono text-xs">
+      <div className="flex-1 select-text overflow-auto p-3 font-mono text-xs">
         {request.kind === "edit" ? (
           request.detail.split("\n").map((line, i) => (
             <div

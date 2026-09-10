@@ -123,7 +123,7 @@ function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
       <div
-        className={entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}
+        className={`select-text ${entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}`}
       >
         <div className="text-[9px] uppercase tracking-wide text-zinc-700">
           {entry.role === "user" ? "task" : "sub-agent"}
@@ -1209,7 +1209,7 @@ export default function ChatPanel() {
     return (
       <div
         key={i}
-        className={`rounded border px-2.5 py-1.5 text-xs ${
+        className={`rounded border text-xs ${
           failed
             ? "border-red-900/50 bg-red-950/10"
             : "border-[#26272c] bg-[#141518]"
@@ -1219,7 +1219,7 @@ export default function ChatPanel() {
           variant="unstyled"
           size="none"
           onClick={() => toggle(i)}
-          className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
+          className="px-2.5 py-1.5 flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
         >
           <Chevron expanded={expanded} />
           {entry.name === "spawn_sub_agent" ||
@@ -1235,7 +1235,7 @@ export default function ChatPanel() {
             />
           )}
           <span className="shrink-0">{entry.name}</span>
-          <span className="min-w-0 flex-1 truncate text-zinc-600">
+          <span className="select-text min-w-0 flex-1 truncate text-zinc-600">
             {!expanded ? JSON.stringify(entry.args) : ""}
           </span>
           {entry.result === undefined && (
@@ -1245,7 +1245,7 @@ export default function ChatPanel() {
         </Button>
         {expanded && (
           <div className="mt-1 pl-4">
-            <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
+            <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
               {JSON.stringify(entry.args, null, 2)}
             </pre>
             {entry.subtasks && entry.subtasks.length > 0 && (
@@ -1270,7 +1270,7 @@ export default function ChatPanel() {
             )}
             {entry.result !== undefined && (
               <pre
-                className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
+                className={`select-text mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
                   failed ? "text-red-300" : "text-zinc-500"
                 }`}
               >
@@ -1306,7 +1306,7 @@ export default function ChatPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0e0f12]">
+    <div className="flex mx-auto max-w-4xl h-full flex-col">
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={scrollRef}
@@ -1359,7 +1359,7 @@ export default function ChatPanel() {
                       variant="unstyled"
                       size="none"
                       onClick={() => toggleGroup(groupKey)}
-                      className="flex items-center gap-1 rounded px-1 py-0.5 text-[10px] text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                      className="flex items-center gap-1 rounded px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
                     >
                       <ChevronDown
                         size={11}
@@ -1377,7 +1377,7 @@ export default function ChatPanel() {
               return (
                 <div
                   key={i}
-                  className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
+                  className="select-text rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
                 >
                   <Markdown content={entry.content} />
                 </div>
@@ -1389,18 +1389,20 @@ export default function ChatPanel() {
               return (
                 <div
                   key={i}
-                  className={`flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
+                  className={`group flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
                 >
                   <div
-                    className={
-                      isUser ? `rounded-xl px-3 py-2 bg-zinc-900` : undefined
-                    }
+                    className={`select-text ${
+                      isUser
+                        ? `rounded-xl px-3 py-2 bg-zinc-900 max-w-4/5`
+                        : undefined
+                    }`}
                   >
                     <Markdown content={entry.content} />
                   </div>
 
                   <div
-                    className={`mt-1 flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                    className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                   >
                     <Button
                       variant="ghost"
