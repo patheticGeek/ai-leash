@@ -871,7 +871,7 @@ pub async fn execute_tool(
             }
 
             Ok(format!(
-                "Spawned {count} sub-agent(s): {}. Results will be appended to this chat as each finishes.",
+                "Spawned {count} sub-agent(s): {}. Results will be appended to this chat as each finishes — no need to call list_sub_agents or read_sub_agent to check, just continue or stop here and wait.",
                 labels.join(", ")
             ))
         }

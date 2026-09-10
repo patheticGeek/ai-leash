@@ -87,7 +87,7 @@ fn tools_list_result() -> Value {
     let mut tools = vec![
         json!({
             "name": "spawn_sub_agent",
-            "description": "Delegate one or more self-contained subtasks to fresh AI Leash sub-agents, each with its own isolated context. Runs via AI Leash's own configured native provider (not this agent). Each result is appended to AI Leash's Sub Agents tab, and this conversation gets a follow-up message once it's ready.",
+            "description": "Delegate one or more self-contained subtasks to fresh AI Leash sub-agents, each with its own isolated context. Runs via AI Leash's own configured native provider (not this agent) — sub-agents only have AI Leash's own tools, not this agent's. If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. This call returns immediately once the sub-agent(s) are spawned, without waiting for any of them to finish — each result is appended to AI Leash's Sub Agents tab, and this conversation gets a follow-up message once it's ready. Use `list_sub_agents`/`read_sub_agent` if you need to check on one proactively instead of waiting.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -109,17 +109,17 @@ fn tools_list_result() -> Value {
         }),
         json!({
             "name": "list_sub_agents",
-            "description": "List sub-agents spawned from this conversation (running and finished), most recent first.",
+            "description": "List sub-agents spawned from this conversation via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find a sub_session_id for read_sub_agent.",
             "inputSchema": { "type": "object", "properties": {}, "required": [] }
         }),
         json!({
             "name": "read_sub_agent",
-            "description": "Read the full prompt and transcript of one sub-agent spawned from this conversation, by its sub_session_id.",
+            "description": "Read the full prompt and transcript (including tool calls and the final result) of one sub-agent spawned from this conversation, by its sub_session_id. For long transcripts, prefer offset/limit over reading it all at once.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
-                    "offset": { "type": "integer", "description": "1-based line number to start reading from" },
+                    "offset": { "type": "integer", "description": "1-based line number to start reading from. Omit to start at line 1." },
                     "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
                 },
                 "required": ["sub_session_id"]
@@ -127,7 +127,7 @@ fn tools_list_result() -> Value {
         }),
         json!({
             "name": "read_memory",
-            "description": "Read AI Leash's persistent memory notes for this project or globally.",
+            "description": "Read AI Leash's persistent memory notes for this project or globally. Unlike AI Leash's native-provider agent, these aren't injected into your context automatically — call this yourself if you want them.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
