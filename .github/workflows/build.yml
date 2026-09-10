@@ -150,13 +150,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -e
+          set -euo pipefail
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           TAG="build-${{ github.run_number }}-$SHORT_SHA"
+          mapfile -t RELEASE_FILES < <(
+            find artifacts -type f \
+              \( -name '*.deb' -o -name '*.tar.gz' -o -name '*.dmg' \) \
+              -print
+          )
+          if [ "${#RELEASE_FILES[@]}" -eq 0 ]; then
+            echo "No release artifacts found under artifacts/" >&2
+            find artifacts -type f -print >&2
+            exit 1
+          fi
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
             --notes "Automated build from commit ${{ github.sha }}. [Install instructions in readme ->](https://github.com/patheticGeek/ai-leash#install)" \
-            artifacts/ai-leash_*.deb \
-            artifacts/ai-leash_*.tar.gz \
-            artifacts/ai-leash_*.dmg
+            "${RELEASE_FILES[@]}"
