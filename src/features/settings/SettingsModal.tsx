@@ -11,14 +11,14 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../lib/tauriApi";
+import { api } from "../../lib/tauriApi";
 import {
   type AcpAgentConfig,
   type OpenAiCompatibleProviderConfig,
   useAppStore,
-} from "../store";
-import Button from "./Button";
-import Logo from "./Logo";
+} from "../../store";
+import Button from "../../ui/Button";
+import Logo from "../../ui/Logo";
 
 const emptyForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 

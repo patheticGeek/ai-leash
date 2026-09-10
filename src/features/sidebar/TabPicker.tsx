@@ -1,6 +1,6 @@
 import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
-import type { PanelTabKind } from "../store";
-import Button from "./Button";
+import type { PanelTabKind } from "../../store";
+import Button from "../../ui/Button";
 
 const TILES: {
   kind: PanelTabKind;

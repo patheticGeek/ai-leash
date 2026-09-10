@@ -1,9 +1,9 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { useActions } from "../hooks/useActions";
-import { type ActionSummary, api } from "../lib/tauriApi";
-import { useAppStore } from "../store";
-import Button from "./Button";
+import { type ActionSummary, api } from "../../../lib/tauriApi";
+import { useAppStore } from "../../../store";
+import Button from "../../../ui/Button";
+import { useActions } from "../../actions/useActions";
 
 const emptyForm = { name: "", command: "" };
 

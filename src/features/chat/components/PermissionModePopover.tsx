@@ -1,7 +1,7 @@
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { PermissionMode } from "../store";
-import Button from "./Button";
+import type { PermissionMode } from "../../../store";
+import Button from "../../../ui/Button";
 
 interface PermissionModePopoverProps {
   mode: PermissionMode;

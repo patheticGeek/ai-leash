@@ -1,6 +1,6 @@
 import { Check, X } from "lucide-react";
-import type { PermissionRequestPayload } from "../lib/tauriApi";
-import Button from "./Button";
+import type { PermissionRequestPayload } from "../../../lib/tauriApi";
+import Button from "../../../ui/Button";
 
 interface PermissionPopoverProps {
   request: PermissionRequestPayload;

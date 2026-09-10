@@ -23,18 +23,20 @@ import {
   messagesToEntries,
   type ToolCallPayload,
   type ToolResultPayload,
-} from "../lib/chatEntries";
+} from "../../lib/chatEntries";
 import {
   type AcpCommandInfo,
   type AcpModelOptions,
   api,
-} from "../lib/tauriApi";
-import { permissionForSession, useAppStore } from "../store";
-import Button from "./Button";
-import Markdown from "./Markdown";
-import ModelPickerPopover, { type PickerOption } from "./ModelPickerPopover";
-import PermissionModePopover from "./PermissionModePopover";
-import PermissionPopover from "./PermissionPopover";
+} from "../../lib/tauriApi";
+import { permissionForSession, useAppStore } from "../../store";
+import Button from "../../ui/Button";
+import Markdown from "../../ui/Markdown";
+import ModelPickerPopover, {
+  type PickerOption,
+} from "./components/ModelPickerPopover";
+import PermissionModePopover from "./components/PermissionModePopover";
+import PermissionPopover from "./components/PermissionPopover";
 
 interface SubtaskThread {
   subSessionId: string;

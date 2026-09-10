@@ -3,8 +3,8 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
-import { api } from "../lib/tauriApi";
-import { useAppStore } from "../store";
+import { api } from "../../../lib/tauriApi";
+import { useAppStore } from "../../../store";
 
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);

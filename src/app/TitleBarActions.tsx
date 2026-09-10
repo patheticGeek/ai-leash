@@ -1,8 +1,8 @@
 import { ChevronDown, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useActions } from "../hooks/useActions";
+import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
-import Button from "./Button";
+import Button from "../ui/Button";
 
 // Whichever action was started most recently (even if it has since
 // stopped) is treated as "current" and shown on the collapsed button;

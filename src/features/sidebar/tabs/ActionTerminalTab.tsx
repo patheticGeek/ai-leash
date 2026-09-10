@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
-import { api } from "../lib/tauriApi";
+import { api } from "../../../lib/tauriApi";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();

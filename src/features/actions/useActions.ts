@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type ActionSummary, api } from "../lib/tauriApi";
+import { type ActionSummary, api } from "../../lib/tauriApi";
 
 // Polls rather than reacting to events — Actions don't have a push channel
 // the way sub-agents do (see `chat://.../subtask_start`), and a 2s interval

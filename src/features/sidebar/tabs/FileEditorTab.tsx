@@ -8,7 +8,7 @@ import { EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { basicSetup, EditorView } from "codemirror";
 import { useEffect, useRef } from "react";
-import { useAppStore } from "../store";
+import { useAppStore } from "../../../store";
 
 function languageFor(name: string): Extension {
   const ext = name.split(".").pop() ?? "";

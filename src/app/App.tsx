@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import CenterPanel from "./components/CenterPanel";
-import LeftBar from "./components/LeftBar";
-import ResizeHandle from "./components/ResizeHandle";
-import SettingsModal from "./components/SettingsModal";
-import SidePanel from "./components/SidePanel";
-import TitleBar, { TITLEBAR_HEIGHT } from "./components/TitleBar";
-import { useResizableWidth } from "./hooks/useResizableWidth";
-import { useAppStore } from "./store";
+import SettingsModal from "../features/settings/SettingsModal";
+import SidePanel from "../features/sidebar/SidePanel";
+import { useResizableWidth } from "../hooks/useResizableWidth";
+import { useAppStore } from "../store";
+import ResizeHandle from "../ui/ResizeHandle";
+import CenterPanel from "./CenterPanel";
+import LeftBar from "./LeftBar";
+import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);

@@ -133,7 +133,7 @@ graph TD
     tauriApi[lib/tauriApi.ts\ninvoke wrappers] --> store
     chatEntries[lib/chatEntries.ts\nEntry types + accumulation] -.-> ChatPanel
     chatEntries -.-> SubAgentChatTab
-    useActions[hooks/useActions.ts] -.-> ActionsTab
+    useActions[features/actions/useActions.ts] -.-> ActionsTab
     useActions -.-> TitleBarActions
 ```
 

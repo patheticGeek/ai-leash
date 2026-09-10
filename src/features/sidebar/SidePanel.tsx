@@ -1,14 +1,14 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
-import { type PanelTabKind, useAppStore } from "../store";
-import ActionsTab from "./ActionsTab";
-import ActionTerminalTab from "./ActionTerminalTab";
-import Button from "./Button";
-import FileEditorTab from "./FileEditorTab";
-import FileTree from "./FileTree";
-import SubAgentsTab from "./SubAgentsTab";
+import { type PanelTabKind, useAppStore } from "../../store";
+import Button from "../../ui/Button";
 import TabPicker from "./TabPicker";
-import TerminalPanel from "./TerminalPanel";
+import ActionsTab from "./tabs/ActionsTab";
+import ActionTerminalTab from "./tabs/ActionTerminalTab";
+import FileEditorTab from "./tabs/FileEditorTab";
+import FileTree from "./tabs/FileTree";
+import SubAgentsTab from "./tabs/SubAgentsTab";
+import TerminalPanel from "./tabs/TerminalPanel";
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);

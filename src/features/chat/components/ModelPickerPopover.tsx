@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import Button from "./Button";
+import Button from "../../../ui/Button";
 
 export interface PickerOption {
   key: string;

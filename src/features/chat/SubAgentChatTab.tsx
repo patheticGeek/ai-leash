@@ -1,9 +1,13 @@
 import { Wrench } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { type Entry, isToolError, messagesToEntries } from "../lib/chatEntries";
-import { api } from "../lib/tauriApi";
-import { useAppStore } from "../store";
-import Markdown from "./Markdown";
+import {
+  type Entry,
+  isToolError,
+  messagesToEntries,
+} from "../../lib/chatEntries";
+import { api } from "../../lib/tauriApi";
+import { useAppStore } from "../../store";
+import Markdown from "../../ui/Markdown";
 
 const statusStyles: Record<string, string> = {
   running:

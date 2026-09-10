@@ -6,7 +6,7 @@ import {
   type RecentProject,
   useAppStore,
 } from "../store";
-import Button from "./Button";
+import Button from "../ui/Button";
 
 function ProjectRow({
   project,

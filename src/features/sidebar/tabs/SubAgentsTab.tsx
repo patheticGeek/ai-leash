@@ -1,8 +1,8 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../lib/tauriApi";
-import { useAppStore } from "../store";
-import Button from "./Button";
+import { api } from "../../../lib/tauriApi";
+import { useAppStore } from "../../../store";
+import Button from "../../../ui/Button";
 
 function formatTime(ms: number): string {
   const d = new Date(ms);

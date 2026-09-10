@@ -3,8 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Copy, Minus, PlusIcon, SettingsIcon, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
-import Button from "./Button";
-import Logo from "./Logo";
+import Button from "../ui/Button";
+import Logo from "../ui/Logo";
 import TitleBarActions from "./TitleBarActions";
 
 export const TITLEBAR_HEIGHT = 36;
