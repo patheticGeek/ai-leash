@@ -129,7 +129,7 @@ export default function SubAgentChatTab({
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-3"
+        className="flex-1 select-text overflow-y-auto p-3 space-y-3"
       >
         {entries.length === 0 && (
           <div className="text-sm text-zinc-600">

@@ -23,6 +23,19 @@ body {
   color: var(--al-text);
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Form controls and CodeMirror's contenteditable content need real text
+   selection to be usable at all (typing/cursor placement relies on native
+   selection) — xterm.js is unaffected either way, it draws its own
+   selection overlay rather than relying on this. */
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 * {

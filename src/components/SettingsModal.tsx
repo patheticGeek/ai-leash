@@ -502,7 +502,7 @@ function CrashLogSection() {
         including ones from a previous run, so you can find out what happened
         after restarting the app.
       </div>
-      <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded border border-[#26272c] bg-[#0e0f12] p-2.5 text-xs text-zinc-400">
+      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded border border-[#26272c] bg-[#0e0f12] p-2.5 text-xs text-zinc-400">
         {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
       </pre>
     </div>
