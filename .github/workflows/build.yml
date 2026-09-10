@@ -128,29 +128,27 @@ jobs:
       - name: Download Debian package
         uses: actions/download-artifact@v8
         with:
-          pattern: Linux-deb
+          name: Linux-deb
           path: artifacts
-          merge-multiple: true
 
       - name: Download Arch tarball
         uses: actions/download-artifact@v8
         with:
-          pattern: Linux-tar-gz
+          name: Linux-tar-gz
           path: artifacts
-          merge-multiple: true
 
       - name: Download macOS disk image
         uses: actions/download-artifact@v8
         with:
-          pattern: macOS-dmg
+          name: macOS-dmg
           path: artifacts
-          merge-multiple: true
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           TAG="build-${{ github.run_number }}-$SHORT_SHA"
           mapfile -t RELEASE_FILES < <(
