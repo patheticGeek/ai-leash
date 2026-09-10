@@ -70,15 +70,22 @@ jobs:
         if: runner.os == 'Linux'
         run: bash packaging/arch-bin/build-tarball.sh
 
+      - name: Collect release artifacts
+        run: |
+          mkdir -p workflow-artifacts
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp src-tauri/target/release/bundle/deb/*.deb workflow-artifacts/
+            cp ai-leash-bin.tar.gz workflow-artifacts/
+          else
+            cp src-tauri/target/release/bundle/dmg/*.dmg workflow-artifacts/
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ runner.os }}-build
-          path: |
-            src-tauri/target/release/bundle/dmg
-            src-tauri/target/release/bundle/deb
-            ai-leash-bin.tar.gz
-          if-no-files-found: ignore
+          name: ${{ runner.os }}-release
+          path: workflow-artifacts/*
+          if-no-files-found: error
 
   release:
     needs: build
@@ -103,6 +110,6 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
             --notes "Automated build from commit ${{ github.sha }}." \
-            artifacts/Linux-build/deb/*.deb \
-            artifacts/Linux-build/ai-leash-bin.tar.gz \
-            artifacts/macOS-build/dmg/*.dmg
+            artifacts/Linux-release/*.deb \
+            artifacts/Linux-release/ai-leash-bin.tar.gz \
+            artifacts/macOS-release/*.dmg
