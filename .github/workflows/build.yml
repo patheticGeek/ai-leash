@@ -125,23 +125,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download Debian package
+      - name: Download release artifacts
         uses: actions/download-artifact@v8
         with:
-          name: Linux-deb
+          pattern: ai-leash_v*
           path: artifacts
-
-      - name: Download Arch tarball
-        uses: actions/download-artifact@v8
-        with:
-          name: Linux-tar-gz
-          path: artifacts
-
-      - name: Download macOS disk image
-        uses: actions/download-artifact@v8
-        with:
-          name: macOS-dmg
-          path: artifacts
+          merge-multiple: true
 
       - name: Create release
         env:
