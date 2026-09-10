@@ -8,7 +8,7 @@ import { twMerge } from "tailwind-merge";
 // this replaced (hand-rolled `<button className="...">` everywhere, several
 // with no hover background and no `cursor-pointer`).
 const buttonStyles = cva(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg cursor-pointer select-none transition-all duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:active:scale-100",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg cursor-pointer select-none transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
   {
     variants: {
       variant: {
@@ -39,7 +39,8 @@ const buttonStyles = cva(
 );
 
 export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonStyles> {}
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
