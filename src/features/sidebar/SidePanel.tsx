@@ -3,12 +3,7 @@ import { useState } from "react";
 import { type PanelTabKind, useAppStore } from "../../store";
 import Button from "../../ui/Button";
 import TabPicker from "./TabPicker";
-import ActionsTab from "./tabs/ActionsTab";
-import ActionTerminalTab from "./tabs/ActionTerminalTab";
-import FileEditorTab from "./tabs/FileEditorTab";
-import FileTree from "./tabs/FileTree";
-import SubAgentsTab from "./tabs/SubAgentsTab";
-import TerminalPanel from "./tabs/TerminalPanel";
+import { PANEL_TAB_KINDS } from "./tabKinds";
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
@@ -23,9 +18,9 @@ export default function SidePanel() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const activeTab = panelTabs.find((t) => t.id === activePanelTabId) ?? null;
-  const terminalTabs = panelTabs.filter((t) => t.kind === "terminal");
-  const actionTabs = panelTabs.filter((t) => t.kind === "action");
-  const filetreeTab = panelTabs.find((t) => t.kind === "filetree");
+  const keepMountedTabs = panelTabs.filter(
+    (t) => PANEL_TAB_KINDS[t.kind].mountMode === "keep-mounted-per-tab",
+  );
   const showPicker = pickerOpen || panelTabs.length === 0;
 
   function pick(kind: PanelTabKind) {
@@ -92,40 +87,20 @@ export default function SidePanel() {
         </Button>
       </div>
       <div className="relative flex-1 min-h-0">
-        {terminalTabs.map((tab) => (
+        {keepMountedTabs.map((tab) => (
           <div
             key={tab.id}
             className={
               tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"
             }
           >
-            <TerminalPanel />
+            {PANEL_TAB_KINDS[tab.kind].render(tab)}
           </div>
         ))}
-        {filetreeTab && (
-          <div
-            className={
-              filetreeTab.id === activePanelTabId && !showPicker
-                ? "h-full"
-                : "hidden"
-            }
-          >
-            <FileTree />
-          </div>
-        )}
-        {!showPicker && activeTab?.kind === "subagents" && <SubAgentsTab />}
-        {!showPicker && activeTab?.kind === "file" && <FileEditorTab />}
-        {!showPicker && activeTab?.kind === "actions" && <ActionsTab />}
-        {actionTabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={
-              tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"
-            }
-          >
-            {tab.path && <ActionTerminalTab actionId={tab.path} />}
-          </div>
-        ))}
+        {!showPicker &&
+          activeTab &&
+          PANEL_TAB_KINDS[activeTab.kind].mountMode === "active-only" &&
+          PANEL_TAB_KINDS[activeTab.kind].render(activeTab)}
         {showPicker && <TabPicker onPick={pick} />}
       </div>
     </div>
