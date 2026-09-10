@@ -34,7 +34,7 @@ function ProjectRow({
           ? `${project.path} — needs your approval`
           : project.path
       }
-      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded px-2 py-1.5 text-sm text-left cursor-default ${
+      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left cursor-default ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -117,7 +117,7 @@ export default function LeftBar() {
   );
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e] border-r border-[#26272c]">
+    <div className="flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
       <div className="flex-1 overflow-y-auto py-1.5">
         {sortedProjects.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">

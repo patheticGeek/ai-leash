@@ -114,7 +114,7 @@ function Chevron({ expanded }: { expanded: boolean }) {
   return (
     <ChevronRight
       size={12}
-      className={`shrink-0 text-zinc-600 transition-transform ${expanded ? "rotate-90" : ""}`}
+      className={`shrink-0 text-zinc-600 transition-transform duration-200 ease-out ${expanded ? "rotate-90" : ""}`}
     />
   );
 }
@@ -146,10 +146,10 @@ function SubEntryLine({ entry }: { entry: Entry }) {
   const failed = isToolError(entry.result);
   return (
     <div
-      className={`rounded border px-2 py-1 ${
+      className={`rounded-md px-2 py-1 ${
         failed
-          ? "border-red-900/50 bg-red-950/20 text-red-300"
-          : "border-[#26272c] bg-[#101114] text-zinc-500"
+          ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20 text-red-300"
+          : "shadow-[var(--al-shadow)] bg-[#101114] text-zinc-500"
       }`}
     >
       <Wrench
@@ -1209,17 +1209,17 @@ export default function ChatPanel() {
     return (
       <div
         key={i}
-        className={`rounded border text-xs ${
+        className={`rounded-md text-xs ${
           failed
-            ? "border-red-900/50 bg-red-950/10"
-            : "border-[#26272c] bg-[#141518]"
+            ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/10"
+            : "shadow-[var(--al-shadow)] bg-[#141518]"
         }`}
       >
         <Button
           variant="unstyled"
           size="none"
           onClick={() => toggle(i)}
-          className="px-2.5 py-1.5 flex w-full min-w-0 items-center gap-1.5 rounded text-left text-zinc-400 hover:bg-white/5"
+          className="px-2.5 py-1.5 flex w-full min-w-0 items-center gap-1.5 rounded-md text-left text-zinc-400 hover:bg-white/5"
         >
           <Chevron expanded={expanded} />
           {entry.name === "spawn_sub_agent" ||
@@ -1253,7 +1253,7 @@ export default function ChatPanel() {
                 {entry.subtasks.map((t) => (
                   <div
                     key={t.subSessionId}
-                    className="border-l-2 border-[#26272c] pl-2"
+                    className="shadow-[inset_2px_0_0_0_#26272c] pl-2"
                   >
                     <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
                       {t.description}
@@ -1319,13 +1319,13 @@ export default function ChatPanel() {
                 variant="unstyled"
                 size="none"
                 onClick={() => setSystemPromptExpanded((v) => !v)}
-                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
               >
                 <Chevron expanded={systemPromptExpanded} />
                 <span className="italic">system prompt</span>
               </Button>
               {systemPromptExpanded && (
-                <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 text-zinc-600">
+                <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 text-zinc-600">
                   {systemPrompt}
                 </pre>
               )}
@@ -1337,7 +1337,7 @@ export default function ChatPanel() {
             </div>
           )}
           {ollamaError && (
-            <div className="rounded border border-red-900/50 bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+            <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
               {ollamaError}
             </div>
           )}
@@ -1359,11 +1359,11 @@ export default function ChatPanel() {
                       variant="unstyled"
                       size="none"
                       onClick={() => toggleGroup(groupKey)}
-                      className="flex items-center gap-1 rounded px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
+                      className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
                     >
                       <ChevronDown
                         size={11}
-                        className={`transition-transform ${expanded ? "rotate-180" : ""}`}
+                        className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
                       />
                       {expanded ? "Hide" : `Show all (${indices.length})`}
                     </Button>
@@ -1377,7 +1377,7 @@ export default function ChatPanel() {
               return (
                 <div
                   key={i}
-                  className="select-text rounded border border-[#26272c] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
+                  className="select-text rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2 text-xs text-zinc-400"
                 >
                   <Markdown content={entry.content} />
                 </div>
@@ -1394,7 +1394,7 @@ export default function ChatPanel() {
                   <div
                     className={`select-text ${
                       isUser
-                        ? `rounded-xl px-3 py-2 bg-zinc-900 max-w-4/5`
+                        ? `rounded-2xl px-3 py-2 bg-zinc-900 max-w-4/5`
                         : undefined
                     }`}
                   >
@@ -1402,7 +1402,7 @@ export default function ChatPanel() {
                   </div>
 
                   <div
-                    className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+                    className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
                   >
                     <Button
                       variant="ghost"
@@ -1445,13 +1445,13 @@ export default function ChatPanel() {
                     variant="unstyled"
                     size="none"
                     onClick={() => toggle(i)}
-                    className="flex items-center gap-1.5 rounded px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+                    className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
                   >
                     <Chevron expanded={expanded} />
                     <span className="italic">generating slop…</span>
                   </Button>
                   {expanded && (
-                    <div className="mt-1 ml-4 whitespace-pre-wrap border-l-2 border-[#26272c] pl-2 italic text-zinc-600">
+                    <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 italic text-zinc-600">
                       {entry.content}
                     </div>
                   )}
@@ -1473,7 +1473,7 @@ export default function ChatPanel() {
         </div>
         {helpOpen && (
           <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
-            <div className="flex items-center justify-between border-b border-[#26272c] px-3 py-2">
+            <div className="flex items-center justify-between shadow-[var(--al-shadow-b)] px-3 py-2">
               <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                 Commands
               </span>
@@ -1487,7 +1487,7 @@ export default function ChatPanel() {
               </Button>
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-              <div className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2">
+              <div className="rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2">
                 <div className="text-sm font-medium text-zinc-100">
                   !<span className="text-zinc-500"> command</span>
                 </div>
@@ -1500,7 +1500,7 @@ export default function ChatPanel() {
               {allCommands.map((c) => (
                 <div
                   key={c.name}
-                  className="rounded border border-[#26272c] bg-[#17181c] px-3 py-2"
+                  className="rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2"
                 >
                   <div className="text-sm font-medium text-zinc-100">
                     /{c.name}
@@ -1513,12 +1513,12 @@ export default function ChatPanel() {
           </div>
         )}
       </div>
-      <div className="p-2">
+      <div className="px-2 py-3">
         <div
-          className={`relative flex flex-col rounded-md border bg-[#17181c] ${
+          className={`relative flex flex-col rounded-lg bg-[#17181c] transition-shadow duration-150 ${
             shellMode
-              ? "border-emerald-500/60"
-              : "border-[#26272c] focus-within:border-[#3a5f8f]"
+              ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6)]"
+              : "shadow-[var(--al-shadow)] focus-within:shadow-[0_0_0_1px_#3a5f8f]"
           }`}
         >
           {pendingPermission ? (
@@ -1528,7 +1528,7 @@ export default function ChatPanel() {
             />
           ) : (
             showSlashPopover && (
-              <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-lg border border-[#26272c] bg-[#141518] py-1 shadow-2xl">
+              <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-xl bg-[#141518] py-1 shadow-2xl shadow-black/60 ring-1 ring-white/5">
                 {slashMatches.map((c, i) => (
                   <Button
                     key={c.name}
@@ -1598,7 +1598,7 @@ export default function ChatPanel() {
                   value={model}
                   onChange={(e) => setModel(e.currentTarget.value)}
                   placeholder="model id"
-                  className="min-w-0 rounded border border-[#26272c] bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none"
+                  className="min-w-0 rounded-md bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
                 />
               )}
             </div>
@@ -1627,7 +1627,7 @@ export default function ChatPanel() {
                     </div>
                   </div>
                   {showUsagePopover && (
-                    <div className="absolute bottom-full right-0 z-10 mb-2 w-48 rounded-md border border-[#26272c] bg-[#141518] p-2.5 shadow-xl">
+                    <div className="absolute bottom-full right-0 z-10 mb-2 w-48 rounded-lg bg-[#141518] p-2.5 shadow-xl shadow-black/60 ring-1 ring-white/5">
                       <div className="mb-1.5 flex items-center justify-between text-[10px] text-zinc-400">
                         <span>Context usage</span>
                         <span className="font-medium text-zinc-200">
@@ -1664,10 +1664,10 @@ export default function ChatPanel() {
                     (isAcp && !activeAcpAgent))
                 }
                 title={sending ? "Stop" : "Send"}
-                className={`text-white ${
+                className={`text-white transition-all duration-150 ${
                   sending
-                    ? "bg-red-600/80 hover:bg-red-600"
-                    : "bg-[#3a5f8f] hover:bg-[#4a6f9f] disabled:hover:bg-[#3a5f8f]"
+                    ? "bg-red-600/90 shadow-[0_1px_4px_rgba(220,38,38,0.45),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-red-500 hover:shadow-[0_2px_9px_rgba(220,38,38,0.55),0_0_0_1px_rgba(255,255,255,0.1)]"
+                    : "bg-[#3a5f8f] shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-[#4a6f9f] hover:shadow-[0_2px_9px_rgba(58,95,143,0.6),0_0_0_1px_rgba(255,255,255,0.1)] disabled:hover:bg-[#3a5f8f] disabled:hover:shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)]"
                 }`}
               >
                 {sending ? (

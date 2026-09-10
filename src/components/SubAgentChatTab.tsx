@@ -6,9 +6,10 @@ import { useAppStore } from "../store";
 import Markdown from "./Markdown";
 
 const statusStyles: Record<string, string> = {
-  running: "text-amber-400 border-amber-900/50 bg-amber-950/20",
-  done: "text-emerald-400 border-emerald-900/50 bg-emerald-950/20",
-  error: "text-red-400 border-red-900/50 bg-red-950/20",
+  running:
+    "text-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20",
+  done: "text-emerald-400 shadow-[0_0_0_1px_rgba(6,78,59,0.5)] bg-emerald-950/20",
+  error: "text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20",
 };
 
 function EntryBlock({ entry }: { entry: Entry }) {
@@ -39,10 +40,10 @@ function EntryBlock({ entry }: { entry: Entry }) {
   const failed = isToolError(entry.result);
   return (
     <div
-      className={`rounded border px-2.5 py-1.5 text-xs ${
+      className={`rounded-md px-2.5 py-1.5 text-xs ${
         failed
-          ? "border-red-900/50 bg-red-950/10"
-          : "border-[#26272c] bg-[#141518]"
+          ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/10"
+          : "shadow-[var(--al-shadow)] bg-[#141518]"
       }`}
     >
       <div className="flex min-w-0 items-center gap-1.5 text-zinc-400">
@@ -114,9 +115,9 @@ export default function SubAgentChatTab({
 
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
-      <div className="flex items-center gap-2 border-b border-[#26272c] px-3 py-2 text-xs">
+      <div className="flex items-center gap-2 shadow-[var(--al-shadow-b)] px-3 py-2 text-xs">
         <span
-          className={`shrink-0 rounded border px-1.5 py-0.5 uppercase tracking-wide ${
+          className={`shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide ${
             statusStyles[task?.status ?? "done"]
           }`}
         >

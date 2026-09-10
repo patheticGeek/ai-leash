@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "../store";
 import Button from "./Button";
 import Logo from "./Logo";
+import TitleBarActions from "./TitleBarActions";
 
 export const TITLEBAR_HEIGHT = 36;
 
@@ -105,7 +106,7 @@ export default function TitleBar({
       <div
         data-tauri-drag-region
         style={{ width: leftBarWidth }}
-        className="flex shrink-0 items-center justify-between px-2.5 border-r border-[#26272c]"
+        className="flex shrink-0 items-center justify-between px-2.5 shadow-[var(--al-shadow-r)]"
       >
         <Logo className="h-3 w-auto shrink-0 ml-1.5" />
         <div className="flex items-center gap-1">
@@ -134,20 +135,23 @@ export default function TitleBar({
         className="flex min-w-0 flex-1 items-center px-3 text-xs text-zinc-400 bg-[#0e0f12]"
       >
         {projectName && (
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             {projectName}
             {conversationTitle && (
               <span className="text-zinc-600"> / {conversationTitle}</span>
             )}
           </span>
         )}
+        <div className="ml-auto flex shrink-0 items-center pl-3">
+          <TitleBarActions />
+        </div>
       </div>
       {/* matches the 4px ResizeHandle between CenterPanel and SidePanel below */}
       <div className="w-1 shrink-0" />
       <div
         data-tauri-drag-region
         style={{ width: rightPanelWidth }}
-        className="flex shrink-0 items-center justify-end border-l border-[#26272c]"
+        className="flex shrink-0 items-center justify-end shadow-[var(--al-shadow-l)]"
       >
         <WindowControls />
       </div>

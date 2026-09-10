@@ -64,10 +64,10 @@ export default function PermissionModePopover({
         size="none"
         onClick={() => onOpenChange(!open)}
         title="Tool-call permission mode"
-        className={`flex min-w-0 items-center gap-1 rounded border px-1.5 py-1 text-xs outline-none ${
+        className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs outline-none ${
           mode === "bypass"
-            ? "border-amber-900/50 bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
-            : "border-[#26272c] bg-[#17181c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+            ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
+            : "shadow-[var(--al-shadow)] bg-[#17181c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
         }`}
       >
         {mode === "bypass" ? (
@@ -78,7 +78,7 @@ export default function PermissionModePopover({
         {active.label}
       </Button>
       {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 w-80 overflow-hidden rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-80 overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
           <div className="py-1">
             {OPTIONS.map((o) => (
               <Button

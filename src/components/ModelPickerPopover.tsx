@@ -71,13 +71,13 @@ export default function ModelPickerPopover({
         size="none"
         disabled={disabled}
         onClick={() => onOpenChange(!open)}
-        className="min-w-0 max-w-[160px] truncate rounded border border-[#26272c] bg-[#17181c] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200"
+        className="min-w-0 max-w-[160px] truncate rounded-md bg-[#17181c] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200"
       >
         {triggerLabel}
       </Button>
       {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
-          <div className="flex items-center gap-2 border-b border-[#26272c] px-3 py-2.5">
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-72 overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
+          <div className="flex items-center gap-2 shadow-[var(--al-shadow-b)] px-3 py-2.5">
             <Search size={14} className="shrink-0 text-zinc-500" />
             <input
               // biome-ignore lint/a11y/noAutofocus: popover opens from an explicit click, not on page load

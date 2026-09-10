@@ -16,7 +16,7 @@ export default function CenterPanel() {
         {chatTabs.map((tab) => (
           <div
             key={tab.id}
-            className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs cursor-default ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs cursor-default transition-colors duration-150 ease-out ${
               tab.id === activeChatTabId
                 ? "bg-white/10 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300"

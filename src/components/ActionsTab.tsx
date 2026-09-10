@@ -1,5 +1,6 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useActions } from "../hooks/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
 import Button from "./Button";
@@ -8,26 +9,10 @@ const emptyForm = { name: "", command: "" };
 
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const [actions, setActions] = useState<ActionSummary[]>([]);
+  const { actions, refresh } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
-
-  async function refresh() {
-    setActions(await api.listActions());
-  }
-
-  // Polls rather than reacting to events — Actions don't have a push
-  // channel the way sub-agents do (see `chat://.../subtask_start`), and a
-  // 2s interval is more than responsive enough for "is this still running"
-  // status shown here (SubAgentsTab's duration ticker uses the same
-  // lightweight-polling approach).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once poll setup — refresh is a fresh function reference every render (not memoized) and would restart the interval every render if added as a dep
-  useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 2000);
-    return () => clearInterval(id);
-  }, []);
 
   function startAdd() {
     setEditingId(null);
@@ -90,7 +75,7 @@ export default function ActionsTab() {
       {actions.map((action) => (
         <div
           key={action.id}
-          className="group cursor-default rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs hover:border-[#3a5f8f]"
+          className="group cursor-default rounded-md bg-[#141518] px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
         >
           <div className="flex items-center gap-2">
             <Button
@@ -101,10 +86,10 @@ export default function ActionsTab() {
             >
               <div className="flex items-center gap-2">
                 <span
-                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                     action.running
-                      ? "border-amber-900/50 bg-amber-950/20 text-amber-400"
-                      : "border-zinc-800 bg-zinc-900/40 text-zinc-500"
+                      ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
+                      : "shadow-[0_0_0_1px_#27272a] bg-zinc-900/40 text-zinc-500"
                   }`}
                 >
                   {action.running ? "running…" : "stopped"}
@@ -114,7 +99,7 @@ export default function ActionsTab() {
                 </span>
               </div>
 
-              <div className="mt-1 truncate text-[10px] text-zinc-600">
+              <div className="mt-1 truncate text-xs text-zinc-600">
                 {action.command}
               </div>
             </Button>
@@ -149,12 +134,12 @@ export default function ActionsTab() {
         </div>
       ))}
       {showForm ? (
-        <div className="space-y-2 rounded border border-[#3a5f8f] bg-[#17181c] p-2.5">
+        <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
             placeholder="Name, e.g. dev"
-            className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+            className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
           />
           <input
             value={form.command}
@@ -162,7 +147,7 @@ export default function ActionsTab() {
               setForm({ ...form, command: e.currentTarget.value })
             }
             placeholder="Command, e.g. npm run dev"
-            className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+            className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="md" onClick={cancelForm}>
