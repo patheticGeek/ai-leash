@@ -30,3 +30,4 @@ packaging/*/pkg/
 packaging/*/*.pkg.tar.*
 packaging/*/*.deb
 /ai-leash-bin.tar.gz
+ai-leash-bin

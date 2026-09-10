@@ -3,6 +3,7 @@ Name=AI Leash
 Comment=A leash for AI
 Exec=ai-leash
 Icon=ai-leash
+StartupWMClass=dev.patheticgeek.aileash
 Terminal=false
 Type=Application
 Categories=Development;Utility;

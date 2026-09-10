@@ -48,7 +48,8 @@ jobs:
             wget \
             file \
             libssl-dev \
-            libxdo-dev
+            libxdo-dev \
+            bsdtar
 
       - name: Install npm dependencies
         run: npm ci

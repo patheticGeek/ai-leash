@@ -1,6 +1,6 @@
 pkgname=ai-leash-bin
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='A leash for AI'
 arch=('x86_64')
 url='https://github.com/patheticGeek/ai-leash'
@@ -9,6 +9,7 @@ provides=('ai-leash')
 conflicts=('ai-leash')
 depends=(
   'cairo'
+  'desktop-file-utils'
   'gdk-pixbuf2'
   'glib2'
   'gtk3'
@@ -23,12 +24,18 @@ depends=(
 source=(
   'ai-leash'
   'ai-leash.desktop'
+  'ai-leash-bin.install'
   'ai-leash-32.png'
+  'ai-leash-64.png'
   'ai-leash-128.png'
   'ai-leash-256.png'
   'LICENSE'
 )
+install=ai-leash-bin.install
+
 sha256sums=('SKIP'
+            'SKIP'
+            'SKIP'
             'SKIP'
             'SKIP'
             'SKIP'
@@ -41,10 +48,18 @@ package() {
     "$pkgdir/usr/share/applications/ai-leash.desktop"
   install -Dm644 "$srcdir/ai-leash-32.png" \
     "$pkgdir/usr/share/icons/hicolor/32x32/apps/ai-leash.png"
+  install -Dm644 "$srcdir/ai-leash-64.png" \
+    "$pkgdir/usr/share/icons/hicolor/64x64/apps/ai-leash.png"
   install -Dm644 "$srcdir/ai-leash-128.png" \
     "$pkgdir/usr/share/icons/hicolor/128x128/apps/ai-leash.png"
+  # Named ai-leash-256.png because it's 256x256 pixels, but the Tauri deb
+  # bundler files it under hicolor/256x256@2 (i.e. a 2x/512px hi-dpi variant
+  # of the 256 size) — the actual file is only 256px, so at that mislabeled
+  # path GTK's icon lookup shrinks it by half wherever a 256px icon is
+  # requested (GNOME app grid, alt-tab, ...). It's really an unscaled 256
+  # icon, so install it there instead.
   install -Dm644 "$srcdir/ai-leash-256.png" \
-    "$pkgdir/usr/share/icons/hicolor/256x256@2/apps/ai-leash.png"
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/ai-leash.png"
   install -Dm644 "$srcdir/LICENSE" \
     "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
