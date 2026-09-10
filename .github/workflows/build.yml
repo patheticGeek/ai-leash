@@ -72,12 +72,23 @@ jobs:
 
       - name: Collect release artifacts
         run: |
+          set -euo pipefail
           mkdir -p workflow-artifacts
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          COMMIT_HASH="${GITHUB_SHA:0:7}"
+          case "$(uname -m)" in
+            x86_64) ARCH=x86_64 ;;
+            aarch64|arm64) ARCH=aarch64 ;;
+            *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
           if [ "${{ runner.os }}" = "Linux" ]; then
-            cp src-tauri/target/release/bundle/deb/*.deb workflow-artifacts/
-            cp ai-leash-bin.tar.gz workflow-artifacts/
+            cp src-tauri/target/release/bundle/deb/*.deb \
+              "workflow-artifacts/ai-leash_v${VERSION}_${COMMIT_HASH}_${ARCH}.deb"
+            cp ai-leash-bin.tar.gz \
+              "workflow-artifacts/ai-leash_v${VERSION}_${COMMIT_HASH}_${ARCH}.tar.gz"
           else
-            cp src-tauri/target/release/bundle/dmg/*.dmg workflow-artifacts/
+            cp src-tauri/target/release/bundle/dmg/*.dmg \
+              "workflow-artifacts/ai-leash_v${VERSION}_${COMMIT_HASH}_${ARCH}.dmg"
           fi
 
       - name: Upload Debian package
@@ -85,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Linux-deb
-          path: workflow-artifacts/*.deb
+          path: workflow-artifacts/ai-leash*.deb
           archive: false
           if-no-files-found: error
 
@@ -94,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Linux-tar-gz
-          path: workflow-artifacts/ai-leash-bin.tar.gz
+          path: workflow-artifacts/ai-leash*.tar.gz
           archive: false
           if-no-files-found: error
 
@@ -103,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: macOS-dmg
-          path: workflow-artifacts/*.dmg
+          path: workflow-artifacts/ai-leash*.dmg
           archive: false
           if-no-files-found: error
 
@@ -117,21 +128,21 @@ jobs:
       - name: Download Debian package
         uses: actions/download-artifact@v8
         with:
-          pattern: "*.deb"
+          pattern: Linux-deb
           path: artifacts
           merge-multiple: true
 
       - name: Download Arch tarball
         uses: actions/download-artifact@v8
         with:
-          pattern: "ai-leash-bin.tar.gz"
+          pattern: Linux-tar-gz
           path: artifacts
           merge-multiple: true
 
       - name: Download macOS disk image
         uses: actions/download-artifact@v8
         with:
-          pattern: "*.dmg"
+          pattern: macOS-dmg
           path: artifacts
           merge-multiple: true
 
@@ -146,6 +157,6 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
             --notes "Automated build from commit ${{ github.sha }}." \
-            artifacts/*.deb \
-            artifacts/ai-leash-bin.tar.gz \
-            artifacts/*.dmg
+            artifacts/ai-leash_*.deb \
+            artifacts/ai-leash_*.tar.gz \
+            artifacts/ai-leash_*.dmg

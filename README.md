@@ -120,14 +120,10 @@ sudo apt install ./ai-leash_*.deb
 
 #### Arch
 
-Grab `ai-leash-bin.tar.gz` from the
-[Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) —
-it bundles the prebuilt binary alongside a PKGBUILD that just installs the
-files already sitting next to it, so `makepkg` needs no build toolchain or
-network access:
+Grab the `.tar.gz` archive from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) and install it:
 
 ```bash
-tar xf ai-leash-bin.tar.gz
+tar xf ai-leash_*.tar.gz
 cd ai-leash-bin
 makepkg -si
 ```
@@ -136,7 +132,8 @@ makepkg -si
 
 ### macOS
 
-Download the `.dmg`, open it, and drag `ai-leash` into `Applications`.
+Download the `.dmg` from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) page, open it, and drag `ai-leash` into `Applications`.
+
 It's not notarized, so the first launch needs a right-click → Open (or
 `xattr -d com.apple.quarantine /Applications/ai-leash.app` if Gatekeeper
 still blocks it) instead of a normal double-click.
