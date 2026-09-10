@@ -156,7 +156,7 @@ jobs:
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
-            --notes "Automated build from commit ${{ github.sha }}." \
+            --notes "Automated build from commit ${{ github.sha }}. [Install instructions in readme ->](https://github.com/patheticGeek/ai-leash#install)" \
             artifacts/ai-leash_*.deb \
             artifacts/ai-leash_*.tar.gz \
             artifacts/ai-leash_*.dmg
