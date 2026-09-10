@@ -1,10 +1,11 @@
 # AI Leash features
 
-AI Leash is a dark-mode-only agentic harness built on Tauri, with a
-built-in agent runtime that talks to Ollama or an OpenAI-compatible
-provider and executes tools (shell, file read/edit, search) with user
-permission gating — or, as an alternative agent backend, drives an
-external ACP agent subprocess instead.
+AI Leash is a desktop agentic harness built on Tauri.
+It provides a built-in agent runtime that executes tools (shell, file
+read/edit, search) with user permission gating, plus an alternative
+backend for driving an external ACP agent subprocess. The runtime can
+connect to different model providers, including Ollama and
+OpenAI-compatible services.
 
 This directory documents each feature area as it exists today:
 

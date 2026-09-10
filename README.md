@@ -1,11 +1,11 @@
 # AI Leash
 
-A small, better agentic harness — the editor, file tree, and terminal
-exist to support the agent chat, not the other way around. Dark mode
-only, no cloud account, no telemetry — it talks to a local
-[Ollama](https://ollama.com) install, with tool calling, permission
-prompts before anything destructive, and sub-agents for splitting up
-work.
+A desktop agentic harness — the editor, file tree, and terminal exist to
+support agent work, not the other way around. No telemetry: run an agent,
+inspect its work, and keep it under your control. Tool calls, permission
+prompts before destructive operations, and sub-agents make the process
+visible, whether you use the built-in runtime or connect an external ACP
+agent.
 
 Built on Tauri, so the app itself is a small native binary with a Rust
 backend, not a bundled Chromium.
@@ -32,19 +32,18 @@ backend, not a bundled Chromium.
 
 ### Agent chat
 
-The center pane is a chat with a real agent loop behind it, talking to a
-local [Ollama](https://ollama.com) install: tool calls, streaming
-responses, retry/regenerate, per-turn token usage against the model's
-context window. Pick any model you've pulled from the dropdown.
+The center pane is a chat with a real agent loop behind it: tool calls,
+streaming responses, retry/regenerate, and per-turn token usage against
+the model's context window. Choose a configured model or external agent
+from the dropdown.
 
 Tool calls (file reads/edits, shell commands) show up inline, collapsed
 by default with the raw args one click away, and destructive ones
 (`shell`, file edits) stop and ask before doing anything.
 
-Support for OpenAI-compatible APIs and driving external agents (Claude
-Code, GitHub Copilot CLI) over the
-[Agent Client Protocol](https://agentclientprotocol.com) is in progress
-on a feature branch, not yet on `master`.
+The built-in runtime supports multiple model providers, and the
+[Agent Client Protocol](https://agentclientprotocol.com) backend can
+drive external agents such as Claude Code and GitHub Copilot CLI.
 
 ### Sub-agents
 
@@ -98,10 +97,6 @@ with the code, not marketing copy.
 
 ## Install
 
-You'll need [Ollama](https://ollama.com) running locally with at least
-one model pulled (`ollama pull qwen2.5-coder` or whatever you like) —
-that's the only agent backend wired up on `master` right now.
-
 Every push to `master` builds and publishes fresh packages via
 [GitHub Actions](./.github/workflows/build.yml) — grab the latest one
 from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest).
@@ -132,10 +127,10 @@ makepkg -si
 
 ### macOS
 
-Download the `.dmg` from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) page, open it, and drag `ai-leash` into `Applications`.
+Download the `.dmg` from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) page, open it, and drag `AI Leash` into `Applications`.
 
 It's not notarized, so the first launch needs a right-click → Open (or
-`xattr -d com.apple.quarantine /Applications/ai-leash.app` if Gatekeeper
+`xattr -d com.apple.quarantine /Applications/AI Leash.app` if Gatekeeper
 still blocks it) instead of a normal double-click.
 
 ## Building from source
