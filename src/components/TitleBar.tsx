@@ -105,7 +105,7 @@ export default function TitleBar({
       <div
         data-tauri-drag-region
         style={{ width: leftBarWidth }}
-        className="flex shrink-0 items-center justify-between px-2.5 border-r border-[#26272c]"
+        className="flex shrink-0 items-center justify-between px-2.5 shadow-[var(--al-shadow-r)]"
       >
         <Logo className="h-3 w-auto shrink-0 ml-1.5" />
         <div className="flex items-center gap-1">
@@ -147,7 +147,7 @@ export default function TitleBar({
       <div
         data-tauri-drag-region
         style={{ width: rightPanelWidth }}
-        className="flex shrink-0 items-center justify-end border-l border-[#26272c]"
+        className="flex shrink-0 items-center justify-end shadow-[var(--al-shadow-l)]"
       >
         <WindowControls />
       </div>

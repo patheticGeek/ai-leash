@@ -41,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             The error has been logged — open Settings → Crash log to see it, or
             reload to keep working.
           </div>
-          <pre className="max-w-lg select-text overflow-auto rounded border border-[#26272c] bg-[#141518] p-2 text-[10px] text-zinc-600">
+          <pre className="max-w-lg select-text overflow-auto rounded-md bg-[#141518] p-2 text-[10px] text-zinc-600 shadow-[var(--al-shadow)]">
             {this.state.error.message}
           </pre>
           <Button

@@ -36,7 +36,7 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
       <Button
         variant="unstyled"
         size="none"
-        className={`flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded cursor-default select-none text-left ${
+        className={`flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded-md cursor-default select-none text-left ${
           entry.path === activePath
             ? "bg-white/10 text-zinc-100"
             : "text-zinc-300"

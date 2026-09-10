@@ -20,9 +20,10 @@ function formatDuration(ms: number): string {
 }
 
 const statusStyles: Record<string, string> = {
-  running: "text-amber-400 border-amber-900/50 bg-amber-950/20",
-  done: "text-emerald-400 border-emerald-900/50 bg-emerald-950/20",
-  error: "text-red-400 border-red-900/50 bg-red-950/20",
+  running:
+    "text-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20",
+  done: "text-emerald-400 shadow-[0_0_0_1px_rgba(6,78,59,0.5)] bg-emerald-950/20",
+  error: "text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20",
 };
 
 export default function SubAgentsTab() {
@@ -69,7 +70,7 @@ export default function SubAgentsTab() {
         return (
           <div
             key={task.subSessionId}
-            className="group cursor-default rounded border border-[#26272c] bg-[#141518] px-2.5 py-1.5 text-xs hover:border-[#3a5f8f]"
+            className="group cursor-default rounded-md bg-[#141518] px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
           >
             <div className="flex items-center gap-2">
               <Button
@@ -79,7 +80,7 @@ export default function SubAgentsTab() {
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
                 <span
-                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
                 >
                   {task.status === "running" ? "running…" : task.status}
                 </span>

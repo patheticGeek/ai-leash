@@ -51,7 +51,7 @@ export default function TabPicker({
             variant="unstyled"
             size="none"
             onClick={() => onPick(tile.kind)}
-            className="flex min-w-0 flex-col items-start gap-1.5 rounded border border-[#26272c] bg-[#141518] px-3 py-2.5 text-left hover:border-[#3a5f8f] hover:bg-white/5"
+            className="flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-[#141518] px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_#3a5f8f] hover:bg-white/5"
           >
             <div className="flex w-full items-center gap-2">
               <tile.icon size={16} className="text-zinc-500" />

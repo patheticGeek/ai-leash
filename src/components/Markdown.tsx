@@ -7,7 +7,7 @@ const components: Components = {
       {...props}
       target="_blank"
       rel="noreferrer"
-      className="text-blue-400 underline hover:text-blue-300"
+      className="text-blue-400 underline transition-colors duration-150 hover:text-blue-300"
     >
       {children}
     </a>
@@ -16,7 +16,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded bg-[#101114] px-1 py-0.5 text-[0.85em] text-zinc-300"
+          className="rounded-md bg-[#101114] px-1 py-0.5 text-[0.85em] text-zinc-300"
           {...props}
         >
           {children}
@@ -31,7 +31,7 @@ const components: Components = {
   },
   pre: ({ children, ...props }) => (
     <pre
-      className="my-2 overflow-x-auto rounded border border-[#26272c] bg-[#101114] p-2.5 text-xs"
+      className="my-2 overflow-x-auto rounded-md bg-[#101114] p-2.5 text-xs shadow-[var(--al-shadow)]"
       {...props}
     >
       {children}
@@ -54,7 +54,7 @@ const components: Components = {
   ),
   blockquote: ({ children, ...props }) => (
     <blockquote
-      className="mb-2 border-l-2 border-[#3a5f8f] pl-2.5 text-zinc-400 last:mb-0"
+      className="mb-2 shadow-[inset_2px_0_0_0_#3a5f8f] pl-2.5 text-zinc-400 last:mb-0"
       {...props}
     >
       {children}
@@ -75,7 +75,9 @@ const components: Components = {
       {children}
     </h3>
   ),
-  hr: (props) => <hr className="my-2 border-[#26272c]" {...props} />,
+  hr: (props) => (
+    <hr className="my-2 h-0 border-0 shadow-[0_1px_0_0_#26272c]" {...props} />
+  ),
   table: ({ children, ...props }) => (
     <div className="mb-2 overflow-x-auto last:mb-0">
       <table className="border-collapse text-xs" {...props}>
@@ -85,14 +87,14 @@ const components: Components = {
   ),
   th: ({ children, ...props }) => (
     <th
-      className="border border-[#26272c] bg-[#141518] px-2 py-1 text-left font-medium"
+      className="shadow-[inset_0_0_0_1px_#26272c] bg-[#141518] px-2 py-1 text-left font-medium"
       {...props}
     >
       {children}
     </th>
   ),
   td: ({ children, ...props }) => (
-    <td className="border border-[#26272c] px-2 py-1" {...props}>
+    <td className="shadow-[inset_0_0_0_1px_#26272c] px-2 py-1" {...props}>
       {children}
     </td>
   ),

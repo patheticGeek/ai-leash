@@ -18,7 +18,7 @@ export default function PermissionPopover({
   onRespond,
 }: PermissionPopoverProps) {
   return (
-    <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex max-h-[60vh] flex-col overflow-hidden rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
+    <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex max-h-[60vh] flex-col overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
       <div className="px-3 py-2.5">
         <div className="text-sm font-medium text-zinc-100">{request.title}</div>
         <div className="mt-0.5 text-xs text-zinc-500">

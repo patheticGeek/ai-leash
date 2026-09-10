@@ -45,7 +45,7 @@ export default function SettingsModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex h-[620px] w-[840px] flex-col rounded-lg border border-[#26272c] bg-[#141518] shadow-2xl">
+      <div className="flex h-[620px] w-[840px] flex-col rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="text-base font-medium text-zinc-100">Settings</div>
           <Button
@@ -65,7 +65,7 @@ export default function SettingsModal() {
                 variant="unstyled"
                 size="none"
                 onClick={() => setActiveSection(section.id)}
-                className={`block w-full rounded px-2 py-2 text-left text-sm ${
+                className={`block w-full rounded-md px-2 py-2 text-left text-sm ${
                   activeSection === section.id
                     ? "bg-[#26272c] text-zinc-100"
                     : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -142,14 +142,14 @@ function ProvidersSection() {
 
   function renderAcpForm() {
     return (
-      <div className="space-y-2 rounded border border-[#3a5f8f] bg-[#17181c] p-2.5">
+      <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
         <input
           value={acpForm.label}
           onChange={(e) =>
             setAcpForm({ ...acpForm, label: e.currentTarget.value })
           }
           placeholder="Label, e.g. Claude Code"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <input
           value={acpForm.launchCommand}
@@ -157,7 +157,7 @@ function ProvidersSection() {
             setAcpForm({ ...acpForm, launchCommand: e.currentTarget.value })
           }
           placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="md" onClick={cancelAcpForm}>
@@ -210,25 +210,25 @@ function ProvidersSection() {
 
   function renderProviderForm() {
     return (
-      <div className="space-y-2 rounded border border-[#3a5f8f] bg-[#17181c] p-2.5">
+      <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
         <input
           value={form.label}
           onChange={(e) => setForm({ ...form, label: e.currentTarget.value })}
           placeholder="Label, e.g. OpenRouter"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <input
           value={form.baseUrl}
           onChange={(e) => setForm({ ...form, baseUrl: e.currentTarget.value })}
           placeholder="https://api.openai.com/v1"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <input
           value={form.apiKey}
           onChange={(e) => setForm({ ...form, apiKey: e.currentTarget.value })}
           type="password"
           placeholder="API key"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <div className="text-xs text-zinc-600">
           Stored locally in this app's settings, unencrypted.
@@ -237,7 +237,7 @@ function ProvidersSection() {
           value={form.model}
           onChange={(e) => setForm({ ...form, model: e.currentTarget.value })}
           placeholder="Model id, e.g. gpt-4.1"
-          className="w-full rounded border border-[#26272c] bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="md" onClick={cancelForm}>
@@ -264,7 +264,7 @@ function ProvidersSection() {
           onChange={(e) =>
             setAgentBackendKind(e.currentTarget.value as "builtin" | "acp")
           }
-          className="w-full rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         >
           <option value="builtin">Built-in (this app's own tool loop)</option>
           <option value="acp">External ACP agent</option>
@@ -294,10 +294,10 @@ function ProvidersSection() {
                 ) : (
                   <div
                     key={c.id}
-                    className={`flex items-center gap-2 rounded border px-2 py-2 text-sm ${
+                    className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm ${
                       agentBackend.activeAcpId === c.id
-                        ? "border-[#3a5f8f] bg-[#3a5f8f]/10"
-                        : "border-[#26272c] bg-[#17181c]"
+                        ? "shadow-[0_0_0_1px_#3a5f8f] bg-[#3a5f8f]/10"
+                        : "shadow-[var(--al-shadow)] bg-[#17181c]"
                     }`}
                   >
                     <Button
@@ -357,7 +357,7 @@ function ProvidersSection() {
         <select
           value={providerSettings.activeId}
           onChange={(e) => setActiveProvider(e.currentTarget.value)}
-          className="w-full rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+          className="w-full rounded-md bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
         >
           <option value="ollama">Ollama</option>
           {providerSettings.openAiCompatible.map((c) => (
@@ -382,7 +382,7 @@ function ProvidersSection() {
             value={hostInput}
             onChange={(e) => setHostInput(e.currentTarget.value)}
             placeholder="localhost:11434"
-            className="flex-1 rounded border border-[#26272c] bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none"
+            className="flex-1 rounded-md bg-[#17181c] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
           />
           <Button
             variant="primary"
@@ -419,7 +419,7 @@ function ProvidersSection() {
             ) : (
               <div
                 key={c.id}
-                className="flex items-center gap-2 rounded border border-[#26272c] bg-[#17181c] px-2 py-2 text-sm"
+                className="flex items-center gap-2 rounded-md bg-[#17181c] px-2 py-2 text-sm shadow-[var(--al-shadow)]"
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-zinc-200">{c.label}</div>
@@ -502,7 +502,7 @@ function CrashLogSection() {
         including ones from a previous run, so you can find out what happened
         after restarting the app.
       </div>
-      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded border border-[#26272c] bg-[#0e0f12] p-2.5 text-xs text-zinc-400">
+      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded-md bg-[#0e0f12] p-2.5 text-xs text-zinc-400 shadow-[var(--al-shadow)]">
         {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
       </pre>
     </div>

@@ -34,7 +34,7 @@ export default function SidePanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e] border-l border-[#26272c]">
+    <div className="flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-l)]">
       <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =
@@ -44,7 +44,7 @@ export default function SidePanel() {
           return (
             <div
               key={tab.id}
-              className={`flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-xs cursor-default ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs cursor-default transition-colors duration-150 ease-out ${
                 active
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300"
