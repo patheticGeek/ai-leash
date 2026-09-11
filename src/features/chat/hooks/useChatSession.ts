@@ -58,41 +58,41 @@ export function useChatSession(
   // popover's dismissed-query bookkeeping in `ChatPanel.tsx`).
   onAcpAgentReset: () => void,
 ) {
-  const models = useAppStore((s) => s.ollamaModels);
+  const ollamaModelsByConfig = useAppStore((s) => s.ollamaModelsByConfig);
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);
-  const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
   const providerSettings = useAppStore((s) => s.providerSettings);
-  const setActiveProvider = useAppStore((s) => s.setActiveProvider);
   const agentBackend = useAppStore((s) => s.agentBackend);
-  const setAgentBackendKind = useAppStore((s) => s.setAgentBackendKind);
-  const setActiveAcpAgent = useAppStore((s) => s.setActiveAcpAgent);
   const acpModelCache = useAppStore((s) => s.acpModelCache);
+  const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
   // This conversation's own backend/model choice — read once at mount (this
   // component remounts per project, so `sessionId` is stable for its whole
   // lifetime) from whatever it last used, falling back to the shared
-  // defaults above only the very first time this conversation is opened.
-  // From here on this is the source of truth for *this* conversation;
-  // switching to a different one can't change what this shows, and picking
-  // something new here doesn't leak into other conversations (only into
-  // the shared defaults new, never-touched ones inherit — see
-  // `setConversationBackend` below).
+  // `defaultBackend` (see `backendSlice.ts`) only the very first time this
+  // conversation is opened. From here on this is the source of truth for
+  // *this* conversation; switching to a different one can't change what
+  // this shows, and picking something new here doesn't leak into other
+  // conversations (only into the shared default new, never-touched ones
+  // inherit — see `setConversationBackend` below).
   const setConversationBackend = useAppStore((s) => s.setConversationBackend);
   const [kind, setKind] = useState<"builtin" | "acp">(() => {
     const st = useAppStore.getState();
-    return st.conversationBackend[sessionId]?.kind ?? st.agentBackend.kind;
+    return st.conversationBackend[sessionId]?.kind ?? st.defaultBackend.kind;
   });
   const [providerActiveId, setProviderActiveId] = useState<string>(() => {
     const st = useAppStore.getState();
     return (
       st.conversationBackend[sessionId]?.providerActiveId ??
-      st.providerSettings.activeId
+      (st.defaultBackend.kind === "builtin"
+        ? st.defaultBackend.providerId
+        : (st.providerSettings.ollama[0]?.id ?? ""))
     );
   });
   const [acpActiveId, setAcpActiveId] = useState<string | null>(() => {
     const st = useAppStore.getState();
     return (
       st.conversationBackend[sessionId]?.acpActiveId ??
-      st.agentBackend.activeAcpId
+      (st.defaultBackend.kind === "acp" ? st.defaultBackend.acpId : null)
     );
   });
   const [acpModelChoice, setAcpModelChoice] = useState<string | null>(
@@ -100,7 +100,8 @@ export function useChatSession(
       useAppStore.getState().conversationBackend[sessionId]?.acpModel ?? null,
   );
   const isAcp = kind === "acp";
-  const isOpenAiCompatible = !isAcp && providerActiveId !== "ollama";
+  const isOpenAiCompatible =
+    !isAcp && !providerSettings.ollama.some((c) => c.id === providerActiveId);
   const activeAcpAgent = agentBackend.acpAgents.find(
     (c) => c.id === acpActiveId,
   );
@@ -213,26 +214,35 @@ export function useChatSession(
   }, [acpModelOptions, acpModelChoice]);
 
   useEffect(() => {
-    refreshOllama();
-  }, [refreshOllama]);
+    refreshOllamaModels();
+  }, [refreshOllamaModels]);
 
   useEffect(() => {
     if (sending) return;
-    const interval = setInterval(refreshOllama, 5000);
+    const interval = setInterval(refreshOllamaModels, 5000);
     return () => clearInterval(interval);
-  }, [sending, refreshOllama]);
+  }, [sending, refreshOllamaModels]);
 
   // Ollama has no live models yet the first time a brand-new conversation
-  // opens on it — fill in a sensible one once the list loads. Conversations
-  // that already have a `model` (from their own persisted choice, or from
-  // just having picked one) are left alone.
+  // opens on it — fill in a sensible one once this conversation's active
+  // config's list loads. Conversations that already have a `model` (from
+  // their own persisted choice, or from just having picked one) are left
+  // alone.
   useEffect(() => {
     if (isOpenAiCompatible || isAcp) return;
-    if (model || !models.length) return;
+    const configModels = ollamaModelsByConfig[providerActiveId] ?? [];
+    if (model || !configModels.length) return;
     const last = localStorage.getItem(LAST_MODEL_KEY);
-    const restored = last && models.some((m) => m.name === last) ? last : null;
-    setModel(restored ?? models[0].name);
-  }, [models, model, isOpenAiCompatible, isAcp]);
+    const restored =
+      last && configModels.some((m) => m.name === last) ? last : null;
+    setModel(restored ?? configModels[0].name);
+  }, [
+    ollamaModelsByConfig,
+    providerActiveId,
+    model,
+    isOpenAiCompatible,
+    isAcp,
+  ]);
 
   // This conversation's own active provider's reachability — looked up from
   // the app-wide per-provider map (`providerConnectivity`, refreshed
@@ -243,9 +253,12 @@ export function useChatSession(
     if (isAcp) return;
     const connected = providerConnectivity[providerActiveId];
     if (connected === false) {
+      const ollamaConfig = providerSettings.ollama.find(
+        (c) => c.id === providerActiveId,
+      );
       setError(
-        providerActiveId === "ollama"
-          ? `Could not reach Ollama at ${providerSettings.ollama.host || "localhost:11434"}. Is \`ollama serve\` running?`
+        ollamaConfig
+          ? `Could not reach Ollama at ${ollamaConfig.host || "localhost:11434"}. Is \`ollama serve\` running?`
           : "Could not reach the configured provider. Check the base URL and API key in provider settings.",
       );
     } else if (connected === true) {
@@ -255,7 +268,7 @@ export function useChatSession(
     providerConnectivity,
     providerActiveId,
     isAcp,
-    providerSettings.ollama.host,
+    providerSettings.ollama,
     setError,
   ]);
 
@@ -278,31 +291,38 @@ export function useChatSession(
     };
   }, [sessionId]);
 
-  const selectedModel = models.find((m) => m.name === model);
+  const selectedModel = (ollamaModelsByConfig[providerActiveId] ?? []).find(
+    (m) => m.name === model,
+  );
   const contextLength = selectedModel?.contextLength ?? null;
 
   // Providers and ACP agents are both just "who answers this chat" from the
   // user's point of view, so they share one picker instead of a hard
   // `isAcp` fork — picking any option here can flip this conversation's own
-  // `kind` as a side effect. Ollama's own models are listed individually
-  // (one entry per model), and so are an ACP agent's — using its cached
-  // model list (see `acpModelCache`/`fetchAcpModelsFor` in store.ts) when
-  // one's known, falling back to a single bare-agent row otherwise
-  // (unfetched yet, or the agent doesn't expose a model to pick).
+  // `kind` as a side effect. Each Ollama config's own models are listed
+  // individually (one entry per model, mirroring the ACP `flatMap` just
+  // below), and so are an ACP agent's — using its cached model list (see
+  // `acpModelCache`/`fetchAcpModelsFor`) when one's known, falling back to
+  // a single bare-config/bare-agent row otherwise (unfetched yet, or
+  // nothing to pick from).
   const backendOptions: PickerOption[] = [
-    ...(models.length > 0
-      ? models.map((m) => ({
-          key: `ollama:${m.name}`,
+    ...providerSettings.ollama.flatMap((c) => {
+      const configModels = ollamaModelsByConfig[c.id] ?? [];
+      if (configModels.length > 0) {
+        return configModels.map((m) => ({
+          key: `ollama:${c.id}:${m.name}`,
           label: m.name,
-          subtitle: "Ollama",
-        }))
-      : [
-          {
-            key: "ollama",
-            label: "Ollama",
-            subtitle: providerSettings.ollama.host || "localhost:11434",
-          },
-        ]),
+          subtitle: `${c.label} · Ollama`,
+        }));
+      }
+      return [
+        {
+          key: `ollama:${c.id}`,
+          label: c.label,
+          subtitle: c.host || "localhost:11434",
+        },
+      ];
+    }),
     ...providerSettings.openAiCompatible.map((c) => ({
       key: `openai:${c.id}`,
       label: c.label,
@@ -352,8 +372,8 @@ export function useChatSession(
     : isOpenAiCompatible
       ? `openai:${providerActiveId}`
       : model
-        ? `ollama:${model}`
-        : "ollama";
+        ? `ollama:${providerActiveId}:${model}`
+        : `ollama:${providerActiveId}`;
   const activeBackendLabel = isAcp
     ? // A chosen model's friendly name comes from `backendOptions`, built
       // from `acpModelCache`/live `acpModelOptions` — but that cache can
@@ -391,27 +411,27 @@ export function useChatSession(
       setKind("acp");
       setAcpActiveId(agentId);
       setAcpModelChoice(modelValue);
-      // Also nudges the shared defaults, so a brand-new conversation opened
+      // Also nudges the shared default, so a brand-new conversation opened
       // later starts from whatever was most recently picked anywhere.
-      setAgentBackendKind("acp");
-      setActiveAcpAgent(agentId);
+      setDefaultBackend({ kind: "acp", acpId: agentId });
     } else if (key.startsWith("openai:")) {
       const id = key.slice("openai:".length);
       const config = providerSettings.openAiCompatible.find((c) => c.id === id);
       setKind("builtin");
       setProviderActiveId(id);
       setModel(config?.model ?? "");
-      setAgentBackendKind("builtin");
-      setActiveProvider(id);
-    } else {
+      setDefaultBackend({ kind: "builtin", providerId: id });
+    } else if (key.startsWith("ollama:")) {
+      const rest = key.slice("ollama:".length);
+      const sepIdx = rest.indexOf(":");
+      const configId = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
+      const modelName = sepIdx === -1 ? null : rest.slice(sepIdx + 1);
       setKind("builtin");
-      setProviderActiveId("ollama");
-      setAgentBackendKind("builtin");
-      setActiveProvider("ollama");
-      if (key.startsWith("ollama:")) {
-        const name = key.slice("ollama:".length);
-        setModel(name);
-        localStorage.setItem(LAST_MODEL_KEY, name);
+      setProviderActiveId(configId);
+      setDefaultBackend({ kind: "builtin", providerId: configId });
+      if (modelName) {
+        setModel(modelName);
+        localStorage.setItem(LAST_MODEL_KEY, modelName);
       }
     }
   }

@@ -10,7 +10,7 @@ import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const projectRoot = useAppStore((s) => s.projectRoot);
-  const refreshOllama = useAppStore((s) => s.refreshOllama);
+  const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
   const refreshProviderConnectivity = useAppStore(
     (s) => s.refreshProviderConnectivity,
   );
@@ -34,8 +34,8 @@ function App() {
   );
 
   useEffect(() => {
-    refreshOllama();
-  }, [refreshOllama]);
+    refreshOllamaModels();
+  }, [refreshOllamaModels]);
 
   useEffect(() => {
     refreshProviderConnectivity();
