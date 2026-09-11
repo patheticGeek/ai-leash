@@ -1,7 +1,9 @@
 use super::discovery::{
     find_model_config_option, format_acp_error, mcp_servers_for, model_options_payload,
 };
-use super::events::{close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent};
+use super::events::{
+    close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent,
+};
 use super::permissions::bridge_acp_permission;
 use crate::chat::{self, ChatMessage};
 use crate::commands;

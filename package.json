@@ -14,7 +14,16 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "lefthook install"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css}": [
+      "biome check --write --no-errors-on-unmatched"
+    ],
+    "src-tauri/**/*.rs": [
+      "rustfmt --edition 2021"
+    ]
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
@@ -53,8 +62,13 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "lefthook": "^2.1.12",
+    "lint-staged": "^17.5.1",
     "shadcn": "^4.21.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.16"
+  },
+  "allowScripts": {
+    "lefthook@2.1.12": true
   }
 }

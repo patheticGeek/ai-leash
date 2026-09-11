@@ -1,0 +1,7 @@
+pre-commit:
+  commands:
+    lint-staged:
+      run: npx lint-staged
+    rust-clippy:
+      glob: "src-tauri/**/*.rs"
+      run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings

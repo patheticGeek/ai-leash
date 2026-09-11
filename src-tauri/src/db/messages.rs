@@ -287,7 +287,10 @@ mod tests {
         assert_eq!(loaded.len(), 4);
         assert_eq!(loaded[0].content, "Let me check that file.");
         assert!(loaded[0].tool_calls.is_none());
-        assert_eq!(loaded[1].tool_calls.as_ref().unwrap()[0].function.name, "read_file");
+        assert_eq!(
+            loaded[1].tool_calls.as_ref().unwrap()[0].function.name,
+            "read_file"
+        );
         assert_eq!(loaded[2].role, "tool");
         assert_eq!(loaded[3].content, "It's empty.");
     }

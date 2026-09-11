@@ -22,27 +22,24 @@ pub fn load_conversation_history(
 ) -> Result<Vec<PersistedMessage>, String> {
     let messages = db::load_messages(&state.db, &session_id);
     let mut sessions = state.chat_sessions.lock().unwrap();
-    if !sessions.contains_key(&session_id) {
-        sessions.insert(
-            session_id,
-            messages
-                .iter()
-                // "thinking" rows (ACP reasoning) are never sent to a
-                // provider as conversation history: `chat_sessions` doubles
-                // as the literal message list a built-in-provider turn sends
-                // over the wire, and "thinking" isn't a role either
-                // provider's chat API understands. A conversation that
-                // switches off ACP later must not have one leak in from
-                // before the switch.
-                .filter(|m| m.role != "thinking")
-                .map(|m| ChatMessage {
-                    role: m.role.clone(),
-                    content: m.content.clone(),
-                    tool_calls: m.tool_calls.clone(),
-                })
-                .collect(),
-        );
-    }
+    sessions.entry(session_id).or_insert_with(|| {
+        messages
+            .iter()
+            // "thinking" rows (ACP reasoning) are never sent to a
+            // provider as conversation history: `chat_sessions` doubles
+            // as the literal message list a built-in-provider turn sends
+            // over the wire, and "thinking" isn't a role either
+            // provider's chat API understands. A conversation that
+            // switches off ACP later must not have one leak in from
+            // before the switch.
+            .filter(|m| m.role != "thinking")
+            .map(|m| ChatMessage {
+                role: m.role.clone(),
+                content: m.content.clone(),
+                tool_calls: m.tool_calls.clone(),
+            })
+            .collect()
+    });
     Ok(messages)
 }
 
