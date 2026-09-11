@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/ui/button";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
+import { useAppStore } from "../store";
 
 // Whichever action was started most recently (even if it has since
 // stopped) is treated as "current" and shown on the collapsed button;
@@ -16,19 +17,12 @@ function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
   );
 }
 
-async function toggle(action: ActionSummary) {
-  if (action.running) {
-    await api.stopAction(action.id);
-  } else {
-    await api.runAction(action.id);
-  }
-}
-
 // Title-bar shortcut for the Actions tab (`ActionsTab.tsx`): a split button
 // showing the last-ran action (or the first one, if none has run yet) that
 // starts/stops it on click, plus a dropdown for jumping to any other
 // action without having to open the side panel.
 export default function TitleBarActions() {
+  const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, refresh } = useActions();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -57,7 +51,12 @@ export default function TitleBarActions() {
   const rest = actions.filter((a) => a.id !== current.id);
 
   async function handleToggle(action: ActionSummary) {
-    await toggle(action);
+    if (action.running) {
+      await api.stopAction(action.id);
+    } else {
+      await api.runAction(action.id);
+      openPanelTab("action", { path: action.id, label: action.name });
+    }
     refresh();
   }
 

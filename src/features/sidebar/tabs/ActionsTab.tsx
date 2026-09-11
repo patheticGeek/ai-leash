@@ -57,6 +57,7 @@ export default function ActionsTab() {
       await api.stopAction(action.id);
     } else {
       await api.runAction(action.id);
+      openTerminal(action);
     }
     refresh();
   }
