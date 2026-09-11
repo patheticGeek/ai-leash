@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { type AcpSlice, acpSlice } from "./acpSlice";
+import { type BackendSlice, backendSlice } from "./backendSlice";
 import { type PanelSlice, panelSlice } from "./panelSlice";
 import { type PermissionSlice, permissionSlice } from "./permissionSlice";
 import { type ProjectSlice, projectSlice } from "./projectSlice";
@@ -9,6 +10,7 @@ import { type SubAgentSlice, subAgentSlice } from "./subAgentSlice";
 export type AppStore = ProjectSlice &
   ProviderSlice &
   AcpSlice &
+  BackendSlice &
   PermissionSlice &
   SubAgentSlice &
   PanelSlice;
@@ -17,6 +19,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...projectSlice(...a),
   ...providerSlice(...a),
   ...acpSlice(...a),
+  ...backendSlice(...a),
   ...permissionSlice(...a),
   ...subAgentSlice(...a),
   ...panelSlice(...a),
@@ -27,6 +30,7 @@ export type {
   AgentBackendSettings,
   ConversationBackendSelection,
 } from "./acpSlice";
+export type { DefaultBackendRef } from "./backendSlice";
 export type {
   ChatTab,
   ChatTabKind,

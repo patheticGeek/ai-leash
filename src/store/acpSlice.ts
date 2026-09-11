@@ -18,9 +18,7 @@ export interface AcpAgentConfig {
 }
 
 export interface AgentBackendSettings {
-  kind: "builtin" | "acp";
   acpAgents: AcpAgentConfig[];
-  activeAcpId: string | null; // id into acpAgents; null if none saved yet
 }
 
 // Known-good launch commands for ACP agents most users already have
@@ -56,9 +54,7 @@ function withDefaultAcpAgents(agents: AcpAgentConfig[]): AcpAgentConfig[] {
 const acpModelFetchesInFlight = new Set<string>();
 
 const DEFAULT_AGENT_BACKEND: AgentBackendSettings = {
-  kind: "builtin",
   acpAgents: DEFAULT_ACP_PRESETS,
-  activeAcpId: null,
 };
 
 function loadAgentBackend(): AgentBackendSettings {
@@ -75,26 +71,25 @@ function loadAgentBackend(): AgentBackendSettings {
         typeof parsed.launchCommand === "string" &&
         !Array.isArray(parsed.acpAgents)
       ) {
-        const id = crypto.randomUUID();
         return {
-          kind: "acp",
           acpAgents: withDefaultAcpAgents([
-            { id, label: "ACP agent", launchCommand: parsed.launchCommand },
+            {
+              id: crypto.randomUUID(),
+              label: "ACP agent",
+              launchCommand: parsed.launchCommand,
+            },
           ]),
-          activeAcpId: id,
         };
       }
-      if (parsed.kind === "acp" || parsed.kind === "builtin") {
-        // Once a real `acpAgents` array has been saved, it's authoritative
-        // as-is — no re-seeding here, or deleting a default preset would
-        // silently bring it back on the next reload.
-        return {
-          kind: parsed.kind,
-          acpAgents: Array.isArray(parsed.acpAgents)
-            ? parsed.acpAgents
-            : withDefaultAcpAgents([]),
-          activeAcpId: parsed.activeAcpId ?? null,
-        };
+      // Once a real `acpAgents` array has been saved, it's authoritative
+      // as-is — no re-seeding here, or deleting a default preset would
+      // silently bring it back on the next reload. Any `kind`/`activeAcpId`
+      // left over from the pre-unified-default shape are ignored here — the
+      // shared default backend now lives entirely in `backendSlice.ts`,
+      // migrated once from these same raw keys (see that file's
+      // `migrateFromOldKeys`).
+      if (Array.isArray(parsed.acpAgents)) {
+        return { acpAgents: parsed.acpAgents };
       }
     }
   } catch {
@@ -112,12 +107,12 @@ const CONVERSATION_BACKEND_KEY = "ai-leash:conversationBackend";
 // Which provider/agent (and which specific model) a given conversation is
 // actually using — kept per-session-id so switching conversations restores
 // what that one last used instead of showing whatever any other
-// conversation most recently touched. `providerSettings.activeId` and
-// `agentBackend.kind`/`activeAcpId` still exist as the *default* a
-// brand-new conversation starts from (and `ChatPanel.tsx` keeps them in
-// sync with the most recent pick, so new conversations inherit something
-// sensible) — once a conversation has one of these, it's authoritative for
-// that conversation from then on, regardless of what changes elsewhere.
+// conversation most recently touched. `backendSlice.ts`'s `defaultBackend`
+// still exists as the *default* a brand-new conversation starts from (and
+// `useChatSession.ts` keeps it in sync with the most recent pick, so new
+// conversations inherit something sensible) — once a conversation has one
+// of these, it's authoritative for that conversation from then on,
+// regardless of what changes elsewhere.
 export interface ConversationBackendSelection {
   kind: "builtin" | "acp";
   providerActiveId: string; // "ollama" | openAiCompatible config id — meaningful when kind === "builtin"
@@ -159,10 +154,8 @@ export interface AcpSlice {
   // Per-conversation backend/model choice, keyed by session id — see
   // `ConversationBackendSelection`'s doc comment.
   conversationBackend: Record<string, ConversationBackendSelection>;
-  setAgentBackendKind: (kind: "builtin" | "acp") => void;
   saveAcpAgentConfig: (config: AcpAgentConfig) => void;
   deleteAcpAgentConfig: (id: string) => void;
-  setActiveAcpAgent: (id: string) => void;
   fetchAcpModelsFor: (agentId: string) => Promise<void>;
   refreshAcpModelCache: () => Promise<void>;
   setConversationBackend: (
@@ -179,13 +172,6 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
   acpModelCache: {},
   conversationBackend: loadConversationBackend(),
 
-  setAgentBackendKind: (kind) =>
-    set((s) => {
-      const agentBackend = { ...s.agentBackend, kind };
-      saveAgentBackend(agentBackend);
-      return { agentBackend };
-    }),
-
   saveAcpAgentConfig: (config) => {
     let commandChanged = true;
     set((s) => {
@@ -195,11 +181,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
       const acpAgents = existing
         ? s.agentBackend.acpAgents.map((c) => (c.id === config.id ? config : c))
         : [...s.agentBackend.acpAgents, config];
-      // Saving the first-ever ACP agent (or re-saving the active one) also
-      // makes it active, so a freshly added config is immediately usable
-      // without a second click — mirrors picking a preset.
-      const activeAcpId = s.agentBackend.activeAcpId ?? config.id;
-      const agentBackend = { ...s.agentBackend, acpAgents, activeAcpId };
+      const agentBackend = { ...s.agentBackend, acpAgents };
       saveAgentBackend(agentBackend);
       // A changed launch command invalidates any cached model list fetched
       // for the old one — drop it so `fetchAcpModelsFor` below re-fetches
@@ -213,27 +195,18 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
     if (commandChanged) get().fetchAcpModelsFor(config.id);
   },
 
-  deleteAcpAgentConfig: (id) =>
+  deleteAcpAgentConfig: (id) => {
     set((s) => {
       const acpAgents = s.agentBackend.acpAgents.filter((c) => c.id !== id);
-      const activeAcpId =
-        s.agentBackend.activeAcpId === id
-          ? (acpAgents[0]?.id ?? null)
-          : s.agentBackend.activeAcpId;
-      const agentBackend = { ...s.agentBackend, acpAgents, activeAcpId };
+      const agentBackend = { ...s.agentBackend, acpAgents };
       saveAgentBackend(agentBackend);
       const acpModelCache = Object.fromEntries(
         Object.entries(s.acpModelCache).filter(([cachedId]) => cachedId !== id),
       );
       return { agentBackend, acpModelCache };
-    }),
-
-  setActiveAcpAgent: (activeAcpId) =>
-    set((s) => {
-      const agentBackend = { ...s.agentBackend, activeAcpId };
-      saveAgentBackend(agentBackend);
-      return { agentBackend };
-    }),
+    });
+    get().reconcileDefaultBackend();
+  },
 
   fetchAcpModelsFor: async (agentId) => {
     if (agentId in get().acpModelCache || acpModelFetchesInFlight.has(agentId))

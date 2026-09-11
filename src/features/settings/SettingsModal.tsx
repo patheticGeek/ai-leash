@@ -3,17 +3,15 @@ import { useState } from "react";
 import { useAppStore } from "../../store";
 import Button from "../../ui/Button";
 import AboutTab from "./tabs/AboutTab";
-import AcpSettingsTab from "./tabs/AcpSettingsTab";
+import AgentsSettingsTab from "./tabs/AgentsSettingsTab";
 import CrashLogTab from "./tabs/CrashLogTab";
-import ProviderSettingsTab from "./tabs/ProviderSettingsTab";
 
 // One entry per settings page — the side nav is built to hold more without
 // restructuring.
-type SettingsSection = "providers" | "acp" | "crashlog" | "about";
+type SettingsSection = "agents" | "crashlog" | "about";
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
-  { id: "providers", label: "Providers" },
-  { id: "acp", label: "Agents" },
+  { id: "agents", label: "Agents" },
   { id: "crashlog", label: "Crash log" },
   { id: "about", label: "About" },
 ];
@@ -21,8 +19,7 @@ const SECTIONS: { id: SettingsSection; label: string }[] = [
 export default function SettingsModal() {
   const open = useAppStore((s) => s.settingsModalOpen);
   const setOpen = useAppStore((s) => s.setSettingsModalOpen);
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>("providers");
+  const [activeSection, setActiveSection] = useState<SettingsSection>("agents");
 
   if (!open) return null;
 
@@ -59,8 +56,7 @@ export default function SettingsModal() {
             ))}
           </div>
           <div className="flex-1 overflow-auto p-4 text-base">
-            {activeSection === "providers" && <ProviderSettingsTab />}
-            {activeSection === "acp" && <AcpSettingsTab />}
+            {activeSection === "agents" && <AgentsSettingsTab />}
             {activeSection === "crashlog" && <CrashLogTab />}
             {activeSection === "about" && <AboutTab />}
           </div>

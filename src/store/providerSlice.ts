@@ -4,12 +4,15 @@ import {
   type ModelSummary,
   type ProviderConfigPayload,
 } from "../lib/tauriApi";
+import { DEFAULT_OLLAMA_ID } from "./backendSlice";
 import type { AppStore } from "./index";
 
 const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
 
 export interface OllamaProviderConfig {
   kind: "ollama";
+  id: string; // stable local id, survives label edits
+  label: string;
   host: string; // e.g. "localhost:11434"; "" is treated as the default
 }
 
@@ -27,15 +30,24 @@ export type ProviderConfig =
   | OpenAiCompatibleProviderConfig;
 
 interface ProviderSettings {
-  ollama: OllamaProviderConfig;
+  // A list, not a singleton — multiple independent Ollama connections (e.g.
+  // "local" and "remote") are just cards like any `openAiCompatible` entry.
+  // Which one (if any) a brand-new conversation starts from lives in
+  // `backendSlice.ts`'s `defaultBackend`, not here.
+  ollama: OllamaProviderConfig[];
   openAiCompatible: OpenAiCompatibleProviderConfig[];
-  activeId: "ollama" | string;
 }
 
 const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
-  ollama: { kind: "ollama", host: "localhost:11434" },
+  ollama: [
+    {
+      kind: "ollama",
+      id: DEFAULT_OLLAMA_ID,
+      label: "Ollama",
+      host: "localhost:11434",
+    },
+  ],
   openAiCompatible: [],
-  activeId: "ollama",
 };
 
 function loadProviderSettings(): ProviderSettings {
@@ -44,15 +56,32 @@ function loadProviderSettings(): ProviderSettings {
       localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null",
     );
     if (parsed && typeof parsed === "object") {
+      let ollama: OllamaProviderConfig[];
+      if (Array.isArray(parsed.ollama)) {
+        ollama = parsed.ollama;
+      } else if (parsed.ollama && typeof parsed.ollama === "object") {
+        // Pre-multi-Ollama shape was a singleton `{kind, host}` — migrate it
+        // into a one-element array, preserving the existing host and giving
+        // it the same stable id/label a fresh install's default card gets,
+        // so existing users' conversations (which reference this id via the
+        // old `providerSettings.activeId === "ollama"` sentinel, migrated
+        // separately in `backendSlice.ts`) keep resolving to the same card.
+        ollama = [
+          {
+            kind: "ollama",
+            id: DEFAULT_OLLAMA_ID,
+            label: "Ollama",
+            host: parsed.ollama.host ?? "localhost:11434",
+          },
+        ];
+      } else {
+        ollama = DEFAULT_PROVIDER_SETTINGS.ollama;
+      }
       return {
-        ollama: {
-          kind: "ollama",
-          host: parsed.ollama?.host ?? "localhost:11434",
-        },
+        ollama,
         openAiCompatible: Array.isArray(parsed.openAiCompatible)
           ? parsed.openAiCompatible
           : [],
-        activeId: parsed.activeId ?? "ollama",
       };
     }
   } catch {
@@ -82,68 +111,78 @@ function toProviderConfigPayload(
 }
 
 export interface ProviderSlice {
-  // Always Ollama's own list regardless of which provider any conversation
-  // has active — used to populate the picker's per-model Ollama rows (see
-  // ChatPanel.tsx), so it can't go empty just because some conversation
-  // happens to have an OpenAI-compatible provider selected.
-  ollamaModels: ModelSummary[];
+  // Every configured Ollama connection's own model list, keyed by that
+  // config's `id` — used to populate the picker's per-model Ollama rows for
+  // *each* configured connection (see `useChatSession.ts`), so a config's
+  // models can't go empty or bleed into another config just because some
+  // conversation happens to have a different one active.
+  ollamaModelsByConfig: Record<string, ModelSummary[]>;
   providerSettings: ProviderSettings;
-  // Live reachability per configured provider, keyed by "ollama" or an
-  // openAiCompatible config's `id`, refreshed regardless of which
+  // Live reachability per configured provider, keyed by an `ollama` or
+  // `openAiCompatible` config's `id`, refreshed regardless of which
   // conversation (if any) currently has it active — each conversation looks
-  // up its own active provider's entry (see ChatPanel.tsx). `null` = not
-  // checked yet.
+  // up its own active provider's entry (see `useChatSession.ts`). `null` =
+  // not checked yet.
   providerConnectivity: Record<string, boolean | null>;
-  // Shared by both the provider and ACP settings tabs (`SettingsModal.tsx`).
+  // Shared by the settings modal's Agents tab.
   settingsModalOpen: boolean;
-  refreshOllama: () => Promise<void>;
+  refreshOllamaModels: () => Promise<void>;
   refreshProviderConnectivity: () => Promise<void>;
-  providerConfigFor: (activeId: string) => ProviderConfigPayload;
+  providerConfigFor: (id: string) => ProviderConfigPayload;
   setSettingsModalOpen: (open: boolean) => void;
-  setOllamaHost: (host: string) => void;
+  saveOllamaConfig: (config: OllamaProviderConfig) => void;
+  deleteOllamaConfig: (id: string) => void;
   saveOpenAiCompatibleConfig: (config: OpenAiCompatibleProviderConfig) => void;
   deleteOpenAiCompatibleConfig: (id: string) => void;
-  setActiveProvider: (activeId: string) => void;
 }
 
 export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
   set,
   get,
 ) => ({
-  ollamaModels: [],
+  ollamaModelsByConfig: {},
   providerSettings: loadProviderSettings(),
   providerConnectivity: {},
   settingsModalOpen: false,
 
-  refreshOllama: async () => {
-    try {
-      const models = await api.listProviderModels(
-        toProviderConfigPayload(get().providerSettings.ollama),
-      );
-      set({ ollamaModels: models });
-    } catch {
-      set({ ollamaModels: [] });
-    }
+  refreshOllamaModels: async () => {
+    const { providerSettings } = get();
+    const results = await Promise.all(
+      providerSettings.ollama.map(async (config) => {
+        try {
+          const models = await api.listProviderModels(
+            toProviderConfigPayload(config),
+          );
+          return [config.id, models] as const;
+        } catch {
+          return [config.id, []] as const;
+        }
+      }),
+    );
+    set({ ollamaModelsByConfig: Object.fromEntries(results) });
   },
 
   // Narrows `providerSettings` (which carries frontend-only bookkeeping like
   // `id`/`label`/`model`) down to exactly the shape the backend's
   // `ProviderConfig` enum expects, so callers can pass this straight into
   // `api.listProviderModels`/`api.sendPrompt`/`api.retryLast`. Takes the
-  // provider id explicitly (`"ollama"` or an `openAiCompatible` config's
-  // `id`) rather than reading a single global "active" one, since which
-  // provider is active is now per-conversation (see `ChatPanel.tsx`'s own
+  // provider id explicitly (an `ollama` or `openAiCompatible` config's `id`)
+  // rather than reading a single global "active" one, since which provider
+  // is active is now per-conversation (see `useChatSession.ts`'s own
   // `providerActiveId` state) — a global default only still exists as the
-  // starting point for a conversation that's never picked one of its own.
-  providerConfigFor: (activeId) => {
+  // starting point for a conversation that's never picked one of its own
+  // (see `backendSlice.ts`'s `defaultBackend`).
+  providerConfigFor: (id) => {
     const { providerSettings } = get();
-    if (activeId === "ollama") {
-      return toProviderConfigPayload(providerSettings.ollama);
-    }
-    const found = providerSettings.openAiCompatible.find(
-      (c) => c.id === activeId,
+    const ollama = providerSettings.ollama.find((c) => c.id === id);
+    if (ollama) return toProviderConfigPayload(ollama);
+    const openAi = providerSettings.openAiCompatible.find((c) => c.id === id);
+    if (openAi) return toProviderConfigPayload(openAi);
+    // Defensive fallback for a stale id (e.g. a since-deleted config) —
+    // falls back to the first configured Ollama connection.
+    return toProviderConfigPayload(
+      providerSettings.ollama[0] ?? DEFAULT_PROVIDER_SETTINGS.ollama[0],
     );
-    return toProviderConfigPayload(found ?? providerSettings.ollama);
   },
 
   // Checks reachability of every configured provider (not just the active
@@ -152,7 +191,10 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
   refreshProviderConnectivity: async () => {
     const { providerSettings } = get();
     const targets: [string, ProviderConfig][] = [
-      ["ollama", providerSettings.ollama],
+      ...providerSettings.ollama.map((c): [string, ProviderConfig] => [
+        c.id,
+        c,
+      ]),
       ...providerSettings.openAiCompatible.map(
         (c): [string, ProviderConfig] => [c.id, c],
       ),
@@ -179,15 +221,33 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
 
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
 
-  setOllamaHost: (host) =>
+  saveOllamaConfig: (config) =>
     set((s) => {
-      const providerSettings = {
-        ...s.providerSettings,
-        ollama: { kind: "ollama" as const, host },
-      };
+      const exists = s.providerSettings.ollama.some((c) => c.id === config.id);
+      const ollama = exists
+        ? s.providerSettings.ollama.map((c) =>
+            c.id === config.id ? config : c,
+          )
+        : [...s.providerSettings.ollama, config];
+      const providerSettings = { ...s.providerSettings, ollama };
       saveProviderSettings(providerSettings);
       return { providerSettings };
     }),
+
+  deleteOllamaConfig: (id) => {
+    set((s) => {
+      const ollama = s.providerSettings.ollama.filter((c) => c.id !== id);
+      const providerSettings = { ...s.providerSettings, ollama };
+      saveProviderSettings(providerSettings);
+      const ollamaModelsByConfig = Object.fromEntries(
+        Object.entries(s.ollamaModelsByConfig).filter(
+          ([configId]) => configId !== id,
+        ),
+      );
+      return { providerSettings, ollamaModelsByConfig };
+    });
+    get().reconcileDefaultBackend();
+  },
 
   saveOpenAiCompatibleConfig: (config) =>
     set((s) => {
@@ -204,28 +264,15 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       return { providerSettings };
     }),
 
-  deleteOpenAiCompatibleConfig: (id) =>
+  deleteOpenAiCompatibleConfig: (id) => {
     set((s) => {
       const openAiCompatible = s.providerSettings.openAiCompatible.filter(
         (c) => c.id !== id,
       );
-      const activeId =
-        s.providerSettings.activeId === id
-          ? "ollama"
-          : s.providerSettings.activeId;
-      const providerSettings = {
-        ...s.providerSettings,
-        openAiCompatible,
-        activeId,
-      };
+      const providerSettings = { ...s.providerSettings, openAiCompatible };
       saveProviderSettings(providerSettings);
       return { providerSettings };
-    }),
-
-  setActiveProvider: (activeId) =>
-    set((s) => {
-      const providerSettings = { ...s.providerSettings, activeId };
-      saveProviderSettings(providerSettings);
-      return { providerSettings };
-    }),
+    });
+    get().reconcileDefaultBackend();
+  },
 });
