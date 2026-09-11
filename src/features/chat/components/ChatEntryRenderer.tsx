@@ -224,7 +224,7 @@ export default function ChatEntryRenderer({
             className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
           />
         )}
-        <span className="shrink-0">{entry.name}</span>
+        <span className="shrink-0 truncate max-w-40">{entry.name}</span>
         <span className="select-text min-w-0 flex-1 truncate text-zinc-600">
           {!expanded ? JSON.stringify(entry.args) : ""}
         </span>
