@@ -12,6 +12,10 @@ export interface ChatEntryListProps {
   ollamaError: string | null;
   acpRestoreFailed: string | null;
   onRetryAcpSession: () => void;
+  claudeRateLimit: { message: string; resetAt: number } | null;
+  claudeAutoResumeArmed: boolean;
+  onArmClaudeAutoResume: () => void;
+  onDismissClaudeRateLimit: () => void;
   systemPrompt: string | null;
   sending: boolean;
   isAcp: boolean;
@@ -19,6 +23,13 @@ export interface ChatEntryListProps {
   replyStartedAt: number | null;
   nowTick: number;
   onRetry: () => void;
+}
+
+function formatClockTime(epochMs: number): string {
+  return new Date(epochMs).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 // Whether the assistant text entry at `i` is the last chunk of its turn —
@@ -49,6 +60,10 @@ export default function ChatEntryList({
   ollamaError,
   acpRestoreFailed,
   onRetryAcpSession,
+  claudeRateLimit,
+  claudeAutoResumeArmed,
+  onArmClaudeAutoResume,
+  onDismissClaudeRateLimit,
   systemPrompt,
   sending,
   isAcp,
@@ -236,6 +251,39 @@ export default function ChatEntryList({
           >
             Start new session
           </Button>
+        </div>
+      )}
+      {claudeRateLimit && (
+        <div className="flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(120,84,12,0.5)] bg-amber-950/30 px-3 py-2 text-amber-300 text-xs">
+          <span>
+            {claudeAutoResumeArmed
+              ? `Claude hit its session limit. Will auto-resume at ${formatClockTime(claudeRateLimit.resetAt)}.`
+              : `Claude hit its session limit (resets ${formatClockTime(claudeRateLimit.resetAt)}). Auto-resume then?`}
+          </span>
+          <div className="flex shrink-0 gap-2">
+            {claudeAutoResumeArmed ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onDismissClaudeRateLimit}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onDismissClaudeRateLimit}
+                >
+                  No
+                </Button>
+                <Button size="sm" onClick={onArmClaudeAutoResume}>
+                  Yes, resume automatically
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       )}
       {renderItems.map((item) => {

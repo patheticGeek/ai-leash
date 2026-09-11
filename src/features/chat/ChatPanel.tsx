@@ -112,6 +112,11 @@ export default function ChatPanel() {
   } = useChatSession(sessionId, setOllamaError, sending, () =>
     setSlashDismissed(null),
   );
+  // Gates the Claude session-limit auto-resume banner (see `useChatStream`)
+  // — Copilot's ACP wrapper reports errors in its own format, so this stays
+  // Claude-only until that's known and worth matching too.
+  const isClaudeAcp =
+    isAcp && !!activeAcpAgent?.launchCommand.toLowerCase().includes("claude");
   const {
     entries,
     setEntries,
@@ -120,7 +125,16 @@ export default function ChatPanel() {
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed,
-  } = useChatStream(sessionId, setOllamaError);
+    claudeRateLimit,
+    claudeAutoResumeArmed,
+    armClaudeAutoResume,
+    dismissClaudeRateLimit,
+  } = useChatStream(
+    sessionId,
+    setOllamaError,
+    isClaudeAcp,
+    autoResumeFromRateLimit,
+  );
 
   // Connects the ACP agent's subprocess as soon as one's active for this
   // conversation, rather than waiting for the first `send()` — see
@@ -340,6 +354,16 @@ export default function ChatPanel() {
       return;
     setInput("");
     setOllamaError(null);
+    await submitPrompt(text);
+  }
+
+  // The actual "push a user turn and hand it to whichever backend is
+  // active" round trip — factored out of `send()` so the Claude
+  // session-limit auto-resume (see `useChatStream`'s `claudeRateLimit`) can
+  // submit "continue working" the same way once its timer fires, without
+  // going through the input box or `send()`'s own guards (those are about
+  // whether the *user* is allowed to send right now, not this).
+  async function submitPrompt(text: string) {
     setEntries((prev) => [
       ...prev,
       { kind: "text", role: "user", content: text, time: Date.now() },
@@ -366,6 +390,12 @@ export default function ChatPanel() {
       setOllamaError(String(e));
       setSending(false);
     }
+  }
+
+  function autoResumeFromRateLimit() {
+    if (!isClaudeAcp || sending) return;
+    setOllamaError(null);
+    submitPrompt("continue working");
   }
 
   // Slash-command autocomplete: only triggers when the *entire* input is
@@ -482,6 +512,10 @@ export default function ChatPanel() {
           ollamaError={ollamaError}
           acpRestoreFailed={acpRestoreFailed}
           onRetryAcpSession={retryAcpSession}
+          claudeRateLimit={claudeRateLimit}
+          claudeAutoResumeArmed={claudeAutoResumeArmed}
+          onArmClaudeAutoResume={armClaudeAutoResume}
+          onDismissClaudeRateLimit={dismissClaudeRateLimit}
           systemPrompt={systemPrompt}
           sending={sending}
           isAcp={isAcp}
