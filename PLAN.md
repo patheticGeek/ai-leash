@@ -331,3 +331,5 @@ need to land as one giant PR.
 
 Update `ARCHITECTURE.md`'s module tables/diagrams once each phase
 lands, since it's documented as the source of truth for layout.
+
+Status: all 10 phases complete as of 2026-09-11.

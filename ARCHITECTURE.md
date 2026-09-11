@@ -131,6 +131,11 @@ graph TD
     SidePanel --> ActionsTab
     SidePanel --> ActionTerminalTab
 
+    SettingsModal --> ProviderSettingsTab
+    SettingsModal --> AcpSettingsTab
+    SettingsModal --> CrashLogTab
+    SettingsModal --> AboutTab
+
     store[store/\nzustand slices] -.reads/writes.- App
     store -.-> LeftBar
     store -.-> ChatPanel
@@ -162,7 +167,9 @@ graph TD
 | `TerminalPanel.tsx`                                                              | xterm.js terminal wired to a spawned PTY (one instance per open terminal tab).                                                                                                                                                                                                        |
 | `ActionsTab.tsx` / `ActionTerminalTab.tsx` / `hooks/useActions.ts`               | Define/run/stop named background commands; a dedicated terminal tab attaches to (doesn't spawn) an Action's live pty and replays buffered output.                                                                                                                                     |
 | `SubAgentsTab.tsx` / `SubAgentChatTab.tsx`                                       | Cross-project sub-agent history list; read-only transcript viewer for one sub-agent.                                                                                                                                                                                                  |
-| `SettingsModal.tsx`                                                              | Provider config (Ollama host, OpenAI-compatible configs), ACP agent list, crash-log viewer, About.                                                                                                                                                                                    |
+| `settings/SettingsModal.tsx`                                                     | Tab shell only: modal chrome, the side-nav tab strip, active-section state; renders one of the `tabs/*.tsx` below. Not registry-driven like `tabKinds.ts` — four fixed tabs, no runtime extension point needed yet.                                                                  |
+| `settings/tabs/ProviderSettingsTab.tsx` / `AcpSettingsTab.tsx`                    | `ProviderSettingsTab` owns the active-provider picker, Ollama host, and OpenAI-compatible provider CRUD; `AcpSettingsTab` owns the builtin-vs-ACP agent-backend choice and saved ACP agent CRUD. Split apart because they read/write disjoint store state despite both living under the old "Providers" section.                                                                                                                                                                     |
+| `settings/tabs/CrashLogTab.tsx` / `AboutTab.tsx`                                  | `CrashLogTab` fetches/displays/copies/clears the backend crash log (own `useEffect` fetch-on-mount, no coupling to other tabs); `AboutTab` shows version/identifier/commit hash and links out to source/website.                                                                     |
 | `ModelPickerPopover.tsx` / `PermissionModePopover.tsx` / `PermissionPopover.tsx` | Chat-bar popovers: unified model/agent picker, Ask/Bypass permission mode, shell/edit/ACP approval box.                                                                                                                                                                               |
 | `Markdown.tsx`                                                                   | react-markdown + remark-gfm renderer for assistant/sub-agent text.                                                                                                                                                                                                                    |
 | `Button.tsx`, `ResizeHandle.tsx`, `Logo.tsx`, `ErrorBoundary.tsx`                | Small shared primitives — styled button variants, drag-resize handle, SVG wordmark, render-crash fallback.                                                                                                                                                                            |
