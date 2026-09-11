@@ -149,7 +149,11 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
       });
     } else if (message.role === "thinking") {
       if (message.content) {
-        entries.push({ kind: "thinking", content: message.content, done: true });
+        entries.push({
+          kind: "thinking",
+          content: message.content,
+          done: true,
+        });
       }
     } else if (message.role === "assistant") {
       if (message.content) {
