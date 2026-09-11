@@ -24,7 +24,7 @@ directory/fallback convention as `db.rs`'s `db_path()` — falls back to
 once exceeded, the next write starts the file fresh rather than attempting
 real rotation — this is a debugging aid, not an audit log.
 
-## Frontend (`src/lib/crashReporting.ts`, `src/components/ErrorBoundary.tsx`)
+## Frontend (`src/lib/crashReporting.ts`, `src/ui/ErrorBoundary.tsx`)
 
 Three failure modes, all forwarded to the *same* backend log file via the
 new `report_frontend_crash` command (so both halves of the app land in one

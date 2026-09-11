@@ -1,0 +1,213 @@
+import { ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Button from "../../../ui/Button";
+import type { PanelEntry } from "../hooks/useChatStream";
+import ChatEntryRenderer, {
+  Chevron,
+  formatDuration,
+} from "./ChatEntryRenderer";
+
+export interface ChatEntryListProps {
+  entries: PanelEntry[];
+  ollamaError: string | null;
+  systemPrompt: string | null;
+  sending: boolean;
+  isAcp: boolean;
+  turnDurations: Record<number, number>;
+  sendStartedAt: number | null;
+  nowTick: number;
+  onRetry: () => void;
+}
+
+// Renders a conversation's whole `entries` array: the collapsible system
+// prompt block, the empty/error states, each entry via
+// `ChatEntryRenderer.tsx` (grouping consecutive tool calls so only the
+// latest of a run shows by default), and the "Working for…" footer. Owns
+// every piece of UI-only state that's purely about *how* an already-loaded
+// transcript is displayed (expand/collapse, copy-feedback, scroll
+// position) — none of it is read anywhere outside this component.
+export default function ChatEntryList({
+  entries,
+  ollamaError,
+  systemPrompt,
+  sending,
+  isAcp,
+  turnDurations,
+  sendStartedAt,
+  nowTick,
+  onRetry,
+}: ChatEntryListProps) {
+  const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
+    {},
+  );
+  // Consecutive tool-call entries are grouped so only the latest one shows by
+  // default (see `renderItems` below) — keyed by the group's first index,
+  // which stays stable as long as `entries` only ever grows (it does),
+  // tracking whether that group has been expanded to show every call in it
+  // rather than just the latest.
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [systemPromptExpanded, setSystemPromptExpanded] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is a trigger-only dep — re-run the scroll check on every new message, its value isn't read in the body
+  useEffect(() => {
+    if (autoScrollRef.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }
+  }, [entries]);
+
+  function onScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = distanceFromBottom < 40;
+  }
+
+  function isExpanded(i: number): boolean {
+    return expandOverride[i] ?? false;
+  }
+
+  function toggle(i: number) {
+    setExpandOverride((prev) => ({ ...prev, [i]: !isExpanded(i) }));
+  }
+
+  function toggleGroup(key: string) {
+    setGroupExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  async function copyText(i: number, text: string) {
+    await navigator.clipboard.writeText(text);
+    setCopiedIndex(i);
+    setTimeout(() => setCopiedIndex((cur) => (cur === i ? null : cur)), 1200);
+  }
+
+  // Whether this turn has produced anything visible yet — before that, the
+  // bottom indicator shows "Waiting" rather than a running clock, since
+  // there's nothing to measure the *progress* of yet, just the wait for the
+  // model to respond at all.
+  const lastEntry = entries[entries.length - 1];
+  const hasActivity = !!(
+    lastEntry &&
+    ((lastEntry.kind === "text" && lastEntry.role === "assistant") ||
+      lastEntry.kind === "thinking" ||
+      lastEntry.kind === "tool")
+  );
+
+  // Groups runs of consecutive tool-call entries so the transcript can show
+  // only the latest call in a run by default (see the "toolgroup" branch
+  // below) instead of every single one — a multi-step agent turn can rack up
+  // a dozen tool calls in a row, which otherwise buries the actual
+  // conversation. Non-tool entries always stand alone.
+  type RenderItem =
+    | { kind: "single"; index: number }
+    | { kind: "toolgroup"; indices: number[] };
+  const renderItems: RenderItem[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].kind === "tool") {
+      const last = renderItems[renderItems.length - 1];
+      if (last && last.kind === "toolgroup") {
+        last.indices.push(i);
+      } else {
+        renderItems.push({ kind: "toolgroup", indices: [i] });
+      }
+    } else {
+      renderItems.push({ kind: "single", index: i });
+    }
+  }
+
+  function renderEntry(i: number) {
+    const entry = entries[i];
+    return (
+      <ChatEntryRenderer
+        key={i}
+        entry={entry}
+        isLast={i === entries.length - 1}
+        isAcp={isAcp}
+        sending={sending}
+        expanded={isExpanded(i)}
+        onToggleExpand={() => toggle(i)}
+        copied={copiedIndex === i}
+        onCopy={() => copyText(i, entry.kind === "text" ? entry.content : "")}
+        onRetry={onRetry}
+        turnDuration={turnDurations[i]}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="h-full overflow-y-auto p-3 space-y-3 text-sm"
+    >
+      {systemPrompt && (
+        <div className="text-xs">
+          <Button
+            variant="unstyled"
+            size="none"
+            onClick={() => setSystemPromptExpanded((v) => !v)}
+            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+          >
+            <Chevron expanded={systemPromptExpanded} />
+            <span className="italic">system prompt</span>
+          </Button>
+          {systemPromptExpanded && (
+            <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 text-zinc-600">
+              {systemPrompt}
+            </pre>
+          )}
+        </div>
+      )}
+      {entries.length === 0 && !ollamaError && (
+        <div className="text-zinc-500">
+          Ask the agent anything about this project.
+        </div>
+      )}
+      {ollamaError && (
+        <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+          {ollamaError}
+        </div>
+      )}
+      {renderItems.map((item) => {
+        if (item.kind === "toolgroup") {
+          const { indices } = item;
+          const groupKey = String(indices[0]);
+          const expanded = groupExpanded[groupKey] ?? false;
+          const showToggle = indices.length > 1;
+          const visible =
+            showToggle && !expanded ? [indices[indices.length - 1]] : indices;
+          return (
+            <div key={`group-${groupKey}`} className="space-y-1.5">
+              {visible.map((idx) => renderEntry(idx))}
+              {showToggle && (
+                <Button
+                  variant="unstyled"
+                  size="none"
+                  onClick={() => toggleGroup(groupKey)}
+                  className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
+                >
+                  <ChevronDown
+                    size={11}
+                    className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
+                  />
+                  {expanded ? "Hide" : `Show all (${indices.length})`}
+                </Button>
+              )}
+            </div>
+          );
+        }
+        return renderEntry(item.index);
+      })}
+      {sending && sendStartedAt && (
+        <div className="text-zinc-600 text-sm">
+          {hasActivity
+            ? `Working for ${formatDuration(Math.max(0, Math.round((nowTick - sendStartedAt) / 1000)))}`
+            : "Waiting"}
+        </div>
+      )}
+    </div>
+  );
+}
