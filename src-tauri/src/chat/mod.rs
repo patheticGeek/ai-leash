@@ -16,7 +16,7 @@ use tauri::State;
 // `tools::permissions`/`tools::shell_tools` re-exports in `tools/mod.rs` — a
 // plain re-export is enough here since nothing needs to name these through
 // `generate_handler!`.
-pub(crate) use agent_loop::{push_message, remember_in_memory, start_streaming_assistant_message};
+pub(crate) use agent_loop::{push_message, remember_in_memory, start_streaming_message};
 pub(crate) use sub_agents::{resume_after_background_subtask, run_sub_agent};
 
 #[derive(Clone, Serialize, Deserialize)]

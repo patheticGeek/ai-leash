@@ -1,11 +1,10 @@
 use super::discovery::{
     find_model_config_option, format_acp_error, mcp_servers_for, model_options_payload,
 };
-use super::events::{handle_session_notification, PendingToolCallContent};
+use super::events::{close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent};
 use super::permissions::bridge_acp_permission;
 use crate::chat::{self, ChatMessage};
 use crate::commands;
-use crate::db;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
@@ -155,20 +154,12 @@ async fn drive_acp_connection(
     agent: AcpAgent,
     commands: &mut mpsc::UnboundedReceiver<AcpCommand>,
 ) -> Result<(), agent_client_protocol::Error> {
-    // Shared between the notification handler (which streams AgentMessageChunk
-    // text as it arrives) and the prompt loop below (which reads the
-    // accumulated result back out once PromptRequest resolves, to persist it
-    // via `push_message`) — there's no other way to recover "the final
-    // assistant text" for a turn since we never run our own model-turn loop
-    // for ACP sessions.
-    let turn_text: Arc<StdMutex<String>> = Arc::new(StdMutex::new(String::new()));
-    // Row id of the in-progress assistant reply, created lazily by
-    // `handle_session_notification` on the first text chunk of a turn (not
-    // upfront) so a turn that only makes tool calls, with no reply text at
-    // all, never leaves a stray empty message behind — see its call site
-    // below for why this mirrors `chat::start_streaming_assistant_message`
-    // rather than reusing it directly.
-    let assistant_message_id: Arc<StdMutex<Option<i64>>> = Arc::new(StdMutex::new(None));
+    // Shared between the notification handler (which streams
+    // AgentMessageChunk/AgentThoughtChunk text as it arrives, one DB row per
+    // contiguous run — see `CurrentSegment`'s doc comment) and the prompt
+    // loop below, which closes out whatever run is still open once
+    // PromptRequest resolves.
+    let current_segment: CurrentSegment = Arc::new(StdMutex::new(None));
     // Tracks in-flight tool calls' most recently seen `content` across
     // `ToolCallUpdate`s for this connection — see `PendingToolCallContent`'s
     // doc comment for why a terminal update can't just trust its own
@@ -177,8 +168,7 @@ async fn drive_acp_connection(
 
     let notif_app = app.clone();
     let notif_session_id = session_id.clone();
-    let notif_turn_text = turn_text.clone();
-    let notif_message_id = assistant_message_id.clone();
+    let notif_current_segment = current_segment.clone();
     let notif_pending_tool_content = pending_tool_content.clone();
     let perm_app = app.clone();
     let perm_session_id = session_id.clone();
@@ -190,8 +180,7 @@ async fn drive_acp_connection(
                 handle_session_notification(
                     &notif_app,
                     &notif_session_id,
-                    &notif_turn_text,
-                    &notif_message_id,
+                    &notif_current_segment,
                     &notif_pending_tool_content,
                     notification.update,
                 );
@@ -242,8 +231,7 @@ async fn drive_acp_connection(
             while let Some(cmd) = commands.recv().await {
                 match cmd {
                     AcpCommand::Prompt(text) => {
-                        turn_text.lock().unwrap().clear();
-                        *assistant_message_id.lock().unwrap() = None;
+                        *current_segment.lock().unwrap() = None;
                         let _ = app.emit(
                             &format!("chat://{session_id}/generating"),
                             json!({ "active": true, "autonomous": false }),
@@ -280,46 +268,11 @@ async fn drive_acp_connection(
 
                         match result {
                             Ok(_response) => {
-                                let final_text = turn_text.lock().unwrap().clone();
-                                if !final_text.is_empty() {
-                                    let state = app.state::<AppState>();
-                                    // Content was already kept current on
-                                    // disk chunk-by-chunk (see
-                                    // `handle_session_notification`) — this
-                                    // is only reached with `id: None` if
-                                    // every prior flush failed to resolve a
-                                    // project root, in which case falling
-                                    // back to a plain insert is the best we
-                                    // can do.
-                                    match *assistant_message_id.lock().unwrap() {
-                                        Some(id) => {
-                                            db::finish_streaming_message(
-                                                &state.db,
-                                                id,
-                                                &final_text,
-                                                &None,
-                                            );
-                                            chat::remember_in_memory(
-                                                &state,
-                                                &session_id,
-                                                ChatMessage {
-                                                    role: "assistant".into(),
-                                                    content: final_text,
-                                                    tool_calls: None,
-                                                },
-                                            );
-                                        }
-                                        None => chat::push_message(
-                                            &state,
-                                            &session_id,
-                                            ChatMessage {
-                                                role: "assistant".into(),
-                                                content: final_text,
-                                                tool_calls: None,
-                                            },
-                                        ),
-                                    }
-                                }
+                                // Whatever run was still open (reply or
+                                // thinking) is done now that the turn has
+                                // resolved — close it out so its bookkeeping
+                                // (see `close_segment`) isn't lost.
+                                close_segment(&app, &session_id, &current_segment);
                                 let _ = app.emit(&format!("chat://{session_id}/done"), ());
                             }
                             Err(e) => {

@@ -373,11 +373,23 @@ pub(crate) fn start_streaming_assistant_message(
     state: &State<'_, AppState>,
     session_id: &str,
 ) -> Option<i64> {
+    start_streaming_message(state, session_id, "assistant")
+}
+
+/// General form of `start_streaming_assistant_message` — used by
+/// `acp/events.rs` to reserve a row for a "thinking" run as well as an
+/// "assistant" one, since a single ACP turn can freely alternate between the
+/// two (and tool calls) any number of times before it resolves.
+pub(crate) fn start_streaming_message(
+    state: &State<'_, AppState>,
+    session_id: &str,
+    role: &str,
+) -> Option<i64> {
     let root = commands::get_root_path(state.inner()).ok()?;
     Some(db::start_streaming_message(
         &state.db,
         session_id,
         &root.to_string_lossy(),
-        "assistant",
+        role,
     ))
 }

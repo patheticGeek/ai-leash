@@ -238,6 +238,60 @@ mod tests {
         assert_eq!(loaded[0].content, "sub-agent prompt");
     }
 
+    // Mirrors how `acp/events.rs`'s `TurnSegment` persists one ACP turn that
+    // says something, calls a tool, then says something else: each run gets
+    // its own row (`start_streaming_message` + `update_streaming_message`),
+    // rather than the whole turn's reply text sharing one row that a later
+    // tool call's row would land *after* even though the row itself started
+    // *before* it. Regression test for that bug — the earlier design left a
+    // reload showing all of a turn's text before any of its tool calls,
+    // regardless of which actually came first live.
+    #[test]
+    fn interleaved_streaming_runs_and_tool_calls_stay_in_order() {
+        let db = temp_db();
+
+        let first_reply_id = start_streaming_message(&db, "/proj", "/proj", "assistant");
+        update_streaming_message(&db, first_reply_id, "Let me check that file.");
+
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "assistant".into(),
+                content: String::new(),
+                tool_calls: Some(vec![ToolCall {
+                    id: Some("call-1".into()),
+                    function: ToolCallFunction {
+                        name: "read_file".into(),
+                        arguments: serde_json::json!({ "path": "a.rs" }),
+                    },
+                }]),
+            },
+        );
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "tool".into(),
+                content: "fn main() {}".into(),
+                tool_calls: None,
+            },
+        );
+
+        let second_reply_id = start_streaming_message(&db, "/proj", "/proj", "assistant");
+        update_streaming_message(&db, second_reply_id, "It's empty.");
+
+        let loaded = load_messages(&db, "/proj");
+        assert_eq!(loaded.len(), 4);
+        assert_eq!(loaded[0].content, "Let me check that file.");
+        assert!(loaded[0].tool_calls.is_none());
+        assert_eq!(loaded[1].tool_calls.as_ref().unwrap()[0].function.name, "read_file");
+        assert_eq!(loaded[2].role, "tool");
+        assert_eq!(loaded[3].content, "It's empty.");
+    }
+
     #[test]
     fn separate_conversations_stay_separate() {
         let db = temp_db();

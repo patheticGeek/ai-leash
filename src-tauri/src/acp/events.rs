@@ -20,45 +20,145 @@ use tauri::{AppHandle, Emitter, Manager};
 /// once a call reaches a terminal state.
 pub(super) type PendingToolCallContent = Arc<StdMutex<HashMap<String, Vec<ToolCallContent>>>>;
 
+/// Which kind of streamed run a `TurnSegment` is — either the agent's reply
+/// or its reasoning. Kept as its own type (rather than a bare `&str`) so a
+/// role switch can be detected with `==` and mapped to the right persisted
+/// role (and skip the chat-session bookkeeping — see `close_segment_locked`)
+/// without stringly-typed comparisons scattered around.
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum SegmentRole {
+    Assistant,
+    Thinking,
+}
+
+impl SegmentRole {
+    fn as_db_role(self) -> &'static str {
+        match self {
+            Self::Assistant => "assistant",
+            Self::Thinking => "thinking",
+        }
+    }
+}
+
+/// One contiguous run of same-kind streamed text within a single ACP turn —
+/// the agent's reply or its reasoning. A turn can freely alternate between
+/// reply text, thinking, and tool calls any number of times before it
+/// resolves, so each run gets its own DB row (via `message_id`, lazily
+/// reserved on the run's first chunk) rather than one row per turn: if every
+/// run in a turn shared one row, a run that starts *after* a tool call would
+/// still land in a row created *before* it, keeping that row's original
+/// (now stale) position when the conversation is reloaded — the mid-turn
+/// text would render ahead of the tool call it actually followed. Closed out
+/// (see `close_segment_locked`) whenever the next chunk is a different role,
+/// a tool call arrives, or the turn ends.
+pub(super) struct TurnSegment {
+    role: SegmentRole,
+    message_id: Option<i64>,
+    buffer: String,
+}
+
+/// The run currently being streamed into, if any — `None` between runs (a
+/// fresh connection, right after a tool call, or right after
+/// `AcpCommand::Prompt` resets it for a new turn — see `process.rs`).
+pub(super) type CurrentSegment = Arc<StdMutex<Option<TurnSegment>>>;
+
+/// Closes out whatever run is open on an already-locked slot, leaving it
+/// empty. The DB side needs no action — every chunk already flushed the
+/// run's content live via `update_streaming_message` — this only mirrors a
+/// finished *assistant* run into `chat_sessions` (`remember_in_memory`), the
+/// same in-memory bookkeeping `push_message` gives tool calls and results.
+/// Thinking runs are never mirrored there: `chat_sessions` is also what a
+/// conversation's *built-in*-provider turns get sent as literal API message
+/// history if this same session later switches off ACP, and `"thinking"` is
+/// not a role either provider's chat API understands.
+fn close_segment_locked(app: &AppHandle, session_id: &str, slot: &mut Option<TurnSegment>) {
+    let Some(seg) = slot.take() else { return };
+    if seg.buffer.is_empty() || seg.role != SegmentRole::Assistant {
+        return;
+    }
+    let state = app.state::<AppState>();
+    let message = ChatMessage {
+        role: "assistant".into(),
+        content: seg.buffer,
+        tool_calls: None,
+    };
+    match seg.message_id {
+        Some(_) => chat::remember_in_memory(&state, session_id, message),
+        None => chat::push_message(&state, session_id, message),
+    }
+}
+
+/// Closes out whatever run is currently open — see `close_segment_locked`.
+/// Called at the end of a whole ACP turn (`process.rs`), once the agent's
+/// `PromptRequest` has resolved and nothing further will extend it.
+pub(super) fn close_segment(app: &AppHandle, session_id: &str, current: &CurrentSegment) {
+    close_segment_locked(app, session_id, &mut current.lock().unwrap());
+}
+
+/// Appends one chunk of text to the currently open run of `role`, starting a
+/// fresh run first if none is open or the open one is the other role —
+/// closing that one out in the process so its bookkeeping isn't lost (see
+/// `close_segment_locked`).
+fn push_segment_chunk(
+    app: &AppHandle,
+    session_id: &str,
+    current: &CurrentSegment,
+    role: SegmentRole,
+    text: &str,
+) {
+    let mut slot = current.lock().unwrap();
+    if !matches!(slot.as_ref(), Some(seg) if seg.role == role) {
+        close_segment_locked(app, session_id, &mut slot);
+        let state = app.state::<AppState>();
+        let message_id = chat::start_streaming_message(&state, session_id, role.as_db_role());
+        *slot = Some(TurnSegment {
+            role,
+            message_id,
+            buffer: String::new(),
+        });
+    }
+    let seg = slot.as_mut().expect("just inserted above if absent");
+    seg.buffer.push_str(text);
+    if let Some(id) = seg.message_id {
+        let state = app.state::<AppState>();
+        db::update_streaming_message(&state.db, id, &seg.buffer);
+    }
+}
+
 pub(super) fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
-    turn_text: &Arc<StdMutex<String>>,
-    assistant_message_id: &Arc<StdMutex<Option<i64>>>,
+    current_segment: &CurrentSegment,
     pending_tool_content: &PendingToolCallContent,
     update: SessionUpdate,
 ) {
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {
-                let accumulated = {
-                    let mut turn_text = turn_text.lock().unwrap();
-                    turn_text.push_str(&text.text);
-                    turn_text.clone()
-                };
                 let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);
-
-                // Reserve the row on the first chunk of a turn (rather than
-                // upfront in `drive_acp_connection`) so a turn that only
-                // makes tool calls never leaves a stray empty message behind
-                // — see the doc comment where `assistant_message_id` is
-                // declared. Every chunk after that just overwrites it.
-                let state = app.state::<AppState>();
-                let mut id_slot = assistant_message_id.lock().unwrap();
-                if id_slot.is_none() {
-                    *id_slot = chat::start_streaming_assistant_message(&state, session_id);
-                }
-                if let Some(id) = *id_slot {
-                    db::update_streaming_message(&state.db, id, &accumulated);
-                }
+                push_segment_chunk(
+                    app,
+                    session_id,
+                    current_segment,
+                    SegmentRole::Assistant,
+                    &text.text,
+                );
             }
         }
         SessionUpdate::AgentThoughtChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {
                 let _ = app.emit(&format!("chat://{session_id}/thinking"), &text.text);
+                push_segment_chunk(
+                    app,
+                    session_id,
+                    current_segment,
+                    SegmentRole::Thinking,
+                    &text.text,
+                );
             }
         }
         SessionUpdate::ToolCall(tool_call) => {
+            close_segment(app, session_id, current_segment);
             emit_tool_call(app, session_id, &tool_call, pending_tool_content)
         }
         SessionUpdate::ToolCallUpdate(update) => {

@@ -3,45 +3,46 @@ use crate::db::{self, PersistedMessage};
 use crate::state::AppState;
 use tauri::State;
 
-/// Hydrates `session_id`'s in-memory history from disk the first time it's
+/// Always reads `session_id`'s full transcript straight from disk — real
+/// timestamps, and includes ACP "thinking" rows — so the frontend can render
+/// it (also used as-is to (re)load a finished sub-agent's full transcript,
+/// since its id round-trips through disk exactly like any other session's).
+/// Separately, hydrates `session_id`'s in-memory history the first time it's
 /// asked for in this run (e.g. reopening a project after an app restart —
 /// see `panelStateByConversation`/`CenterPanel.tsx` on the frontend for how
-/// `session_id` ends up equal to the project's path), and returns it either
-/// way so the frontend can render it. Once a session has any in-memory
-/// history, this returns that as-is rather than re-reading disk — also used
-/// as-is by the frontend to (re)load a finished sub-agent's full transcript,
-/// since its id round-trips through disk exactly like any other session's.
+/// `session_id` ends up equal to the project's path) — once a session has
+/// any in-memory history this is left as-is rather than reset, since a live
+/// session's in-memory copy can already be ahead of whatever was just read
+/// (a turn that's still streaming keeps its own row current on disk, but
+/// hasn't pushed itself into `chat_sessions` yet — see `TurnSegment`).
 #[tauri::command]
 pub fn load_conversation_history(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<Vec<PersistedMessage>, String> {
-    let mut sessions = state.chat_sessions.lock().unwrap();
-    if let Some(existing) = sessions.get(&session_id) {
-        return Ok(existing
-            .iter()
-            .filter(|m| m.role != "system")
-            .map(|m| PersistedMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-                tool_calls: m.tool_calls.clone(),
-                created_at: 0,
-            })
-            .collect());
-    }
-
     let messages = db::load_messages(&state.db, &session_id);
-    sessions.insert(
-        session_id,
-        messages
-            .iter()
-            .map(|m| ChatMessage {
-                role: m.role.clone(),
-                content: m.content.clone(),
-                tool_calls: m.tool_calls.clone(),
-            })
-            .collect(),
-    );
+    let mut sessions = state.chat_sessions.lock().unwrap();
+    if !sessions.contains_key(&session_id) {
+        sessions.insert(
+            session_id,
+            messages
+                .iter()
+                // "thinking" rows (ACP reasoning) are never sent to a
+                // provider as conversation history: `chat_sessions` doubles
+                // as the literal message list a built-in-provider turn sends
+                // over the wire, and "thinking" isn't a role either
+                // provider's chat API understands. A conversation that
+                // switches off ACP later must not have one leak in from
+                // before the switch.
+                .filter(|m| m.role != "thinking")
+                .map(|m| ChatMessage {
+                    role: m.role.clone(),
+                    content: m.content.clone(),
+                    tool_calls: m.tool_calls.clone(),
+                })
+                .collect(),
+        );
+    }
     Ok(messages)
 }
 

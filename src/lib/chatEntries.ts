@@ -122,10 +122,17 @@ function isPendingTool(e: Entry): e is Extract<Entry, { kind: "tool" }> {
 
 // Rebuilds a display `Entry[]` from persisted, whole (non-streamed) messages
 // loaded from disk — used once, on mount, to hydrate a conversation's
-// history rather than replaying it live event-by-event. `thinking` deltas
-// are never persisted (see `PersistedMessage`), so reloaded history never
-// has them, same as it never did across an app restart before persistence
-// existed. A `tool`-role message doesn't carry which call it answers
+// history rather than replaying it live event-by-event. Rows come back
+// ordered exactly as they were written (see `db::load_messages`'s `ORDER BY
+// id`), which for an ACP turn already interleaves "assistant"/"thinking"
+// runs with the tool calls between them correctly — each run got its own
+// row the moment it was superseded by a different kind, rather than every
+// run in a turn sharing one row (see the backend's `TurnSegment`) — so this
+// only needs to map each row to an entry in the order it already arrives in,
+// not reorder anything itself. `thinking` rows only exist for ACP-backed
+// turns; the built-in provider loop never persists them (see
+// `emit_line_effects` on the backend), so builtin-loop history simply has
+// none to replay. A `tool`-role message doesn't carry which call it answers
 // (Ollama's own history shape doesn't need that, since messages are always
 // sent back in order) — matched positionally here against the earliest
 // still-unfilled `tool` entry, same assumption the backend already relies
@@ -140,6 +147,10 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
         content: message.content,
         time: message.createdAt * 1000,
       });
+    } else if (message.role === "thinking") {
+      if (message.content) {
+        entries.push({ kind: "thinking", content: message.content, done: true });
+      }
     } else if (message.role === "assistant") {
       if (message.content) {
         entries.push({
