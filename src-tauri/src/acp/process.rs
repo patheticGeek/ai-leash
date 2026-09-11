@@ -1,7 +1,7 @@
 use super::discovery::{
     find_model_config_option, format_acp_error, mcp_servers_for, model_options_payload,
 };
-use super::events::handle_session_notification;
+use super::events::{handle_session_notification, PendingToolCallContent};
 use super::permissions::bridge_acp_permission;
 use crate::chat::{self, ChatMessage};
 use crate::commands;
@@ -16,6 +16,7 @@ use agent_client_protocol::schema::v1::{
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
 use serde_json::json;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -168,11 +169,17 @@ async fn drive_acp_connection(
     // below for why this mirrors `chat::start_streaming_assistant_message`
     // rather than reusing it directly.
     let assistant_message_id: Arc<StdMutex<Option<i64>>> = Arc::new(StdMutex::new(None));
+    // Tracks in-flight tool calls' most recently seen `content` across
+    // `ToolCallUpdate`s for this connection — see `PendingToolCallContent`'s
+    // doc comment for why a terminal update can't just trust its own
+    // `content` field in isolation.
+    let pending_tool_content: PendingToolCallContent = Arc::new(StdMutex::new(HashMap::new()));
 
     let notif_app = app.clone();
     let notif_session_id = session_id.clone();
     let notif_turn_text = turn_text.clone();
     let notif_message_id = assistant_message_id.clone();
+    let notif_pending_tool_content = pending_tool_content.clone();
     let perm_app = app.clone();
     let perm_session_id = session_id.clone();
 
@@ -185,6 +192,7 @@ async fn drive_acp_connection(
                     &notif_session_id,
                     &notif_turn_text,
                     &notif_message_id,
+                    &notif_pending_tool_content,
                     notification.update,
                 );
                 Ok(())

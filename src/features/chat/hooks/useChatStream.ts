@@ -7,8 +7,10 @@ import {
   applyToolResult,
   type Entry,
   messagesToEntries,
+  type ToolCallArgsPayload,
   type ToolCallPayload,
   type ToolResultPayload,
+  updateToolArgs,
 } from "../../../lib/chatEntries";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
@@ -167,6 +169,13 @@ export function useChatStream(
       }),
     );
     unlistens.push(
+      listen<ToolCallArgsPayload>(`chat://${sessionId}/tool_call_args`, (e) => {
+        setEntries(
+          (prev) => updateToolArgs(prev as Entry[], e.payload) as PanelEntry[],
+        );
+      }),
+    );
+    unlistens.push(
       listen<{ promptTokens: number; completionTokens: number }>(
         `chat://${sessionId}/usage`,
         (e) => {
@@ -265,6 +274,21 @@ export function useChatStream(
               );
               setSubAgentEntries(subSessionId, (prev) =>
                 applyToolResult(prev, ev.payload),
+              );
+            },
+          ),
+        );
+        unlistens.push(
+          listen<ToolCallArgsPayload>(
+            `chat://${subSessionId}/tool_call_args`,
+            (ev) => {
+              setEntries((prev) =>
+                updateSubtaskThread(prev, callId, subSessionId, (sub) =>
+                  updateToolArgs(sub, ev.payload),
+                ),
+              );
+              setSubAgentEntries(subSessionId, (prev) =>
+                updateToolArgs(prev, ev.payload),
               );
             },
           ),

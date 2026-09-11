@@ -34,6 +34,11 @@ export interface ToolResultPayload {
   result: string;
 }
 
+export interface ToolCallArgsPayload {
+  id: string | null;
+  arguments: unknown;
+}
+
 export function finishThinking(prev: Entry[]): Entry[] {
   const last = prev[prev.length - 1];
   if (last && last.kind === "thinking" && !last.done) {
@@ -87,6 +92,22 @@ export function applyToolResult(
   return prev.map((entry) =>
     entry.kind === "tool" && entry.callId === String(payload.id)
       ? { ...entry, result: payload.result }
+      : entry,
+  );
+}
+
+// Patches in a tool call's input after the entry already exists — some ACP
+// agents (unlike the initial `ToolCall` notification `appendToolCall` reads)
+// only send `rawInput` later via a `ToolCallUpdate`, so the args shown can't
+// always be filled in at creation time. See `emit_tool_call_update` in
+// `acp/events.rs` for the backend half.
+export function updateToolArgs(
+  prev: Entry[],
+  payload: ToolCallArgsPayload,
+): Entry[] {
+  return prev.map((entry) =>
+    entry.kind === "tool" && entry.callId === String(payload.id)
+      ? { ...entry, args: payload.arguments }
       : entry,
   );
 }

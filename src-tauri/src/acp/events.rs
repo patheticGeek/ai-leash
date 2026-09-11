@@ -7,14 +7,25 @@ use agent_client_protocol::schema::v1::{
     ContentBlock, SessionUpdate, ToolCall, ToolCallContent, ToolCallStatus, ToolCallUpdate,
 };
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager};
+
+/// Per-connection state tracking each in-flight ACP tool call's most
+/// recently seen `content`, keyed by tool-call id. `ToolCallUpdateFields`
+/// replaces the content collection rather than extending it (per the ACP
+/// spec), but that replacement is per-*message* — a later update that only
+/// changes `status` to terminal, without re-including `content`, must still
+/// see whatever an earlier update last set, not empty. Entries are removed
+/// once a call reaches a terminal state.
+pub(super) type PendingToolCallContent = Arc<StdMutex<HashMap<String, Vec<ToolCallContent>>>>;
 
 pub(super) fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
     turn_text: &Arc<StdMutex<String>>,
     assistant_message_id: &Arc<StdMutex<Option<i64>>>,
+    pending_tool_content: &PendingToolCallContent,
     update: SessionUpdate,
 ) {
     match update {
@@ -47,8 +58,12 @@ pub(super) fn handle_session_notification(
                 let _ = app.emit(&format!("chat://{session_id}/thinking"), &text.text);
             }
         }
-        SessionUpdate::ToolCall(tool_call) => emit_tool_call(app, session_id, &tool_call),
-        SessionUpdate::ToolCallUpdate(update) => emit_tool_call_update(app, session_id, &update),
+        SessionUpdate::ToolCall(tool_call) => {
+            emit_tool_call(app, session_id, &tool_call, pending_tool_content)
+        }
+        SessionUpdate::ToolCallUpdate(update) => {
+            emit_tool_call_update(app, session_id, &update, pending_tool_content)
+        }
         SessionUpdate::AvailableCommandsUpdate(update) => {
             let _ = app.emit(
                 &format!("chat://{session_id}/acp_commands"),
@@ -63,7 +78,12 @@ pub(super) fn handle_session_notification(
     }
 }
 
-fn emit_tool_call(app: &AppHandle, session_id: &str, tool_call: &ToolCall) {
+fn emit_tool_call(
+    app: &AppHandle,
+    session_id: &str,
+    tool_call: &ToolCall,
+    pending_tool_content: &PendingToolCallContent,
+) {
     let call_id = tool_call.tool_call_id.to_string();
     let _ = app.emit(
         &format!("chat://{session_id}/tool_call"),
@@ -90,10 +110,49 @@ fn emit_tool_call(app: &AppHandle, session_id: &str, tool_call: &ToolCall) {
             json!({ "id": &call_id, "result": &result }),
         );
         persist_tool_result(app, session_id, &result);
+        pending_tool_content.lock().unwrap().remove(&call_id);
+    } else if !tool_call.content.is_empty() {
+        // Rare (a tool call rarely arrives non-terminal with content
+        // already attached) but cheap to handle for the same reason as the
+        // `ToolCallUpdate` branch below: don't let a later update that
+        // omits `content` read back as if there were never any output.
+        pending_tool_content
+            .lock()
+            .unwrap()
+            .insert(call_id, tool_call.content.clone());
     }
 }
 
-fn emit_tool_call_update(app: &AppHandle, session_id: &str, update: &ToolCallUpdate) {
+fn emit_tool_call_update(
+    app: &AppHandle,
+    session_id: &str,
+    update: &ToolCallUpdate,
+    pending_tool_content: &PendingToolCallContent,
+) {
+    let call_id = update.tool_call_id.to_string();
+
+    // Some ACP agents don't include the tool's input in the initial
+    // `ToolCall` notification and fill it in later via an update instead —
+    // forward it live so the UI isn't stuck showing whatever (possibly
+    // nothing) the first notification happened to carry. See
+    // `chatEntries.ts`'s `updateToolArgs` for the other half.
+    if let Some(raw_input) = &update.fields.raw_input {
+        let _ = app.emit(
+            &format!("chat://{session_id}/tool_call_args"),
+            json!({ "id": &call_id, "arguments": raw_input }),
+        );
+    }
+
+    // `content` replaces rather than extends within a single update, but
+    // across updates the last one seen is what should stick around — see
+    // `PendingToolCallContent`'s doc comment.
+    if let Some(content) = &update.fields.content {
+        pending_tool_content
+            .lock()
+            .unwrap()
+            .insert(call_id.clone(), content.clone());
+    }
+
     let is_terminal = matches!(
         update.fields.status,
         Some(ToolCallStatus::Completed) | Some(ToolCallStatus::Failed)
@@ -101,11 +160,16 @@ fn emit_tool_call_update(app: &AppHandle, session_id: &str, update: &ToolCallUpd
     if !is_terminal {
         return;
     }
-    let content = update.fields.content.clone().unwrap_or_default();
+
+    let content = pending_tool_content
+        .lock()
+        .unwrap()
+        .remove(&call_id)
+        .unwrap_or_default();
     let result = summarize_tool_call_content(&content);
     let _ = app.emit(
         &format!("chat://{session_id}/tool_result"),
-        json!({ "id": update.tool_call_id.to_string(), "result": &result }),
+        json!({ "id": &call_id, "result": &result }),
     );
     // No matching `persist_tool_call` here — a `ToolCallUpdate` always
     // follows a `ToolCall` for the same id (this is just it reaching a
