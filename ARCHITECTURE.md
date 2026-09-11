@@ -109,10 +109,17 @@ graph TD
 
     CenterPanel --> ChatPanel
     CenterPanel --> SubAgentChatTab
-    ChatPanel --> ModelPickerPopover
-    ChatPanel --> PermissionModePopover
-    ChatPanel --> PermissionPopover
-    ChatPanel --> Markdown
+    ChatPanel --> useChatSession[hooks/useChatSession.ts]
+    ChatPanel --> useChatStream[hooks/useChatStream.ts]
+    ChatPanel --> ChatEntryList
+    ChatPanel --> ChatInputBar
+    ChatEntryList --> ChatEntryRenderer
+    ChatInputBar --> SlashCommandMenu
+    ChatInputBar --> ContextUsageRing
+    ChatInputBar --> ModelPickerPopover
+    ChatInputBar --> PermissionModePopover
+    ChatInputBar --> PermissionPopover
+    ChatEntryRenderer --> Markdown
 
     tabKinds[sidebar/tabKinds.ts\ntab registry] -.-> SidePanel
     tabKinds -.-> TabPicker
@@ -146,7 +153,10 @@ graph TD
 | `TitleBar.tsx` / `TitleBarActions.tsx`                                           | Draggable native-feeling title bar (project name, settings, open-project, window controls) plus a split-button shortcut to run/stop the most-recently-used Action without opening the side panel.                                                                                     |
 | `LeftBar.tsx`                                                                    | Project switcher (logo, recent projects list with busy/awaiting-approval indicators); hosts the one global `permission://` and `generating` event listeners.                                                                                                                          |
 | `CenterPanel.tsx`                                                                | Tab strip: permanent `ChatPanel` (kept mounted, hidden via CSS) plus one closable tab per opened sub-agent transcript (`SubAgentChatTab`).                                                                                                                                            |
-| `ChatPanel.tsx`                                                                  | The primary agent chat UI (~1700 lines): message streaming/rendering, tool-call/thinking entries, provider/ACP-agent/model picker, permission popover anchoring, slash commands, retry/compact, context-usage ring.                                                                   |
+| `ChatPanel.tsx`                                                                  | Thin orchestrator (~530 lines, down from ~1700): owns the send/retry/local-command/slash-autocomplete logic and composes `useChatSession`, `useChatStream`, and the components below. See the `features/chat/` row for the split.                                                    |
+| `features/chat/hooks/useChatSession.ts` / `hooks/useChatStream.ts`               | `useChatSession` owns "who answers this chat" for one conversation — builtin-vs-ACP kind, provider/agent/model choice, its per-conversation persistence, and the model/agent picker's option list. `useChatStream` owns the transcript: the `chat://{sessionId}/...` event listeners (including nested sub-agent subtask threads), token usage, and the system prompt.                                                                                                                                                 |
+| `features/chat/components/ChatEntryList.tsx` / `ChatEntryRenderer.tsx`           | `ChatEntryList` iterates a conversation's `Entry[]`, grouping consecutive tool calls so only the latest of a run shows by default, and owns expand/collapse + copy-feedback + scroll-position state; `ChatEntryRenderer` renders one entry (`info`/`text`/`thinking`/`tool`). Not shared with `SubAgentChatTab.tsx`'s own simpler `EntryBlock` — see that file's top-of-file note for why.                                                                                                                             |
+| `features/chat/components/ChatInputBar.tsx` / `SlashCommandMenu.tsx` / `ContextUsageRing.tsx` | `ChatInputBar` is the textarea + send/stop button + anchored popovers (permission ask, slash autocomplete); `SlashCommandMenu` is the autocomplete dropdown's presentational list (match/dismiss/index state stays in `ChatPanel.tsx`, alongside the keydown handler that also has to fall through to "send on Enter"); `ContextUsageRing` is the token-usage ring + hover popover.                                                                                                                                      |
 | `SidePanel.tsx` / `TabPicker.tsx` / `tabKinds.ts`                                | `tabKinds.ts` is the tab registry: one entry per `PanelTabKind` (`render`, `mountMode` — `keep-mounted-per-tab` for terminal/action/filetree so live PTY state survives a tab switch, `active-only` for subagents/file/actions which just re-read the store — and `openableFromPicker`). `SidePanel.tsx` dispatches through it instead of a hand-written kind switch; `TabPicker.tsx` renders its tiles from the `openableFromPicker` subset instead of its own hardcoded list. Adding a tab kind (e.g. milestone-8's git-diff/browser tabs) is a new `tabs/*.tsx` file plus one registry entry.                                                                                                            |
 | `FileTree.tsx` / `FileEditorTab.tsx`                                             | Lazy directory tree + CodeMirror 6 editor for the active open file.                                                                                                                                                                                                                   |
 | `TerminalPanel.tsx`                                                              | xterm.js terminal wired to a spawned PTY (one instance per open terminal tab).                                                                                                                                                                                                        |
