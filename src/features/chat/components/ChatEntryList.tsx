@@ -14,9 +14,25 @@ export interface ChatEntryListProps {
   sending: boolean;
   isAcp: boolean;
   turnDurations: Record<number, number>;
-  sendStartedAt: number | null;
+  replyStartedAt: number | null;
   nowTick: number;
   onRetry: () => void;
+}
+
+// Whether the assistant text entry at `i` is the last chunk of its turn —
+// a turn's reply can be split into several text entries by tool calls
+// interleaved in between (see the backend's `TurnSegment`), and only the
+// final chunk should show the copy/timestamp/"Worked for" footer, not every
+// intermediate one.
+function isFinalAssistantChunk(entries: PanelEntry[], i: number): boolean {
+  for (let j = i + 1; j < entries.length; j++) {
+    const e = entries[j];
+    if (e.kind === "text") {
+      if (e.role === "assistant") return false;
+      break;
+    }
+  }
+  return true;
 }
 
 // Renders a conversation's whole `entries` array: the collapsible system
@@ -33,7 +49,7 @@ export default function ChatEntryList({
   sending,
   isAcp,
   turnDurations,
-  sendStartedAt,
+  replyStartedAt,
   nowTick,
   onRetry,
 }: ChatEntryListProps) {
@@ -120,6 +136,10 @@ export default function ChatEntryList({
 
   function renderEntry(i: number) {
     const entry = entries[i];
+    const showFooter =
+      entry.kind !== "text" ||
+      entry.role === "user" ||
+      isFinalAssistantChunk(entries, i);
     return (
       <ChatEntryRenderer
         key={i}
@@ -133,6 +153,7 @@ export default function ChatEntryList({
         onCopy={() => copyText(i, entry.kind === "text" ? entry.content : "")}
         onRetry={onRetry}
         turnDuration={turnDurations[i]}
+        showFooter={showFooter}
       />
     );
   }
@@ -227,10 +248,10 @@ export default function ChatEntryList({
         }
         return renderEntry(item.index);
       })}
-      {sending && sendStartedAt && (
+      {sending && (
         <div className="text-zinc-600 text-sm">
-          {hasActivity
-            ? `Working for ${formatDuration(Math.max(0, Math.round((nowTick - sendStartedAt) / 1000)))}`
+          {hasActivity && replyStartedAt
+            ? `Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`
             : "Waiting"}
         </div>
       )}

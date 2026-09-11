@@ -96,6 +96,7 @@ export interface ChatEntryRendererProps {
   onCopy: () => void;
   onRetry: () => void;
   turnDuration: number | undefined;
+  showFooter: boolean;
 }
 
 // Renders one transcript entry ("info"/"text"/"thinking"/"tool") — the
@@ -114,6 +115,7 @@ export default function ChatEntryRenderer({
   onCopy,
   onRetry,
   turnDuration,
+  showFooter,
 }: ChatEntryRendererProps) {
   if (entry.kind === "info") {
     return (
@@ -137,35 +139,37 @@ export default function ChatEntryRenderer({
           <Markdown content={entry.content} />
         </div>
 
-        <div
-          className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
-        >
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onCopy}
-            title="Copy"
-            className="text-zinc-600 hover:text-zinc-300"
+        {showFooter && (
+          <div
+            className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-          </Button>
-          {!sending && isLast && !isAcp && (
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={onRetry}
-              title="Retry"
+              onClick={onCopy}
+              title="Copy"
               className="text-zinc-600 hover:text-zinc-300"
             >
-              <RotateCcw size={13} />
+              {copied ? <Check size={13} /> : <Copy size={13} />}
             </Button>
-          )}
-          <span className="normal-case tracking-normal text-zinc-700">
-            {!isUser && turnDuration !== undefined
-              ? `${formatTime(entry.time)} · Worked for ${formatDuration(turnDuration)}`
-              : formatTime(entry.time)}
-          </span>
-        </div>
+            {!sending && isLast && !isAcp && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onRetry}
+                title="Retry"
+                className="text-zinc-600 hover:text-zinc-300"
+              >
+                <RotateCcw size={13} />
+              </Button>
+            )}
+            <span className="normal-case tracking-normal text-zinc-700">
+              {!isUser && turnDuration !== undefined
+                ? `${formatTime(entry.time)} · Worked for ${formatDuration(turnDuration)}`
+                : formatTime(entry.time)}
+            </span>
+          </div>
+        )}
       </div>
     );
   }

@@ -121,29 +121,43 @@ export default function ChatPanel() {
   // ticking clock rather than a static label, since a turn can run for
   // minutes (tool calls, sub-agents) and a frozen "generating…" gives no
   // sense of how long that's actually been going on.
-  const [sendStartedAt, setSendStartedAt] = useState<number | null>(null);
+  // The moment the agent's first visible output (text/thinking/tool) shows
+  // up after a send — "Worked for <time>" measures from here rather than
+  // from when the user hit send, so queueing/network latency before the
+  // agent starts doing anything isn't counted as work.
+  const [replyStartedAt, setReplyStartedAt] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   // Once a turn finishes, its elapsed time is frozen here (keyed by the
   // finished assistant reply's own index in `entries`) so the reply's
   // footer can keep showing "Worked for <time>" instead of reverting to a
-  // plain timestamp — refs because the effect below only fires on the
-  // `sending` transition and needs whatever `entries`/`sendStartedAt` were
-  // current *at that moment*, not whatever they were when the effect was
-  // last set up.
+  // plain timestamp — a ref because the effect below only fires on the
+  // `sending` transition and needs whatever `entries` were current *at that
+  // moment*, not whatever they were when the effect was last set up.
   const [turnDurations, setTurnDurations] = useState<Record<number, number>>(
     {},
   );
-  const sendStartedAtRef = useRef<number | null>(null);
+  const replyStartedAtRef = useRef<number | null>(null);
   useEffect(() => {
-    sendStartedAtRef.current = sendStartedAt;
-  }, [sendStartedAt]);
+    replyStartedAtRef.current = replyStartedAt;
+  }, [replyStartedAt]);
   const entriesRef = useRef(entries);
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
   useEffect(() => {
+    if (!sending || replyStartedAt !== null) return;
+    const last = entries[entries.length - 1];
+    const hasActivity = !!(
+      last &&
+      ((last.kind === "text" && last.role === "assistant") ||
+        last.kind === "thinking" ||
+        last.kind === "tool")
+    );
+    if (hasActivity) setReplyStartedAt(Date.now());
+  }, [entries, sending, replyStartedAt]);
+  useEffect(() => {
     if (!sending) {
-      const startedAt = sendStartedAtRef.current;
+      const startedAt = replyStartedAtRef.current;
       if (startedAt) {
         const seconds = Math.max(
           0,
@@ -159,10 +173,9 @@ export default function ChatPanel() {
           if (e.kind === "text" && e.role === "user") break;
         }
       }
-      setSendStartedAt(null);
+      setReplyStartedAt(null);
       return;
     }
-    setSendStartedAt((prev) => prev ?? Date.now());
     const interval = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [sending]);
@@ -427,7 +440,7 @@ export default function ChatPanel() {
           sending={sending}
           isAcp={isAcp}
           turnDurations={turnDurations}
-          sendStartedAt={sendStartedAt}
+          replyStartedAt={replyStartedAt}
           nowTick={nowTick}
           onRetry={retry}
         />
