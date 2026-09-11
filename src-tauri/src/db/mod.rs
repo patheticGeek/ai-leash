@@ -20,7 +20,7 @@ pub use acp_sessions::{
 pub use conversations::clear_conversation;
 pub use messages::{
     finish_streaming_message, load_messages, save_message, start_streaming_message,
-    update_streaming_message, PersistedMessage,
+    update_streaming_message, update_tool_call_args, PersistedMessage,
 };
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent, list_all_sub_agents, list_sub_agents_for_parent,

@@ -255,6 +255,8 @@ fn emit_tool_call_update(
             &format!("chat://{session_id}/tool_call_args"),
             json!({ "id": &call_id, "arguments": raw_input }),
         );
+        let state = app.state::<AppState>();
+        db::update_tool_call_args(&state.db, session_id, &call_id, raw_input);
     }
 
     // `content` replaces rather than extends within a single update, but

@@ -99,6 +99,44 @@ pub fn finish_streaming_message(
     );
 }
 
+/// Patches a persisted tool call's arguments in place. `persist_tool_call`
+/// (in `acp/events.rs`) writes whatever `raw_input` the initial `ToolCall`
+/// notification carried, but some ACP agents only fill it in later via a
+/// `ToolCallUpdate`; that update is otherwise only forwarded live
+/// (`tool_call_args`, see `chatEntries.ts`'s `updateToolArgs`), so without
+/// this a reload rebuilds the entry from the original, possibly empty,
+/// arguments and the patched input silently disappears on restart.
+pub fn update_tool_call_args(
+    db: &Db,
+    conversation_id: &str,
+    call_id: &str,
+    arguments: &serde_json::Value,
+) {
+    let conn = db.0.lock().unwrap();
+    let like_pattern = format!("%\"id\":\"{call_id}\"%");
+    let row: Option<(i64, String)> = conn
+        .prepare("SELECT id, tool_calls FROM messages WHERE conversation_id = ?1 AND tool_calls LIKE ?2 ORDER BY id DESC LIMIT 1")
+        .and_then(|mut stmt| stmt.query_row(params![conversation_id, like_pattern], |row| Ok((row.get(0)?, row.get(1)?))))
+        .ok();
+    let Some((id, tool_calls_json)) = row else {
+        return;
+    };
+    let Ok(mut calls) = serde_json::from_str::<Vec<ToolCall>>(&tool_calls_json) else {
+        return;
+    };
+    for call in &mut calls {
+        if call.id.as_deref() == Some(call_id) {
+            call.function.arguments = arguments.clone();
+        }
+    }
+    if let Ok(updated_json) = serde_json::to_string(&calls) {
+        let _ = conn.execute(
+            "UPDATE messages SET tool_calls = ?1 WHERE id = ?2",
+            params![updated_json, id],
+        );
+    }
+}
+
 /// Loads a conversation's full history, oldest first, timestamps attached —
 /// used both to re-seed `chat_sessions` (so the conversation can continue)
 /// and, as-is, for the frontend to render.
@@ -293,6 +331,46 @@ mod tests {
         );
         assert_eq!(loaded[2].role, "tool");
         assert_eq!(loaded[3].content, "It's empty.");
+    }
+
+    // Regression test: an ACP agent that omits `raw_input` on the initial
+    // `ToolCall` and only supplies it later via a `ToolCallUpdate` used to
+    // have that patched input live only in the frontend's in-memory state
+    // (see `emit_tool_call_update` in `acp/events.rs`) — a restart would
+    // reload from the empty arguments `persist_tool_call` originally wrote.
+    #[test]
+    fn update_tool_call_args_patches_persisted_row() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "assistant".into(),
+                content: String::new(),
+                tool_calls: Some(vec![ToolCall {
+                    id: Some("call-1".into()),
+                    function: ToolCallFunction {
+                        name: "read_file".into(),
+                        arguments: serde_json::Value::Null,
+                    },
+                }]),
+            },
+        );
+
+        update_tool_call_args(
+            &db,
+            "/proj",
+            "call-1",
+            &serde_json::json!({ "path": "a.rs" }),
+        );
+
+        let loaded = load_messages(&db, "/proj");
+        let calls = loaded[0].tool_calls.as_ref().unwrap();
+        assert_eq!(
+            calls[0].function.arguments,
+            serde_json::json!({ "path": "a.rs" })
+        );
     }
 
     #[test]
