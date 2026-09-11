@@ -162,7 +162,7 @@ export default function ChatEntryRenderer({
           )}
           <span className="normal-case tracking-normal text-zinc-700">
             {!isUser && turnDuration !== undefined
-              ? `Worked for ${formatDuration(turnDuration)}`
+              ? `${formatTime(entry.time)} · Worked for ${formatDuration(turnDuration)}`
               : formatTime(entry.time)}
           </span>
         </div>
