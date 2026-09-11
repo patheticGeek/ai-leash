@@ -59,6 +59,7 @@ export interface ProjectSlice {
   activePath: string | null;
   recentProjects: RecentProject[];
   openProject: (root: string) => Promise<void>;
+  removeProject: (root: string) => void;
   restoreLastProject: () => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
@@ -151,6 +152,24 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         get().closePanelTab(tab.id);
       }
     }
+  },
+
+  removeProject: (root) => {
+    set((s) => {
+      const recentProjects = s.recentProjects.filter((p) => p.path !== root);
+      saveRecentProjects(recentProjects);
+      if (s.projectRoot !== root) return { recentProjects };
+      return {
+        recentProjects,
+        projectRoot: null,
+        openFiles: [],
+        activePath: null,
+        panelTabs: [],
+        activePanelTabId: null,
+        chatTabs: [PRIMARY_CHAT_TAB],
+        activeChatTabId: "primary",
+      };
+    });
   },
 
   restoreLastProject: async () => {

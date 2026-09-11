@@ -162,7 +162,7 @@ export default function ChatEntryRenderer({
           )}
           <span className="normal-case tracking-normal text-zinc-700">
             {!isUser && turnDuration !== undefined
-              ? `Worked for ${formatDuration(turnDuration)}`
+              ? `${formatTime(entry.time)} · Worked for ${formatDuration(turnDuration)}`
               : formatTime(entry.time)}
           </span>
         </div>
@@ -177,10 +177,10 @@ export default function ChatEntryRenderer({
           variant="unstyled"
           size="none"
           onClick={onToggleExpand}
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:text-zinc-400"
         >
           <Chevron expanded={expanded} />
-          <span className="italic">generating slop…</span>
+          <span className="italic">thinking…</span>
         </Button>
         {expanded && (
           <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 italic text-zinc-600">
