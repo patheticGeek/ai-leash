@@ -1,8 +1,10 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Badge } from "@/ui/badge";
+import { Button } from "@/ui/button";
+import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
-import Button from "../../../ui/Button";
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -68,9 +70,9 @@ export default function SubAgentsTab() {
           (running ? now : (task.endedAt ?? now)) - task.startedAt,
         );
         return (
-          <div
+          <Card
             key={task.subSessionId}
-            className="group cursor-default rounded-md bg-[#141518] px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
+            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
           >
             <div className="flex items-center gap-2">
               <Button
@@ -79,11 +81,11 @@ export default function SubAgentsTab() {
                 onClick={() => openChatTab(task.subSessionId, task.description)}
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                <span
-                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+                <Badge
+                  className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
                 >
                   {task.status === "running" ? "running…" : task.status}
-                </span>
+                </Badge>
                 <span className="min-w-0 flex-1 truncate text-zinc-300">
                   {task.description}
                 </span>
@@ -114,7 +116,7 @@ export default function SubAgentsTab() {
               started {formatTime(task.startedAt)} ·{" "}
               {running ? "running" : "ran"} for {duration}
             </div>
-          </div>
+          </Card>
         );
       })}
     </div>

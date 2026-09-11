@@ -24,7 +24,8 @@ export default function TerminalPanel() {
     const term = new Terminal({
       convertEol: true,
       fontSize: 13,
-      fontFamily: "Menlo, Consolas, monospace",
+      fontFamily:
+        '"JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
       theme: {
         background: "#0b0c0e",
         foreground: "#d4d4d8",

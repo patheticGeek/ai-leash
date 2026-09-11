@@ -1,8 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import { Button } from "@/ui/button";
 import { api, type DirEntryInfo } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
-import Button from "../../../ui/Button";
 
 function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
   const [expanded, setExpanded] = useState(false);

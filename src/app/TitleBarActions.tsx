@@ -1,8 +1,8 @@
 import { ChevronDown, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/ui/button";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
-import Button from "../ui/Button";
 
 // Whichever action was started most recently (even if it has since
 // stopped) is treated as "current" and shown on the collapsed button;
@@ -63,7 +63,7 @@ export default function TitleBarActions() {
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 items-center">
-      <div className="flex items-center rounded-md shadow-[var(--al-shadow)]">
+      <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
         <Button
           variant="unstyled"
           size="none"

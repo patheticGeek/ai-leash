@@ -2,7 +2,7 @@ import { getIdentifier, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import Button from "../../../ui/Button";
+import { Button } from "@/ui/button";
 import Logo from "../../../ui/Logo";
 
 const GITHUB_URL = "https://github.com/patheticGeek/ai-leash";

@@ -10,6 +10,11 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "ignoreDeprecations": "6.0",
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",

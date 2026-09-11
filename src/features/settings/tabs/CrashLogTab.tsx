@@ -1,7 +1,7 @@
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "@/ui/button";
 import { api } from "../../../lib/tauriApi";
-import Button from "../../../ui/Button";
 
 export default function CrashLogTab() {
   const [log, setLog] = useState<string | null>(null);

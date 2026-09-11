@@ -10,8 +10,9 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
+import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
 import { useAppStore } from "../../../store";
-import Button from "../../../ui/Button";
 
 // One flat grid of every configured backend — Ollama connections, ACP
 // agents, then OpenAI-compatible APIs — matching what the user asked for
@@ -244,21 +245,19 @@ export default function AgentsSettingsTab() {
         </div>
         {type === "ollama" && (
           <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
-            <input
+            <Input
               value={ollamaForm.label}
               onChange={(e) =>
                 setOllamaForm({ ...ollamaForm, label: e.currentTarget.value })
               }
               placeholder="Label, e.g. Local Ollama"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
-            <input
+            <Input
               value={ollamaForm.host}
               onChange={(e) =>
                 setOllamaForm({ ...ollamaForm, host: e.currentTarget.value })
               }
               placeholder="localhost:11434"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
             <div className="flex justify-end gap-2">
               <Button
@@ -278,41 +277,37 @@ export default function AgentsSettingsTab() {
         )}
         {type === "openAiCompatible" && (
           <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
-            <input
+            <Input
               value={openAiForm.label}
               onChange={(e) =>
                 setOpenAiForm({ ...openAiForm, label: e.currentTarget.value })
               }
               placeholder="Label, e.g. OpenRouter"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
-            <input
+            <Input
               value={openAiForm.baseUrl}
               onChange={(e) =>
                 setOpenAiForm({ ...openAiForm, baseUrl: e.currentTarget.value })
               }
               placeholder="https://api.openai.com/v1"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
-            <input
+            <Input
               value={openAiForm.apiKey}
               onChange={(e) =>
                 setOpenAiForm({ ...openAiForm, apiKey: e.currentTarget.value })
               }
               type="password"
               placeholder="API key"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
             <div className="text-xs text-zinc-600">
               Stored locally in this app's settings, unencrypted.
             </div>
-            <input
+            <Input
               value={openAiForm.model}
               onChange={(e) =>
                 setOpenAiForm({ ...openAiForm, model: e.currentTarget.value })
               }
               placeholder="Model id, e.g. gpt-4.1"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
             <div className="flex justify-end gap-2">
               <Button
@@ -332,21 +327,19 @@ export default function AgentsSettingsTab() {
         )}
         {type === "acp" && (
           <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
-            <input
+            <Input
               value={acpForm.label}
               onChange={(e) =>
                 setAcpForm({ ...acpForm, label: e.currentTarget.value })
               }
               placeholder="Label, e.g. Claude Code"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
-            <input
+            <Input
               value={acpForm.launchCommand}
               onChange={(e) =>
                 setAcpForm({ ...acpForm, launchCommand: e.currentTarget.value })
               }
               placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
-              className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
             />
             <div className="text-xs text-zinc-600">
               Runs as an external agent process — model/tool behavior depends on

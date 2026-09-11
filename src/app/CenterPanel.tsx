@@ -1,8 +1,8 @@
 import { X } from "lucide-react";
+import { Button } from "@/ui/button";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
 import { useAppStore } from "../store";
-import Button from "../ui/Button";
 
 export default function CenterPanel() {
   const chatTabs = useAppStore((s) => s.chatTabs);
