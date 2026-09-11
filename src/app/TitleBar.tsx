@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Copy, Minus, PlusIcon, SettingsIcon, Square, X } from "lucide-react";
+import { Copy, Minus, PlusIcon, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import { useAppStore } from "../store";
@@ -82,7 +82,6 @@ export default function TitleBar({
   const recentProjects = useAppStore((s) => s.recentProjects);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
-  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const openProject = useAppStore((s) => s.openProject);
 
   const projectName = recentProjects.find((p) => p.path === projectRoot)?.name;
@@ -110,14 +109,6 @@ export default function TitleBar({
       >
         <Logo className="h-3 w-auto shrink-0 ml-1.5" />
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSettingsModalOpen(true)}
-            title="Provider settings"
-          >
-            <SettingsIcon size={14} />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

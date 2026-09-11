@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/ui/button";
 import type { PanelEntry } from "../hooks/useChatStream";
@@ -162,8 +162,34 @@ export default function ChatEntryList({
         </div>
       )}
       {entries.length === 0 && !ollamaError && (
-        <div className="text-zinc-500">
-          Ask the agent anything about this project.
+        <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
+          <div className="w-full max-w-md text-center">
+            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.16),0_10px_26px_rgba(0,0,0,0.2)]">
+              <MessageCircle size={25} strokeWidth={1.6} />
+              <Sparkles
+                size={13}
+                className="absolute -right-1 -top-1 text-amber-300"
+              />
+            </div>
+            <h2 className="text-lg font-medium text-zinc-100">
+              What are we working on?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">
+              Ask about your code, plan a change, or let the agent explore the
+              project with you.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
+              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                Explain this project
+              </span>
+              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                Find a bug
+              </span>
+              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                Build a feature
+              </span>
+            </div>
+          </div>
         </div>
       )}
       {ollamaError && (

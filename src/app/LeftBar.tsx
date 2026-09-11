@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { SettingsIcon, Trash2 } from "lucide-react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import {
@@ -12,10 +13,12 @@ function ProjectRow({
   project,
   active,
   onClick,
+  onContextMenu,
 }: {
   project: RecentProject;
   active: boolean;
   onClick: () => void;
+  onContextMenu: (event: MouseEvent) => void;
 }) {
   const generating = useAppStore((s) => !!s.generatingSessions[project.path]);
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
@@ -29,6 +32,7 @@ function ProjectRow({
       variant="unstyled"
       size="none"
       onClick={onClick}
+      onContextMenu={onContextMenu}
       title={
         awaitingApproval
           ? `${project.path} — needs your approval`
@@ -59,12 +63,33 @@ export default function LeftBar() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openProject = useAppStore((s) => s.openProject);
+  const removeProject = useAppStore((s) => s.removeProject);
+  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
   const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
   const resolvePendingPermission = useAppStore(
     (s) => s.resolvePendingPermission,
   );
+  const [contextMenu, setContextMenu] = useState<{
+    project: RecentProject;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
 
   // Unlike `chat://{sessionId}/generating`, `permission://request` isn't
   // path-templated per project — it's one global event carrying its own
@@ -117,8 +142,8 @@ export default function LeftBar() {
   );
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
-      <div className="flex-1 overflow-y-auto py-1.5">
+    <div className="relative flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
+      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
         {sortedProjects.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">
             No projects yet
@@ -130,10 +155,51 @@ export default function LeftBar() {
               project={p}
               active={p.path === projectRoot}
               onClick={() => openProject(p.path)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setContextMenu({
+                  project: p,
+                  x: event.clientX,
+                  y: event.clientY,
+                });
+              }}
             />
           ))
         )}
       </div>
+      <div className="shrink-0 border-t border-white/[0.06] p-2">
+        <Button
+          variant="ghost"
+          size="default"
+          title="Settings"
+          onClick={() => setSettingsModalOpen(true)}
+          className="w-full justify-start gap-2 text-zinc-500 hover:text-zinc-200"
+        >
+          <SettingsIcon size={15} />
+          Settings
+        </Button>
+      </div>
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-36 rounded-md bg-[#17181c] p-1 shadow-[var(--al-shadow)]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <Button
+            variant="danger"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={() => {
+              removeProject(contextMenu.project.path);
+              setContextMenu(null);
+            }}
+          >
+            <Trash2 size={14} />
+            Delete project
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
