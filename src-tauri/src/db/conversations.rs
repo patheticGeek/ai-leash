@@ -55,6 +55,10 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
             "DELETE FROM conversations WHERE id = ?1",
             params![sub_agent_id],
         );
+        let _ = conn.execute(
+            "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
+            params![sub_agent_id],
+        );
     }
     let _ = conn.execute(
         "DELETE FROM sub_agents WHERE parent_session_id = ?1",
@@ -67,6 +71,16 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
     );
     let _ = conn.execute(
         "DELETE FROM conversations WHERE id = ?1",
+        params![conversation_id],
+    );
+    // Also drop any stored agent-native session id for this conversation (see
+    // `acp_sessions.rs`) — otherwise `/clear` only wipes our own transcript
+    // while the next connection's `session/load` resumes the same ACP
+    // session, and the agent still remembers everything from before the
+    // clear. Not scoped by `launch_command` since this conversation may have
+    // switched agents over its lifetime and all of them should be forgotten.
+    let _ = conn.execute(
+        "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
         params![conversation_id],
     );
 }
@@ -177,6 +191,23 @@ mod tests {
         assert_eq!(
             crate::db::list_sub_agents_for_parent(&db, "/other", 50).len(),
             1
+        );
+    }
+
+    #[test]
+    fn clear_conversation_drops_the_stored_acp_session_so_it_cannot_be_resumed() {
+        use crate::db::{get_acp_agent_session_id, set_acp_agent_session_id};
+
+        let db = temp_db();
+        set_acp_agent_session_id(&db, "/proj", "claude-code", "agent-sess-1");
+        set_acp_agent_session_id(&db, "/other", "claude-code", "agent-sess-2");
+
+        clear_conversation(&db, "/proj");
+
+        assert_eq!(get_acp_agent_session_id(&db, "/proj", "claude-code"), None);
+        assert_eq!(
+            get_acp_agent_session_id(&db, "/other", "claude-code"),
+            Some("agent-sess-2".to_string())
         );
     }
 }

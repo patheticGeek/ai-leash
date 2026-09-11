@@ -25,6 +25,27 @@ pub(crate) use process::AcpCommand;
 
 use discovery::{find_model_config_option, format_acp_error, model_options_payload};
 
+/// Connects an ACP agent's subprocess ahead of the user's first message,
+/// rather than waiting for `send_prompt_acp` to do it lazily — called once
+/// an ACP agent becomes active for a conversation (see `ChatPanel.tsx`).
+/// This is what lets a `session/load` resume failure (see `process.rs`'s
+/// `drive_acp_connection`) surface to the user before there's a typed
+/// message it could otherwise strand: `send_prompt_acp` clears the input as
+/// soon as it's called, so a failure discovered only on first send would
+/// have nowhere to put that text back.
+#[tauri::command]
+pub async fn warm_acp_session(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    session_id: String,
+    launch_command: String,
+    provider: ProviderConfig,
+    model: String,
+) -> Result<(), String> {
+    ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn send_prompt_acp(
     app: AppHandle,

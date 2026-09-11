@@ -56,6 +56,10 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
 /// comment) — the *next* prompt for this session then starts a genuinely
 /// fresh `session/new` instead of continuing a conversation the agent
 /// still remembers everything about, since ACP has no session/truncate.
+/// That guarantee depends on `db::clear_conversation` also dropping this
+/// conversation's `acp_agent_sessions` row — without it, the stored
+/// agent-native session id would survive the clear and the next connection
+/// would `session/load` straight back into the same agent-side context.
 /// The frontend only calls this while nothing is generating (mirroring
 /// `retry_last`), so there's no live turn whose `push_message` calls could
 /// otherwise land in the freshly-cleared history right after this runs.

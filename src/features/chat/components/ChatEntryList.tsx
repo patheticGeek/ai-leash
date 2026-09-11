@@ -10,6 +10,8 @@ import ChatEntryRenderer, {
 export interface ChatEntryListProps {
   entries: PanelEntry[];
   ollamaError: string | null;
+  acpRestoreFailed: string | null;
+  onRetryAcpSession: () => void;
   systemPrompt: string | null;
   sending: boolean;
   isAcp: boolean;
@@ -45,6 +47,8 @@ function isFinalAssistantChunk(entries: PanelEntry[], i: number): boolean {
 export default function ChatEntryList({
   entries,
   ollamaError,
+  acpRestoreFailed,
+  onRetryAcpSession,
   systemPrompt,
   sending,
   isAcp,
@@ -216,6 +220,22 @@ export default function ChatEntryList({
       {ollamaError && (
         <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
           {ollamaError}
+        </div>
+      )}
+      {acpRestoreFailed && (
+        <div className="flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+          <span>
+            This agent couldn't restore its previous session ({acpRestoreFailed}
+            ). It no longer remembers this conversation.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={onRetryAcpSession}
+          >
+            Start new session
+          </Button>
         </div>
       )}
       {renderItems.map((item) => {

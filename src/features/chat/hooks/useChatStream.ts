@@ -111,6 +111,14 @@ export function useChatStream(
     completion: number;
   } | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  // Set when this ACP agent couldn't resume its previous session (its own
+  // session store expired or was cleared) — distinct from `error` (plain
+  // string banner) since this one offers a "start new" action rather than
+  // just reporting failure. Cleared by `ChatPanel.tsx` right before it
+  // retries the connection (see `warm_acp_session`), so the banner drops
+  // immediately rather than lingering until a second failure would
+  // overwrite it.
+  const [acpRestoreFailed, setAcpRestoreFailed] = useState<string | null>(null);
 
   useEffect(() => {
     api.loadConversationHistory(sessionId).then((messages) => {
@@ -192,6 +200,11 @@ export function useChatStream(
     unlistens.push(
       listen<string>(`chat://${sessionId}/error`, (e) => {
         setError(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<string>(`chat://${sessionId}/acp_session_restore_failed`, (e) => {
+        setAcpRestoreFailed(e.payload);
       }),
     );
 
@@ -316,5 +329,7 @@ export function useChatStream(
     usage,
     setUsage,
     systemPrompt,
+    acpRestoreFailed,
+    clearAcpRestoreFailed: () => setAcpRestoreFailed(null),
   };
 }

@@ -131,6 +131,18 @@ export const api = {
   // in `ChatPanel.tsx` pick it up the same as a live agent turn would.
   runShellCommand: (sessionId: string, command: string) =>
     invoke<string>("run_shell_command", { sessionId, command }),
+  warmAcpSession: (
+    sessionId: string,
+    launchCommand: string,
+    provider: ProviderConfigPayload,
+    model: string,
+  ) =>
+    invoke<void>("warm_acp_session", {
+      sessionId,
+      launchCommand,
+      provider,
+      model,
+    }),
   sendPromptAcp: (
     sessionId: string,
     launchCommand: string,

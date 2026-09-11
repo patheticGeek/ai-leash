@@ -112,10 +112,54 @@ export default function ChatPanel() {
   } = useChatSession(sessionId, setOllamaError, sending, () =>
     setSlashDismissed(null),
   );
-  const { entries, setEntries, usage, setUsage, systemPrompt } = useChatStream(
+  const {
+    entries,
+    setEntries,
+    usage,
+    setUsage,
+    systemPrompt,
+    acpRestoreFailed,
+    clearAcpRestoreFailed,
+  } = useChatStream(sessionId, setOllamaError);
+
+  // Connects the ACP agent's subprocess as soon as one's active for this
+  // conversation, rather than waiting for the first `send()` — see
+  // `warm_acp_session`'s doc comment. This is what lets a `session/load`
+  // resume failure surface (as `acp_session_restore_failed`, handled in
+  // `useChatStream`) before there's a typed message `send()` could strand:
+  // it clears `input` optimistically as soon as it's called.
+  //
+  // `acpRetryNonce` re-triggers this same connect after a resume failure —
+  // clicking "Start new session" in the banner (see `ChatEntryList.tsx`)
+  // bumps it. By then the backend's already dropped the stale session id
+  // (see `drive_acp_connection`), so this attempt goes straight to a fresh
+  // `session/new`.
+  const [acpRetryNonce, setAcpRetryNonce] = useState(0);
+  const retryAcpSession = () => {
+    clearAcpRestoreFailed();
+    setAcpRetryNonce((n) => n + 1);
+  };
+  const launchCommand = activeAcpAgent?.launchCommand;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: acpRetryNonce isn't read in the body, it's a trigger-only dep to force a retry — see doc comment above
+  useEffect(() => {
+    if (!isAcp || !launchCommand) return;
+    api
+      .warmAcpSession(
+        sessionId,
+        launchCommand,
+        providerConfigFor(providerActiveId),
+        model,
+      )
+      .catch(() => {});
+  }, [
+    isAcp,
+    launchCommand,
     sessionId,
-    setOllamaError,
-  );
+    providerActiveId,
+    model,
+    providerConfigFor,
+    acpRetryNonce,
+  ]);
 
   // Drives the "Working for <time>" indicator below the transcript — a
   // ticking clock rather than a static label, since a turn can run for
@@ -436,6 +480,8 @@ export default function ChatPanel() {
         <ChatEntryList
           entries={entries}
           ollamaError={ollamaError}
+          acpRestoreFailed={acpRestoreFailed}
+          onRetryAcpSession={retryAcpSession}
           systemPrompt={systemPrompt}
           sending={sending}
           isAcp={isAcp}

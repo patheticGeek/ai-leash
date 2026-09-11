@@ -8,6 +8,7 @@ use agent_client_protocol::schema::v1::{
 };
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -125,13 +126,26 @@ fn push_segment_chunk(
     }
 }
 
+/// Set for the duration of a `session/load` call — the agent replays a
+/// resumed session's whole history back as ordinary notifications before
+/// that request resolves, and our SQLite transcript already has that
+/// history (that's the entire premise of resuming), so replaying it through
+/// `handle_session_notification` would just duplicate every past message on
+/// each reconnect. See `process.rs`'s use of this around its
+/// `LoadSessionRequest` call.
+pub(super) type SuppressReplay = Arc<AtomicBool>;
+
 pub(super) fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
     current_segment: &CurrentSegment,
     pending_tool_content: &PendingToolCallContent,
+    suppress_replay: &SuppressReplay,
     update: SessionUpdate,
 ) {
+    if suppress_replay.load(Ordering::Acquire) {
+        return;
+    }
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {

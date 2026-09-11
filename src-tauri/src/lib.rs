@@ -63,6 +63,7 @@ pub fn run() {
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
             tools::shell_tools::run_shell_command,
+            acp::warm_acp_session,
             acp::send_prompt_acp,
             acp::set_acp_model,
             acp::fetch_acp_models,

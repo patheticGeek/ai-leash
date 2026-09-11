@@ -9,10 +9,14 @@ use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+mod acp_sessions;
 mod conversations;
 mod messages;
 mod sub_agents;
 
+pub use acp_sessions::{
+    delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id,
+};
 pub use conversations::clear_conversation;
 pub use messages::{
     finish_streaming_message, load_messages, save_message, start_streaming_message,
@@ -72,6 +76,13 @@ impl Db {
                 finished_at INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_sub_agents_parent ON sub_agents(parent_session_id, started_at);
+            CREATE TABLE IF NOT EXISTS acp_agent_sessions (
+                conversation_id TEXT NOT NULL,
+                launch_command TEXT NOT NULL,
+                agent_session_id TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (conversation_id, launch_command)
+            );
             ",
         )
         .expect("failed to initialize history database schema");

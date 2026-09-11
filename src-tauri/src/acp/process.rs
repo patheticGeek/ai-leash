@@ -3,22 +3,26 @@ use super::discovery::{
 };
 use super::events::{
     close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent,
+    SuppressReplay,
 };
 use super::permissions::bridge_acp_permission;
 use crate::chat::{self, ChatMessage};
 use crate::commands;
+use crate::db;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, NewSessionRequest,
-    PromptRequest, RequestPermissionRequest, RequestPermissionResponse, SessionConfigId,
-    SessionNotification, SetSessionConfigOptionRequest, TextContent,
+    CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, LoadSessionRequest,
+    NewSessionRequest, PromptRequest, RequestPermissionRequest, RequestPermissionResponse,
+    SessionConfigId, SessionConfigOption, SessionId, SessionNotification,
+    SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
 use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::mpsc;
@@ -137,8 +141,15 @@ async fn run_acp_session(
         }
     };
 
-    if let Err(e) =
-        drive_acp_connection(app.clone(), session_id.clone(), root, agent, &mut commands).await
+    if let Err(e) = drive_acp_connection(
+        app.clone(),
+        session_id.clone(),
+        launch_command.clone(),
+        root,
+        agent,
+        &mut commands,
+    )
+    .await
     {
         let _ = app.emit(
             &format!("chat://{session_id}/error"),
@@ -152,6 +163,7 @@ async fn run_acp_session(
 async fn drive_acp_connection(
     app: AppHandle,
     session_id: String,
+    launch_command: String,
     cwd: std::path::PathBuf,
     agent: AcpAgent,
     commands: &mut mpsc::UnboundedReceiver<AcpCommand>,
@@ -167,11 +179,16 @@ async fn drive_acp_connection(
     // doc comment for why a terminal update can't just trust its own
     // `content` field in isolation.
     let pending_tool_content: PendingToolCallContent = Arc::new(StdMutex::new(HashMap::new()));
+    // See `SuppressReplay`'s doc comment — held true only around the
+    // `LoadSessionRequest` call below, while the agent is replaying a
+    // resumed session's history we already have in SQLite.
+    let suppress_replay: SuppressReplay = Arc::new(AtomicBool::new(false));
 
     let notif_app = app.clone();
     let notif_session_id = session_id.clone();
     let notif_current_segment = current_segment.clone();
     let notif_pending_tool_content = pending_tool_content.clone();
+    let notif_suppress_replay = suppress_replay.clone();
     let perm_app = app.clone();
     let perm_session_id = session_id.clone();
 
@@ -184,6 +201,7 @@ async fn drive_acp_connection(
                     &notif_session_id,
                     &notif_current_segment,
                     &notif_pending_tool_content,
+                    &notif_suppress_replay,
                     notification.update,
                 );
                 Ok(())
@@ -198,7 +216,7 @@ async fn drive_acp_connection(
             agent_client_protocol::on_receive_request!(),
         )
         .connect_with(agent, async move |connection: ConnectionTo<Agent>| {
-            connection
+            let init_response = connection
                 .send_request(
                     InitializeRequest::new(ProtocolVersion::V1)
                         .client_capabilities(ClientCapabilities::new()),
@@ -207,19 +225,76 @@ async fn drive_acp_connection(
                 .await?;
 
             let mcp_servers = mcp_servers_for(&app, &session_id, &cwd);
-            let new_session = connection
-                .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
-                .block_task()
-                .await?;
-            let acp_session_id = new_session.session_id;
+
+            // Only worth a lookup at all if the agent can actually resume
+            // from it — an agent that never advertises `loadSession` would
+            // just reject the id anyway.
+            let stored_agent_session_id = if init_response.agent_capabilities.load_session {
+                let state = app.state::<AppState>();
+                db::get_acp_agent_session_id(&state.db, &session_id, &launch_command)
+            } else {
+                None
+            };
+
+            let (acp_session_id, config_options): (SessionId, Option<Vec<SessionConfigOption>>) =
+                if let Some(stored_id) = stored_agent_session_id {
+                    suppress_replay.store(true, Ordering::Release);
+                    let load_result = connection
+                        .send_request(
+                            LoadSessionRequest::new(SessionId::new(stored_id.clone()), cwd)
+                                .mcp_servers(mcp_servers),
+                        )
+                        .block_task()
+                        .await;
+                    suppress_replay.store(false, Ordering::Release);
+
+                    match load_result {
+                        Ok(resp) => (SessionId::new(stored_id), resp.config_options),
+                        Err(e) => {
+                            // The agent no longer recognizes this id (expired,
+                            // or its own session store was cleared) — drop it
+                            // so the next attempt (the user retrying, or just
+                            // sending another message) goes straight to a
+                            // fresh `session/new` instead of repeating this
+                            // same failure. Told to the user rather than
+                            // silently started over, since context from the
+                            // prior conversation is genuinely gone from the
+                            // agent's side even though our own transcript
+                            // still has it.
+                            let state = app.state::<AppState>();
+                            db::delete_acp_agent_session_id(
+                                &state.db,
+                                &session_id,
+                                &launch_command,
+                            );
+                            let _ = app.emit(
+                                &format!("chat://{session_id}/acp_session_restore_failed"),
+                                format_acp_error(&e),
+                            );
+                            return Ok(());
+                        }
+                    }
+                } else {
+                    let new_session = connection
+                        .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
+                        .block_task()
+                        .await?;
+                    let state = app.state::<AppState>();
+                    db::set_acp_agent_session_id(
+                        &state.db,
+                        &session_id,
+                        &launch_command,
+                        &new_session.session_id.to_string(),
+                    );
+                    (new_session.session_id, new_session.config_options)
+                };
 
             // If this agent exposes a Model config option, tell the
             // frontend what's selectable; most agents won't have one, in
             // which case no event fires and the chat bar shows nothing for
             // model selection (there's nothing to select).
             let mut model_config_id: Option<SessionConfigId> = None;
-            if let Some(option) = new_session
-                .config_options
+            if let Some(option) = config_options
                 .as_ref()
                 .and_then(|opts| find_model_config_option(opts))
             {
