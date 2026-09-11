@@ -1,9 +1,10 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
-import Button from "../../ui/Button";
 import ChatEntryList from "./components/ChatEntryList";
 import ChatInputBar from "./components/ChatInputBar";
 import ContextUsageRing from "./components/ContextUsageRing";
@@ -507,11 +508,11 @@ export default function ChatPanel() {
               onOpenChange={setPermissionModePickerOpen}
             />
             {isOpenAiCompatible && !isAcp && (
-              <input
+              <Input
+                variant="chip"
                 value={model}
                 onChange={(e) => setModel(e.currentTarget.value)}
                 placeholder="model id"
-                className="min-w-0 rounded-md bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
               />
             )}
           </>

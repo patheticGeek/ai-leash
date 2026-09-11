@@ -1,5 +1,5 @@
+import { Button } from "@/ui/button";
 import type { PanelTabKind } from "../../store";
-import Button from "../../ui/Button";
 import { PICKER_TAB_KINDS } from "./tabKinds";
 
 export default function TabPicker({

@@ -2,8 +2,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Copy, Minus, PlusIcon, SettingsIcon, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "@/ui/button";
 import { useAppStore } from "../store";
-import Button from "../ui/Button";
 import Logo from "../ui/Logo";
 import TitleBarActions from "./TitleBarActions";
 

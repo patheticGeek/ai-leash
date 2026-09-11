@@ -7,6 +7,7 @@ import {
 } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
+import { Badge } from "../../ui/badge";
 import Markdown from "../../ui/Markdown";
 
 const statusStyles: Record<string, string> = {
@@ -120,13 +121,13 @@ export default function SubAgentChatTab({
   return (
     <div className="flex h-full flex-col bg-[#0e0f12]">
       <div className="flex items-center gap-2 shadow-[var(--al-shadow-b)] px-3 py-2 text-xs">
-        <span
-          className={`shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide ${
+        <Badge
+          className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide ${
             statusStyles[task?.status ?? "done"]
           }`}
         >
           {task?.status === "running" ? "running…" : (task?.status ?? "done")}
-        </span>
+        </Badge>
         <span className="min-w-0 flex-1 truncate text-zinc-300">
           {task?.description}
         </span>

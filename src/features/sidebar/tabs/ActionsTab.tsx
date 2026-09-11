@@ -1,8 +1,11 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/ui/badge";
+import { Button } from "@/ui/button";
+import { Card } from "@/ui/card";
+import { Input } from "@/ui/input";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
-import Button from "../../../ui/Button";
 import { useActions } from "../../actions/useActions";
 
 const emptyForm = { name: "", command: "" };
@@ -73,9 +76,9 @@ export default function ActionsTab() {
         </div>
       )}
       {actions.map((action) => (
-        <div
+        <Card
           key={action.id}
-          className="group cursor-default rounded-md bg-[#141518] px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
+          className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
         >
           <div className="flex items-center gap-2">
             <Button
@@ -85,15 +88,15 @@ export default function ActionsTab() {
               className="min-w-0 flex-1 text-left flex-col items-start"
             >
               <div className="flex items-center gap-2">
-                <span
-                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                <Badge
+                  className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                     action.running
                       ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
                       : "shadow-[0_0_0_1px_#27272a] bg-zinc-900/40 text-zinc-500"
                   }`}
                 >
                   {action.running ? "running…" : "stopped"}
-                </span>
+                </Badge>
                 <span className="min-w-0 flex-1 truncate text-zinc-300">
                   {action.name}
                 </span>
@@ -131,23 +134,21 @@ export default function ActionsTab() {
               {action.running ? <Square size={12} /> : <Play size={12} />}
             </Button>
           </div>
-        </div>
+        </Card>
       ))}
       {showForm ? (
         <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
-          <input
+          <Input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
             placeholder="Name, e.g. dev"
-            className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
           />
-          <input
+          <Input
             value={form.command}
             onChange={(e) =>
               setForm({ ...form, command: e.currentTarget.value })
             }
             placeholder="Command, e.g. npm run dev"
-            className="w-full rounded-md bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 outline-none shadow-[var(--al-shadow)] transition-shadow duration-150 focus:shadow-[0_0_0_1px_#3a5f8f]"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="md" onClick={cancelForm}>

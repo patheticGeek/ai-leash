@@ -1,7 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
-import Button from "../../ui/Button";
 import TabPicker from "./TabPicker";
 import { PANEL_TAB_KINDS } from "./tabKinds";
 

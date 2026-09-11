@@ -1,12 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
+import { Button } from "@/ui/button";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import {
   permissionForSession,
   type RecentProject,
   useAppStore,
 } from "../store";
-import Button from "../ui/Button";
 
 function ProjectRow({
   project,

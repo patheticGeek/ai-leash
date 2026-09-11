@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Button from "../../../ui/Button";
+import { Button } from "@/ui/button";
 
 function formatTokenCount(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);

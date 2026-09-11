@@ -1,7 +1,7 @@
-import { X } from "lucide-react";
 import { useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { useAppStore } from "../../store";
-import Button from "../../ui/Button";
 import AboutTab from "./tabs/AboutTab";
 import AgentsSettingsTab from "./tabs/AgentsSettingsTab";
 import CrashLogTab from "./tabs/CrashLogTab";
@@ -21,47 +21,42 @@ export default function SettingsModal() {
   const setOpen = useAppStore((s) => s.setSettingsModalOpen);
   const [activeSection, setActiveSection] = useState<SettingsSection>("agents");
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex h-[620px] w-[840px] flex-col rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="flex h-[620px] w-[840px] max-w-[calc(100%-2rem)] flex-col gap-0 p-0 sm:max-w-[840px]">
         <div className="flex items-center justify-between px-4 py-3">
-          <div className="text-base font-medium text-zinc-100">Settings</div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setOpen(false)}
-            title="Close"
-          >
-            <X size={16} />
-          </Button>
+          <DialogTitle className="text-base font-medium text-zinc-100">
+            Settings
+          </DialogTitle>
         </div>
-        <div className="flex flex-1 min-h-0">
-          <div className="w-48 shrink-0 space-y-0.5 p-2">
+        <Tabs
+          value={activeSection}
+          onValueChange={(v) => setActiveSection(v as SettingsSection)}
+          orientation="vertical"
+          className="flex-1 min-h-0"
+        >
+          <TabsList className="h-fit w-48 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-2">
             {SECTIONS.map((section) => (
-              <Button
+              <TabsTrigger
                 key={section.id}
-                variant="unstyled"
-                size="none"
-                onClick={() => setActiveSection(section.id)}
-                className={`block w-full rounded-md px-2 py-2 text-left text-sm ${
-                  activeSection === section.id
-                    ? "bg-[#26272c] text-zinc-100"
-                    : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-                }`}
+                value={section.id}
+                className="justify-start px-2 py-2 text-left"
               >
                 {section.label}
-              </Button>
+              </TabsTrigger>
             ))}
-          </div>
-          <div className="flex-1 overflow-auto p-4 text-base">
-            {activeSection === "agents" && <AgentsSettingsTab />}
-            {activeSection === "crashlog" && <CrashLogTab />}
-            {activeSection === "about" && <AboutTab />}
-          </div>
-        </div>
-      </div>
-    </div>
+          </TabsList>
+          <TabsContent value="agents" className="overflow-auto p-4 text-base">
+            <AgentsSettingsTab />
+          </TabsContent>
+          <TabsContent value="crashlog" className="overflow-auto p-4 text-base">
+            <CrashLogTab />
+          </TabsContent>
+          <TabsContent value="about" className="overflow-auto p-4 text-base">
+            <AboutTab />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }

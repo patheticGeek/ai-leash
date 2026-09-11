@@ -1,7 +1,7 @@
 import { ShieldCheck, ShieldOff } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Button } from "@/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import type { PermissionMode } from "../../../store";
-import Button from "../../../ui/Button";
 
 interface PermissionModePopoverProps {
   mode: PermissionMode;
@@ -35,73 +35,55 @@ export default function PermissionModePopover({
   open,
   onOpenChange,
 }: PermissionModePopoverProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        onOpenChange(false);
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onOpenChange(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onOpenChange]);
-
   const active = OPTIONS.find((o) => o.key === mode) ?? OPTIONS[0];
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
-      <Button
-        variant="unstyled"
-        size="none"
-        onClick={() => onOpenChange(!open)}
-        title="Tool-call permission mode"
-        className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs outline-none ${
-          mode === "bypass"
-            ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
-            : "shadow-[var(--al-shadow)] bg-[#17181c] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-        }`}
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="unstyled"
+          size="none"
+          title="Tool-call permission mode"
+          className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs outline-none ${
+            mode === "bypass"
+              ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
+              : "shadow-[var(--al-shadow)] bg-white/[0.04] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+          }`}
+        >
+          {mode === "bypass" ? (
+            <ShieldOff size={12} />
+          ) : (
+            <ShieldCheck size={12} />
+          )}
+          {active.label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-80 gap-0 overflow-hidden p-0"
       >
-        {mode === "bypass" ? (
-          <ShieldOff size={12} />
-        ) : (
-          <ShieldCheck size={12} />
-        )}
-        {active.label}
-      </Button>
-      {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 w-80 overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
-          <div className="py-1">
-            {OPTIONS.map((o) => (
-              <Button
-                key={o.key}
-                variant="unstyled"
-                size="none"
-                onClick={() => {
-                  onSelect(o.key);
-                  onOpenChange(false);
-                }}
-                className={`block w-full whitespace-normal px-3 py-2 text-left ${
-                  o.key === mode ? "bg-white/10" : "hover:bg-white/5"
-                }`}
-              >
-                <div className="text-sm font-medium text-zinc-100">
-                  {o.label}
-                </div>
-                <div className="text-xs text-zinc-500">{o.subtitle}</div>
-              </Button>
-            ))}
-          </div>
+        <div className="py-1">
+          {OPTIONS.map((o) => (
+            <Button
+              key={o.key}
+              variant="unstyled"
+              size="none"
+              onClick={() => {
+                onSelect(o.key);
+                onOpenChange(false);
+              }}
+              className={`block w-full whitespace-normal px-3 py-2 text-left ${
+                o.key === mode ? "bg-white/10" : "hover:bg-white/5"
+              }`}
+            >
+              <div className="text-sm font-medium text-zinc-100">{o.label}</div>
+              <div className="text-xs text-zinc-500">{o.subtitle}</div>
+            </Button>
+          ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }

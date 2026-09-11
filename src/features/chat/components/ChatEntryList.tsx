@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import Button from "../../../ui/Button";
+import { Button } from "@/ui/button";
 import type { PanelEntry } from "../hooks/useChatStream";
 import ChatEntryRenderer, {
   Chevron,

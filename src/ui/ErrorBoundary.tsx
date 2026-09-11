@@ -1,7 +1,7 @@
 import { RotateCcw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reportReactError } from "../lib/crashReporting";
-import Button from "./Button";
+import { Button } from "./button";
 
 interface Props {
   children: ReactNode;

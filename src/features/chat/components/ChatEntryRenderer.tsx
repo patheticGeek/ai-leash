@@ -6,8 +6,8 @@ import {
   RotateCcw,
   Wrench,
 } from "lucide-react";
+import { Button } from "@/ui/button";
 import { type Entry, isToolError } from "../../../lib/chatEntries";
-import Button from "../../../ui/Button";
 import Markdown from "../../../ui/Markdown";
 import type { PanelEntry } from "../hooks/useChatStream";
 

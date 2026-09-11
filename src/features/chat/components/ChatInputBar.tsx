@@ -1,10 +1,11 @@
 import { Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
+import { Button } from "@/ui/button";
+import { Textarea } from "@/ui/textarea";
 import type {
   AcpCommandInfo,
   PermissionRequestPayload,
 } from "../../../lib/tauriApi";
-import Button from "../../../ui/Button";
 import PermissionPopover from "./PermissionPopover";
 import SlashCommandMenu from "./SlashCommandMenu";
 
@@ -78,7 +79,7 @@ export default function ChatInputBar({
         className={`relative flex flex-col rounded-lg bg-[#17181c] transition-shadow duration-150 ${
           shellMode
             ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6)]"
-            : "shadow-[var(--al-shadow)] focus-within:shadow-[0_0_0_1px_#3a5f8f]"
+            : "shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)] focus-within:shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_1px_rgba(58,95,143,0.55)]"
         }`}
       >
         {pendingPermission ? (
@@ -102,14 +103,14 @@ export default function ChatInputBar({
               className="pointer-events-none absolute left-3 top-[11px] text-emerald-400"
             />
           )}
-          <textarea
+          <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => onChange(e.currentTarget.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
             rows={INPUT_MIN_ROWS}
-            className={`w-full resize-none bg-transparent pt-2 pb-1 text-sm placeholder:text-zinc-600 outline-none ${
+            className={`pt-2 pb-1 ${
               shellMode
                 ? "pl-8 pr-3 font-mono text-emerald-200"
                 : "px-3 text-zinc-200"

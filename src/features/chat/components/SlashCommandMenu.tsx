@@ -1,5 +1,5 @@
+import { Button } from "@/ui/button";
 import type { AcpCommandInfo } from "../../../lib/tauriApi";
-import Button from "../../../ui/Button";
 
 export interface SlashCommandMenuProps {
   matches: AcpCommandInfo[];
@@ -21,7 +21,7 @@ export default function SlashCommandMenu({
   onSelect,
 }: SlashCommandMenuProps) {
   return (
-    <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-xl bg-[#141518] py-1 shadow-2xl shadow-black/60 ring-1 ring-white/5">
+    <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-xl bg-popover py-1 text-popover-foreground shadow-[var(--al-shadow)]">
       {matches.map((c, i) => (
         <Button
           key={c.name}
