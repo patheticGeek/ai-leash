@@ -163,11 +163,17 @@ export default function ChatEntryRenderer({
                 <RotateCcw size={13} />
               </Button>
             )}
-            <span className="normal-case tracking-normal text-zinc-700">
-              {!isUser && turnDuration !== undefined
-                ? `${formatTime(entry.time)} · Worked for ${formatDuration(turnDuration)}`
-                : formatTime(entry.time)}
-            </span>
+            <div className="normal-case tracking-normal text-zinc-700 gap-2 flex items-center">
+              <span>{formatTime(entry.time)}</span>
+              {!isUser && turnDuration !== undefined && (
+                <>
+                  <span>·</span>
+                  <span className="normal-case tracking-normal text-zinc-700">
+                    Worked for {formatDuration(turnDuration)}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

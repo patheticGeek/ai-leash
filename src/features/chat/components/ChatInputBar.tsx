@@ -74,12 +74,12 @@ export default function ChatInputBar({
   }, [input]);
 
   return (
-    <div className="px-2 py-3">
+    <div className="px-3 py-4">
       <div
-        className={`relative flex flex-col rounded-lg bg-[#17181c] transition-shadow duration-150 ${
+        className={`relative flex flex-col rounded-xl bg-[#17181c] transition-shadow duration-150 ${
           shellMode
-            ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6)]"
-            : "shadow-[var(--al-shadow)] focus-within:shadow-[0_0_0_1px_rgba(58,95,143,0.55),var(--al-shadow)]"
+            ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
+            : "shadow-[var(--al-shadow),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
         }`}
       >
         {pendingPermission ? (
@@ -100,7 +100,7 @@ export default function ChatInputBar({
           {shellMode && (
             <SquareTerminal
               size={14}
-              className="pointer-events-none absolute left-3 top-[11px] text-emerald-400"
+              className="pointer-events-none absolute left-3.5 top-[15px] text-emerald-400"
             />
           )}
           <Textarea
@@ -110,14 +110,14 @@ export default function ChatInputBar({
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
             rows={INPUT_MIN_ROWS}
-            className={`pt-2 pb-1 ${
+            className={`pt-3 pb-2 leading-relaxed ${
               shellMode
-                ? "pl-8 pr-3 font-mono text-emerald-200"
-                : "px-3 text-zinc-200"
+                ? "pl-9 pr-3.5 font-mono text-emerald-200"
+                : "px-3.5 text-zinc-200"
             }`}
           />
         </div>
-        <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5">
+        <div className="flex items-center justify-between gap-1.5 px-2 pb-2">
           <div className="flex min-w-0 items-center gap-1.5">{toolbarLeft}</div>
           <div className="flex items-center gap-1.5">
             {contextUsage}

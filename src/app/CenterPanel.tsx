@@ -70,7 +70,7 @@ export default function CenterPanel() {
         {chatTabs.map((tab) => (
           <div
             key={tab.id}
-            className={`flex shrink-0 items-center gap-1.5 rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
+            className={`flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
               tab.id === activeChatTabId
                 ? "bg-white/10 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300"
@@ -82,7 +82,7 @@ export default function CenterPanel() {
               onClick={() => setActiveChatTab(tab.id)}
               className={cn(
                 "max-w-[12rem] truncate text-left pl-2 py-1.5",
-                tab.kind !== "subagent" && "pr-2",
+                tab.kind !== "subagent" ? "pr-2" : "pr-1.5",
               )}
             >
               {tab.label}
@@ -93,7 +93,7 @@ export default function CenterPanel() {
                 size="icon-sm"
                 title="Close tab"
                 onClick={() => closeChatTab(tab.id)}
-                className="-my-1 -mr-2 text-zinc-600 hover:text-zinc-300"
+                className="text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />
               </Button>

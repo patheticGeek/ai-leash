@@ -69,7 +69,7 @@ function ConversationRow({
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="min-w-0 truncate text-zinc-200">
+        <span className="block min-w-0 truncate text-zinc-200">
           {conversation.title || "New conversation"}
         </span>
         <span className="block truncate text-[11px] text-zinc-500">

@@ -30,7 +30,7 @@ export default function SidePanel() {
 
   return (
     <div className="flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-l)]">
-      <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =
             tab.kind === "file" &&
@@ -39,7 +39,7 @@ export default function SidePanel() {
           return (
             <div
               key={tab.id}
-              className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs cursor-default transition-colors duration-150 ease-out ${
+              className={`flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
                 active
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300"
@@ -52,7 +52,7 @@ export default function SidePanel() {
                   setActivePanelTab(tab.id);
                   setPickerOpen(false);
                 }}
-                className="flex items-center gap-1.5"
+                className="flex items-center pl-2 pr-1.5 py-1.5 gap-1.5"
               >
                 <span className="max-w-[10rem] truncate">{tab.label}</span>
                 {tab.kind === "subagents" && runningSubAgents > 0 && (
@@ -69,7 +69,7 @@ export default function SidePanel() {
                 size="icon-sm"
                 title="Close tab"
                 onClick={() => closePanelTab(tab.id)}
-                className="-my-1 -mr-2 text-zinc-600 hover:text-zinc-300"
+                className="text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />
               </Button>
