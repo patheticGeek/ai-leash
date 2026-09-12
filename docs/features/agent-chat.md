@@ -111,7 +111,12 @@ plus, now, on disk in SQLite once a project is open.
 
 `ChatMessage` (`chat/history.rs`) is `{ role, content, tool_calls? }`, matching
 Ollama's chat message shape directly (roles used: `system`, `user`,
-`assistant`, `tool`).
+`assistant`, `tool`). Conversation titles are stored separately on the SQLite
+`conversations` row. The first user message creates a compact fallback title
+(normalized first sentence, maximum 60 characters). The frontend loads it when
+opening a project and displays it in the left navigation and custom title bar.
+ACP `SessionInfoUpdate` notifications with a title replace the fallback, update
+SQLite, and emit `chat://{sessionId}/title` so the UI updates without a reload.
 
 ### System prompt injection
 
@@ -607,8 +612,12 @@ out of scope for now.
   `tool_call`/`tool_result` (only once `status` reaches
   `Completed`/`Failed`; content rendered via `summarize_tool_call_content`,
   a best-effort text join), and `AvailableCommandsUpdate` → the
-  `chat://{sessionId}/acp_commands` event covered above. `Plan`/
-  `CurrentModeUpdate`/etc. are still ignored — no UI concept for them yet.
+  `chat://{sessionId}/acp_commands` event covered above. ACP
+  `SessionInfoUpdate` titles are persisted as conversation titles and emitted
+  through `chat://{sessionId}/title`; `UsageUpdate` emits the shared
+  `chat://{sessionId}/usage` event with the ACP-reported context-window size.
+  `Plan`/`CurrentModeUpdate`/etc. are still ignored — no UI concept for them
+  yet.
   `generating` is bracketed true/false around each `PromptRequest`
   exactly like `run_with_cancellation` does for the built-in loop, so
   `LeftBar.tsx`'s busy dot and `ChatPanel.tsx`'s `sending` state work

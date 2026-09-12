@@ -15,6 +15,7 @@ better concurrent read/write behavior. Schema:
 CREATE TABLE conversations (
     id TEXT PRIMARY KEY,           -- == project root path, for now
     project_root TEXT NOT NULL,
+    title TEXT,                    -- compact session title, nullable
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -34,6 +35,12 @@ CREATE TABLE messages (
 No separate `seq` column — `messages.id`'s `AUTOINCREMENT` already
 gives strict insertion order, which is all that's needed since messages
 are always appended, never reordered or edited in place.
+
+The first non-empty user message creates a compact fallback title: whitespace
+is normalized, only the first sentence is kept, and the result is capped at
+60 characters. ACP agents can replace that fallback with a
+`SessionInfoUpdate` title; it is persisted and emitted through
+`chat://{sessionId}/title` so the navigation and title bar update immediately.
 
 ## Conversation id == project path (for now)
 

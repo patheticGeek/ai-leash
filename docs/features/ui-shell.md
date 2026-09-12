@@ -26,7 +26,7 @@ monitoring) lives in a multi-tab panel on the right:
   `openProject(path)` to switch to it (highlighted when it matches
   `projectRoot`). One row = one project = one conversation for now;
   wiring multiple named conversations per project is future work.
-  `recentProjects: {path, name, lastMessageAt}[]` persists to
+  `recentProjects: {path, name, title, lastMessageAt}[]` persists to
   `localStorage` (`ai-leash:recentProjects`), deduped by path — but
   *displayed* sorted by `lastMessageAt` descending (computed at render
   time in `LeftBar`, the stored array order doesn't matter). Merely
@@ -44,12 +44,18 @@ monitoring) lives in a multi-tab panel on the right:
   `lastMessageAt` (0 if a project's never had one, i.e. never chatted
   in) rather than a dedicated last-project key; if that path fails to
   open (e.g. deleted/moved), it's dropped from the list.
-  Each row (`ProjectRow`) shows a small pulsing blue dot next to the
-  name when `store.generatingSessions[path]` is true — since `LeftBar`
+  Each row (`ProjectRow`) shows the conversation title (or "New
+  conversation") on its first line, the project name on its second line,
+  and a small pulsing blue dot next to the title when
+  `store.generatingSessions[path]` is true. A pulsing amber dot means a
+  permission request is waiting for that project. Since `LeftBar`
   is always mounted, this reflects a project generating in the
   background even while you're looking at a different one (see
   ["generating" in agent-chat.md](./agent-chat.md#generating--is-a-session-busy-right-now)
   for where that state comes from).
+  The custom title bar shows the same session as
+  `<project name> / <conversation title>`; sub-agent center tabs use their
+  own label while active.
 - `CenterPanel.tsx` is the main, central column (no fixed width, no
   longer lives in a right-hand sidebar) and is itself a small tab
   strip: a permanent, non-closable `Agent` tab (`ChatPanel`, kept
