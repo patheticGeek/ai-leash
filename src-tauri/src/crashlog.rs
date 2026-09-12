@@ -7,12 +7,19 @@ use std::path::PathBuf;
 const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
 
 fn log_path() -> PathBuf {
-    // Same directory/fallback convention as `db.rs`'s `db_path()`.
+    // Same directory/fallback convention as `db.rs`'s `db_path()`, including
+    // the debug-build filename split — a `cargo tauri dev` build and an
+    // installed release build run side by side and shouldn't share this.
     let dir = dirs::config_dir()
         .map(|d| d.join("ai-leash"))
         .unwrap_or_else(std::env::temp_dir);
     let _ = std::fs::create_dir_all(&dir);
-    dir.join("crash.log")
+    let filename = if cfg!(debug_assertions) {
+        "crash.dev.log"
+    } else {
+        "crash.log"
+    };
+    dir.join(filename)
 }
 
 fn unix_timestamp() -> u64 {

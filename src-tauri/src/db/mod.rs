@@ -34,7 +34,15 @@ fn db_path() -> PathBuf {
         .map(|d| d.join("ai-leash"))
         .unwrap_or_else(std::env::temp_dir);
     let _ = std::fs::create_dir_all(&dir);
-    dir.join("history.db")
+    // Keeps a `cargo tauri dev` build's history separate from an
+    // installed release build's — same reasoning as `lib.rs`'s identifier
+    // suffix: the two run side by side and shouldn't share mutable state.
+    let filename = if cfg!(debug_assertions) {
+        "history.dev.db"
+    } else {
+        "history.db"
+    };
+    dir.join(filename)
 }
 
 fn now() -> i64 {

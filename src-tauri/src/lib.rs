@@ -22,6 +22,24 @@ pub fn run() {
     crashlog::install_panic_hook();
     env::fix_env();
 
+    // `enableGTKAppId` registers this app's GTK application under
+    // `identifier` as a *unique* D-Bus name (tao creates it without
+    // `NON_UNIQUE`). A `cargo tauri dev` build normally shares that same
+    // identifier with an already-installed release build, so launching dev
+    // just sends an `activate` signal to the running release instance
+    // instead of opening its own window — and that re-entrant activate
+    // panics Tauri's setup (`a webview with label main already exists`),
+    // crashing the instance you were actually using. Suffixing the
+    // identifier in debug builds gives dev its own D-Bus name so the two
+    // can coexist.
+    let mut context = tauri::generate_context!();
+    if cfg!(debug_assertions) {
+        context.config_mut().identifier.push_str(".dev");
+        for window in &mut context.config_mut().app.windows {
+            window.title.push_str(" (dev)");
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -82,7 +100,7 @@ pub fn run() {
             crashlog::get_crash_log,
             crashlog::clear_crash_log,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             // Kill every still-running Action's process when AI Leash
