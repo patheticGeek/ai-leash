@@ -72,6 +72,10 @@ export interface PermissionSlice {
   // once on mount with whatever's already stored, to re-sync the backend's
   // in-memory state after an app restart.
   setPermissionMode: (sessionId: string, mode: PermissionMode) => void;
+  // Drops a deleted conversation's saved Ask/Bypass choice — called by
+  // `conversationSlice.deleteConversation`, mirroring
+  // `acpSlice.forgetConversationBackend`.
+  forgetPermissionMode: (sessionId: string) => void;
 }
 
 export const permissionSlice: StateCreator<
@@ -110,4 +114,13 @@ export const permissionSlice: StateCreator<
     });
     void api.setPermissionMode(sessionId, mode === "bypass");
   },
+
+  forgetPermissionMode: (sessionId) =>
+    set((s) => {
+      if (!(sessionId in s.permissionMode)) return s;
+      const permissionMode = { ...s.permissionMode };
+      delete permissionMode[sessionId];
+      savePermissionModeMap(permissionMode);
+      return { permissionMode };
+    }),
 });

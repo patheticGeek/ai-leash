@@ -81,6 +81,8 @@ pub fn run() {
             chat::compact_conversation,
             chat::history::list_sub_agents,
             chat::history::delete_sub_agent,
+            chat::history::list_conversations,
+            chat::history::delete_conversation,
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
             tools::shell_tools::run_shell_command,

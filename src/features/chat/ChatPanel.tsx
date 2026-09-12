@@ -1,7 +1,9 @@
-import { X } from "lucide-react";
+import { ChevronDown, MessageCircle, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import NewConversationPopover from "@/app/NewConversationPopover";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
+import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
@@ -18,8 +20,6 @@ import {
 } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 
-const CHAT_DRAFT_KEY_PREFIX = "ai-leash:chatDraft:";
-
 function loadChatDraft(key: string): string {
   try {
     return localStorage.getItem(key) ?? "";
@@ -28,21 +28,37 @@ function loadChatDraft(key: string): string {
   }
 }
 
-export default function ChatPanel() {
-  const projectRoot = useAppStore((s) => s.projectRoot);
-  // A project's conversation id is its own path — stable across app
-  // restarts (so `load_conversation_history` can find it again), one
-  // conversation per project for now. `CenterPanel` remounts `ChatPanel`
-  // whenever `projectRoot` changes, so this only ever runs once per project.
-  const [sessionId] = useState(() => projectRoot ?? crypto.randomUUID());
-  const chatDraftKey = `${CHAT_DRAFT_KEY_PREFIX}${projectRoot ?? "unassigned"}`;
+export default function ChatPanel({
+  sessionId,
+  projectRoot,
+}: {
+  sessionId: string;
+  projectRoot: string;
+}) {
+  const chatDraftKey = chatDraftKeyFor(sessionId);
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
+  const conversations = useAppStore((s) => s.conversations);
+  const markConversationStarted = useAppStore((s) => s.markConversationStarted);
+  // A conversation not yet in `conversations` has never had a message
+  // sent — the centered "new thread" layout below, rather than the normal
+  // bottom-pinned one. Flips (without a remount: `sessionId` itself never
+  // changes) the instant `submitPrompt` calls `markConversationStarted`.
+  const isNewThread = !conversations.some((c) => c.id === sessionId);
+  // Only read for the new-thread heading's project-switcher below — the
+  // title bar's own "New Thread" button always targets whatever project is
+  // already current, so switching *which* project a still-fresh thread
+  // targets only lives here.
+  const projectName = useAppStore(
+    (s) =>
+      s.recentProjects.find((p) => p.path === projectRoot)?.name ?? projectRoot,
+  );
 
   // Ask/Bypass permission mode for this conversation — see
   // `setPermissionMode`'s doc comment in store.ts. Enforcement is
   // backend-side and in-memory only, so this pushes whatever's already
-  // stored down to it once per mount (this component remounts per project,
-  // same as `sessionId` above) to restore it after an app restart.
+  // stored down to it once per mount (this component remounts per
+  // conversation — see `App.tsx`'s `key={activeSessionId}`) to restore it
+  // after an app restart.
   const permissionMode = useAppStore(
     (s) => s.permissionMode[sessionId] ?? "ask",
   );
@@ -135,6 +151,7 @@ export default function ChatPanel() {
     activeBackendLabel,
     selectBackendOption,
     selectAcpEffort,
+    resetAcpConnectionState,
   } = useChatSession(sessionId, setOllamaError, sending, () =>
     setSlashDismissed(null),
   );
@@ -162,12 +179,12 @@ export default function ChatPanel() {
     isClaudeAcp,
     autoResumeFromRateLimit,
   );
-  const setProjectTitle = useAppStore((s) => s.setProjectTitle);
+  const setConversationTitle = useAppStore((s) => s.setConversationTitle);
   useEffect(() => {
     if (sessionTitle !== null) {
-      setProjectTitle(sessionId, sessionTitle);
+      setConversationTitle(sessionId, sessionTitle);
     }
-  }, [sessionId, sessionTitle, setProjectTitle]);
+  }, [sessionId, sessionTitle, setConversationTitle]);
 
   // Connects the ACP agent's subprocess as soon as one's active for this
   // conversation, rather than waiting for the first `send()` — see
@@ -338,6 +355,21 @@ export default function ChatPanel() {
         // so the Sub Agents sidebar and any open sub-agent tab don't keep
         // pointing at now-deleted rows.
         clearSubAgentTasksForParent(sessionId);
+        // The sidebar's cached title otherwise keeps showing whatever this
+        // conversation was called before — the backend already cleared its
+        // stored title along with everything else (`db::clear_conversation`
+        // deletes the `conversations` row outright), so the frontend's own
+        // copy needs to catch up until the next message sets a new one.
+        setConversationTitle(sessionId, null);
+        if (isAcp) {
+          // The backend just dropped its connection to this agent (see
+          // `chat::clear_conversation`) — the picker would otherwise keep
+          // showing the old, now-disconnected model/effort options as if
+          // they were still live. Reconnecting immediately (rather than
+          // waiting for the next send) re-announces them fresh.
+          resetAcpConnectionState();
+          setAcpRetryNonce((n) => n + 1);
+        }
       } catch (e) {
         setOllamaError(String(e));
       }
@@ -431,6 +463,7 @@ export default function ChatPanel() {
   // going through the input box or `send()`'s own guards (those are about
   // whether the *user* is allowed to send right now, not this).
   async function submitPrompt(text: string) {
+    markConversationStarted(sessionId, projectRoot);
     setEntries((prev) => [
       ...prev,
       { kind: "text", role: "user", content: text, time: Date.now() },
@@ -454,7 +487,7 @@ export default function ChatPanel() {
         );
       }
       const title = await api.getConversationTitle(sessionId);
-      setProjectTitle(sessionId, title);
+      setConversationTitle(sessionId, title);
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);
@@ -574,6 +607,112 @@ export default function ChatPanel() {
   const usedTokens = usage ? usage.prompt + usage.completion : null;
   const usageContextLength = usage?.contextLength ?? contextLength;
 
+  const inputBar = (
+    <ChatInputBar
+      input={input}
+      onChange={setInput}
+      onKeyDown={onKeyDown}
+      textareaRef={textareaRef}
+      shellMode={shellMode}
+      pendingPermission={pendingPermission}
+      onRespondPermission={respondPermission}
+      showSlashPopover={showSlashPopover}
+      slashMatches={slashMatches}
+      slashActiveIndex={slashActiveIndex}
+      onAcceptSlash={acceptSlashCommand}
+      sending={sending}
+      onSend={send}
+      onStop={stop}
+      sendDisabled={
+        !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
+      }
+      toolbarLeft={
+        <>
+          <ModelPickerPopover
+            options={backendOptions}
+            activeKey={activeBackendKey}
+            onSelect={selectBackendOption}
+            triggerLabel={activeBackendLabel}
+            open={modelPickerOpen}
+            onOpenChange={setModelPickerOpen}
+          />
+          {isAcp && acpEffortOptions && (
+            <EffortPickerPopover
+              options={acpEffortOptions.options}
+              value={acpEffortChoice ?? acpEffortOptions.currentValue}
+              onSelect={selectAcpEffort}
+            />
+          )}
+          <PermissionModePopover
+            mode={permissionMode}
+            onSelect={(mode) => setPermissionMode(sessionId, mode)}
+            open={permissionModePickerOpen}
+            onOpenChange={setPermissionModePickerOpen}
+          />
+          {isOpenAiCompatible && !isAcp && (
+            <Input
+              variant="chip"
+              value={model}
+              onChange={(e) => setModel(e.currentTarget.value)}
+              placeholder="model id"
+            />
+          )}
+        </>
+      }
+      contextUsage={
+        usedTokens !== null && (
+          <ContextUsageRing
+            usedTokens={usedTokens}
+            contextLength={usageContextLength}
+          />
+        )
+      }
+    />
+  );
+
+  if (isNewThread) {
+    // No conversation has been started for this project yet — centered
+    // (both axes) input instead of the normal bottom-pinned layout, per
+    // the "new thread" empty state. Flips to the layout below the instant
+    // `submitPrompt` calls `markConversationStarted`, with no remount.
+    return (
+      <div className="flex h-full items-center justify-center px-6">
+        <div className="w-full max-w-2xl">
+          <div className="mb-6 text-center">
+            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.16),0_10px_26px_rgba(0,0,0,0.2)]">
+              <MessageCircle size={25} strokeWidth={1.6} />
+              <Sparkles
+                size={13}
+                className="absolute -right-1 -top-1 text-amber-300"
+              />
+            </div>
+            <h2 className="text-lg font-medium text-zinc-100">
+              What are we working on in{" "}
+              <NewConversationPopover
+                trigger={
+                  <button
+                    type="button"
+                    title="Switch project"
+                    className="cursor-pointer inline-flex items-center gap-0.5 underline decoration-dotted decoration-zinc-500 underline-offset-4 hover:text-blue-300 hover:decoration-blue-300"
+                  >
+                    {projectName}
+                    <ChevronDown size={14} className="text-zinc-500" />
+                  </button>
+                }
+              />
+              ?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">
+              Ask about your code, plan a change, or let the agent explore the
+              project with you.
+            </p>
+          </div>
+          {inputBar}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex mx-auto max-w-4xl h-full flex-col">
       <div className="relative flex-1 overflow-hidden">
@@ -636,66 +775,7 @@ export default function ChatPanel() {
           </div>
         )}
       </div>
-      <ChatInputBar
-        input={input}
-        onChange={setInput}
-        onKeyDown={onKeyDown}
-        textareaRef={textareaRef}
-        shellMode={shellMode}
-        pendingPermission={pendingPermission}
-        onRespondPermission={respondPermission}
-        showSlashPopover={showSlashPopover}
-        slashMatches={slashMatches}
-        slashActiveIndex={slashActiveIndex}
-        onAcceptSlash={acceptSlashCommand}
-        sending={sending}
-        onSend={send}
-        onStop={stop}
-        sendDisabled={
-          !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
-        }
-        toolbarLeft={
-          <>
-            <ModelPickerPopover
-              options={backendOptions}
-              activeKey={activeBackendKey}
-              onSelect={selectBackendOption}
-              triggerLabel={activeBackendLabel}
-              open={modelPickerOpen}
-              onOpenChange={setModelPickerOpen}
-            />
-            {isAcp && acpEffortOptions && (
-              <EffortPickerPopover
-                options={acpEffortOptions.options}
-                value={acpEffortChoice ?? acpEffortOptions.currentValue}
-                onSelect={selectAcpEffort}
-              />
-            )}
-            <PermissionModePopover
-              mode={permissionMode}
-              onSelect={(mode) => setPermissionMode(sessionId, mode)}
-              open={permissionModePickerOpen}
-              onOpenChange={setPermissionModePickerOpen}
-            />
-            {isOpenAiCompatible && !isAcp && (
-              <Input
-                variant="chip"
-                value={model}
-                onChange={(e) => setModel(e.currentTarget.value)}
-                placeholder="model id"
-              />
-            )}
-          </>
-        }
-        contextUsage={
-          usedTokens !== null && (
-            <ContextUsageRing
-              usedTokens={usedTokens}
-              contextLength={usageContextLength}
-            />
-          )
-        }
-      />
+      {inputBar}
     </div>
   );
 }

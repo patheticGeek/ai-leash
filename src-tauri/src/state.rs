@@ -25,6 +25,19 @@ pub struct AcpSession {
     /// provider/model argument to) has something to run the sub-agent with.
     pub provider: ProviderConfig,
     pub model: String,
+    /// Last-emitted `chat://{session_id}/acp_model_options`,
+    /// `.../acp_effort_options`, and `.../acp_commands` payloads, if any —
+    /// each is normally only ever sent once (right after connecting, or
+    /// when explicitly changed via `SetModel`/`SetEffort`), so a frontend
+    /// that (re)subscribes after this connection already exists — e.g. the
+    /// same conversation's `ChatPanel` remounting after switching away and
+    /// back — would otherwise never learn them. `ensure_acp_session`
+    /// re-emits these verbatim when reusing an already-running connection
+    /// instead of spawning a fresh one. See `process.rs`/`events.rs` for
+    /// where each is populated.
+    pub model_options: Option<serde_json::Value>,
+    pub effort_options: Option<serde_json::Value>,
+    pub available_commands: Option<serde_json::Value>,
 }
 
 #[derive(Default)]

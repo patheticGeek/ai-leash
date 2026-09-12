@@ -77,6 +77,36 @@ pub fn set_conversation_title(
     Ok(())
 }
 
+/// Every top-level conversation across every known project — the
+/// sidebar's own scope, same cross-project reasoning as `list_sub_agents`
+/// below. See `db::list_all_conversations`.
+#[tauri::command]
+pub fn list_conversations(state: State<AppState>) -> Result<Vec<db::ConversationSummary>, String> {
+    Ok(db::list_all_conversations(&state.db))
+}
+
+/// Removes one conversation from the sidebar for good — its own row plus
+/// every sub-agent it spawned (see `db::delete_conversation`'s doc comment),
+/// and each of their in-memory backend state too (same
+/// `forget_session_runtime_state` helper `clear_conversation` uses), this
+/// time also forgetting bypass-permission-mode membership since none of
+/// these ids will ever be passed again. Distinct from `clear_conversation`'s
+/// "/clear" semantics, which wipe the same rows but keep the top-level id
+/// alive for reuse.
+#[tauri::command]
+pub fn delete_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
+    let sub_agent_ids: Vec<String> =
+        db::list_sub_agents_for_parent(&state.db, &session_id, usize::MAX)
+            .into_iter()
+            .map(|s| s.id)
+            .collect();
+    for id in std::iter::once(session_id.clone()).chain(sub_agent_ids) {
+        super::forget_session_runtime_state(state.inner(), &id, true);
+    }
+    db::delete_conversation(&state.db, &session_id);
+    Ok(())
+}
+
 /// All sub-agents ever spawned, across every project — the Sub Agents
 /// sidebar's own scope (a cross-project history, not scoped to whichever
 /// project is currently open). See `db::list_all_sub_agents`.

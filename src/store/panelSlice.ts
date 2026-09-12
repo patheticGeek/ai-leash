@@ -74,6 +74,11 @@ export interface PanelSlice {
     generating: boolean,
     autonomous: boolean,
   ) => void;
+  // Drops a deleted conversation's saved panel-tab snapshot and any
+  // leftover generating/autonomous flags — called by
+  // `conversationSlice.deleteConversation`, mirroring
+  // `acpSlice.forgetConversationBackend`/`permissionSlice.forgetPermissionMode`.
+  forgetConversationPanelState: (sessionId: string) => void;
 }
 
 export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
@@ -201,6 +206,23 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
       return {
         generatingSessions: next,
         autonomousGeneratingSessions: nextAutonomous,
+      };
+    }),
+
+  forgetConversationPanelState: (sessionId) =>
+    set((s) => {
+      const panelStateByConversation = { ...s.panelStateByConversation };
+      const generatingSessions = { ...s.generatingSessions };
+      const autonomousGeneratingSessions = {
+        ...s.autonomousGeneratingSessions,
+      };
+      delete panelStateByConversation[sessionId];
+      delete generatingSessions[sessionId];
+      delete autonomousGeneratingSessions[sessionId];
+      return {
+        panelStateByConversation,
+        generatingSessions,
+        autonomousGeneratingSessions,
       };
     }),
 });

@@ -163,6 +163,11 @@ export interface AcpSlice {
     sessionId: string,
     selection: ConversationBackendSelection,
   ) => void;
+  // Drops a deleted conversation's saved backend/model choice — called by
+  // `conversationSlice.deleteConversation` so removing a conversation for
+  // good doesn't leave a permanent, never-read-again entry in this map's
+  // localStorage-backed persistence.
+  forgetConversationBackend: (sessionId: string) => void;
 }
 
 export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
@@ -241,6 +246,15 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
         ...s.conversationBackend,
         [sessionId]: selection,
       };
+      saveConversationBackendMap(conversationBackend);
+      return { conversationBackend };
+    }),
+
+  forgetConversationBackend: (sessionId) =>
+    set((s) => {
+      if (!(sessionId in s.conversationBackend)) return s;
+      const conversationBackend = { ...s.conversationBackend };
+      delete conversationBackend[sessionId];
       saveConversationBackendMap(conversationBackend);
       return { conversationBackend };
     }),

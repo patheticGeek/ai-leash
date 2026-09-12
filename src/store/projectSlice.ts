@@ -1,7 +1,6 @@
 import type { StateCreator } from "zustand";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
-import type { PanelTab } from "./panelSlice";
 import { PRIMARY_CHAT_TAB } from "./panelSlice";
 
 const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
@@ -13,15 +12,12 @@ interface OpenFile {
   dirty: boolean;
 }
 
+// Just a known project folder now — per-conversation concerns (title,
+// activity recency) moved to `conversationSlice.ts`'s `ConversationSummary`
+// once a project could have more than one conversation.
 export interface RecentProject {
   path: string;
   name: string;
-  title?: string | null;
-  // Epoch ms of the last chat turn started in this project (see
-  // `touchProjectActivity`) — 0 means never. Display order is sorted by
-  // this, not by when the project was last merely opened/switched to, so
-  // clicking around the sidebar to look at things doesn't reorder it.
-  lastMessageAt: number;
 }
 
 function loadRecentProjects(): RecentProject[] {
@@ -30,7 +26,7 @@ function loadRecentProjects(): RecentProject[] {
       localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]",
     );
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map((p) => ({ ...p, lastMessageAt: p.lastMessageAt ?? 0 }));
+      return parsed.map((p) => ({ path: p.path, name: p.name }));
     }
   } catch {
     // fall through to migration below
@@ -42,7 +38,6 @@ function loadRecentProjects(): RecentProject[] {
     {
       path: legacy,
       name: legacy.split("/").filter(Boolean).pop() ?? legacy,
-      lastMessageAt: 0,
     },
   ];
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(migrated));
@@ -59,15 +54,20 @@ export interface ProjectSlice {
   openFiles: OpenFile[];
   activePath: string | null;
   recentProjects: RecentProject[];
-  openProject: (root: string) => Promise<void>;
-  removeProject: (root: string) => void;
-  restoreLastProject: () => Promise<void>;
+  // Onboards a brand new project folder (the "Add project" flow in
+  // `NewConversationPopover.tsx` and `NoProjectState`'s CTA) and starts a
+  // fresh conversation for it — see `conversationSlice.startNewConversation`.
+  addProject: (dir: string) => Promise<void>;
+  // Forgets a project folder for good — including deleting every
+  // conversation it has (backend `delete_conversation` for each, plus
+  // local state), not just the folder entry, so removing a project doesn't
+  // leave orphaned conversation rows in the sidebar with no project name to
+  // show. Reachable from `NewConversationPopover.tsx`'s project list.
+  removeProject: (root: string) => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
-  touchProjectActivity: (path: string) => void;
-  setProjectTitle: (path: string, title: string | null) => void;
 }
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
@@ -79,95 +79,32 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   activePath: null,
   recentProjects: loadRecentProjects(),
 
-  // `root` doubles as the conversation id for now — one conversation per
-  // project, until multiple named conversations per project are wired up.
-  openProject: async (root) => {
-    const title = await api.getConversationTitle(root);
-    await api.setProjectRoot(root);
-    const name = root.split("/").filter(Boolean).pop() ?? root;
-    const prevRoot = get().projectRoot;
-    const prevPanelTabs = get().panelTabs;
-    const prevActivePanelTabId = get().activePanelTabId;
-
-    const restored = get().panelStateByConversation[root];
-    const restoredActiveTab = restored?.panelTabs.find(
-      (t) => t.id === restored.activePanelTabId,
-    );
-
+  addProject: async (dir) => {
     set((s) => {
-      const panelStateByConversation = { ...s.panelStateByConversation };
-      if (prevRoot) {
-        panelStateByConversation[prevRoot] = {
-          panelTabs: prevPanelTabs,
-          activePanelTabId: prevActivePanelTabId,
-        };
-      }
-      // Merely opening/switching to a project doesn't reorder the list —
-      // only `touchProjectActivity` (a chat turn actually starting) does,
-      // so browsing the sidebar doesn't shuffle it under you. A brand new
-      // project is appended as-is; a known one is left untouched.
-      const recentProjects = s.recentProjects.some((p) => p.path === root)
-        ? s.recentProjects
-        : [...s.recentProjects, { path: root, name, title, lastMessageAt: 0 }];
-      const withTitle = recentProjects.map((project) =>
-        project.path === root ? { ...project, title } : project,
-      );
-      saveRecentProjects(withTitle);
-      return {
-        projectRoot: root,
-        openFiles: [],
-        activePath:
-          restoredActiveTab?.kind === "file"
-            ? (restoredActiveTab.path ?? null)
-            : null,
-        panelTabs: restored?.panelTabs ?? [],
-        activePanelTabId: restored?.activePanelTabId ?? null,
-        panelStateByConversation,
-        recentProjects: withTitle,
-        // The center pane's open tabs are specific to whichever project's
-        // conversation is currently in view — a stale sub-agent tab from a
-        // different project showing up here would be the wrong context, so
-        // this still resets. `subAgentTasks`/`subAgentThreads` (the Sub
-        // Agents sidebar list and its transcripts) deliberately do NOT
-        // reset here anymore — they're a cross-project history stored
-        // indefinitely in SQLite (see `loadSubAgentTasks`), not
-        // per-conversation state.
-        chatTabs: [PRIMARY_CHAT_TAB],
-        activeChatTabId: "primary",
-      };
+      if (s.recentProjects.some((p) => p.path === dir)) return s;
+      const name = dir.split("/").filter(Boolean).pop() ?? dir;
+      const recentProjects = [...s.recentProjects, { path: dir, name }];
+      saveRecentProjects(recentProjects);
+      return { recentProjects };
     });
-
-    // Restored file tabs need their content re-read from disk (fresh, not
-    // carried over — the old content was dropped when this project's tabs
-    // were snapshotted). A file that's since been deleted just loses its tab.
-    const fileTabs = (restored?.panelTabs ?? []).filter(
-      (t): t is PanelTab & { path: string } => t.kind === "file" && !!t.path,
-    );
-    for (const tab of fileTabs) {
-      try {
-        const content = await api.readFileText(tab.path);
-        set((s) => ({
-          openFiles: s.openFiles.some((f) => f.path === tab.path)
-            ? s.openFiles
-            : [
-                ...s.openFiles,
-                { path: tab.path, name: tab.label, content, dirty: false },
-              ],
-        }));
-      } catch {
-        get().closePanelTab(tab.id);
-      }
-    }
+    await get().startNewConversation(dir);
   },
 
-  removeProject: (root) => {
+  removeProject: async (root) => {
+    const toDelete = get().conversations.filter((c) => c.projectRoot === root);
+    await Promise.all(toDelete.map((c) => api.deleteConversation(c.id)));
     set((s) => {
       const recentProjects = s.recentProjects.filter((p) => p.path !== root);
       saveRecentProjects(recentProjects);
-      if (s.projectRoot !== root) return { recentProjects };
+      const conversations = s.conversations.filter(
+        (c) => c.projectRoot !== root,
+      );
+      if (s.projectRoot !== root) return { recentProjects, conversations };
       return {
         recentProjects,
+        conversations,
         projectRoot: null,
+        activeSessionId: null,
         openFiles: [],
         activePath: null,
         panelTabs: [],
@@ -176,25 +113,6 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         activeChatTabId: "primary",
       };
     });
-  },
-
-  restoreLastProject: async () => {
-    const projects = get().recentProjects;
-    if (projects.length === 0) return;
-    const last = projects.reduce((a, b) =>
-      b.lastMessageAt > a.lastMessageAt ? b : a,
-    );
-    try {
-      await get().openProject(last.path);
-    } catch {
-      set((s) => {
-        const recentProjects = s.recentProjects.filter(
-          (p) => p.path !== last.path,
-        );
-        saveRecentProjects(recentProjects);
-        return { recentProjects };
-      });
-    }
   },
 
   openFile: async (path, name) => {
@@ -227,23 +145,4 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
       ),
     }));
   },
-
-  touchProjectActivity: (path) =>
-    set((s) => {
-      if (!s.recentProjects.some((p) => p.path === path)) return s;
-      const recentProjects = s.recentProjects.map((p) =>
-        p.path === path ? { ...p, lastMessageAt: Date.now() } : p,
-      );
-      saveRecentProjects(recentProjects);
-      return { recentProjects };
-    }),
-
-  setProjectTitle: (path, title) =>
-    set((s) => {
-      const recentProjects = s.recentProjects.map((project) =>
-        project.path === path ? { ...project, title } : project,
-      );
-      saveRecentProjects(recentProjects);
-      return { recentProjects };
-    }),
 });

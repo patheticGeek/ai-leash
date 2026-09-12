@@ -1,17 +1,18 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
 import { useAppStore } from "../store";
 
 function NoProjectState() {
-  const openProject = useAppStore((s) => s.openProject);
+  const addProject = useAppStore((s) => s.addProject);
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") {
-      await openProject(dir);
+      await addProject(dir);
     }
   }
 
@@ -49,12 +50,13 @@ function NoProjectState() {
 
 export default function CenterPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
   const closeChatTab = useAppStore((s) => s.closeChatTab);
 
-  if (!projectRoot) {
+  if (!projectRoot || !activeSessionId) {
     return (
       <div className="flex h-full flex-col bg-[#0e0f12]">
         <NoProjectState />
@@ -64,11 +66,11 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
         {chatTabs.map((tab) => (
           <div
             key={tab.id}
-            className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs cursor-default transition-colors duration-150 ease-out ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
               tab.id === activeChatTabId
                 ? "bg-white/10 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300"
@@ -78,7 +80,10 @@ export default function CenterPanel() {
               variant="unstyled"
               size="none"
               onClick={() => setActiveChatTab(tab.id)}
-              className="max-w-[12rem] truncate text-left"
+              className={cn(
+                "max-w-[12rem] truncate text-left pl-2 py-1.5",
+                tab.kind !== "subagent" && "pr-2",
+              )}
             >
               {tab.label}
             </Button>
@@ -102,7 +107,7 @@ export default function CenterPanel() {
             activeChatTabId === "primary" ? "h-full bg-[#0e0f12]" : "hidden"
           }
         >
-          <ChatPanel />
+          <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
         </div>
         {chatTabs
           .filter((tab) => tab.kind === "subagent")

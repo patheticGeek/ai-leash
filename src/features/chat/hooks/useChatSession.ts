@@ -67,8 +67,9 @@ export function useChatSession(
   const acpModelCache = useAppStore((s) => s.acpModelCache);
   const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
   // This conversation's own backend/model choice — read once at mount (this
-  // component remounts per project, so `sessionId` is stable for its whole
-  // lifetime) from whatever it last used, falling back to the shared
+  // component remounts per conversation, via `App.tsx`'s `key={activeSessionId}`,
+  // so `sessionId` is stable for its whole lifetime) from whatever it last
+  // used, falling back to the shared
   // `defaultBackend` (see `backendSlice.ts`) only the very first time this
   // conversation is opened. From here on this is the source of truth for
   // *this* conversation; switching to a different one can't change what
@@ -197,6 +198,24 @@ export function useChatSession(
     setAcpCommands([]);
     onAcpAgentReset();
   }, [acpActiveId]);
+
+  // Drops the live-discovered model/effort/commands options (and the
+  // "already applied" bookkeeping that gates re-sending a choice) without
+  // touching the persisted `acpModelChoice`/`acpEffortChoice` preference or
+  // which agent is active — unlike the agent-switch reset effect above,
+  // which agent this conversation talks to hasn't changed here. For "/clear"
+  // (`ChatPanel.tsx`'s `runLocalCommand`): the backend drops its connection
+  // to the same agent and reconnects fresh, which re-announces these same
+  // options and re-applies the still-remembered choice once it arrives — in
+  // the meantime the old, now-stale options shouldn't keep showing as if
+  // they were still live.
+  function resetAcpConnectionState() {
+    setAcpModelOptions(null);
+    setAcpEffortOptions(null);
+    setAcpCommands([]);
+    appliedAcpModelRef.current = null;
+    appliedAcpEffortRef.current = null;
+  }
 
   async function selectAcpModel(value: string) {
     setAcpModelOptions((prev) =>
@@ -495,5 +514,6 @@ export function useChatSession(
     activeBackendLabel,
     selectBackendOption,
     selectAcpEffort,
+    resetAcpConnectionState,
   };
 }

@@ -7,6 +7,58 @@
 use super::messages::title_from_message;
 use super::Db;
 use rusqlite::{params, Connection};
+use serde::Serialize;
+
+/// One row of `list_all_conversations` — everything the sidebar needs to
+/// render a conversation without a second round trip.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationSummary {
+    pub id: String,
+    pub project_root: String,
+    pub title: Option<String>,
+    pub updated_at: i64,
+}
+
+/// Every top-level conversation across every known project — the
+/// sidebar's own scope. Deliberately NOT filtered by whichever project is
+/// currently "open" (`state.project_root` is a single global value — see
+/// `commands::set_project_root` — but the sidebar must show every
+/// project's conversations regardless of which one is currently active).
+/// Excludes sub-agent conversations (id contains `::spawn_sub_agent::` —
+/// see `tools::sub_agent_tools`), which have their own dedicated Sub
+/// Agents sidebar (`list_all_sub_agents`) instead.
+pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
+    let conn = db.0.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT id, project_root, title, updated_at FROM conversations \
+         WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
+    ) else {
+        return vec![];
+    };
+    stmt.query_map([], |row| {
+        Ok(ConversationSummary {
+            id: row.get(0)?,
+            project_root: row.get(1)?,
+            title: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    })
+    .map(|rows| rows.filter_map(Result::ok).collect())
+    .unwrap_or_default()
+}
+
+/// Deletes one conversation outright — its own row, `messages`, stored ACP
+/// session id, and (since sub-agents are scoped to whichever conversation
+/// spawned them) every `sub_agents` row it spawned plus *their* own
+/// `messages`/`conversations`/`acp_agent_sessions` rows too. Distinct from
+/// `clear_conversation`: that wipes the same set of rows but the top-level
+/// id survives to be reused by the next message (the "/clear" command);
+/// this is "remove it from the sidebar for good."
+pub fn delete_conversation(db: &Db, conversation_id: &str) {
+    let conn = db.0.lock().unwrap();
+    wipe_conversation_and_sub_agents(&conn, conversation_id);
+}
 
 /// Inserts a conversation's row if it doesn't exist yet, or bumps its
 /// `updated_at` if it does. Called by both `messages::save_message` and
@@ -73,20 +125,31 @@ pub fn set_conversation_title(db: &Db, conversation_id: &str, title: Option<&str
 }
 
 /// Wipes a conversation's transcript for the local "/clear" command (see
-/// `chat::clear_conversation`) — deletes its `messages` rows and its own
-/// `conversations` row, so `save_message`'s `ON CONFLICT` treats the next
-/// message as starting a brand new conversation rather than updating a
-/// leftover `updated_at`. Also deletes every `sub_agents` row this
-/// conversation spawned, and *their* own `messages`/`conversations` rows
-/// (each sub-agent's transcript is keyed by its own id as `conversation_id`,
-/// same as any other session's) — otherwise they'd be orphaned rows the
-/// Sub Agents sidebar still lists with no way back to the conversation that
-/// spawned them. Sub-agents can't themselves spawn further sub-agents (one
-/// level deep only — see `run_sub_agent` in chat.rs), so this never needs
-/// to recurse.
+/// `chat::clear_conversation`), so `save_message`'s `ON CONFLICT` treats the
+/// next message as starting a brand new conversation rather than updating a
+/// leftover `updated_at`. Shares its row-deletion shape with
+/// `delete_conversation` — see `wipe_conversation_and_sub_agents`.
 pub fn clear_conversation(db: &Db, conversation_id: &str) {
     let conn = db.0.lock().unwrap();
+    wipe_conversation_and_sub_agents(&conn, conversation_id);
+}
 
+/// Deletes `conversation_id`'s own `messages`/`conversations`/
+/// `acp_agent_sessions` rows, plus every `sub_agents` row it spawned and
+/// *their* own rows in those same three tables (each sub-agent's transcript
+/// is keyed by its own id as `conversation_id`, same as any other session's)
+/// — otherwise they'd be orphaned rows the Sub Agents sidebar still lists
+/// with no way back to the conversation that spawned them. Sub-agents can't
+/// themselves spawn further sub-agents (one level deep only — see
+/// `run_sub_agent` in chat.rs), so this never needs to recurse. Shared by
+/// `clear_conversation` (the "/clear" command — the id survives to be
+/// reused) and `delete_conversation` (removed from the sidebar for good).
+/// Also drops any stored agent-native session id (see `acp_sessions.rs`) for
+/// each — otherwise the next connection's `session/load` would resume the
+/// same ACP session and the agent would still remember everything. Not
+/// scoped by `launch_command` since a conversation may have switched agents
+/// over its lifetime and all of them should be forgotten.
+fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
     let sub_agent_ids: Vec<String> = conn
         .prepare("SELECT id FROM sub_agents WHERE parent_session_id = ?1")
         .and_then(|mut stmt| {
@@ -112,7 +175,6 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
         "DELETE FROM sub_agents WHERE parent_session_id = ?1",
         params![conversation_id],
     );
-
     let _ = conn.execute(
         "DELETE FROM messages WHERE conversation_id = ?1",
         params![conversation_id],
@@ -121,12 +183,6 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
         "DELETE FROM conversations WHERE id = ?1",
         params![conversation_id],
     );
-    // Also drop any stored agent-native session id for this conversation (see
-    // `acp_sessions.rs`) — otherwise `/clear` only wipes our own transcript
-    // while the next connection's `session/load` resumes the same ACP
-    // session, and the agent still remembers everything from before the
-    // clear. Not scoped by `launch_command` since this conversation may have
-    // switched agents over its lifetime and all of them should be forgotten.
     let _ = conn.execute(
         "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
         params![conversation_id],
@@ -256,6 +312,146 @@ mod tests {
         assert_eq!(
             get_acp_agent_session_id(&db, "/other", "claude-code"),
             Some("agent-sess-2".to_string())
+        );
+    }
+
+    #[test]
+    fn list_all_conversations_excludes_sub_agents_and_sorts_by_recency() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj-a",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "first".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj-b",
+            "/proj-b",
+            &ChatMessage {
+                role: "user".into(),
+                content: "second".into(),
+                tool_calls: None,
+            },
+        );
+        // Both saves above land in the same wall-clock second (`now()` is
+        // second-resolution) — pin distinct `updated_at` values directly so
+        // the recency-sort assertion below isn't racing the clock.
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "UPDATE conversations SET updated_at = 1 WHERE id = '/proj-a'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE conversations SET updated_at = 2 WHERE id = '/proj-b'",
+                [],
+            )
+            .unwrap();
+        }
+        record_sub_agent_started(
+            &db,
+            "/proj-a::spawn_sub_agent::abc",
+            "/proj-a",
+            "count files",
+            "count the files",
+        );
+        save_message(
+            &db,
+            "/proj-a::spawn_sub_agent::abc",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "sub-agent prompt".into(),
+                tool_calls: None,
+            },
+        );
+
+        let all = list_all_conversations(&db);
+
+        assert_eq!(all.len(), 2);
+        assert!(all.iter().all(|c| !c.id.contains("spawn_sub_agent")));
+        assert_eq!(all[0].id, "/proj-b");
+        assert_eq!(all[1].id, "/proj-a");
+    }
+
+    #[test]
+    fn delete_conversation_removes_it_but_not_others() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj-a",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project a".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj-b",
+            "/proj-b",
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project b".into(),
+                tool_calls: None,
+            },
+        );
+
+        delete_conversation(&db, "/proj-a");
+
+        assert_eq!(load_messages(&db, "/proj-a").len(), 0);
+        assert_eq!(load_messages(&db, "/proj-b").len(), 1);
+        assert_eq!(
+            list_all_conversations(&db)
+                .iter()
+                .map(|c| c.id.clone())
+                .collect::<Vec<_>>(),
+            vec!["/proj-b".to_string()]
+        );
+    }
+
+    #[test]
+    fn delete_conversation_also_wipes_its_own_sub_agents_but_not_unrelated_ones() {
+        let db = temp_db();
+        record_sub_agent_started(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "/proj",
+            "count files",
+            "count the files",
+        );
+        save_message(
+            &db,
+            "/proj::spawn_sub_agent::abc",
+            "/proj",
+            &ChatMessage {
+                role: "user".into(),
+                content: "sub-agent prompt".into(),
+                tool_calls: None,
+            },
+        );
+        record_sub_agent_started(
+            &db,
+            "/other::spawn_sub_agent::xyz",
+            "/other",
+            "unrelated task",
+            "do something else",
+        );
+
+        delete_conversation(&db, "/proj");
+
+        assert!(crate::db::list_sub_agents_for_parent(&db, "/proj", 50).is_empty());
+        assert!(load_messages(&db, "/proj::spawn_sub_agent::abc").is_empty());
+        assert_eq!(
+            crate::db::list_sub_agents_for_parent(&db, "/other", 50).len(),
+            1
         );
     }
 }

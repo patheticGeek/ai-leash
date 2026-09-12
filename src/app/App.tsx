@@ -9,12 +9,14 @@ import LeftBar from "./LeftBar";
 import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
-  const projectRoot = useAppStore((s) => s.projectRoot);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
   const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
   const refreshProviderConnectivity = useAppStore(
     (s) => s.refreshProviderConnectivity,
   );
-  const restoreLastProject = useAppStore((s) => s.restoreLastProject);
+  const initializeStartupSession = useAppStore(
+    (s) => s.initializeStartupSession,
+  );
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
@@ -44,8 +46,8 @@ function App() {
   }, [refreshProviderConnectivity]);
 
   useEffect(() => {
-    restoreLastProject();
-  }, [restoreLastProject]);
+    initializeStartupSession();
+  }, [initializeStartupSession]);
 
   useEffect(() => {
     loadSubAgentTasks();
@@ -100,7 +102,7 @@ function App() {
         </div>
         <ResizeHandle width={leftBarWidth} {...leftBarResize} />
         <div className="flex-1 min-w-0">
-          <CenterPanel key={projectRoot ?? "none"} />
+          <CenterPanel key={activeSessionId ?? "none"} />
         </div>
         <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
         <div style={{ width: rightPanelWidth }} className="shrink-0">

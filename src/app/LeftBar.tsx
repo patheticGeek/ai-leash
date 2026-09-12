@@ -1,30 +1,52 @@
 import { listen } from "@tauri-apps/api/event";
-import { SettingsIcon, Trash2 } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import {
+  FolderPlus,
+  Loader,
+  SettingsIcon,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { type MouseEvent, useEffect, useState } from "react";
 import { Button } from "@/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/ui/select";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import {
+  type ConversationSummary,
   permissionForSession,
-  type RecentProject,
   useAppStore,
 } from "../store";
 
-function ProjectRow({
-  project,
+// Sentinel for "no project filter" — Radix `Select` doesn't allow an empty
+// string item value (that's reserved to mean "no selection").
+const ALL_PROJECTS = "all";
+
+function ConversationRow({
+  conversation,
+  projectName,
   active,
   onClick,
   onContextMenu,
 }: {
-  project: RecentProject;
+  conversation: ConversationSummary;
+  projectName: string;
   active: boolean;
   onClick: () => void;
   onContextMenu: (event: MouseEvent) => void;
 }) {
-  const generating = useAppStore((s) => !!s.generatingSessions[project.path]);
+  const generating = useAppStore(
+    (s) => !!s.generatingSessions[conversation.id],
+  );
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
   const awaitingApproval = !!permissionForSession(
     pendingPermissions,
-    project.path,
+    conversation.id,
   );
 
   return (
@@ -34,9 +56,7 @@ function ProjectRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
       title={
-        awaitingApproval
-          ? `${project.path} — needs your approval`
-          : project.path
+        awaitingApproval ? `${projectName} — needs your approval` : projectName
       }
       className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left cursor-default ${
         active
@@ -49,48 +69,60 @@ function ProjectRow({
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 truncate text-zinc-200">
-            {project.title || "New conversation"}
-          </span>
-          {generating && (
-            <span
-              title="Working"
-              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
-            />
-          )}
-          {awaitingApproval && (
-            <span
-              title="Permission required"
-              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400"
-            />
-          )}
+        <span className="min-w-0 truncate text-zinc-200">
+          {conversation.title || "New conversation"}
         </span>
         <span className="block truncate text-[11px] text-zinc-500">
-          {project.name}
+          {projectName}
         </span>
       </span>
+      {awaitingApproval ? (
+        <span title="Permission required" className="shrink-0 text-amber-400">
+          <ShieldAlert size={14} />
+        </span>
+      ) : (
+        generating && (
+          <span title="Working" className="shrink-0 text-blue-400">
+            <Loader size={14} className="animate-spin" />
+          </span>
+        )
+      )}
     </Button>
   );
 }
 
 export default function LeftBar() {
-  const projectRoot = useAppStore((s) => s.projectRoot);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const conversations = useAppStore((s) => s.conversations);
   const recentProjects = useAppStore((s) => s.recentProjects);
-  const openProject = useAppStore((s) => s.openProject);
-  const removeProject = useAppStore((s) => s.removeProject);
+  const openConversation = useAppStore((s) => s.openConversation);
+  const deleteConversation = useAppStore((s) => s.deleteConversation);
+  const addProject = useAppStore((s) => s.addProject);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const setSessionGenerating = useAppStore((s) => s.setSessionGenerating);
-  const touchProjectActivity = useAppStore((s) => s.touchProjectActivity);
+  const touchConversationActivity = useAppStore(
+    (s) => s.touchConversationActivity,
+  );
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
   const resolvePendingPermission = useAppStore(
     (s) => s.resolvePendingPermission,
   );
   const [contextMenu, setContextMenu] = useState<{
-    project: RecentProject;
+    conversation: ConversationSummary;
     x: number;
     y: number;
   } | null>(null);
+  // Which project's conversations to show — `null` (the default) means "all
+  // projects, all conversations," matching the flat list this sidebar
+  // already showed before this filter existed.
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+
+  async function onAddProject() {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir === "string") {
+      await addProject(dir);
+    }
+  }
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -107,11 +139,11 @@ export default function LeftBar() {
   }, [contextMenu]);
 
   // Unlike `chat://{sessionId}/generating`, `permission://request` isn't
-  // path-templated per project — it's one global event carrying its own
-  // `sessionId` (see `tools::request_permission`) — so this only needs one
-  // listener each, not one per known project. Still lives here rather than
-  // e.g. `App.tsx` so it's colocated with the other always-mounted,
-  // cross-project state this component already owns.
+  // path-templated per conversation — it's one global event carrying its
+  // own `sessionId` (see `tools::request_permission`) — so this only needs
+  // one listener each, not one per known conversation. Still lives here
+  // rather than e.g. `App.tsx` so it's colocated with the other
+  // always-mounted, cross-conversation state this component already owns.
   useEffect(() => {
     const unlistens = [
       listen<PermissionRequestPayload>("permission://request", (e) => {
@@ -128,20 +160,23 @@ export default function LeftBar() {
     };
   }, [addPendingPermission, resolvePendingPermission]);
 
-  // Always mounted regardless of which project (if any) is currently open,
-  // so a session's `generating` state is tracked even while you're looking
-  // at a different project entirely — see `run_with_cancellation` in
-  // chat.rs, the single place this event is emitted from. A turn starting
-  // is also what bumps the project's sort order (`touchProjectActivity`),
-  // not merely opening/switching to it — otherwise clicking around the
-  // sidebar to look at things would keep reshuffling it.
+  // Always mounted regardless of which conversation (if any) is currently
+  // open, so a turn's `generating` state is tracked even while you're
+  // looking at a different conversation entirely — see
+  // `run_with_cancellation` in chat.rs, the single place this event is
+  // emitted from. One listener per conversation id (not per project) since
+  // multiple conversations for the same project can now generate
+  // independently. A turn starting is also what bumps the conversation's
+  // sort order (`touchConversationActivity`), not merely opening/switching
+  // to it — otherwise clicking around the sidebar to look at things would
+  // keep reshuffling it.
   useEffect(() => {
-    const unlistens = recentProjects.map((p) =>
+    const unlistens = conversations.map((c) =>
       listen<{ active: boolean; autonomous: boolean }>(
-        `chat://${p.path}/generating`,
+        `chat://${c.id}/generating`,
         (e) => {
-          setSessionGenerating(p.path, e.payload.active, e.payload.autonomous);
-          if (e.payload.active) touchProjectActivity(p.path);
+          setSessionGenerating(c.id, e.payload.active, e.payload.autonomous);
+          if (e.payload.active) touchConversationActivity(c.id);
         },
       ),
     );
@@ -150,31 +185,71 @@ export default function LeftBar() {
         u.then((f) => f());
       });
     };
-  }, [recentProjects, setSessionGenerating, touchProjectActivity]);
+  }, [conversations, setSessionGenerating, touchConversationActivity]);
 
-  const sortedProjects = [...recentProjects].sort(
-    (a, b) => b.lastMessageAt - a.lastMessageAt,
-  );
+  const sortedConversations = [...conversations]
+    .filter((c) => !projectFilter || c.projectRoot === projectFilter)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
     <div className="relative flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
+      <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.06] p-1.5">
+        <Select
+          value={projectFilter ?? ALL_PROJECTS}
+          onValueChange={(value) =>
+            setProjectFilter(value === ALL_PROJECTS ? null : value)
+          }
+        >
+          <SelectTrigger
+            size="sm"
+            className="h-auto! min-w-0 flex-1 border-none bg-transparent px-3 py-2 text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+          >
+            <SelectValue placeholder="All projects" />
+          </SelectTrigger>
+          <SelectContent align="start" className="p-1">
+            <SelectItem value={ALL_PROJECTS} className="px-3 py-2">
+              All projects
+            </SelectItem>
+            {recentProjects.map((p) => (
+              <SelectItem key={p.path} value={p.path} className="px-3 py-2">
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="ghost"
+          size="icon-lg"
+          title="Add project"
+          onClick={onAddProject}
+          className="shrink-0 text-zinc-500 hover:text-zinc-200"
+        >
+          <FolderPlus size={17} />
+        </Button>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
-        {sortedProjects.length === 0 ? (
+        {sortedConversations.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">
-            No projects yet
+            {projectFilter
+              ? "No conversations for this project"
+              : "No conversations yet"}
           </div>
         ) : (
-          sortedProjects.map((p) => (
-            <ProjectRow
-              key={p.path}
-              project={p}
-              active={p.path === projectRoot}
-              onClick={() => openProject(p.path)}
+          sortedConversations.map((c) => (
+            <ConversationRow
+              key={c.id}
+              conversation={c}
+              projectName={
+                recentProjects.find((p) => p.path === c.projectRoot)?.name ??
+                c.projectRoot
+              }
+              active={c.id === activeSessionId}
+              onClick={() => openConversation(c.id)}
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 setContextMenu({
-                  project: p,
+                  conversation: c,
                   x: event.clientX,
                   y: event.clientY,
                 });
@@ -206,12 +281,12 @@ export default function LeftBar() {
             size="sm"
             className="w-full justify-start gap-2"
             onClick={() => {
-              removeProject(contextMenu.project.path);
+              deleteConversation(contextMenu.conversation.id);
               setContextMenu(null);
             }}
           >
             <Trash2 size={14} />
-            Delete project
+            Delete conversation
           </Button>
         </div>
       )}
