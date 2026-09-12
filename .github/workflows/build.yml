@@ -150,8 +150,32 @@ jobs:
             find artifacts -type f -print >&2
             exit 1
           fi
+          NOTES="Automated build from commit ${{ github.sha }}.
+
+          ## Install
+
+          ### Debian/Ubuntu
+          \`\`\`bash
+          sudo apt install ./ai-leash_*.deb
+          \`\`\`
+
+          ### Arch
+          \`\`\`bash
+          tar xf ai-leash_*.tar.gz
+          cd ai-leash-bin
+          makepkg -si
+          \`\`\`
+
+          ### macOS
+          Open the \`.dmg\`, drag \`AI Leash\` into \`Applications\`. It's not notarized, so you need to run
+          \`\`\`bash
+          xattr -d com.apple.quarantine /Applications/AI\\ Leash.app
+          \`\`\`
+          and open.
+
+          [Full install instructions in readme ->](https://github.com/patheticGeek/ai-leash#install)"
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
-            --notes "Automated build from commit ${{ github.sha }}. [Install instructions in readme ->](https://github.com/patheticGeek/ai-leash#install)" \
+            --notes "$NOTES" \
             "${RELEASE_FILES[@]}"

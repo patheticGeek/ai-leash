@@ -140,7 +140,7 @@ makepkg -si
 Download the `.dmg` from the [Releases page](https://github.com/patheticGeek/ai-leash/releases/latest) page, open it, and drag `AI Leash` into `Applications`.
 
 It's not notarized, so the first launch needs a right-click → Open (or
-`xattr -d com.apple.quarantine /Applications/AI Leash.app` if Gatekeeper
+`xattr -d com.apple.quarantine /Applications/AI\ Leash.app` if Gatekeeper
 still blocks it) instead of a normal double-click.
 
 ## Building from source
