@@ -45,18 +45,41 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
     Ok(())
 }
 
+/// Removes `session_id`'s in-memory backend bookkeeping — the connection/
+/// history state that isn't itself SQLite-persisted, so a DB wipe alone
+/// doesn't reset it. Shared by `clear_conversation` ("/clear", the id
+/// survives to be reused — `forget_permission_mode` is `false` so the
+/// conversation's Ask/Bypass choice survives too) and
+/// `history::delete_conversation` (removed for good, so
+/// `forget_permission_mode` is `true`: this id will never be passed again).
+pub(crate) fn forget_session_runtime_state(
+    state: &AppState,
+    session_id: &str,
+    forget_permission_mode: bool,
+) {
+    state.chat_sessions.lock().unwrap().remove(session_id);
+    state.touched_dirs.lock().unwrap().remove(session_id);
+    state.acp_sessions.lock().unwrap().remove(session_id);
+    if forget_permission_mode {
+        state.permission_bypass.lock().unwrap().remove(session_id);
+    }
+}
+
 /// The local "/clear" command — see `ChatPanel.tsx`'s `LOCAL_COMMANDS`. No
 /// ACP agent implements a matching request (the protocol doesn't define
 /// one), so this is entirely our own bookkeeping, not anything sent over
-/// the wire: wipes the on-disk and in-memory transcript for `session_id`,
-/// and — if an ACP subprocess is currently attached — drops our handle to
-/// it too. That subprocess isn't killed outright (a turn could still be
-/// in flight); it just winds down on its own once idle, the same as
-/// switching to a different agent does (see `ensure_acp_session`'s doc
-/// comment) — the *next* prompt for this session then starts a genuinely
-/// fresh `session/new` instead of continuing a conversation the agent
-/// still remembers everything about, since ACP has no session/truncate.
-/// That guarantee depends on `db::clear_conversation` also dropping this
+/// the wire: wipes the on-disk and in-memory transcript for `session_id`
+/// *and* every sub-agent it spawned (sub-agents are scoped to whichever
+/// conversation spawned them, so clearing/deleting one takes its sub-agents
+/// with it — see `db::clear_conversation`'s doc comment), and — if an ACP
+/// subprocess is currently attached to any of them — drops our handle to it
+/// too. That subprocess isn't killed outright (a turn could still be in
+/// flight); it just winds down on its own once idle, the same as switching
+/// to a different agent does (see `ensure_acp_session`'s doc comment) — the
+/// *next* prompt for this session then starts a genuinely fresh
+/// `session/new` instead of continuing a conversation the agent still
+/// remembers everything about, since ACP has no session/truncate. That
+/// guarantee depends on `db::clear_conversation` also dropping this
 /// conversation's `acp_agent_sessions` row — without it, the stored
 /// agent-native session id would survive the clear and the next connection
 /// would `session/load` straight back into the same agent-side context.
@@ -65,9 +88,16 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
 /// otherwise land in the freshly-cleared history right after this runs.
 #[tauri::command]
 pub fn clear_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
-    state.chat_sessions.lock().unwrap().remove(&session_id);
-    state.touched_dirs.lock().unwrap().remove(&session_id);
-    state.acp_sessions.lock().unwrap().remove(&session_id);
+    // Sub-agent ids must be read *before* the DB wipe below deletes their
+    // `sub_agents` rows — there'd be nothing left to query afterward.
+    let sub_agent_ids: Vec<String> =
+        db::list_sub_agents_for_parent(&state.db, &session_id, usize::MAX)
+            .into_iter()
+            .map(|s| s.id)
+            .collect();
+    for id in std::iter::once(session_id.clone()).chain(sub_agent_ids) {
+        forget_session_runtime_state(state.inner(), &id, false);
+    }
     db::clear_conversation(&state.db, &session_id);
     Ok(())
 }

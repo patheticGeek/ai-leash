@@ -1,6 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, SettingsIcon, Trash2 } from "lucide-react";
+import {
+  FolderPlus,
+  Loader,
+  SettingsIcon,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { type MouseEvent, useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import {
@@ -63,27 +69,24 @@ function ConversationRow({
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 truncate text-zinc-200">
-            {conversation.title || "New conversation"}
-          </span>
-          {generating && (
-            <span
-              title="Working"
-              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
-            />
-          )}
-          {awaitingApproval && (
-            <span
-              title="Permission required"
-              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400"
-            />
-          )}
+        <span className="min-w-0 truncate text-zinc-200">
+          {conversation.title || "New conversation"}
         </span>
         <span className="block truncate text-[11px] text-zinc-500">
           {projectName}
         </span>
       </span>
+      {awaitingApproval ? (
+        <span title="Permission required" className="shrink-0 text-amber-400">
+          <ShieldAlert size={14} />
+        </span>
+      ) : (
+        generating && (
+          <span title="Working" className="shrink-0 text-blue-400">
+            <Loader size={14} className="animate-spin" />
+          </span>
+        )
+      )}
     </Button>
   );
 }

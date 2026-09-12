@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import NewConversationPopover from "@/app/NewConversationPopover";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
+import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
@@ -19,8 +20,6 @@ import {
 } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 
-const CHAT_DRAFT_KEY_PREFIX = "ai-leash:chatDraft:";
-
 function loadChatDraft(key: string): string {
   try {
     return localStorage.getItem(key) ?? "";
@@ -36,7 +35,7 @@ export default function ChatPanel({
   sessionId: string;
   projectRoot: string;
 }) {
-  const chatDraftKey = `${CHAT_DRAFT_KEY_PREFIX}${sessionId}`;
+  const chatDraftKey = chatDraftKeyFor(sessionId);
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
   const conversations = useAppStore((s) => s.conversations);
   const markConversationStarted = useAppStore((s) => s.markConversationStarted);
@@ -152,6 +151,7 @@ export default function ChatPanel({
     activeBackendLabel,
     selectBackendOption,
     selectAcpEffort,
+    resetAcpConnectionState,
   } = useChatSession(sessionId, setOllamaError, sending, () =>
     setSlashDismissed(null),
   );
@@ -355,6 +355,21 @@ export default function ChatPanel({
         // so the Sub Agents sidebar and any open sub-agent tab don't keep
         // pointing at now-deleted rows.
         clearSubAgentTasksForParent(sessionId);
+        // The sidebar's cached title otherwise keeps showing whatever this
+        // conversation was called before — the backend already cleared its
+        // stored title along with everything else (`db::clear_conversation`
+        // deletes the `conversations` row outright), so the frontend's own
+        // copy needs to catch up until the next message sets a new one.
+        setConversationTitle(sessionId, null);
+        if (isAcp) {
+          // The backend just dropped its connection to this agent (see
+          // `chat::clear_conversation`) — the picker would otherwise keep
+          // showing the old, now-disconnected model/effort options as if
+          // they were still live. Reconnecting immediately (rather than
+          // waiting for the next send) re-announces them fresh.
+          resetAcpConnectionState();
+          setAcpRetryNonce((n) => n + 1);
+        }
       } catch (e) {
         setOllamaError(String(e));
       }
@@ -678,7 +693,7 @@ export default function ChatPanel({
                   <button
                     type="button"
                     title="Switch project"
-                    className="inline-flex items-center gap-0.5 underline decoration-dotted decoration-zinc-500 underline-offset-4 hover:text-blue-300 hover:decoration-blue-300"
+                    className="cursor-pointer inline-flex items-center gap-0.5 underline decoration-dotted decoration-zinc-500 underline-offset-4 hover:text-blue-300 hover:decoration-blue-300"
                   >
                     {projectName}
                     <ChevronDown size={14} className="text-zinc-500" />

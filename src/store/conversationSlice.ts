@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { chatDraftKey } from "../lib/chatDraft";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
 import type { PanelTab } from "./panelSlice";
@@ -236,9 +237,27 @@ export const conversationSlice: StateCreator<
       ),
     })),
 
+  // Removes a conversation for good — the backend cascades its own
+  // messages/title/ACP-session rows *and* every sub-agent it spawned (sub-
+  // agents are scoped to whichever conversation spawned them — see
+  // `db::delete_conversation`'s doc comment). This mirrors that on the
+  // frontend: drops the localStorage-backed settings (`conversationBackend`/
+  // `permissionMode`) and panel-state snapshot this id will never use again,
+  // its chat draft, and any sub-agent bookkeeping (`subAgentTasks`/
+  // `subAgentThreads`/their `chatTabs`) via the same `clearSubAgentTasksForParent`
+  // action `/clear` already uses.
   deleteConversation: async (id) => {
     const conversation = get().conversations.find((c) => c.id === id);
     await api.deleteConversation(id);
+    get().clearSubAgentTasksForParent(id);
+    get().forgetConversationBackend(id);
+    get().forgetPermissionMode(id);
+    get().forgetConversationPanelState(id);
+    try {
+      localStorage.removeItem(chatDraftKey(id));
+    } catch {
+      // Best-effort, same as the draft read/write sites in ChatPanel.tsx.
+    }
     set((s) => ({
       conversations: s.conversations.filter((c) => c.id !== id),
     }));

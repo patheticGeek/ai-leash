@@ -199,6 +199,24 @@ export function useChatSession(
     onAcpAgentReset();
   }, [acpActiveId]);
 
+  // Drops the live-discovered model/effort/commands options (and the
+  // "already applied" bookkeeping that gates re-sending a choice) without
+  // touching the persisted `acpModelChoice`/`acpEffortChoice` preference or
+  // which agent is active — unlike the agent-switch reset effect above,
+  // which agent this conversation talks to hasn't changed here. For "/clear"
+  // (`ChatPanel.tsx`'s `runLocalCommand`): the backend drops its connection
+  // to the same agent and reconnects fresh, which re-announces these same
+  // options and re-applies the still-remembered choice once it arrives — in
+  // the meantime the old, now-stale options shouldn't keep showing as if
+  // they were still live.
+  function resetAcpConnectionState() {
+    setAcpModelOptions(null);
+    setAcpEffortOptions(null);
+    setAcpCommands([]);
+    appliedAcpModelRef.current = null;
+    appliedAcpEffortRef.current = null;
+  }
+
   async function selectAcpModel(value: string) {
     setAcpModelOptions((prev) =>
       prev ? { ...prev, currentValue: value } : prev,
@@ -496,5 +514,6 @@ export function useChatSession(
     activeBackendLabel,
     selectBackendOption,
     selectAcpEffort,
+    resetAcpConnectionState,
   };
 }

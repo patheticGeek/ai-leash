@@ -1,5 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
@@ -65,11 +66,11 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
         {chatTabs.map((tab) => (
           <div
             key={tab.id}
-            className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs cursor-default transition-colors duration-150 ease-out ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
               tab.id === activeChatTabId
                 ? "bg-white/10 text-zinc-100"
                 : "text-zinc-500 hover:text-zinc-300"
@@ -79,7 +80,10 @@ export default function CenterPanel() {
               variant="unstyled"
               size="none"
               onClick={() => setActiveChatTab(tab.id)}
-              className="max-w-[12rem] truncate text-left"
+              className={cn(
+                "max-w-[12rem] truncate text-left pl-2 py-1.5",
+                tab.kind !== "subagent" && "pr-2",
+              )}
             >
               {tab.label}
             </Button>
