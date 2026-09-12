@@ -134,7 +134,7 @@ export default function ChatInputBar({
               }`}
             >
               {sending ? (
-                <Square size={13} fill="currentColor" />
+                <Square size={12} fill="currentColor" />
               ) : (
                 <Send size={14} />
               )}
