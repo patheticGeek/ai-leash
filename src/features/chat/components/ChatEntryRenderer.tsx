@@ -198,18 +198,12 @@ export default function ChatEntryRenderer({
   // entry.kind === "tool"
   const failed = isToolError(entry.result);
   return (
-    <div
-      className={`rounded-md text-xs ${
-        failed
-          ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/10"
-          : "shadow-[var(--al-shadow)] bg-[#141518]"
-      }`}
-    >
+    <div className="text-xs">
       <Button
         variant="unstyled"
         size="none"
         onClick={onToggleExpand}
-        className="px-2.5 py-1.5 flex w-full min-w-0 items-center gap-1.5 rounded-md text-left text-zinc-400 hover:bg-white/5"
+        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
       >
         <Chevron expanded={expanded} />
         {entry.name === "spawn_sub_agent" ||
@@ -234,12 +228,17 @@ export default function ChatEntryRenderer({
         {failed && <span className="shrink-0 text-red-400">failed</span>}
       </Button>
       {expanded && (
-        <div className="mt-1 pl-4">
-          <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap text-zinc-600">
-            {JSON.stringify(entry.args, null, 2)}
-          </pre>
+        <div className="mt-1 ml-4 space-y-2 border-l-2 border-zinc-800 pl-3 text-zinc-600">
+          <div>
+            <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+              input
+            </div>
+            <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap">
+              {JSON.stringify(entry.args, null, 2)}
+            </pre>
+          </div>
           {entry.subtasks && entry.subtasks.length > 0 && (
-            <div className="mt-1.5 space-y-2">
+            <div className="space-y-2">
               {entry.subtasks.map((t) => (
                 <div
                   key={t.subSessionId}
@@ -259,13 +258,22 @@ export default function ChatEntryRenderer({
             </div>
           )}
           {entry.result !== undefined && (
-            <pre
-              className={`select-text mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
-                failed ? "text-red-300" : "text-zinc-500"
-              }`}
-            >
-              {entry.result}
-            </pre>
+            <div>
+              <div
+                className={`mb-0.5 text-[9px] uppercase tracking-wide ${
+                  failed ? "text-red-400" : "text-zinc-700"
+                }`}
+              >
+                output
+              </div>
+              <pre
+                className={`select-text max-h-40 overflow-auto whitespace-pre-wrap ${
+                  failed ? "text-red-300" : "text-zinc-500"
+                }`}
+              >
+                {entry.result}
+              </pre>
+            </div>
           )}
         </div>
       )}
