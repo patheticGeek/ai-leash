@@ -264,7 +264,7 @@ export default function ChatEntryList({
                   variant="unstyled"
                   size="none"
                   onClick={() => toggleGroup(groupKey)}
-                  className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
+                  className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
                 >
                   <ChevronDown
                     size={11}
