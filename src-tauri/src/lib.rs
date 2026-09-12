@@ -56,6 +56,7 @@ pub fn run() {
             chat::retry_last,
             chat::cancel_prompt,
             chat::history::load_conversation_history,
+            chat::history::set_message_duration,
             chat::history::get_conversation_title,
             chat::history::set_conversation_title,
             chat::clear_conversation,

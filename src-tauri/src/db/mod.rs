@@ -19,8 +19,8 @@ pub use acp_sessions::{
 };
 pub use conversations::{clear_conversation, get_conversation_title, set_conversation_title};
 pub use messages::{
-    finish_streaming_message, load_messages, save_message, start_streaming_message,
-    update_streaming_message, update_tool_call_args, PersistedMessage,
+    finish_streaming_message, load_messages, save_message, set_message_duration,
+    start_streaming_message, update_streaming_message, update_tool_call_args, PersistedMessage,
 };
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent, list_all_sub_agents, list_sub_agents_for_parent,
@@ -100,6 +100,23 @@ impl Db {
         if !has_title {
             conn.execute("ALTER TABLE conversations ADD COLUMN title TEXT", [])
                 .expect("failed to migrate conversation titles");
+        }
+        // Existing databases predate turn durations. Same existence check as
+        // `title` above, for the same reason.
+        let has_duration = conn
+            .prepare("PRAGMA table_info(messages)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "duration_seconds"))
+            .expect("failed to inspect messages schema");
+        if !has_duration {
+            conn.execute(
+                "ALTER TABLE messages ADD COLUMN duration_seconds INTEGER",
+                [],
+            )
+            .expect("failed to migrate message durations");
         }
         Db(Mutex::new(conn))
     }

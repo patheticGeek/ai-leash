@@ -5,6 +5,10 @@ export interface TextEntry {
   role: "user" | "assistant";
   content: string;
   time: number;
+  // Only ever set on assistant entries rehydrated from disk (see
+  // `messagesToEntries`) — a turn just-finished live gets its duration from
+  // `ChatPanel`'s own timer instead (see `turnDurations` there).
+  durationSeconds?: number;
 }
 
 export interface ThinkingEntry {
@@ -162,6 +166,7 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
           role: "assistant",
           content: message.content,
           time: message.createdAt * 1000,
+          durationSeconds: message.durationSeconds ?? undefined,
         });
       }
       for (const call of message.toolCalls ?? []) {

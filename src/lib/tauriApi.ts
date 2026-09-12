@@ -27,6 +27,7 @@ export interface PersistedMessage {
   content: string;
   toolCalls: PersistedToolCall[] | null;
   createdAt: number;
+  durationSeconds: number | null;
 }
 
 // Payload of the `chat://{sessionId}/acp_model_options` event, emitted only
@@ -110,6 +111,8 @@ export const api = {
     invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
+  setMessageDuration: (sessionId: string, seconds: number) =>
+    invoke<void>("set_message_duration", { sessionId, seconds }),
   getConversationTitle: (sessionId: string) =>
     invoke<string | null>("get_conversation_title", { sessionId }),
   setConversationTitle: (sessionId: string, title: string | null) =>

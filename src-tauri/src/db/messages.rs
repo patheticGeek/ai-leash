@@ -36,6 +36,7 @@ pub struct PersistedMessage {
     pub content: String,
     pub tool_calls: Option<Vec<ToolCall>>,
     pub created_at: i64,
+    pub duration_seconds: Option<i64>,
 }
 
 /// Appends one message to `conversation_id`'s history on disk. No-op for
@@ -167,7 +168,7 @@ pub fn update_tool_call_args(
 pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
     let conn = db.0.lock().unwrap();
     let mut stmt = match conn.prepare(
-        "SELECT role, content, tool_calls, created_at FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
+        "SELECT role, content, tool_calls, created_at, duration_seconds FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
     ) {
         Ok(s) => s,
         Err(_) => return vec![],
@@ -177,6 +178,7 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
         let content: String = row.get(1)?;
         let tool_calls_json: Option<String> = row.get(2)?;
         let created_at: i64 = row.get(3)?;
+        let duration_seconds: Option<i64> = row.get(4)?;
         let tool_calls =
             tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
         Ok(PersistedMessage {
@@ -184,12 +186,31 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
             content,
             tool_calls,
             created_at,
+            duration_seconds,
         })
     });
     match rows {
         Ok(iter) => iter.filter_map(Result::ok).collect(),
         Err(_) => vec![],
     }
+}
+
+/// Records how long a turn took to produce its final assistant reply —
+/// called once a turn finishes, from the frontend's own timer (`ChatPanel`'s
+/// "Worked for" clock starts at the agent's first visible output, which the
+/// backend has no notion of), so this can't just be folded into
+/// `finish_streaming_message`. Targets the conversation's most recent
+/// assistant row rather than a specific message id since that's all the
+/// frontend's timer is keyed to as well (see `messagesToEntries`/`ChatPanel`
+/// scanning `entries` backward for the latest assistant text entry).
+pub fn set_message_duration(db: &Db, conversation_id: &str, seconds: i64) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE messages SET duration_seconds = ?1 WHERE id = (
+            SELECT id FROM messages WHERE conversation_id = ?2 AND role = 'assistant' ORDER BY id DESC LIMIT 1
+        )",
+        params![seconds, conversation_id],
+    );
 }
 
 #[cfg(test)]
@@ -395,6 +416,59 @@ mod tests {
             calls[0].function.arguments,
             serde_json::json!({ "path": "a.rs" })
         );
+    }
+
+    #[test]
+    fn set_message_duration_targets_latest_assistant_row() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "user".into(),
+                content: "hi".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "assistant".into(),
+                content: "first reply".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "user".into(),
+                content: "again".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj",
+            "/proj",
+            &ChatMessage {
+                role: "assistant".into(),
+                content: "second reply".into(),
+                tool_calls: None,
+            },
+        );
+
+        set_message_duration(&db, "/proj", 42);
+
+        let loaded = load_messages(&db, "/proj");
+        assert_eq!(loaded[1].content, "first reply");
+        assert_eq!(loaded[1].duration_seconds, None);
+        assert_eq!(loaded[3].content, "second reply");
+        assert_eq!(loaded[3].duration_seconds, Some(42));
     }
 
     #[test]

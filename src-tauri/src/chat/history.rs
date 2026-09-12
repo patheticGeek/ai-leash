@@ -43,6 +43,19 @@ pub fn load_conversation_history(
     Ok(messages)
 }
 
+/// Stamps how long a turn took onto the conversation's most recent assistant
+/// message — see `db::set_message_duration` for why this can't just happen
+/// as part of persisting the message itself.
+#[tauri::command]
+pub fn set_message_duration(
+    state: State<'_, AppState>,
+    session_id: String,
+    seconds: i64,
+) -> Result<(), String> {
+    db::set_message_duration(&state.db, &session_id, seconds);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn get_conversation_title(
     state: State<'_, AppState>,

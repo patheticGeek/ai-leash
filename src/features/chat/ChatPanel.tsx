@@ -235,6 +235,29 @@ export default function ChatPanel() {
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
+  // Seeds `turnDurations` from history loaded off disk (see
+  // `messagesToEntries`) so a reply's "Worked for <time>" footer survives an
+  // app restart instead of falling back to a plain timestamp — only fills in
+  // indices not already set, since a turn that just finished live already
+  // has its duration in state from the effect below.
+  useEffect(() => {
+    setTurnDurations((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      entries.forEach((e, i) => {
+        if (
+          e.kind === "text" &&
+          e.role === "assistant" &&
+          e.durationSeconds != null &&
+          next[i] === undefined
+        ) {
+          next[i] = e.durationSeconds;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [entries]);
   useEffect(() => {
     if (!sending || replyStartedAt !== null) return;
     const last = entries[entries.length - 1];
@@ -259,6 +282,7 @@ export default function ChatPanel() {
           const e = list[i];
           if (e.kind === "text" && e.role === "assistant") {
             setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
+            api.setMessageDuration(sessionId, seconds).catch(() => {});
             break;
           }
           if (e.kind === "text" && e.role === "user") break;
@@ -269,7 +293,7 @@ export default function ChatPanel() {
     }
     const interval = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [sending]);
+  }, [sending, sessionId]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
