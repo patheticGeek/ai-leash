@@ -25,7 +25,8 @@ CREATE TABLE messages (
     role TEXT NOT NULL,
     content TEXT NOT NULL,
     tool_calls TEXT,               -- JSON-encoded Vec<ToolCall>, nullable
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    duration_seconds INTEGER       -- how long the turn took, assistant rows only
 );
 ```
 
@@ -138,6 +139,8 @@ here, just whole messages already containing their final content:
   role in `ChatMessage`), so reloaded history never shows them — same
   as it always looked before this feature existed, just now surviving
   a restart instead of only a single run.
+- An `assistant` message's `duration_seconds`, if set, is carried onto
+  its `TextEntry` as `durationSeconds` — see "Turn duration" below.
 
 `ChatPanel.tsx`'s hydration effect guards against clobbering a live
 update that might have arrived while the (async) load was still in
@@ -146,14 +149,34 @@ flight, via `setEntries((prev) => (prev.length === 0 ? loaded : prev))`
 message before the component has mounted and the user has interacted
 with it.
 
+## Turn duration
+
+`ChatPanel.tsx`'s "Worked for `<time>`" footer times a turn client-side
+(from the agent's first visible output to `sending` going false — see
+its own doc comment) and is otherwise pure in-memory React state
+(`turnDurations`, keyed by the reply's index in `entries`), so a reload
+used to lose it. Once a turn finishes, `ChatPanel.tsx` calls the
+`set_message_duration(session_id, seconds)` Tauri command
+(`chat/history.rs`) alongside setting `turnDurations` locally;
+`db::set_message_duration` writes `seconds` onto the conversation's
+**most recent `assistant` row** rather than a specific message id,
+since that's all the frontend's own index-based lookup is keyed to as
+well (it scans `entries` backward for the latest assistant text entry,
+stopping at a user entry). On reload, `messagesToEntries` seeds each
+assistant `TextEntry.durationSeconds` from the loaded row, and a
+`ChatPanel` effect merges those into `turnDurations` for any index not
+already set live, so the footer survives an app restart.
+
 ## Testing
 
 The `db/` modules have `#[cfg(test)]` unit tests exercising the SQL directly
 (round-tripping plain messages in order, round-tripping `tool_calls`
 JSON, confirming only `system` messages are excluded — sub-agent
 sessions round-trip like any other, confirming two conversations'
-messages don't leak into each other, and exercising the `sub_agents`
-table's start/finish lifecycle and its cross-parent scoping) against a
+messages don't leak into each other, confirming `set_message_duration`
+targets the latest `assistant` row rather than an earlier one, and
+exercising the `sub_agents` table's start/finish lifecycle and its
+cross-parent scoping) against a
 throwaway file in the OS temp dir per test — `cargo test --lib db::`.
 This is the fastest way to verify a change to the schema or save/load
 logic without going through Ollama or the UI at all.
