@@ -37,7 +37,11 @@ function formatClockTime(epochMs: number): string {
 // interleaved in between (see the backend's `TurnSegment`), and only the
 // final chunk should show the copy/timestamp/"Worked for" footer, not every
 // intermediate one.
-function isFinalAssistantChunk(entries: PanelEntry[], i: number): boolean {
+function isFinalAssistantChunk(
+  entries: PanelEntry[],
+  i: number,
+  sending: boolean,
+): boolean {
   for (let j = i + 1; j < entries.length; j++) {
     const e = entries[j];
     if (e.kind === "text") {
@@ -45,6 +49,12 @@ function isFinalAssistantChunk(entries: PanelEntry[], i: number): boolean {
       break;
     }
   }
+  // No later assistant text exists *yet* — but while the turn is still
+  // generating, a tool call already appended after this chunk (thinking/
+  // tool entries) can still resolve into more text, so this chunk isn't
+  // provably final until the turn finishes. Only the entry with nothing at
+  // all after it is the one actively streaming right now.
+  if (sending && i < entries.length - 1) return false;
   return true;
 }
 
@@ -157,7 +167,7 @@ export default function ChatEntryList({
     const showFooter =
       entry.kind !== "text" ||
       entry.role === "user" ||
-      isFinalAssistantChunk(entries, i);
+      isFinalAssistantChunk(entries, i, sending);
     return (
       <ChatEntryRenderer
         key={i}
