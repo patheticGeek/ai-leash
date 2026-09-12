@@ -50,8 +50,8 @@ function isFinalAssistantChunk(entries: PanelEntry[], i: number): boolean {
 
 // Renders a conversation's whole `entries` array: the collapsible system
 // prompt block, the empty/error states, each entry via
-// `ChatEntryRenderer.tsx` (grouping consecutive tool calls so only the
-// latest of a run shows by default), and the "Working for…" footer. Owns
+// `ChatEntryRenderer.tsx` (grouping consecutive thinking/tool activity so
+// only the latest of a run shows by default), and the "Working for…" footer. Owns
 // every piece of UI-only state that's purely about *how* an already-loaded
 // transcript is displayed (expand/collapse, copy-feedback, scroll
 // position) — none of it is read anywhere outside this component.
@@ -75,11 +75,11 @@ export default function ChatEntryList({
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
   );
-  // Consecutive tool-call entries are grouped so only the latest one shows by
-  // default (see `renderItems` below) — keyed by the group's first index,
-  // which stays stable as long as `entries` only ever grows (it does),
-  // tracking whether that group has been expanded to show every call in it
-  // rather than just the latest.
+  // Consecutive thinking/tool entries are grouped so only the latest one
+  // shows by default (see `renderItems` below) — keyed by the group's first
+  // index, which stays stable as long as `entries` only ever grows (it does),
+  // tracking whether that group has been expanded to show the full activity
+  // run rather than just the latest entry.
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>(
     {},
   );
@@ -131,22 +131,21 @@ export default function ChatEntryList({
       lastEntry.kind === "tool")
   );
 
-  // Groups runs of consecutive tool-call entries so the transcript can show
-  // only the latest call in a run by default (see the "toolgroup" branch
-  // below) instead of every single one — a multi-step agent turn can rack up
-  // a dozen tool calls in a row, which otherwise buries the actual
-  // conversation. Non-tool entries always stand alone.
+  // Groups runs of consecutive thinking/tool entries so the transcript can
+  // show only the latest activity by default (see the "activitygroup" branch
+  // below) instead of every individual step — a multi-step agent turn can
+  // otherwise bury the actual conversation.
   type RenderItem =
     | { kind: "single"; index: number }
-    | { kind: "toolgroup"; indices: number[] };
+    | { kind: "activitygroup"; indices: number[] };
   const renderItems: RenderItem[] = [];
   for (let i = 0; i < entries.length; i++) {
-    if (entries[i].kind === "tool") {
+    if (entries[i].kind === "thinking" || entries[i].kind === "tool") {
       const last = renderItems[renderItems.length - 1];
-      if (last && last.kind === "toolgroup") {
+      if (last && last.kind === "activitygroup") {
         last.indices.push(i);
       } else {
-        renderItems.push({ kind: "toolgroup", indices: [i] });
+        renderItems.push({ kind: "activitygroup", indices: [i] });
       }
     } else {
       renderItems.push({ kind: "single", index: i });
@@ -287,15 +286,27 @@ export default function ChatEntryList({
         </div>
       )}
       {renderItems.map((item) => {
-        if (item.kind === "toolgroup") {
+        if (item.kind === "activitygroup") {
           const { indices } = item;
           const groupKey = String(indices[0]);
           const expanded = groupExpanded[groupKey] ?? false;
           const showToggle = indices.length > 1;
           const visible =
             showToggle && !expanded ? [indices[indices.length - 1]] : indices;
+          const thoughtCount = indices.filter(
+            (idx) => entries[idx].kind === "thinking",
+          ).length;
+          const toolCount = indices.filter(
+            (idx) => entries[idx].kind === "tool",
+          ).length;
+          const activitySummary = [
+            thoughtCount > 0 && `${thoughtCount} thoughts`,
+            toolCount > 0 && `${toolCount} tools used`,
+          ]
+            .filter(Boolean)
+            .join(", ");
           return (
-            <div key={`group-${groupKey}`} className="space-y-1.5">
+            <div key={`activity-${groupKey}`} className="space-y-1.5">
               {visible.map((idx) => renderEntry(idx))}
               {showToggle && (
                 <Button
@@ -308,7 +319,7 @@ export default function ChatEntryList({
                     size={11}
                     className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
                   />
-                  {expanded ? "Hide" : `Show all (${indices.length})`}
+                  {expanded ? "Hide" : `Show all (${activitySummary})`}
                 </Button>
               )}
             </div>

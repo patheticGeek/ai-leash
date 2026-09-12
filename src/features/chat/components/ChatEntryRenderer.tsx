@@ -55,7 +55,7 @@ function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "thinking") {
     return (
       <div className="italic text-zinc-700">
-        {entry.done ? "thought" : "thinking…"}
+        {entry.done ? "Thought" : "Thinking…"}
       </div>
     );
   }
@@ -184,7 +184,7 @@ export default function ChatEntryRenderer({
           className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:text-zinc-400"
         >
           <Chevron expanded={expanded} />
-          <span className="italic">thinking…</span>
+          <span className="italic">Thinking…</span>
         </Button>
         {expanded && (
           <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 italic text-zinc-600">
@@ -224,7 +224,7 @@ export default function ChatEntryRenderer({
             className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
           />
         )}
-        <span className="shrink-0 truncate max-w-40">{entry.name}</span>
+        <span className="shrink-0 truncate max-w-4/5">{entry.name}</span>
         <span className="select-text min-w-0 flex-1 truncate text-zinc-600">
           {!expanded ? JSON.stringify(entry.args) : ""}
         </span>
