@@ -4,6 +4,7 @@ import NewConversationPopover from "@/app/NewConversationPopover";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
+import { ensureGeneratingListener } from "../../lib/generatingListener";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
@@ -470,6 +471,11 @@ export default function ChatPanel({
     ]);
     setSending(true);
     try {
+      // Must resolve before the backend call below: it emits
+      // `chat://{sessionId}/generating` (active: true) the instant it
+      // starts, and a brand-new conversation's listener wouldn't otherwise
+      // be registered yet — see `generatingListener.ts`.
+      await ensureGeneratingListener(sessionId);
       if (isAcp && activeAcpAgent) {
         await api.sendPromptAcp(
           sessionId,
