@@ -135,6 +135,17 @@ fn push_segment_chunk(
 /// `LoadSessionRequest` call.
 pub(super) type SuppressReplay = Arc<AtomicBool>;
 
+/// Claude Code's ACP wrapper reports a session-limit response as the final
+/// assistant text chunk rather than an ACP error. Keep it out of the
+/// transcript and route it through the existing error path, where the
+/// frontend can offer timed auto-resume.
+fn is_session_limit_notice(text: &str) -> bool {
+    let normalized = text.to_ascii_lowercase();
+    (normalized.contains("you've hit") || normalized.contains("you have hit"))
+        && normalized.contains("session limit")
+        && normalized.contains("reset")
+}
+
 pub(super) fn handle_session_notification(
     app: &AppHandle,
     session_id: &str,
@@ -149,6 +160,19 @@ pub(super) fn handle_session_notification(
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {
+                if is_session_limit_notice(&text.text) {
+                    let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);
+                    push_segment_chunk(
+                        app,
+                        session_id,
+                        current_segment,
+                        SegmentRole::Assistant,
+                        &text.text,
+                    );
+                    close_segment(app, session_id, current_segment);
+                    let _ = app.emit(&format!("chat://{session_id}/error"), &text.text);
+                    return;
+                }
                 let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);
                 push_segment_chunk(
                     app,
@@ -382,6 +406,19 @@ pub(super) fn summarize_tool_call_content(content: &[ToolCallContent]) -> String
 mod tests {
     use super::*;
     use agent_client_protocol::schema::v1::TextContent;
+
+    #[test]
+    fn recognizes_claude_session_limit_notice() {
+        assert!(is_session_limit_notice(
+            "You've hit your session limit · resets 11:20pm (Asia/Kolkata)"
+        ));
+        assert!(is_session_limit_notice(
+            "You have hit the session limit; reset at 11:20 PM"
+        ));
+        assert!(!is_session_limit_notice(
+            "The session limit is documented in the project notes."
+        ));
+    }
 
     #[test]
     fn summarizes_mixed_tool_call_content() {

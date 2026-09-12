@@ -10,6 +10,7 @@ import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
 import ChatEntryList from "./components/ChatEntryList";
 import ChatInputBar from "./components/ChatInputBar";
+import ClaudeRateLimitBanner from "./components/ClaudeRateLimitBanner";
 import ContextUsageRing from "./components/ContextUsageRing";
 import EffortPickerPopover from "./components/EffortPickerPopover";
 import ModelPickerPopover from "./components/ModelPickerPopover";
@@ -614,66 +615,76 @@ export default function ChatPanel({
   const usageContextLength = usage?.contextLength ?? contextLength;
 
   const inputBar = (
-    <ChatInputBar
-      input={input}
-      onChange={setInput}
-      onKeyDown={onKeyDown}
-      textareaRef={textareaRef}
-      shellMode={shellMode}
-      pendingPermission={pendingPermission}
-      onRespondPermission={respondPermission}
-      showSlashPopover={showSlashPopover}
-      slashMatches={slashMatches}
-      slashActiveIndex={slashActiveIndex}
-      onAcceptSlash={acceptSlashCommand}
-      sending={sending}
-      onSend={send}
-      onStop={stop}
-      sendDisabled={
-        !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
-      }
-      toolbarLeft={
-        <>
-          <ModelPickerPopover
-            options={backendOptions}
-            activeKey={activeBackendKey}
-            onSelect={selectBackendOption}
-            triggerLabel={activeBackendLabel}
-            open={modelPickerOpen}
-            onOpenChange={setModelPickerOpen}
-          />
-          {isAcp && acpEffortOptions && (
-            <EffortPickerPopover
-              options={acpEffortOptions.options}
-              value={acpEffortChoice ?? acpEffortOptions.currentValue}
-              onSelect={selectAcpEffort}
+    <>
+      {claudeRateLimit && (
+        <ClaudeRateLimitBanner
+          rateLimit={claudeRateLimit}
+          autoResumeArmed={claudeAutoResumeArmed}
+          onArmAutoResume={armClaudeAutoResume}
+          onDismiss={dismissClaudeRateLimit}
+        />
+      )}
+      <ChatInputBar
+        input={input}
+        onChange={setInput}
+        onKeyDown={onKeyDown}
+        textareaRef={textareaRef}
+        shellMode={shellMode}
+        pendingPermission={pendingPermission}
+        onRespondPermission={respondPermission}
+        showSlashPopover={showSlashPopover}
+        slashMatches={slashMatches}
+        slashActiveIndex={slashActiveIndex}
+        onAcceptSlash={acceptSlashCommand}
+        sending={sending}
+        onSend={send}
+        onStop={stop}
+        sendDisabled={
+          !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
+        }
+        toolbarLeft={
+          <>
+            <ModelPickerPopover
+              options={backendOptions}
+              activeKey={activeBackendKey}
+              onSelect={selectBackendOption}
+              triggerLabel={activeBackendLabel}
+              open={modelPickerOpen}
+              onOpenChange={setModelPickerOpen}
             />
-          )}
-          <PermissionModePopover
-            mode={permissionMode}
-            onSelect={(mode) => setPermissionMode(sessionId, mode)}
-            open={permissionModePickerOpen}
-            onOpenChange={setPermissionModePickerOpen}
-          />
-          {isOpenAiCompatible && !isAcp && (
-            <Input
-              variant="chip"
-              value={model}
-              onChange={(e) => setModel(e.currentTarget.value)}
-              placeholder="model id"
+            {isAcp && acpEffortOptions && (
+              <EffortPickerPopover
+                options={acpEffortOptions.options}
+                value={acpEffortChoice ?? acpEffortOptions.currentValue}
+                onSelect={selectAcpEffort}
+              />
+            )}
+            <PermissionModePopover
+              mode={permissionMode}
+              onSelect={(mode) => setPermissionMode(sessionId, mode)}
+              open={permissionModePickerOpen}
+              onOpenChange={setPermissionModePickerOpen}
             />
-          )}
-        </>
-      }
-      contextUsage={
-        usedTokens !== null && (
-          <ContextUsageRing
-            usedTokens={usedTokens}
-            contextLength={usageContextLength}
-          />
-        )
-      }
-    />
+            {isOpenAiCompatible && !isAcp && (
+              <Input
+                variant="chip"
+                value={model}
+                onChange={(e) => setModel(e.currentTarget.value)}
+                placeholder="model id"
+              />
+            )}
+          </>
+        }
+        contextUsage={
+          usedTokens !== null && (
+            <ContextUsageRing
+              usedTokens={usedTokens}
+              contextLength={usageContextLength}
+            />
+          )
+        }
+      />
+    </>
   );
 
   if (isNewThread) {
@@ -727,10 +738,6 @@ export default function ChatPanel({
           ollamaError={ollamaError}
           acpRestoreFailed={acpRestoreFailed}
           onRetryAcpSession={retryAcpSession}
-          claudeRateLimit={claudeRateLimit}
-          claudeAutoResumeArmed={claudeAutoResumeArmed}
-          onArmClaudeAutoResume={armClaudeAutoResume}
-          onDismissClaudeRateLimit={dismissClaudeRateLimit}
           systemPrompt={systemPrompt}
           sending={sending}
           isAcp={isAcp}
