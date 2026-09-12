@@ -1,6 +1,6 @@
 //! SQLite-backed persistence, split by table: `conversations.rs`,
 //! `messages.rs`, `sub_agents.rs` each own the SQL for their own table
-//! (`conversations.rs` additionally owns whole-conversation deletes, which
+//! (`conversations.rs` additionally owns titles and whole-conversation deletes, which
 //! cascade into the other two tables). This module holds only what's
 //! genuinely shared: the `Db` handle itself, connection/schema setup, and
 //! the `now()` timestamp helper the other two files call into.
@@ -17,7 +17,7 @@ mod sub_agents;
 pub use acp_sessions::{
     delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id,
 };
-pub use conversations::clear_conversation;
+pub use conversations::{clear_conversation, get_conversation_title, set_conversation_title};
 pub use messages::{
     finish_streaming_message, load_messages, save_message, start_streaming_message,
     update_streaming_message, update_tool_call_args, PersistedMessage,
@@ -53,6 +53,7 @@ impl Db {
             CREATE TABLE IF NOT EXISTS conversations (
                 id TEXT PRIMARY KEY,
                 project_root TEXT NOT NULL,
+                title TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -86,6 +87,20 @@ impl Db {
             ",
         )
         .expect("failed to initialize history database schema");
+        // Existing databases predate conversation titles. Check first so a
+        // real migration failure is not mistaken for an already-applied one.
+        let has_title = conn
+            .prepare("PRAGMA table_info(conversations)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "title"))
+            .expect("failed to inspect conversations schema");
+        if !has_title {
+            conn.execute("ALTER TABLE conversations ADD COLUMN title TEXT", [])
+                .expect("failed to migrate conversation titles");
+        }
         Db(Mutex::new(conn))
     }
 }

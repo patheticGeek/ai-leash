@@ -196,8 +196,12 @@ pub(super) fn handle_session_notification(
                 }),
             );
         }
-        // ACP currently does not expose session metadata in the chat UI.
-        SessionUpdate::SessionInfoUpdate(_) => {}
+        SessionUpdate::SessionInfoUpdate(update) if !update.title.is_undefined() => {
+            let title = update.title.value().cloned();
+            let state = app.state::<AppState>();
+            db::set_conversation_title(&state.db, session_id, title.as_deref());
+            let _ = app.emit(&format!("chat://{session_id}/title"), title);
+        }
         // UserMessageChunk is just an echo of what we already persisted
         // before sending the prompt; Plan/CurrentModeUpdate/ConfigOptionUpdate/
         // anything else are out of scope for this phase.

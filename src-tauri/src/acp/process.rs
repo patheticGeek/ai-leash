@@ -6,7 +6,6 @@ use super::events::{
     SuppressReplay,
 };
 use super::permissions::bridge_acp_permission;
-use crate::chat::{self, ChatMessage};
 use crate::commands;
 use crate::db;
 use crate::provider::ProviderConfig;
@@ -313,22 +312,6 @@ async fn drive_acp_connection(
                             &format!("chat://{session_id}/generating"),
                             json!({ "active": true, "autonomous": false }),
                         );
-
-                        // Persist the user's turn immediately, mirroring
-                        // send_prompt's behavior, so the transcript stays
-                        // complete even if the agent never replies.
-                        {
-                            let state = app.state::<AppState>();
-                            chat::push_message(
-                                &state,
-                                &session_id,
-                                ChatMessage {
-                                    role: "user".into(),
-                                    content: text.clone(),
-                                    tool_calls: None,
-                                },
-                            );
-                        }
 
                         let result = connection
                             .send_request(PromptRequest::new(

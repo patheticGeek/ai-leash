@@ -144,6 +144,7 @@ export default function ChatPanel() {
     setEntries,
     usage,
     setUsage,
+    sessionTitle,
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed,
@@ -157,6 +158,12 @@ export default function ChatPanel() {
     isClaudeAcp,
     autoResumeFromRateLimit,
   );
+  const setProjectTitle = useAppStore((s) => s.setProjectTitle);
+  useEffect(() => {
+    if (sessionTitle !== null) {
+      setProjectTitle(sessionId, sessionTitle);
+    }
+  }, [sessionId, sessionTitle, setProjectTitle]);
 
   // Connects the ACP agent's subprocess as soon as one's active for this
   // conversation, rather than waiting for the first `send()` — see
@@ -408,6 +415,8 @@ export default function ChatPanel() {
           text,
         );
       }
+      const title = await api.getConversationTitle(sessionId);
+      setProjectTitle(sessionId, title);
     } catch (e) {
       setOllamaError(String(e));
       setSending(false);

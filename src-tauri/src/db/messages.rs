@@ -10,6 +10,22 @@ use crate::tools::ToolCall;
 use rusqlite::params;
 use serde::Serialize;
 
+pub(super) fn title_from_message(content: &str) -> Option<String> {
+    let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
+    let first_sentence = normalized
+        .split_once(['.', '!', '?'])
+        .map_or(normalized.as_str(), |(sentence, _)| sentence);
+    let title = first_sentence.trim().trim_matches(['.', '!', '?']);
+    if title.is_empty() {
+        return None;
+    }
+    let mut title: String = title.chars().take(60).collect();
+    if title.chars().count() == 60 {
+        title.push('…');
+    }
+    Some(title)
+}
+
 /// A message as read back from disk, with its real send time attached (as
 /// opposed to `ChatMessage`, which is only ever used for the live in-memory
 /// history sent to Ollama and has no timestamp of its own).
@@ -42,6 +58,14 @@ pub fn save_message(db: &Db, conversation_id: &str, project_root: &str, message:
         "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![conversation_id, message.role, message.content, tool_calls_json, ts],
     );
+    if message.role == "user" {
+        if let Some(title) = title_from_message(&message.content) {
+            let _ = conn.execute(
+                "UPDATE conversations SET title = ?1 WHERE id = ?2 AND title IS NULL",
+                params![title, conversation_id],
+            );
+        }
+    }
 }
 
 /// Inserts a new message starting from empty content and returns its row id,

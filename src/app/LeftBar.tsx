@@ -44,17 +44,32 @@ function ProjectRow({
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
       } ${
         awaitingApproval
-          ? "animate-pulse ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
+          ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
           : ""
       }`}
     >
-      <span className="min-w-0 flex-1 truncate">{project.name}</span>
-      {generating && (
-        <span
-          title="Generating…"
-          className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
-        />
-      )}
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="min-w-0 truncate text-zinc-200">
+            {project.title || "New conversation"}
+          </span>
+          {generating && (
+            <span
+              title="Working"
+              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500"
+            />
+          )}
+          {awaitingApproval && (
+            <span
+              title="Permission required"
+              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400"
+            />
+          )}
+        </span>
+        <span className="block truncate text-[11px] text-zinc-500">
+          {project.name}
+        </span>
+      </span>
     </Button>
   );
 }

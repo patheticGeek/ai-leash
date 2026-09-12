@@ -4,6 +4,7 @@
 //! `sub_agents` too — deleting a conversation isn't just a `conversations`
 //! table op, so it lives here rather than being split across files.
 
+use super::messages::title_from_message;
 use super::Db;
 use rusqlite::{params, Connection};
 
@@ -21,6 +22,53 @@ pub(super) fn upsert_conversation(
         "INSERT INTO conversations (id, project_root, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
          ON CONFLICT(id) DO UPDATE SET updated_at = ?3",
         params![conversation_id, project_root, ts],
+    );
+}
+
+/// Returns the persisted title for a conversation, if one has been assigned.
+pub fn get_conversation_title(db: &Db, conversation_id: &str) -> Option<String> {
+    let conn = db.0.lock().unwrap();
+    let title: Option<String> = conn
+        .query_row(
+            "SELECT title FROM conversations WHERE id = ?1",
+            params![conversation_id],
+            |row| row.get(0),
+        )
+        .ok()
+        .flatten();
+    let title = title?;
+    // Upgrade titles written by the earlier implementation, which stored
+    // the entire first prompt verbatim.
+    let first_prompt: Option<String> = conn
+        .query_row(
+            "SELECT content FROM messages WHERE conversation_id = ?1 AND role = 'user' ORDER BY id ASC LIMIT 1",
+            params![conversation_id],
+            |row| row.get(0),
+        )
+        .ok();
+    if first_prompt
+        .as_deref()
+        .is_some_and(|prompt| prompt.trim() == title)
+    {
+        if let Some(derived) = first_prompt.and_then(|prompt| title_from_message(&prompt)) {
+            if derived != title {
+                let _ = conn.execute(
+                    "UPDATE conversations SET title = ?1 WHERE id = ?2",
+                    params![&derived, conversation_id],
+                );
+                return Some(derived);
+            }
+        }
+    }
+    Some(title)
+}
+
+/// Sets or clears a conversation title without changing its activity order.
+pub fn set_conversation_title(db: &Db, conversation_id: &str, title: Option<&str>) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE conversations SET title = ?1 WHERE id = ?2",
+        params![title, conversation_id],
     );
 }
 

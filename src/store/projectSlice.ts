@@ -16,6 +16,7 @@ interface OpenFile {
 export interface RecentProject {
   path: string;
   name: string;
+  title?: string | null;
   // Epoch ms of the last chat turn started in this project (see
   // `touchProjectActivity`) — 0 means never. Display order is sorted by
   // this, not by when the project was last merely opened/switched to, so
@@ -66,6 +67,7 @@ export interface ProjectSlice {
   updateContent: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   touchProjectActivity: (path: string) => void;
+  setProjectTitle: (path: string, title: string | null) => void;
 }
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
@@ -80,6 +82,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   // `root` doubles as the conversation id for now — one conversation per
   // project, until multiple named conversations per project are wired up.
   openProject: async (root) => {
+    const title = await api.getConversationTitle(root);
     await api.setProjectRoot(root);
     const name = root.split("/").filter(Boolean).pop() ?? root;
     const prevRoot = get().projectRoot;
@@ -105,8 +108,11 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
       // project is appended as-is; a known one is left untouched.
       const recentProjects = s.recentProjects.some((p) => p.path === root)
         ? s.recentProjects
-        : [...s.recentProjects, { path: root, name, lastMessageAt: 0 }];
-      saveRecentProjects(recentProjects);
+        : [...s.recentProjects, { path: root, name, title, lastMessageAt: 0 }];
+      const withTitle = recentProjects.map((project) =>
+        project.path === root ? { ...project, title } : project,
+      );
+      saveRecentProjects(withTitle);
       return {
         projectRoot: root,
         openFiles: [],
@@ -117,7 +123,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         panelTabs: restored?.panelTabs ?? [],
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
-        recentProjects,
+        recentProjects: withTitle,
         // The center pane's open tabs are specific to whichever project's
         // conversation is currently in view — a stale sub-agent tab from a
         // different project showing up here would be the wrong context, so
@@ -227,6 +233,15 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
       if (!s.recentProjects.some((p) => p.path === path)) return s;
       const recentProjects = s.recentProjects.map((p) =>
         p.path === path ? { ...p, lastMessageAt: Date.now() } : p,
+      );
+      saveRecentProjects(recentProjects);
+      return { recentProjects };
+    }),
+
+  setProjectTitle: (path, title) =>
+    set((s) => {
+      const recentProjects = s.recentProjects.map((project) =>
+        project.path === path ? { ...project, title } : project,
       );
       saveRecentProjects(recentProjects);
       return { recentProjects };

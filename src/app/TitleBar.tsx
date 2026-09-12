@@ -84,10 +84,10 @@ export default function TitleBar({
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const openProject = useAppStore((s) => s.openProject);
 
-  const projectName = recentProjects.find((p) => p.path === projectRoot)?.name;
-  const conversationTitle = chatTabs.find(
-    (t) => t.id === activeChatTabId,
-  )?.label;
+  const project = recentProjects.find((p) => p.path === projectRoot);
+  const activeChatTab = chatTabs.find((t) => t.id === activeChatTabId);
+  const conversationTitle =
+    activeChatTab?.kind === "subagent" ? activeChatTab.label : project?.title;
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -125,9 +125,9 @@ export default function TitleBar({
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-xs text-zinc-400 bg-[#0e0f12]"
       >
-        {projectName && (
+        {project && (
           <span className="min-w-0 truncate">
-            {projectName}
+            {project.name}
             {conversationTitle && (
               <span className="text-zinc-600"> / {conversationTitle}</span>
             )}

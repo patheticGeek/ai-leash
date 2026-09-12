@@ -3,6 +3,7 @@ mod events;
 mod permissions;
 mod process;
 
+use crate::chat::{self, ChatMessage};
 use crate::commands;
 use crate::provider::ProviderConfig;
 use crate::state::AppState;
@@ -57,9 +58,24 @@ pub async fn send_prompt_acp(
     message: String,
 ) -> Result<(), String> {
     let sender = ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
-    sender.send(AcpCommand::Prompt(message)).map_err(|_| {
-        "ACP agent process is no longer running; send another message to restart it.".to_string()
-    })
+    sender
+        .send(AcpCommand::Prompt(message.clone()))
+        .map_err(|_| {
+            "ACP agent process is no longer running; send another message to restart it."
+                .to_string()
+        })?;
+    // Persist at command acceptance time so title lookup and transcript
+    // updates do not race the ACP worker's asynchronous prompt handling.
+    chat::push_message(
+        &state,
+        &session_id,
+        ChatMessage {
+            role: "user".into(),
+            content: message,
+            tool_calls: None,
+        },
+    );
+    Ok(())
 }
 
 /// Only meaningful once a session is already connected (send a prompt

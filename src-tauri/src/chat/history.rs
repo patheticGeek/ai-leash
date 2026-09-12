@@ -43,6 +43,27 @@ pub fn load_conversation_history(
     Ok(messages)
 }
 
+#[tauri::command]
+pub fn get_conversation_title(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Option<String>, String> {
+    Ok(db::get_conversation_title(&state.db, &session_id))
+}
+
+#[tauri::command]
+pub fn set_conversation_title(
+    state: State<'_, AppState>,
+    session_id: String,
+    title: Option<String>,
+) -> Result<(), String> {
+    let title = title
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    db::set_conversation_title(&state.db, &session_id, title.as_deref());
+    Ok(())
+}
+
 /// All sub-agents ever spawned, across every project — the Sub Agents
 /// sidebar's own scope (a cross-project history, not scoped to whichever
 /// project is currently open). See `db::list_all_sub_agents`.

@@ -103,6 +103,10 @@ export const api = {
     invoke<boolean>("check_provider_connection", { provider }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
+  getConversationTitle: (sessionId: string) =>
+    invoke<string | null>("get_conversation_title", { sessionId }),
+  setConversationTitle: (sessionId: string, title: string | null) =>
+    invoke<void>("set_conversation_title", { sessionId, title }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
   compactConversation: (

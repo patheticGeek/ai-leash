@@ -120,6 +120,7 @@ export function useChatStream(
     completion: number;
     contextLength?: number;
   } | null>(null);
+  const [sessionTitle, setSessionTitle] = useState<string | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   // Set when this ACP agent couldn't resume its previous session (its own
   // session store expired or was cleared) — distinct from `error` (plain
@@ -284,6 +285,11 @@ export function useChatStream(
                 appendThinking(sub, ev.payload),
               ),
             );
+            unlistens.push(
+              listen<string | null>(`chat://${sessionId}/title`, (e) => {
+                setSessionTitle(e.payload);
+              }),
+            );
             setSubAgentEntries(subSessionId, (prev) =>
               appendThinking(prev, ev.payload),
             );
@@ -383,6 +389,7 @@ export function useChatStream(
     setEntries,
     usage,
     setUsage,
+    sessionTitle,
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed: () => setAcpRestoreFailed(null),
