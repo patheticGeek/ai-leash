@@ -317,10 +317,14 @@ export default function ChatEntryList({
         return renderEntry(item.index);
       })}
       {sending && (
-        <div className="text-zinc-600 text-sm">
-          {hasActivity && replyStartedAt
-            ? `Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`
-            : "Waiting"}
+        <div className="text-sm">
+          {hasActivity && replyStartedAt ? (
+            <span className="shine-text">
+              {`Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`}
+            </span>
+          ) : (
+            <span className="shine-text">Waiting</span>
+          )}
         </div>
       )}
     </div>

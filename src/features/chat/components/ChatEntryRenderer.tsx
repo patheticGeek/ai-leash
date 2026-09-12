@@ -184,7 +184,11 @@ export default function ChatEntryRenderer({
           className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:text-zinc-400"
         >
           <Chevron expanded={expanded} />
-          <span className="italic">Thinking…</span>
+          {entry.done || !isLast ? (
+            <span className="italic">Thought</span>
+          ) : (
+            <span className="shine-text italic">Thinking…</span>
+          )}
         </Button>
         {expanded && (
           <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 italic text-zinc-600">
