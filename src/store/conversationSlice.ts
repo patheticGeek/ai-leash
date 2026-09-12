@@ -16,6 +16,18 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+// Guards `openConversation`/`startNewConversation` against racing each
+// other when called in rapid succession (e.g. double-clicking two
+// different sidebar rows, or a click landing while `initializeStartupSession`
+// is still resolving). Each call captures its own token right before the
+// only `await` that can be outraced (`api.setProjectRoot`) and bails
+// without touching any state if a newer switch has since started — so a
+// slow response to an abandoned switch can never land after, and clobber,
+// whichever switch actually "won". Deliberately a plain module-level
+// counter rather than store state: it's pure call-ordering bookkeeping,
+// nothing ever renders from it.
+let latestSwitchToken = 0;
+
 export interface ConversationSlice {
   // Every top-level conversation across every known project — the
   // sidebar's own scope (`LeftBar.tsx`), loaded once at startup via
@@ -100,8 +112,16 @@ export const conversationSlice: StateCreator<
     const conversation = get().conversations.find((c) => c.id === id);
     if (!conversation) return;
     const { projectRoot } = conversation;
+    const token = ++latestSwitchToken;
     await api.setProjectRoot(projectRoot);
+    // A newer switch (another click, or `startNewConversation`) started
+    // while this one was awaiting the backend round trip — let it win
+    // instead of overwriting whatever it already committed.
+    if (token !== latestSwitchToken) return;
 
+    // Read fresh, not before the `await` above — otherwise this could be
+    // stamping a panel-state snapshot for a `prevSessionId` that's already
+    // stale by the time it's actually written.
     const prevSessionId = get().activeSessionId;
     const prevPanelTabs = get().panelTabs;
     const prevActivePanelTabId = get().activePanelTabId;
@@ -174,7 +194,10 @@ export const conversationSlice: StateCreator<
       if (mode) get().setPermissionMode(id, mode);
     }
 
+    const token = ++latestSwitchToken;
     await api.setProjectRoot(projectRoot);
+    // See `openConversation`'s identical guard — a newer switch already won.
+    if (token !== latestSwitchToken) return;
 
     const prevSessionId = get().activeSessionId;
     const prevPanelTabs = get().panelTabs;

@@ -53,10 +53,14 @@ export interface ProjectSlice {
   // fresh conversation for it — see `conversationSlice.startNewConversation`.
   addProject: (dir: string) => Promise<void>;
   // Forgets a project folder for good — including deleting every
-  // conversation it has (backend `delete_conversation` for each, plus
-  // local state), not just the folder entry, so removing a project doesn't
-  // leave orphaned conversation rows in the sidebar with no project name to
-  // show. Reachable from `NewConversationPopover.tsx`'s project list.
+  // conversation it has, not just the folder entry, so removing a project
+  // doesn't leave orphaned conversation rows in the sidebar with no project
+  // name to show. Routes each deletion through
+  // `conversationSlice.deleteConversation` rather than calling
+  // `api.deleteConversation` directly, so the same
+  // localStorage/sub-agent-bookkeeping cleanup that a normal per-conversation
+  // delete does can't drift out of sync with this bulk path. Reachable from
+  // `NewConversationPopover.tsx`'s project list.
   removeProject: (root: string) => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
@@ -86,7 +90,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
 
   removeProject: async (root) => {
     const toDelete = get().conversations.filter((c) => c.projectRoot === root);
-    await Promise.all(toDelete.map((c) => api.deleteConversation(c.id)));
+    await Promise.all(toDelete.map((c) => get().deleteConversation(c.id)));
     set((s) => {
       const recentProjects = s.recentProjects.filter((p) => p.path !== root);
       saveRecentProjects(recentProjects);

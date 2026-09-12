@@ -93,15 +93,30 @@ pub fn list_conversations(state: State<AppState>) -> Result<Vec<db::Conversation
 /// these ids will ever be passed again. Distinct from `clear_conversation`'s
 /// "/clear" semantics, which wipe the same rows but keep the top-level id
 /// alive for reuse.
+///
+/// Cancels and waits out any turn still running for `session_id` or its
+/// sub-agents first (`cancel_and_await_idle`) — deleting out from under a
+/// live turn would otherwise let its next `save_message` call resurrect the
+/// row right after this returns, via `upsert_conversation`'s
+/// `INSERT ... ON CONFLICT DO UPDATE`.
 #[tauri::command]
-pub fn delete_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
+pub async fn delete_conversation(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<(), String> {
     let sub_agent_ids: Vec<String> =
         db::list_sub_agents_for_parent(&state.db, &session_id, usize::MAX)
             .into_iter()
             .map(|s| s.id)
             .collect();
-    for id in std::iter::once(session_id.clone()).chain(sub_agent_ids) {
-        super::forget_session_runtime_state(state.inner(), &id, true);
+    let ids: Vec<String> = std::iter::once(session_id.clone())
+        .chain(sub_agent_ids)
+        .collect();
+    for id in &ids {
+        super::cancel_and_await_idle(state.inner(), id).await;
+    }
+    for id in &ids {
+        super::forget_session_runtime_state(state.inner(), id, true);
     }
     db::delete_conversation(&state.db, &session_id);
     Ok(())
