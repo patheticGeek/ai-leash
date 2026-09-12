@@ -297,6 +297,16 @@ export default function ChatPanel() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // The textarea is uncontrolled (see `ChatInputBar`'s `defaultValue`) so the
+  // browser's native undo/redo (Ctrl+Z) survives — a controlled `value`
+  // reassigned on every keystroke wipes that history. Programmatic changes
+  // (clearing on send, inserting a slash-command template) have to write the
+  // DOM node directly as well as the `input` state that mirrors it.
+  function setInputValue(value: string) {
+    setInput(value);
+    if (textareaRef.current) textareaRef.current.value = value;
+  }
+
   // "/compact" only exists for the built-in provider loop — see
   // `COMPACT_COMMAND`. Local commands first, then whatever the connected
   // ACP agent advertises (skipping any name a local command already
@@ -316,7 +326,7 @@ export default function ChatPanel() {
   // replace (see `chat::clear_conversation`'s doc comment).
   async function runLocalCommand(name: string) {
     if (sending) return;
-    setInput("");
+    setInputValue("");
     if (name === "clear") {
       setOllamaError(null);
       try {
@@ -376,7 +386,7 @@ export default function ChatPanel() {
   // real tool-call/result pair so this survives a reload).
   async function runShellEscape(command: string) {
     if (sending) return;
-    setInput("");
+    setInputValue("");
     setOllamaError(null);
     setSending(true);
     try {
@@ -409,7 +419,7 @@ export default function ChatPanel() {
     }
     if (!text || sending || (!isAcp && !model) || (isAcp && !activeAcpAgent))
       return;
-    setInput("");
+    setInputValue("");
     setOllamaError(null);
     await submitPrompt(text);
   }
@@ -482,7 +492,7 @@ export default function ChatPanel() {
   }, [slashQuery]);
 
   function acceptSlashCommand(cmd: AcpCommandInfo) {
-    setInput(`/${cmd.name} `);
+    setInputValue(`/${cmd.name} `);
     setSlashDismissed(null);
     textareaRef.current?.focus();
   }

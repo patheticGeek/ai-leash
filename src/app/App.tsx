@@ -58,6 +58,35 @@ function App() {
     refreshAcpModelCache();
   }, [refreshAcpModelCache]);
 
+  // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
+  // engine via a native app menu's Undo/Redo accelerators — this app has no
+  // native menu (custom chromeless titlebar), so plain inputs/textareas get
+  // no undo at all there. `execCommand` reaches the same internal undo
+  // manager directly, sidestepping the missing accelerator wiring; harmless
+  // on platforms where the native shortcut already works.
+  useEffect(() => {
+    function handleUndoRedo(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const target = e.target;
+      if (
+        !(target instanceof HTMLInputElement) &&
+        !(target instanceof HTMLTextAreaElement)
+      )
+        return;
+      const key = e.key.toLowerCase();
+      if (key === "z") {
+        e.preventDefault();
+        document.execCommand(e.shiftKey ? "redo" : "undo");
+      } else if (key === "y") {
+        e.preventDefault();
+        document.execCommand("redo");
+      }
+    }
+    document.addEventListener("keydown", handleUndoRedo);
+    return () => document.removeEventListener("keydown", handleUndoRedo);
+  }, []);
+
   return (
     <div className="relative flex h-screen w-screen flex-col text-zinc-200">
       <TitleBar leftBarWidth={leftBarWidth} rightPanelWidth={rightPanelWidth} />

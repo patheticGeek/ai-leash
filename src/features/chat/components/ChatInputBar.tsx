@@ -105,7 +105,7 @@ export default function ChatInputBar({
           )}
           <Textarea
             ref={textareaRef}
-            value={input}
+            defaultValue={input}
             onChange={(e) => onChange(e.currentTarget.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
