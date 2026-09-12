@@ -21,7 +21,7 @@ export default function SlashCommandMenu({
   onSelect,
 }: SlashCommandMenuProps) {
   return (
-    <div className="absolute bottom-full left-0 z-20 mb-1 max-h-56 w-80 overflow-auto rounded-xl bg-popover py-1 text-popover-foreground shadow-[var(--al-shadow)]">
+    <div className="absolute bottom-full left-0 right-0 z-20 mx-5 mb-0.5 max-h-56 overflow-y-auto rounded-t-xl bg-popover py-1 text-popover-foreground shadow-[var(--al-shadow)]">
       {matches.map((c, i) => (
         <Button
           key={c.name}
@@ -39,7 +39,9 @@ export default function SlashCommandMenu({
             /{c.name}
             {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
           </div>
-          <div className="text-xs text-zinc-500">{c.description}</div>
+          <div className="text-xs text-zinc-500 whitespace-normal">
+            {c.description}
+          </div>
         </Button>
       ))}
     </div>

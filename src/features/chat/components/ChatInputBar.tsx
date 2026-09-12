@@ -110,7 +110,7 @@ export default function ChatInputBar({
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
             rows={INPUT_MIN_ROWS}
-            className={`pt-3 pb-2 leading-relaxed ${
+            className={`py-3 leading-relaxed ${
               shellMode
                 ? "pl-9 pr-3.5 font-mono text-emerald-200"
                 : "px-3.5 text-zinc-200"

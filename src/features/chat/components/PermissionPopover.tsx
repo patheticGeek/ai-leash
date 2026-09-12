@@ -31,7 +31,7 @@ export default function PermissionPopover({
 }: PermissionPopoverProps) {
   const KindIcon = KIND_ICON[request.kind];
   return (
-    <div className="absolute bottom-full left-0 right-0 z-30 mb-2 flex max-h-[40vh] flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground shadow-[var(--al-shadow)]">
+    <div className="absolute bottom-full left-0 mx-5 mb-0.5 right-0 z-30 flex max-h-[40vh] flex-col overflow-hidden rounded-t-xl bg-popover text-popover-foreground shadow-[var(--al-shadow)]">
       <div className="flex items-center gap-2 px-3 py-2">
         <span
           title={KIND_LABEL[request.kind]}
