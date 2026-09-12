@@ -1,11 +1,12 @@
 # Agent chat runtime
 
 There are two independent "agent backends" a chat session can use: the
-**built-in** loop (`chat.rs`, described in this whole file below), or an
-**external ACP agent subprocess** (`acp.rs`, see "External ACP agent
+**built-in** loop (`chat/`, described in this whole file below), or an
+**external ACP agent subprocess** (`acp/`, see "External ACP agent
 backend" at the end of this file). *Which one* — and which specific
 provider/model or ACP agent — is chosen **per conversation** in
-`ChatPanel.tsx`'s chat-bar picker (`conversationBackend` in `store.ts`, see
+`features/chat/ChatPanel.tsx`'s chat-bar picker (`conversationBackend` in
+the `store/` slices, see
 "Providers and ACP agents share one picker" below); `SettingsModal.tsx`'s
 "Agent backend"/"Active provider" only set the *default* a brand-new
 conversation starts from, not a single shared active choice — see that
@@ -21,7 +22,7 @@ flow without any redesign.
 
 ## Provider
 
-`src-tauri/src/provider.rs` defines `ProviderConfig`, an enum with two
+`src-tauri/src/provider/mod.rs` defines `ProviderConfig`, an enum with two
 variants — `Ollama { host }` and `OpenAiCompatible { base_url, api_key }`
 — serialized with an internal `kind` tag (`"ollama"` /
 `"openAiCompatible"`) so it matches the frontend's `ProviderConfigPayload`
@@ -31,7 +32,7 @@ backend-persisted provider config**: every command that talks to a model
 `list_provider_models`) takes a `provider: ProviderConfig` argument sent
 fresh from the frontend on every call, the same way `model: String`
 already was — `AppState` gained no new field for this. The frontend's own
-copy of provider settings (`store.ts`'s `providerSettings` — the Ollama
+copy of provider settings (`store/providerSlice.ts`'s `providerSettings` — the Ollama
 host, zero or more saved OpenAI-compatible configs, and which one is
 active) lives in `localStorage` only (`ai-leash:providerConfig`),
 including API keys in plaintext — an explicit, deliberate tradeoff for
@@ -39,7 +40,7 @@ this single-user desktop app rather than adding an OS-keychain
 dependency.
 
 `provider::stream_turn` dispatches on the enum to one of two functions,
-both used from the single `run_agent_loop` call site (`chat.rs`) that
+both used from the single `run_agent_loop` call site (`chat/agent_loop.rs`) that
 used to call Ollama directly:
 - `stream_turn_ollama`: unchanged Ollama behavior, just with the host
   built from `ProviderConfig::Ollama.host` instead of a hardcoded
@@ -87,11 +88,10 @@ key, model id) and pick which one is active.
 
 External ACP-agent-process support (driving a whole separate agent
 *binary* over the Agent Client Protocol, as opposed to just varying which
-HTTP API a single turn's model call goes to) remains a distinct, larger,
-not-yet-built piece of work — see the intro above. It won't fold into
-`ProviderConfig`: an ACP agent owns its entire tool-calling and
-permission-request loop, so it would replace `run_agent_loop` itself for
-a session rather than swap out one HTTP call inside it.
+HTTP API a single turn's model call goes to) remains a distinct backend.
+It doesn't fold into `ProviderConfig`: an ACP agent owns its entire
+tool-calling and permission-request loop, so it replaces `run_agent_loop`
+for a session rather than swapping out one HTTP call inside it.
 
 ## Session model
 
@@ -109,13 +109,13 @@ the frontend never holds the canonical message list, only a
 rendering-friendly derived view (see "Frontend rendering" below) —
 plus, now, on disk in SQLite once a project is open.
 
-`ChatMessage` (`chat.rs`) is `{ role, content, tool_calls? }`, matching
+`ChatMessage` (`chat/history.rs`) is `{ role, content, tool_calls? }`, matching
 Ollama's chat message shape directly (roles used: `system`, `user`,
 `assistant`, `tool`).
 
 ### System prompt injection
 
-`refresh_system_prompt` (`chat.rs`) runs at the top of every call to
+`refresh_system_prompt` (`chat/agent_loop.rs`) runs at the top of every call to
 `run_agent_loop` — i.e. on every `send_prompt` and every `retry_last`,
 not just a session's first message. It rebuilds the system prompt from
 `context::build_system_prompt()` (AGENTS.md + memory + skill list — see
@@ -133,7 +133,7 @@ memory, or skills have anything, no system message is present at all.
 
 The main agent can delegate one or more self-contained chunks of work
 to isolated sub-agents via the `spawn_sub_agent` tool
-(`{tasks: [{description, prompt}, ...]}`, defined in `tools.rs`, each spawned via
+(`{tasks: [{description, prompt}, ...]}`, defined in `tools/schema.rs`, each spawned via
 `chat::run_sub_agent`; named `spawn_sub_agent` — not just `task` — so
 the model, and anyone reading the code, sees an action rather than a
 noun):
@@ -170,7 +170,7 @@ noun):
   (`{parent_session_id}::spawn_sub_agent::{uuid}`) with its own
   `chat://{sub_session_id}/...` event stream — the same event names
   (`chunk`, `thinking`, `tool_call`, `tool_result`) as a top-level
-  session, just under a different id. `tools.rs` emits one
+  session, just under a different id. `tools/sub_agent_tools.rs` emits one
   `chat://{parent_session_id}/subtask_start` event **per subtask**,
   carrying `{callId, subSessionId, description}` (all subtasks from the
   same `spawn_sub_agent` call share the same `callId`) so the frontend
@@ -307,7 +307,7 @@ resuming the conversation — no frontend action triggers that, see
 `true` only for `resume_after_background_subtask`'s turns (the model
 reacting to a finished sub-agent on its own); `false` for
 `send_prompt`/`retry_last` (a turn the user is actually waiting on).
-ACP-backed sessions (`acp.rs`) emit the same shape, always with
+ACP-backed sessions (`acp/`) emit the same shape, always with
 `autonomous: false` — there's no background-subtask concept there. Two
 consumers, each keying off the field that matters to them:
 
@@ -315,7 +315,7 @@ consumers, each keying off the field that matters to them:
   `store.generatingSessions[sessionId] && !store.autonomousGeneratingSessions[sessionId]`
   instead of purely local state, so if you switch away from a project
   mid-turn and back, the newly (re)mounted `ChatPanel` shows the correct
-  busy/idle state immediately from `store.ts`'s current value — rather
+  busy/idle state immediately from the store's current value — rather
   than defaulting to "idle" and waiting to happen to catch a live event.
   Excluding autonomous turns here means the Stop button never appears,
   and a new message can always be sent (it just queues behind the
@@ -385,7 +385,7 @@ blocks even though only `user`/`assistant`/`tool` roles exist in the
 real backend history. The base `Entry` union (`TextEntry`,
 `ThinkingEntry`, `ToolEntry`) and the pure accumulation helpers
 (`appendThinking`/`appendChunk`/`appendToolCall`/`applyToolResult`) live
-in `src/lib/chatEntries.ts`, shared with `store.ts` (typing
+in `src/lib/chatEntries.ts`, shared with the `store/` slices (typing
 `subAgentThreads`) and `SubAgentChatTab.tsx` — see
 [ui-shell.md](./ui-shell.md) for the center-panel tab that reads
 those. `ChatPanel.tsx` locally extends `ToolEntry` with an optional
@@ -414,11 +414,15 @@ that extension.
   [ui-shell.md](./ui-shell.md)).
 
 Both `thinking` and `tool` entries render collapsed by default with a
-chevron toggle; the collapsed tool row shows `name` plus a
-single-line, ellipsis-truncated JSON dump of its arguments — expanding
-one shows the same args again, but in full (pretty-printed,
-`JSON.stringify(args, null, 2)`, not truncated) rather than repeating
-the collapsed line.
+chevron toggle. Consecutive thinking/tool entries are also grouped into
+one collapsible activity block, so a multi-step turn does not fill the
+transcript with implementation detail. The collapsed block shows only
+the latest entry; its toggle reads `Show all (N thoughts, M tools used)`,
+omitting either category when its count is zero. Expanding the block
+reveals every entry, and each tool row can still be expanded separately.
+The collapsed tool row shows `name` plus a single-line,
+ellipsis-truncated JSON dump of its arguments; expanding it shows the
+same args in full (pretty-printed, `JSON.stringify(args, null, 2)`).
 
 Per-message UI on every text entry: a `HH:mm` timestamp, a copy-to-
 clipboard button (flips to a checkmark for ~1.2s), and — only on the
@@ -440,7 +444,7 @@ sub-agent thread), and `SubAgentChatTab.tsx` (the standalone tab).
 Two independent checks exist, because they answer different questions.
 
 **Ollama's own model list** (drives the picker's per-model Ollama rows):
-`store.ts` holds `ollamaModels: ModelSummary[]`, refreshed via
+The provider store holds `ollamaModels: ModelSummary[]`, refreshed via
 `refreshOllama()`, which calls `api.listProviderModels(...)` against
 `providerSettings.ollama` specifically — *always* Ollama, regardless of
 which provider any given conversation currently has active, since one
@@ -456,7 +460,7 @@ is actively in flight.
 
 **All-providers check** (drives both the status bar's aggregate indicator
 and each conversation's own "could not reach ___" chat warning):
-`store.ts` holds `providerConnectivity: Record<string, boolean | null>`,
+The provider store holds `providerConnectivity: Record<string, boolean | null>`,
 keyed by `"ollama"` or an `openAiCompatible` config's `id`. Refreshed via
 `refreshProviderConnectivity()`, which calls the new
 `api.checkProviderConnection()` (backend: `provider::check_provider_connection`)
@@ -471,7 +475,7 @@ credential validity. `App.tsx` triggers one check on mount and polls every
 5 seconds unconditionally (no `sending`-gated pause, since this isn't tied
 to any one chat's turn).
 
-`StatusBar.tsx` reads `providerConnectivity` to show "`N`/`M` providers
+The app status-bar area reads `providerConnectivity` to show "`N`/`M` providers
 connected" with a dot: gray until at least one result comes back, green if
 all connected, amber if some, red if none. Hovering shows a per-provider
 breakdown (`title` tooltip) — each provider's label and "checking…" /
@@ -484,7 +488,7 @@ single global thing anymore.
 
 ## External ACP agent backend
 
-`src-tauri/src/acp.rs` implements the other agent backend: driving a
+`src-tauri/src/acp/` implements the other agent backend: driving a
 whole **external ACP (Agent Client Protocol) agent subprocess** — a
 separate autonomous program that owns its own model calls, its own
 tool-calling, and its own permission-request flow — instead of our
@@ -494,7 +498,7 @@ goes to, with `run_agent_loop`/`tools::execute_tool`/every built-in tool
 staying identical regardless; the ACP backend *replaces*
 `run_agent_loop` entirely for a session, and none of our own tools run —
 the external agent does its own file I/O directly as a real OS process.
-The saved *list* of ACP agents (`store.ts`'s `agentBackend:
+The saved *list* of ACP agents (`store/acpSlice.ts`'s `agentBackend:
 AgentBackendSettings { kind: "builtin" | "acp", acpAgents: AcpAgentConfig[],
 activeAcpId: string | null }`) is global config, managed in
 `SettingsModal.tsx`'s "Agent backend" section — same
@@ -513,7 +517,7 @@ different agent (see "Process lifecycle" below).
 existing users don't lose their setup.
 
 Two well-known agents are pre-seeded into the saved-agents list by default
-(`DEFAULT_ACP_PRESETS` in `store.ts`, merged in by `withDefaultAcpAgents()`
+(`DEFAULT_ACP_PRESETS` in `store/acpSlice.ts`, merged in by `withDefaultAcpAgents()`
 — matched by `launchCommand`, so deleting one sticks and re-adding a config
 with the same command reuses it instead of duplicating), rather than living
 behind a separate "quick add" button — they just show up in the list like
@@ -658,7 +662,7 @@ out of scope for now.
   (`SessionConfigOption` with `category: Model`) in its `NewSessionResponse`
   — a fixed list of choices the agent defines (a `Select`, never freeform
   text), settable via `session/set_config_option`. Most agents won't expose
-  one. `find_model_config_option` (`acp.rs`) looks for it right after
+  one. `find_model_config_option` (`acp/discovery.rs`) looks for it right after
   `NewSessionRequest` resolves; if found, its id is kept as
   `model_config_id` for the life of the connection and its choices are
   emitted as `chat://{sessionId}/acp_model_options` (flattening any grouped
@@ -671,14 +675,14 @@ out of scope for now.
   instead of failing silently.
 - **Discovering models before ever chatting**: waiting for a real turn just
   to find out what models an agent offers would leave the picker (below)
-  empty on first use. `fetch_acp_models(launch_command)` (`acp.rs`) spawns
+  empty on first use. `fetch_acp_models(launch_command)`   (`acp/discovery.rs`) spawns
   a throwaway connection — `Initialize` + `NewSessionRequest`, same as a
   real session — reads `config_options` the same way, then returns without
   ever entering a prompt loop; `connect_with`'s `ChildGuard` kills the
   subprocess the instant that closure returns, so the "fake session" needs
   no explicit teardown. Incoming permission requests during this window are
   auto-denied rather than surfaced, since nothing was actually asked to run.
-  `store.ts`'s `fetchAcpModelsFor(agentId)` calls this once per saved agent
+  `store/acpSlice.ts`'s `fetchAcpModelsFor(agentId)` calls this once per saved agent
   and caches the result in `acpModelCache` (`Record<agentId, AcpModelOptions
   | null>` — missing key means "not fetched yet", `null` means "fetched,
   nothing to show"), deduped against concurrent calls via a module-level
@@ -690,7 +694,7 @@ out of scope for now.
   a `SessionUpdate::AvailableCommandsUpdate` notification at any point in a
   live session — typically once, right after it connects, but nothing stops
   it from re-announcing a changed set later. `handle_session_notification`
-  (`acp.rs`) forwards each one, flattened by `available_commands_payload`
+  (`acp/discovery.rs`) forwards each one, flattened by `available_commands_payload`
   into `{ name, description, hint }` (`hint` is the agent's placeholder text
   for the command's argument, from `AvailableCommandInput::Unstructured` —
   the only input shape ACP defines; `null` for commands that take none), as
@@ -715,7 +719,7 @@ out of scope for now.
   `send()` intercepts an exact `/name` match against `localCommands`,
   routing it to `runLocalCommand` instead of ever reaching
   `sendPrompt`/`sendPromptAcp`:
-  - `/clear` calls `clear_conversation(session_id)` (`chat.rs`), which wipes
+  -   `/clear` calls `clear_conversation(session_id)` (`chat/history.rs`), which wipes
     both the in-memory `chat_sessions` entry and the on-disk rows
     (`db::clear_conversation`) and, if an ACP subprocess is attached, drops
     the map entry for it — not a kill, just lets it wind down once idle
@@ -731,7 +735,7 @@ out of scope for now.
     orphaned rows the Sub Agents sidebar still lists with no way back to a
     now-gone conversation — sub-agents can't spawn further sub-agents (one
     level deep only), so this never needs to recurse. `ChatPanel.tsx` mirrors
-    this on the frontend via `clearSubAgentTasksForParent` (`store.ts`),
+    this on the frontend via `clearSubAgentTasksForParent` (`store/subAgentSlice.ts`),
     dropping them from `subAgentTasks`/`subAgentThreads` and closing any of
     their open `chatTabs`.
   - `/model` just opens the model/agent picker (`setModelPickerOpen(true)`)
@@ -755,7 +759,7 @@ out of scope for now.
     an ACP agent's real context lives in its own subprocess anyway, so
     there'd be nothing to compact from out here even if we wanted to.
     For the built-in loop, `compact_conversation(session_id, provider,
-    model)` (`chat.rs`) loads the existing history via
+    model)` (`chat/agent_loop.rs`) loads the existing history via
     `load_conversation_history`, appends one more `user` message asking the
     model to summarize the conversation so far, and sends the whole thing
     through `provider::complete` — a new, plain non-streaming, tool-free

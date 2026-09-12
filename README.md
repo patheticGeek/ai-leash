@@ -20,6 +20,7 @@ backend, not a bundled Chromium.
   - [AGENTS.md, memory & skills](#agentsmd-memory--skills)
   - [Editor & file tree](#editor--file-tree)
   - [Terminal](#terminal)
+  - [Actions](#actions)
   - [Everything else](#everything-else)
 - [Install](#install)
   - [Linux](#linux)
@@ -81,6 +82,14 @@ background when you switch tabs. Separate from the agent's own `shell`
 tool, which is a one-shot command runner with its own 30s timeout and
 output cap.
 
+### Actions
+
+Define named project commands such as `dev → npm run dev` in the
+project's `.ai-leash/actions.json`. Actions run in their own persistent
+PTY, can be started or stopped from the Actions panel, and expose their
+output to the built-in agent. The same action interface is available to
+ACP agents through the local MCP bridge.
+
 ### Everything else
 
 - Conversation history persisted to SQLite, restored on reopen.
@@ -88,8 +97,9 @@ output cap.
   activity, with a live indicator when one's generating in the
   background.
 - Resizable panels throughout, markdown rendering for assistant
-  messages, and a filesystem watcher that keeps the file tree in sync
-  with changes made outside the app.
+  messages, and a debounced filesystem watcher that keeps the file tree
+  in sync with edits made by the agent, terminal commands, builds, or
+  changes made outside the app.
 
 See [docs/features](./docs/features) for the actual implementation
 detail behind all of the above — it's a running build log kept in sync
@@ -165,8 +175,9 @@ line used in CI.
 
 ```
 src-tauri/src/    Rust backend — agent loop, tools + permission gating,
-                  PTYs, SQLite history
-src/              React frontend — chat, editor, terminal, file tree
+                  PTYs, actions, SQLite history
+src/              React frontend — app shell, chat, editor, terminal,
+                  file tree, settings, and Zustand store slices
 docs/features/    Per-feature reference docs, kept current with the code
 ```
 

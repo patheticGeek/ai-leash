@@ -1,6 +1,7 @@
 # Default tools & permissions
 
-All tool schemas and execution live in `tools.rs`; `tool_definitions()`
+Tool schemas and execution live in `src-tauri/src/tools/`;
+`tool_definitions()`
 returns the JSON (OpenAI/Ollama function-calling format) sent with every
 `/api/chat` request, and `execute_tool()` dispatches a called tool by
 name.
@@ -16,6 +17,11 @@ name.
 | `grep` | `pattern` (regex), `path?` | No | Walks with the `ignore` crate, so it respects `.gitignore`. |
 | `update_memory` | `scope` (`"project"` \| `"global"`), `content` | Yes (`edit`) | Full overwrite of that scope's `MEMORY.md` — see [context-and-memory.md](./context-and-memory.md). |
 | `shell` | `command` | Yes (`shell`) | Runs via `sh -c`, capped at 30s. |
+| `create_action` | `name`, `command` | Yes (`edit`) | Defines a named project Action in `.ai-leash/actions.json`. |
+| `list_actions` | none | No | Lists named project Actions and their running state. |
+| `run_action` | `name` | No | Starts a named project Action in a persistent PTY. |
+| `read_action` | `name` | No | Reads buffered output from an Action. |
+| `stop_action` | `name` | No | Stops a running project Action. |
 | `load_skill` | `name` | No | Fetches a skill's full body — see [context-and-memory.md](./context-and-memory.md). Only offered to the model at all when the project actually has at least one discoverable skill. |
 | `spawn_sub_agent` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents. Always returns immediately, without waiting on any of them — see [agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
 | `list_sub_agents` | none | No | Lists sub-agents spawned by this session (running and finished), most recent first. Same gating as `spawn_sub_agent`. |
@@ -64,7 +70,8 @@ replacement:
 
 ### Partial reads (`read_file`, `read_sub_agent`)
 
-Both tools share the same `paginate_lines()` helper (`tools.rs`):
+Both tools share the same `paginate_lines()` helper
+(`src-tauri/src/tools/`):
 - `offset` is 1-based; `limit` defaults to **`DEFAULT_READ_LIMIT` =
   2000** lines.
 - If the requested range doesn't cover the whole thing, the result has a
@@ -96,7 +103,7 @@ command exits.
 ## Permissions
 
 `shell`, `edit_file`, `write_file`, and `update_memory` require approval
-before doing anything. `request_permission()` (`tools.rs`) generates a UUID, stores a
+before doing anything. `request_permission()` (`src-tauri/src/tools/permissions.rs`) generates a UUID, stores a
 `tokio::sync::oneshot::Sender<bool>` for it in
 `AppState.pending_permissions`, emits a `permission://request` event
 with `{ id, sessionId, kind: "shell" | "edit" | "acp", title, detail }`,
@@ -107,7 +114,7 @@ session id, not its parent's (see [ui-shell.md](./ui-shell.md)).
 
 `ChatPanel.tsx` renders it via `PermissionPopover.tsx`, a box popover
 anchored above that project's textarea (only shown when
-`permissionForSession` — `store.ts` — resolves a match for the currently
+`permissionForSession` — `store/permissionSlice.ts` — resolves a match for the currently
 open session):
 - `shell` — the raw command in a monospace block.
 - `edit` — a line-by-line diff (`+`/`-`/` ` prefixed, colored
