@@ -158,28 +158,25 @@ jobs:
           fi
           NOTES="Automated build from commit ${{ github.sha }}.
 
-          ## Install
+          Download the build from below and follow these steps.
 
-          ### Debian/Ubuntu
+          ##### Debian/Ubuntu
           \`\`\`bash
           sudo apt install ./ai-leash_*.deb
           \`\`\`
 
-          ### Arch
+          ##### Arch
           \`\`\`bash
           tar xf ai-leash_*.tar.gz
           cd ai-leash-bin
           makepkg -si
           \`\`\`
 
-          ### macOS
-          Open the \`.dmg\`, drag \`AI Leash\` into \`Applications\`. It's not notarized, so you need to run
+          ##### macOS
+          Open the \`.dmg\`, drag \`AI Leash\` into \`Applications\`. It's not notarized, so you need to run this before opening.
           \`\`\`bash
           xattr -d com.apple.quarantine /Applications/AI\\ Leash.app
-          \`\`\`
-          and open.
-
-          [Full install instructions in readme ->](https://github.com/patheticGeek/ai-leash#install)"
+          \`\`\`"
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "Build #${{ github.run_number }} ($SHORT_SHA)" \
