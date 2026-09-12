@@ -8,6 +8,7 @@ import { permissionForSession, useAppStore } from "../../store";
 import ChatEntryList from "./components/ChatEntryList";
 import ChatInputBar from "./components/ChatInputBar";
 import ContextUsageRing from "./components/ContextUsageRing";
+import EffortPickerPopover from "./components/EffortPickerPopover";
 import ModelPickerPopover from "./components/ModelPickerPopover";
 import PermissionModePopover from "./components/PermissionModePopover";
 import {
@@ -123,6 +124,8 @@ export default function ChatPanel() {
     isOpenAiCompatible,
     providerActiveId,
     activeAcpAgent,
+    acpEffortOptions,
+    acpEffortChoice,
     acpCommands,
     model,
     setModel,
@@ -131,6 +134,7 @@ export default function ChatPanel() {
     activeBackendKey,
     activeBackendLabel,
     selectBackendOption,
+    selectAcpEffort,
   } = useChatSession(sessionId, setOllamaError, sending, () =>
     setSlashDismissed(null),
   );
@@ -626,6 +630,13 @@ export default function ChatPanel() {
               open={modelPickerOpen}
               onOpenChange={setModelPickerOpen}
             />
+            {isAcp && acpEffortOptions && (
+              <EffortPickerPopover
+                options={acpEffortOptions.options}
+                value={acpEffortChoice ?? acpEffortOptions.currentValue}
+                onSelect={selectAcpEffort}
+              />
+            )}
             <PermissionModePopover
               mode={permissionMode}
               onSelect={(mode) => setPermissionMode(sessionId, mode)}

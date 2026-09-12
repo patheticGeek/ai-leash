@@ -682,6 +682,13 @@ out of scope for now.
   option list from the response. Setting a model with no session running
   yet, or on an agent with no such option, surfaces a `chat://.../error`
   instead of failing silently.
+- **Effort selection, when the agent supports it**: ACP agents may advertise
+  a `ThoughtLevel` session config option alongside their model option. AI
+  Leash exposes its fixed select choices in the effort picker beside the
+  model picker, and `set_acp_effort(session_id, value)` sends the selected
+  value through `session/set_config_option`. The picker is only shown for
+  ACP sessions that advertise this option; the built-in Ollama/OpenAI-
+  compatible loop has no equivalent effort API.
 - **Discovering models before ever chatting**: waiting for a real turn just
   to find out what models an agent offers would leave the picker (below)
   empty on first use. `fetch_acp_models(launch_command)`   (`acp/discovery.rs`) spawns

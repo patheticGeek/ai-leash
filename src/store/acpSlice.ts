@@ -119,6 +119,7 @@ export interface ConversationBackendSelection {
   acpActiveId: string | null; // meaningful when kind === "acp"
   model: string; // Ollama model name, or free-text OpenAI-compatible model id
   acpModel: string | null; // last explicitly chosen model for the active ACP agent, if any
+  acpEffort: string | null; // last explicitly chosen thought level for the active ACP agent, if any
 }
 
 function loadConversationBackend(): Record<

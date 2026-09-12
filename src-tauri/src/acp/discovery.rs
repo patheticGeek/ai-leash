@@ -51,6 +51,15 @@ pub(super) fn find_model_config_option(
     })
 }
 
+pub(super) fn find_thought_level_config_option(
+    options: &[SessionConfigOption],
+) -> Option<&SessionConfigOption> {
+    options.iter().find(|o| {
+        matches!(o.category, Some(SessionConfigOptionCategory::ThoughtLevel))
+            && matches!(o.kind, SessionConfigKind::Select(_))
+    })
+}
+
 /// Flattens grouped options (`SessionConfigSelectOptions::Grouped`) into a
 /// single list, dropping group headers — the frontend just needs a picker,
 /// not nested categories.
@@ -78,6 +87,10 @@ pub(super) fn model_options_payload(option: &SessionConfigOption) -> serde_json:
         "currentValue": select.current_value.to_string(),
         "options": flat,
     })
+}
+
+pub(super) fn thought_level_options_payload(option: &SessionConfigOption) -> serde_json::Value {
+    model_options_payload(option)
 }
 
 /// An agent can (re-)announce its slash commands at any point in a session

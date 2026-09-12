@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import {
   type AcpCommandInfo,
+  type AcpEffortOptions,
   type AcpModelOptions,
   api,
 } from "../../../lib/tauriApi";
@@ -99,6 +100,10 @@ export function useChatSession(
     () =>
       useAppStore.getState().conversationBackend[sessionId]?.acpModel ?? null,
   );
+  const [acpEffortChoice, setAcpEffortChoice] = useState<string | null>(
+    () =>
+      useAppStore.getState().conversationBackend[sessionId]?.acpEffort ?? null,
+  );
   const isAcp = kind === "acp";
   const isOpenAiCompatible =
     !isAcp && !providerSettings.ollama.some((c) => c.id === providerActiveId);
@@ -110,6 +115,8 @@ export function useChatSession(
   // this stays null and no model dropdown shows for ACP mode.
   const [acpModelOptions, setAcpModelOptions] =
     useState<AcpModelOptions | null>(null);
+  const [acpEffortOptions, setAcpEffortOptions] =
+    useState<AcpEffortOptions | null>(null);
   // Slash commands the connected ACP agent advertises, if any — most agents
   // won't send this notification at all, in which case typing "/" does
   // nothing special. See `chat://{sessionId}/acp_commands` below.
@@ -140,6 +147,7 @@ export function useChatSession(
   // unrelated dependency changes, and so a fresh connection (after an
   // agent switch) knows it hasn't applied anything yet.
   const appliedAcpModelRef = useRef<string | null>(null);
+  const appliedAcpEffortRef = useRef<string | null>(null);
 
   // Keeps this conversation's own choice durable across remounts (a project
   // switch away and back, or an app restart) — writes the full snapshot
@@ -153,6 +161,7 @@ export function useChatSession(
       acpActiveId,
       model,
       acpModel: acpModelChoice,
+      acpEffort: acpEffortChoice,
     });
   }, [
     sessionId,
@@ -161,6 +170,7 @@ export function useChatSession(
     acpActiveId,
     model,
     acpModelChoice,
+    acpEffortChoice,
     setConversationBackend,
   ]);
 
@@ -181,6 +191,9 @@ export function useChatSession(
     setAcpModelOptions(null);
     setAcpModelChoice(null);
     appliedAcpModelRef.current = null;
+    setAcpEffortOptions(null);
+    setAcpEffortChoice(null);
+    appliedAcpEffortRef.current = null;
     setAcpCommands([]);
     onAcpAgentReset();
   }, [acpActiveId]);
@@ -191,6 +204,18 @@ export function useChatSession(
     );
     try {
       await api.setAcpModel(sessionId, value);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function selectAcpEffort(value: string) {
+    setAcpEffortChoice(value);
+    setAcpEffortOptions((prev) =>
+      prev ? { ...prev, currentValue: value } : prev,
+    );
+    try {
+      await api.setAcpEffort(sessionId, value);
     } catch (e) {
       setError(String(e));
     }
@@ -212,6 +237,16 @@ export function useChatSession(
     }
     appliedAcpModelRef.current = acpModelChoice;
   }, [acpModelOptions, acpModelChoice]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectAcpEffort is a fresh function reference every render; this effect is keyed by the persisted effort choice and live options
+  useEffect(() => {
+    if (!acpEffortOptions || !acpEffortChoice) return;
+    if (appliedAcpEffortRef.current === acpEffortChoice) return;
+    if (acpEffortOptions.currentValue !== acpEffortChoice) {
+      selectAcpEffort(acpEffortChoice);
+    }
+    appliedAcpEffortRef.current = acpEffortChoice;
+  }, [acpEffortOptions, acpEffortChoice]);
 
   useEffect(() => {
     refreshOllamaModels();
@@ -278,6 +313,14 @@ export function useChatSession(
       listen<AcpModelOptions>(`chat://${sessionId}/acp_model_options`, (e) => {
         setAcpModelOptions(e.payload);
       }),
+    );
+    unlistens.push(
+      listen<AcpEffortOptions>(
+        `chat://${sessionId}/acp_effort_options`,
+        (e) => {
+          setAcpEffortOptions(e.payload);
+        },
+      ),
     );
     unlistens.push(
       listen<AcpCommandInfo[]>(`chat://${sessionId}/acp_commands`, (e) => {
@@ -441,6 +484,8 @@ export function useChatSession(
     isOpenAiCompatible,
     providerActiveId,
     activeAcpAgent,
+    acpEffortOptions,
+    acpEffortChoice,
     acpCommands,
     model,
     setModel,
@@ -449,5 +494,6 @@ export function useChatSession(
     activeBackendKey,
     activeBackendLabel,
     selectBackendOption,
+    selectAcpEffort,
   };
 }

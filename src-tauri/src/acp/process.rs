@@ -1,5 +1,6 @@
 use super::discovery::{
-    find_model_config_option, format_acp_error, mcp_servers_for, model_options_payload,
+    find_model_config_option, find_thought_level_config_option, format_acp_error, mcp_servers_for,
+    model_options_payload, thought_level_options_payload,
 };
 use super::events::{
     close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent,
@@ -36,6 +37,9 @@ pub(crate) enum AcpCommand {
     /// it doesn't. `String` is the `SessionConfigValueId` to select, as
     /// offered in the `chat://{session_id}/acp_model_options` event.
     SetModel(String),
+    /// Sets the agent's "thought level" session config option, if it exposes
+    /// one (see `find_thought_level_config_option`).
+    SetEffort(String),
 }
 
 /// Holds `state.acp_sessions`'s lock across the whole check-then-insert (no
@@ -303,6 +307,17 @@ async fn drive_acp_connection(
                     model_options_payload(option),
                 );
             }
+            let mut effort_config_id: Option<SessionConfigId> = None;
+            if let Some(option) = config_options
+                .as_ref()
+                .and_then(|opts| find_thought_level_config_option(opts))
+            {
+                effort_config_id = Some(option.id.clone());
+                let _ = app.emit(
+                    &format!("chat://{session_id}/acp_effort_options"),
+                    thought_level_options_payload(option),
+                );
+            }
 
             while let Some(cmd) = commands.recv().await {
                 match cmd {
@@ -377,6 +392,42 @@ async fn drive_acp_connection(
                                 let _ = app.emit(
                                     &format!("chat://{session_id}/error"),
                                     format!("Failed to set model: {}", format_acp_error(&e)),
+                                );
+                            }
+                        }
+                    }
+                    AcpCommand::SetEffort(value) => {
+                        let Some(config_id) = effort_config_id.clone() else {
+                            let _ = app.emit(
+                                &format!("chat://{session_id}/error"),
+                                "This ACP agent doesn't expose an effort level to select."
+                                    .to_string(),
+                            );
+                            continue;
+                        };
+                        match connection
+                            .send_request(SetSessionConfigOptionRequest::new(
+                                acp_session_id.clone(),
+                                config_id,
+                                value.as_str(),
+                            ))
+                            .block_task()
+                            .await
+                        {
+                            Ok(resp) => {
+                                if let Some(option) =
+                                    find_thought_level_config_option(&resp.config_options)
+                                {
+                                    let _ = app.emit(
+                                        &format!("chat://{session_id}/acp_effort_options"),
+                                        thought_level_options_payload(option),
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                let _ = app.emit(
+                                    &format!("chat://{session_id}/error"),
+                                    format!("Failed to set effort: {}", format_acp_error(&e)),
                                 );
                             }
                         }

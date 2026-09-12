@@ -68,6 +68,7 @@ pub fn run() {
             acp::warm_acp_session,
             acp::send_prompt_acp,
             acp::set_acp_model,
+            acp::set_acp_effort,
             acp::fetch_acp_models,
             actions::list_actions,
             actions::create_action,

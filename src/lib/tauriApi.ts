@@ -40,6 +40,13 @@ export interface AcpModelOptions {
   options: { value: string; name: string }[];
 }
 
+export interface AcpEffortOptions {
+  id: string;
+  name: string;
+  currentValue: string;
+  options: { value: string; name: string }[];
+}
+
 // Payload of the `chat://{sessionId}/acp_commands` event, emitted whenever
 // the connected ACP agent (re-)announces its slash commands — typically
 // once, right after the session opens, but an agent can send this again if
@@ -163,6 +170,8 @@ export const api = {
     }),
   setAcpModel: (sessionId: string, value: string) =>
     invoke<void>("set_acp_model", { sessionId, value }),
+  setAcpEffort: (sessionId: string, value: string) =>
+    invoke<void>("set_acp_effort", { sessionId, value }),
   fetchAcpModels: (launchCommand: string) =>
     invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),

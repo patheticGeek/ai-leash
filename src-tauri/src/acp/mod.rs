@@ -100,6 +100,24 @@ pub async fn set_acp_model(
         .map_err(|_| "ACP agent process is no longer running.".to_string())
 }
 
+#[tauri::command]
+pub async fn set_acp_effort(
+    state: State<'_, AppState>,
+    session_id: String,
+    value: String,
+) -> Result<(), String> {
+    let sender = {
+        let sessions = state.acp_sessions.lock().unwrap();
+        sessions.get(&session_id).map(|s| s.sender.clone())
+    };
+    let sender = sender.ok_or_else(|| {
+        "ACP agent process is no longer running; send a message first to start it.".to_string()
+    })?;
+    sender
+        .send(AcpCommand::SetEffort(value))
+        .map_err(|_| "ACP agent process is no longer running.".to_string())
+}
+
 /// Spawns a throwaway ACP subprocess purely to ask "what models do you
 /// offer" (via the same Model config option `drive_acp_connection` checks
 /// for), then lets the connection close immediately without ever sending a
