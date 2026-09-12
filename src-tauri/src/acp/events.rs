@@ -184,10 +184,23 @@ pub(super) fn handle_session_notification(
                 available_commands_payload(&update.available_commands),
             );
         }
+        SessionUpdate::UsageUpdate(update) => {
+            let _ = app.emit(
+                &format!("chat://{session_id}/usage"),
+                json!({
+                    // ACP reports the total currently-used context rather
+                    // than separate prompt/completion counts.
+                    "promptTokens": update.used,
+                    "completionTokens": 0,
+                    "contextLength": update.size,
+                }),
+            );
+        }
+        // ACP currently does not expose session metadata in the chat UI.
+        SessionUpdate::SessionInfoUpdate(_) => {}
         // UserMessageChunk is just an echo of what we already persisted
         // before sending the prompt; Plan/CurrentModeUpdate/ConfigOptionUpdate/
-        // SessionInfoUpdate/UsageUpdate and anything else are out of scope
-        // for this phase.
+        // anything else are out of scope for this phase.
         _ => {}
     }
 }

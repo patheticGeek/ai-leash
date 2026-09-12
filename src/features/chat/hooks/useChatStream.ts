@@ -118,6 +118,7 @@ export function useChatStream(
   const [usage, setUsage] = useState<{
     prompt: number;
     completion: number;
+    contextLength?: number;
   } | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   // Set when this ACP agent couldn't resume its previous session (its own
@@ -213,15 +214,17 @@ export function useChatStream(
       }),
     );
     unlistens.push(
-      listen<{ promptTokens: number; completionTokens: number }>(
-        `chat://${sessionId}/usage`,
-        (e) => {
-          setUsage({
-            prompt: e.payload.promptTokens,
-            completion: e.payload.completionTokens,
-          });
-        },
-      ),
+      listen<{
+        promptTokens: number;
+        completionTokens: number;
+        contextLength?: number;
+      }>(`chat://${sessionId}/usage`, (e) => {
+        setUsage({
+          prompt: e.payload.promptTokens,
+          completion: e.payload.completionTokens,
+          contextLength: e.payload.contextLength,
+        });
+      }),
     );
     // No `done` handler needed here for `sending` — that's derived from the
     // backend-driven `generating` global state instead (see `ChatPanel.tsx`),

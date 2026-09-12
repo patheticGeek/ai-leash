@@ -525,6 +525,7 @@ export default function ChatPanel() {
   }
 
   const usedTokens = usage ? usage.prompt + usage.completion : null;
+  const usageContextLength = usage?.contextLength ?? contextLength;
 
   return (
     <div className="flex mx-auto max-w-4xl h-full flex-col">
@@ -633,11 +634,10 @@ export default function ChatPanel() {
           </>
         }
         contextUsage={
-          !isAcp &&
           usedTokens !== null && (
             <ContextUsageRing
               usedTokens={usedTokens}
-              contextLength={contextLength}
+              contextLength={usageContextLength}
             />
           )
         }
