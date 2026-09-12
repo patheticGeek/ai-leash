@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
+import { LS_KEYS } from "../../../lib/localStorageKeys";
 import {
   type AcpCommandInfo,
   type AcpEffortOptions,
@@ -8,8 +9,6 @@ import {
 } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import type { PickerOption } from "../components/ModelPickerPopover";
-
-const LAST_MODEL_KEY = "ai-leash:lastModel";
 
 // Commands we handle ourselves, client-side, rather than sending as a
 // prompt — no ACP agent implements a matching request (the protocol
@@ -286,7 +285,7 @@ export function useChatSession(
     if (isOpenAiCompatible || isAcp) return;
     const configModels = ollamaModelsByConfig[providerActiveId] ?? [];
     if (model || !configModels.length) return;
-    const last = localStorage.getItem(LAST_MODEL_KEY);
+    const last = localStorage.getItem(LS_KEYS.lastModel);
     const restored =
       last && configModels.some((m) => m.name === last) ? last : null;
     setModel(restored ?? configModels[0].name);
@@ -493,7 +492,7 @@ export function useChatSession(
       setDefaultBackend({ kind: "builtin", providerId: configId });
       if (modelName) {
         setModel(modelName);
-        localStorage.setItem(LAST_MODEL_KEY, modelName);
+        localStorage.setItem(LS_KEYS.lastModel, modelName);
       }
     }
   }

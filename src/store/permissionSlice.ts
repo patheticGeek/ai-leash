@@ -1,9 +1,9 @@
 import type { StateCreator } from "zustand";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
-
-const PERMISSION_MODE_KEY = "ai-leash:permissionMode";
+import { localStorageJson } from "./localStorageJson";
 
 export type PermissionMode = "ask" | "bypass";
 
@@ -15,19 +15,14 @@ export type PermissionMode = "ask" | "bypass";
 // only, so `ChatPanel` re-sends whatever's stored here once per mount to
 // keep the backend in sync (see `setPermissionMode`'s doc comment below).
 function loadPermissionMode(): Record<string, PermissionMode> {
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(PERMISSION_MODE_KEY) ?? "{}",
-    );
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch {
-    // fall through
-  }
-  return {};
+  const parsed = localStorageJson.read<unknown>(LS_KEYS.permissionMode, {});
+  return parsed && typeof parsed === "object"
+    ? (parsed as Record<string, PermissionMode>)
+    : {};
 }
 
 function savePermissionModeMap(map: Record<string, PermissionMode>) {
-  localStorage.setItem(PERMISSION_MODE_KEY, JSON.stringify(map));
+  localStorageJson.write(LS_KEYS.permissionMode, map);
 }
 
 // Resolves "does this project have a permission request waiting" — an

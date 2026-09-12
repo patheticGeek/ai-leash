@@ -8,25 +8,26 @@ pub struct SkillInfo {
     pub path: PathBuf,
 }
 
-fn global_config_dir() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("ai-leash"))
-}
-
-fn global_dir(sub: &str) -> Option<PathBuf> {
-    global_config_dir().map(|d| d.join(sub))
+/// Global (not per-project) directory for `sub` — `memory` or `skills` —
+/// suffixed for dev builds via `paths::versioned_dir` so a `cargo tauri dev`
+/// build never reads or writes an installed release build's global memory/
+/// skills, and vice versa.
+fn global_dir(sub: &str) -> PathBuf {
+    crate::paths::versioned_dir(sub)
 }
 
 /// A global AGENTS.md ships default instructions/persona that apply across
-/// every project, independent of any per-project AGENTS.md.
+/// every project, independent of any per-project AGENTS.md. Deliberately
+/// not dev/release-split like `global_dir` — it's a single hand-authored
+/// file, not mutable state a dev build could corrupt.
 fn global_agents_md() -> Option<String> {
-    global_config_dir().and_then(|d| std::fs::read_to_string(d.join("AGENTS.md")).ok())
+    std::fs::read_to_string(crate::paths::config_dir().join("AGENTS.md")).ok()
 }
 
-/// The project or global `MEMORY.md` path. Global has no fixed fallback (it
-/// depends on `dirs::config_dir()` resolving), so it's the only `None` case.
+/// The project or global `MEMORY.md` path.
 pub fn memory_path(root: &Path, global: bool) -> Option<PathBuf> {
     if global {
-        global_dir("memory").map(|d| d.join("MEMORY.md"))
+        Some(global_dir("memory").join("MEMORY.md"))
     } else {
         Some(root.join(".ai-leash").join("memory").join("MEMORY.md"))
     }
@@ -149,9 +150,7 @@ pub fn list_skills(root: &Path, touched_dirs: &[PathBuf]) -> Vec<SkillInfo> {
 
     let mut dirs_to_scan: Vec<PathBuf> = scoped.into_iter().map(|d| d.join(".skills")).collect();
     dirs_to_scan.push(root.join(".skills"));
-    if let Some(g) = global_dir("skills") {
-        dirs_to_scan.push(g);
-    }
+    dirs_to_scan.push(global_dir("skills"));
 
     let mut seen_names = HashSet::new();
     let mut skills = vec![];

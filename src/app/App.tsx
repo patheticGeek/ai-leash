@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
 import { useResizableWidth } from "../hooks/useResizableWidth";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
@@ -21,14 +22,14 @@ function App() {
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
-    "ai-leash:leftBarWidth",
+    LS_KEYS.leftBarWidth,
     220,
     160,
     400,
     1,
   );
   const [rightPanelWidth, rightPanelResize] = useResizableWidth(
-    "ai-leash:rightPanelWidth",
+    LS_KEYS.rightPanelWidth,
     360,
     240,
     720,

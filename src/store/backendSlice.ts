@@ -1,14 +1,13 @@
 import type { StateCreator } from "zustand";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import type { AppStore } from "./index";
+import { localStorageJson } from "./localStorageJson";
 
-const DEFAULT_BACKEND_KEY = "ai-leash:defaultBackend";
-// Pre-merge keys this slice migrates from, once, the first time
-// `DEFAULT_BACKEND_KEY` doesn't exist yet — see `migrateFromOldKeys` below.
+// `migrateFromOldKeys` below reads `LS_KEYS.providerConfig`/`agentBackend`
+// once, the first time `LS_KEYS.defaultBackend` doesn't exist yet —
 // `providerSlice.ts`/`acpSlice.ts` no longer read `activeId`/`kind`/
-// `activeAcpId` out of these at all, so this is the only place they're
-// still consulted.
-const OLD_PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
-const OLD_AGENT_BACKEND_KEY = "ai-leash:agentBackend";
+// `activeAcpId` out of those same keys at all, so this is the only place
+// they're still consulted.
 
 // Canonical id of the Ollama card seeded into a fresh install (and what the
 // pre-multi-Ollama singleton config migrates to) — defined here, and
@@ -28,12 +27,10 @@ export type DefaultBackendRef =
   | { kind: "acp"; acpId: string }; // id into agentBackend.acpAgents
 
 function readOldJson(key: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "null");
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
+  const parsed = localStorageJson.read<unknown>(key, null);
+  return parsed && typeof parsed === "object"
+    ? (parsed as Record<string, unknown>)
+    : null;
 }
 
 // Only consulted the very first time `ai-leash:defaultBackend` doesn't
@@ -42,7 +39,7 @@ function readOldJson(key: string): Record<string, unknown> | null {
 // know about `activeId`/`kind`/`activeAcpId` at all) so an existing user's
 // current default carries over instead of silently resetting to Ollama.
 function migrateFromOldKeys(): DefaultBackendRef | null {
-  const oldAgent = readOldJson(OLD_AGENT_BACKEND_KEY);
+  const oldAgent = readOldJson(LS_KEYS.agentBackend);
   if (
     oldAgent?.kind === "acp" &&
     typeof oldAgent.activeAcpId === "string" &&
@@ -50,7 +47,7 @@ function migrateFromOldKeys(): DefaultBackendRef | null {
   ) {
     return { kind: "acp", acpId: oldAgent.activeAcpId };
   }
-  const oldProvider = readOldJson(OLD_PROVIDER_CONFIG_KEY);
+  const oldProvider = readOldJson(LS_KEYS.providerConfig);
   if (oldProvider && typeof oldProvider.activeId === "string") {
     // The old shape used the literal string "ollama" as a sentinel for the
     // (then-singleton) Ollama config — the migrated card now has a real id.
@@ -64,20 +61,14 @@ function migrateFromOldKeys(): DefaultBackendRef | null {
 }
 
 function loadDefaultBackend(): DefaultBackendRef {
-  const raw = localStorage.getItem(DEFAULT_BACKEND_KEY);
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (
-        parsed &&
-        ((parsed.kind === "builtin" && typeof parsed.providerId === "string") ||
-          (parsed.kind === "acp" && typeof parsed.acpId === "string"))
-      ) {
-        return parsed;
-      }
-    } catch {
-      // fall through
-    }
+  // biome-ignore lint/suspicious/noExplicitAny: shape is validated below field-by-field
+  const parsed = localStorageJson.read<any>(LS_KEYS.defaultBackend, null);
+  if (
+    parsed &&
+    ((parsed.kind === "builtin" && typeof parsed.providerId === "string") ||
+      (parsed.kind === "acp" && typeof parsed.acpId === "string"))
+  ) {
+    return parsed;
   }
   return (
     migrateFromOldKeys() ?? { kind: "builtin", providerId: DEFAULT_OLLAMA_ID }
@@ -85,7 +76,7 @@ function loadDefaultBackend(): DefaultBackendRef {
 }
 
 function saveDefaultBackend(ref: DefaultBackendRef) {
-  localStorage.setItem(DEFAULT_BACKEND_KEY, JSON.stringify(ref));
+  localStorageJson.write(LS_KEYS.defaultBackend, ref);
 }
 
 export interface BackendSlice {
