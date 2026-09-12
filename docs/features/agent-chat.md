@@ -664,8 +664,10 @@ out of scope for now.
   *our own* `chat_sessions` history; the ACP agent's real conversation
   state lives inside the subprocess and can't be truncated from outside
   without `session/load` (unimplemented). `ChatPanel.tsx` just hides the
-  retry button and the token-usage ring while `agentBackend.kind ===
-  "acp"` — ACP has no usage-reporting equivalent either.
+  retry button while `agentBackend.kind === "acp"`. The token-usage
+  ring, by contrast, *is* shown for ACP — see `UsageUpdate` above and
+  `ContextUsageRing.tsx`, which reads the ACP-reported context-window
+  size the same way it reads Ollama's.
 - **Model selection, when the agent supports it**: ACP lets an agent
   optionally advertise a "model" session config option
   (`SessionConfigOption` with `category: Model`) in its `NewSessionResponse`
