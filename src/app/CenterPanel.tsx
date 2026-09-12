@@ -6,12 +6,12 @@ import SubAgentChatTab from "../features/chat/SubAgentChatTab";
 import { useAppStore } from "../store";
 
 function NoProjectState() {
-  const openProject = useAppStore((s) => s.openProject);
+  const addProject = useAppStore((s) => s.addProject);
 
   async function pickProject() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") {
-      await openProject(dir);
+      await addProject(dir);
     }
   }
 
@@ -49,12 +49,13 @@ function NoProjectState() {
 
 export default function CenterPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
   const closeChatTab = useAppStore((s) => s.closeChatTab);
 
-  if (!projectRoot) {
+  if (!projectRoot || !activeSessionId) {
     return (
       <div className="flex h-full flex-col bg-[#0e0f12]">
         <NoProjectState />
@@ -102,7 +103,7 @@ export default function CenterPanel() {
             activeChatTabId === "primary" ? "h-full bg-[#0e0f12]" : "hidden"
           }
         >
-          <ChatPanel />
+          <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
         </div>
         {chatTabs
           .filter((tab) => tab.kind === "subagent")

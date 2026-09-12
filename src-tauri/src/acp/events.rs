@@ -179,10 +179,11 @@ pub(super) fn handle_session_notification(
             emit_tool_call_update(app, session_id, &update, pending_tool_content)
         }
         SessionUpdate::AvailableCommandsUpdate(update) => {
-            let _ = app.emit(
-                &format!("chat://{session_id}/acp_commands"),
-                available_commands_payload(&update.available_commands),
-            );
+            let payload = available_commands_payload(&update.available_commands);
+            super::process::cache_acp_config(app, session_id, |s| {
+                s.available_commands = Some(payload.clone())
+            });
+            let _ = app.emit(&format!("chat://{session_id}/acp_commands"), payload);
         }
         SessionUpdate::UsageUpdate(update) => {
             let _ = app.emit(

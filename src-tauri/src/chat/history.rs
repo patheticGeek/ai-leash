@@ -77,6 +77,23 @@ pub fn set_conversation_title(
     Ok(())
 }
 
+/// Every top-level conversation across every known project — the
+/// sidebar's own scope, same cross-project reasoning as `list_sub_agents`
+/// below. See `db::list_all_conversations`.
+#[tauri::command]
+pub fn list_conversations(state: State<AppState>) -> Result<Vec<db::ConversationSummary>, String> {
+    Ok(db::list_all_conversations(&state.db))
+}
+
+/// Removes one conversation from the sidebar for good — see
+/// `db::delete_conversation`. Distinct from `clear_conversation`'s "/clear"
+/// semantics, which wipe content but keep the id alive for reuse.
+#[tauri::command]
+pub fn delete_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
+    db::delete_conversation(&state.db, &session_id);
+    Ok(())
+}
+
 /// All sub-agents ever spawned, across every project — the Sub Agents
 /// sidebar's own scope (a cross-project history, not scoped to whichever
 /// project is currently open). See `db::list_all_sub_agents`.

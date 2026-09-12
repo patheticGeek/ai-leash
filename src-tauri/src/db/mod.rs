@@ -17,7 +17,10 @@ mod sub_agents;
 pub use acp_sessions::{
     delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id,
 };
-pub use conversations::{clear_conversation, get_conversation_title, set_conversation_title};
+pub use conversations::{
+    clear_conversation, delete_conversation, get_conversation_title, list_all_conversations,
+    set_conversation_title, ConversationSummary,
+};
 pub use messages::{
     finish_streaming_message, load_messages, save_message, set_message_duration,
     start_streaming_message, update_streaming_message, update_tool_call_args, PersistedMessage,

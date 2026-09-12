@@ -67,8 +67,9 @@ export function useChatSession(
   const acpModelCache = useAppStore((s) => s.acpModelCache);
   const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
   // This conversation's own backend/model choice — read once at mount (this
-  // component remounts per project, so `sessionId` is stable for its whole
-  // lifetime) from whatever it last used, falling back to the shared
+  // component remounts per conversation, via `App.tsx`'s `key={activeSessionId}`,
+  // so `sessionId` is stable for its whole lifetime) from whatever it last
+  // used, falling back to the shared
   // `defaultBackend` (see `backendSlice.ts`) only the very first time this
   // conversation is opened. From here on this is the source of truth for
   // *this* conversation; switching to a different one can't change what

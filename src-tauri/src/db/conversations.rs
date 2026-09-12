@@ -7,6 +7,72 @@
 use super::messages::title_from_message;
 use super::Db;
 use rusqlite::{params, Connection};
+use serde::Serialize;
+
+/// One row of `list_all_conversations` — everything the sidebar needs to
+/// render a conversation without a second round trip.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationSummary {
+    pub id: String,
+    pub project_root: String,
+    pub title: Option<String>,
+    pub updated_at: i64,
+}
+
+/// Every top-level conversation across every known project — the
+/// sidebar's own scope. Deliberately NOT filtered by whichever project is
+/// currently "open" (`state.project_root` is a single global value — see
+/// `commands::set_project_root` — but the sidebar must show every
+/// project's conversations regardless of which one is currently active).
+/// Excludes sub-agent conversations (id contains `::spawn_sub_agent::` —
+/// see `tools::sub_agent_tools`), which have their own dedicated Sub
+/// Agents sidebar (`list_all_sub_agents`) instead.
+pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
+    let conn = db.0.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT id, project_root, title, updated_at FROM conversations \
+         WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
+    ) else {
+        return vec![];
+    };
+    stmt.query_map([], |row| {
+        Ok(ConversationSummary {
+            id: row.get(0)?,
+            project_root: row.get(1)?,
+            title: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    })
+    .map(|rows| rows.filter_map(Result::ok).collect())
+    .unwrap_or_default()
+}
+
+/// Deletes one conversation outright — its own row plus its `messages` and
+/// stored ACP session id. Distinct from `clear_conversation`: that wipes a
+/// conversation's content but keeps its id alive for reuse (the "/clear"
+/// command); this is "remove it from the sidebar for good" (a `RENAME`less
+/// project can still be reused later since ids are minted fresh each time).
+/// Deliberately does NOT cascade into sub-agents spawned from this
+/// conversation (unlike `clear_conversation`) — a deleted top-level
+/// conversation's sub-agent history is left as-is, same as any other
+/// cross-project sub-agent history the Sub Agents sidebar owns
+/// independently.
+pub fn delete_conversation(db: &Db, conversation_id: &str) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1",
+        params![conversation_id],
+    );
+    let _ = conn.execute(
+        "DELETE FROM conversations WHERE id = ?1",
+        params![conversation_id],
+    );
+    let _ = conn.execute(
+        "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
+        params![conversation_id],
+    );
+}
 
 /// Inserts a conversation's row if it doesn't exist yet, or bumps its
 /// `updated_at` if it does. Called by both `messages::save_message` and
@@ -256,6 +322,108 @@ mod tests {
         assert_eq!(
             get_acp_agent_session_id(&db, "/other", "claude-code"),
             Some("agent-sess-2".to_string())
+        );
+    }
+
+    #[test]
+    fn list_all_conversations_excludes_sub_agents_and_sorts_by_recency() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj-a",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "first".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj-b",
+            "/proj-b",
+            &ChatMessage {
+                role: "user".into(),
+                content: "second".into(),
+                tool_calls: None,
+            },
+        );
+        // Both saves above land in the same wall-clock second (`now()` is
+        // second-resolution) — pin distinct `updated_at` values directly so
+        // the recency-sort assertion below isn't racing the clock.
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute(
+                "UPDATE conversations SET updated_at = 1 WHERE id = '/proj-a'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "UPDATE conversations SET updated_at = 2 WHERE id = '/proj-b'",
+                [],
+            )
+            .unwrap();
+        }
+        record_sub_agent_started(
+            &db,
+            "/proj-a::spawn_sub_agent::abc",
+            "/proj-a",
+            "count files",
+            "count the files",
+        );
+        save_message(
+            &db,
+            "/proj-a::spawn_sub_agent::abc",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "sub-agent prompt".into(),
+                tool_calls: None,
+            },
+        );
+
+        let all = list_all_conversations(&db);
+
+        assert_eq!(all.len(), 2);
+        assert!(all.iter().all(|c| !c.id.contains("spawn_sub_agent")));
+        assert_eq!(all[0].id, "/proj-b");
+        assert_eq!(all[1].id, "/proj-a");
+    }
+
+    #[test]
+    fn delete_conversation_removes_it_but_not_others() {
+        let db = temp_db();
+        save_message(
+            &db,
+            "/proj-a",
+            "/proj-a",
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project a".into(),
+                tool_calls: None,
+            },
+        );
+        save_message(
+            &db,
+            "/proj-b",
+            "/proj-b",
+            &ChatMessage {
+                role: "user".into(),
+                content: "in project b".into(),
+                tool_calls: None,
+            },
+        );
+
+        delete_conversation(&db, "/proj-a");
+
+        assert_eq!(load_messages(&db, "/proj-a").len(), 0);
+        assert_eq!(load_messages(&db, "/proj-b").len(), 1);
+        assert_eq!(
+            list_all_conversations(&db)
+                .iter()
+                .map(|c| c.id.clone())
+                .collect::<Vec<_>>(),
+            vec!["/proj-b".to_string()]
         );
     }
 }

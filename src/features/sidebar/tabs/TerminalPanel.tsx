@@ -17,7 +17,7 @@ export default function TerminalPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const projectRoot = useAppStore((s) => s.projectRoot);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. projectRoot can't actually change under a mounted TerminalPanel: switching projects replaces panelTabs wholesale (see openProject in store.ts), which unmounts every terminal tab via its key rather than updating this one in place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. projectRoot can't actually change under a mounted TerminalPanel: switching conversations replaces panelTabs wholesale (see openConversation/startNewConversation in conversationSlice.ts), which unmounts every terminal tab via its key rather than updating this one in place.
   useEffect(() => {
     if (!containerRef.current) return;
 

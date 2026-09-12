@@ -82,6 +82,16 @@ export interface SubAgentSummary {
   finishedAt: number | null;
 }
 
+// One row of `list_conversations` — every top-level conversation across
+// every known project (excludes sub-agent conversations, which have their
+// own `SubAgentSummary`/Sub Agents sidebar instead).
+export interface ConversationSummary {
+  id: string;
+  projectRoot: string;
+  title: string | null;
+  updatedAt: number; // epoch seconds, matches SubAgentSummary.startedAt
+}
+
 export interface ActionSummary {
   id: string;
   name: string;
@@ -180,6 +190,9 @@ export const api = {
   listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
   deleteSubAgent: (subSessionId: string) =>
     invoke<void>("delete_sub_agent", { subSessionId }),
+  listConversations: () => invoke<ConversationSummary[]>("list_conversations"),
+  deleteConversation: (sessionId: string) =>
+    invoke<void>("delete_conversation", { sessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
   setPermissionMode: (sessionId: string, bypass: boolean) =>

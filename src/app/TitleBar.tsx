@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Copy, Minus, PlusIcon, Square, X } from "lucide-react";
+import { Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import { useAppStore } from "../store";
@@ -80,19 +80,40 @@ export default function TitleBar({
 }) {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const recentProjects = useAppStore((s) => s.recentProjects);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const conversations = useAppStore((s) => s.conversations);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
-  const openProject = useAppStore((s) => s.openProject);
+  const startNewConversation = useAppStore((s) => s.startNewConversation);
+  const addProject = useAppStore((s) => s.addProject);
 
   const project = recentProjects.find((p) => p.path === projectRoot);
+  const activeConversation = conversations.find(
+    (c) => c.id === activeSessionId,
+  );
+  // A conversation not yet in `conversations` has never had a message sent
+  // — see `ChatPanel.tsx`'s identical `isNewThread` derivation.
+  const isNewThread = !activeConversation;
   const activeChatTab = chatTabs.find((t) => t.id === activeChatTabId);
   const conversationTitle =
-    activeChatTab?.kind === "subagent" ? activeChatTab.label : project?.title;
+    activeChatTab?.kind === "subagent"
+      ? activeChatTab.label
+      : activeConversation?.title;
 
-  async function pickProject() {
+  // Starts a fresh thread directly in whatever project is currently open —
+  // no project picker here (see `ChatPanel.tsx`'s "What are we working on
+  // in {project}?" heading for changing *which* project a still-fresh new
+  // thread targets instead). Falls back to the native folder picker only
+  // when no project has ever been opened yet, since there's nothing to
+  // start a thread in otherwise.
+  async function onNewThread() {
+    if (projectRoot) {
+      startNewConversation(projectRoot);
+      return;
+    }
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") {
-      await openProject(dir);
+      await addProject(dir);
     }
   }
 
@@ -111,11 +132,11 @@ export default function TitleBar({
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
-            size="icon"
-            onClick={pickProject}
-            title="Open project"
+            size="icon-lg"
+            title="Start a new thread in the current project"
+            onClick={onNewThread}
           >
-            <PlusIcon size={14} />
+            <SquarePen size={17} />
           </Button>
         </div>
       </div>
@@ -128,8 +149,12 @@ export default function TitleBar({
         {project && (
           <span className="min-w-0 truncate">
             {project.name}
-            {conversationTitle && (
-              <span className="text-zinc-600"> / {conversationTitle}</span>
+            {isNewThread ? (
+              <span className="text-zinc-600"> / New Thread</span>
+            ) : (
+              conversationTitle && (
+                <span className="text-zinc-600"> / {conversationTitle}</span>
+              )
             )}
           </span>
         )}
