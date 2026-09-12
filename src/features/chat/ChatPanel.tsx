@@ -17,6 +17,16 @@ import {
 } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 
+const CHAT_DRAFT_KEY_PREFIX = "ai-leash:chatDraft:";
+
+function loadChatDraft(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export default function ChatPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   // A project's conversation id is its own path — stable across app
@@ -24,6 +34,7 @@ export default function ChatPanel() {
   // conversation per project for now. `CenterPanel` remounts `ChatPanel`
   // whenever `projectRoot` changes, so this only ever runs once per project.
   const [sessionId] = useState(() => projectRoot ?? crypto.randomUUID());
+  const chatDraftKey = `${CHAT_DRAFT_KEY_PREFIX}${projectRoot ?? "unassigned"}`;
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
 
   // Ask/Bypass permission mode for this conversation — see
@@ -73,7 +84,18 @@ export default function ChatPanel() {
   );
 
   const [ollamaError, setOllamaError] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => loadChatDraft(chatDraftKey));
+  useEffect(() => {
+    try {
+      if (input) {
+        localStorage.setItem(chatDraftKey, input);
+      } else {
+        localStorage.removeItem(chatDraftKey);
+      }
+    } catch {
+      // Draft persistence is best-effort when storage is unavailable.
+    }
+  }, [chatDraftKey, input]);
   // Initialized from the global (backend-driven) state so a session that's
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `send`/`retry`/`stop` still set this directly
