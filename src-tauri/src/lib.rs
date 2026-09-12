@@ -7,6 +7,7 @@ mod crashlog;
 mod db;
 mod env;
 pub mod mcp_bridge;
+mod paths;
 mod provider;
 mod pty;
 mod state;
