@@ -34,15 +34,45 @@ pub struct TurnResult {
     pub completion_tokens: Option<u64>,
 }
 
-#[tauri::command]
-pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), String> {
-    if let Some(flag) = state.cancellations.lock().unwrap().get(&session_id) {
+/// Sets `session_id`'s cancellation flag (checked between tool-loop
+/// iterations in `agent_loop.rs`) and, if an ACP subprocess is attached,
+/// asks it to cancel too. Purely a signal — doesn't wait for an in-flight
+/// turn to actually notice and stop; see `cancel_and_await_idle` for the
+/// version that does.
+fn signal_cancel(state: &AppState, session_id: &str) {
+    if let Some(flag) = state.cancellations.lock().unwrap().get(session_id) {
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
     }
-    if let Some(session) = state.acp_sessions.lock().unwrap().get(&session_id) {
+    if let Some(session) = state.acp_sessions.lock().unwrap().get(session_id) {
         let _ = session.sender.send(crate::acp::AcpCommand::Cancel);
     }
+}
+
+#[tauri::command]
+pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), String> {
+    signal_cancel(state.inner(), &session_id);
     Ok(())
+}
+
+/// Signals cancellation like `cancel_prompt`, then actually waits for any
+/// turn currently running for `session_id` to stop before returning — i.e.
+/// for `run_with_cancellation`'s per-session lock (`state.session_locks`) to
+/// be released, which only happens once the turn's loop observes the flag
+/// (or finishes on its own) and returns. A no-op, near-instant wait when
+/// nothing is running for this session (the lock is either absent or
+/// uncontended).
+///
+/// Used by `history::delete_conversation` so a still-running turn's
+/// `push_message`/`save_message` calls can never land *after* the
+/// conversation's rows are gone — without this, `upsert_conversation`'s
+/// `INSERT ... ON CONFLICT DO UPDATE` would silently resurrect the row a
+/// moment after it was deleted.
+pub(crate) async fn cancel_and_await_idle(state: &AppState, session_id: &str) {
+    signal_cancel(state, session_id);
+    let lock = state.session_locks.lock().unwrap().get(session_id).cloned();
+    if let Some(lock) = lock {
+        let _guard = lock.lock().await;
+    }
 }
 
 /// Removes `session_id`'s in-memory backend bookkeeping — the connection/
@@ -233,4 +263,92 @@ pub async fn retry_last(
         false,
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Db;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::Mutex as AsyncMutex;
+
+    fn temp_db() -> Db {
+        let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4()));
+        Db::open(path)
+    }
+
+    // Built field-by-field rather than `AppState::default()` — `Db`'s
+    // `Default` impl opens the *real* app config-dir database, which a test
+    // must never touch.
+    fn test_state() -> AppState {
+        AppState {
+            project_root: Mutex::new(None),
+            ptys: Mutex::new(HashMap::new()),
+            chat_sessions: Mutex::new(HashMap::new()),
+            pending_permissions: Mutex::new(HashMap::new()),
+            cancellations: Mutex::new(HashMap::new()),
+            touched_dirs: Mutex::new(HashMap::new()),
+            session_locks: Mutex::new(HashMap::new()),
+            fs_watcher: Mutex::new(None),
+            db: temp_db(),
+            acp_sessions: Mutex::new(HashMap::new()),
+            mcp_bridge: Mutex::new(None),
+            permission_bypass: Mutex::new(HashSet::new()),
+            action_runs: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[test]
+    fn signal_cancel_sets_the_flag_for_a_known_session() {
+        let state = test_state();
+        let flag = Arc::new(AtomicBool::new(false));
+        state
+            .cancellations
+            .lock()
+            .unwrap()
+            .insert("sess".to_string(), flag.clone());
+
+        signal_cancel(&state, "sess");
+
+        assert!(flag.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn cancel_and_await_idle_returns_immediately_when_nothing_is_running() {
+        let state = test_state();
+        // No entry in `session_locks` for this id at all — must not hang.
+        cancel_and_await_idle(&state, "sess").await;
+    }
+
+    #[tokio::test]
+    async fn cancel_and_await_idle_waits_for_an_in_flight_turn_to_release_its_lock() {
+        let state = test_state();
+        let lock = Arc::new(AsyncMutex::new(()));
+        state
+            .session_locks
+            .lock()
+            .unwrap()
+            .insert("sess".to_string(), lock.clone());
+
+        // Simulate `run_with_cancellation` holding the session lock for the
+        // duration of an in-flight turn.
+        let guard = lock.clone().lock_owned().await;
+        let released = Arc::new(AtomicBool::new(false));
+        let released_writer = released.clone();
+        let turn = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            released_writer.store(true, std::sync::atomic::Ordering::SeqCst);
+            drop(guard);
+        });
+
+        cancel_and_await_idle(&state, "sess").await;
+
+        assert!(
+            released.load(std::sync::atomic::Ordering::SeqCst),
+            "must not return before the in-flight turn actually released the lock"
+        );
+        turn.await.unwrap();
+    }
 }
