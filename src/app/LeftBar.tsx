@@ -62,7 +62,7 @@ function ConversationRow({
       title={
         awaitingApproval ? `${projectName} — needs your approval` : projectName
       }
-      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left cursor-default ${
+      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
