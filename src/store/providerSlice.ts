@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import {
   api,
   type ModelSummary,
@@ -6,8 +7,7 @@ import {
 } from "../lib/tauriApi";
 import { DEFAULT_OLLAMA_ID } from "./backendSlice";
 import type { AppStore } from "./index";
-
-const PROVIDER_CONFIG_KEY = "ai-leash:providerConfig";
+import { localStorageJson } from "./localStorageJson";
 
 export interface OllamaProviderConfig {
   kind: "ollama";
@@ -51,47 +51,42 @@ const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 };
 
 function loadProviderSettings(): ProviderSettings {
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(PROVIDER_CONFIG_KEY) ?? "null",
-    );
-    if (parsed && typeof parsed === "object") {
-      let ollama: OllamaProviderConfig[];
-      if (Array.isArray(parsed.ollama)) {
-        ollama = parsed.ollama;
-      } else if (parsed.ollama && typeof parsed.ollama === "object") {
-        // Pre-multi-Ollama shape was a singleton `{kind, host}` — migrate it
-        // into a one-element array, preserving the existing host and giving
-        // it the same stable id/label a fresh install's default card gets,
-        // so existing users' conversations (which reference this id via the
-        // old `providerSettings.activeId === "ollama"` sentinel, migrated
-        // separately in `backendSlice.ts`) keep resolving to the same card.
-        ollama = [
-          {
-            kind: "ollama",
-            id: DEFAULT_OLLAMA_ID,
-            label: "Ollama",
-            host: parsed.ollama.host ?? "localhost:11434",
-          },
-        ];
-      } else {
-        ollama = DEFAULT_PROVIDER_SETTINGS.ollama;
-      }
-      return {
-        ollama,
-        openAiCompatible: Array.isArray(parsed.openAiCompatible)
-          ? parsed.openAiCompatible
-          : [],
-      };
+  // biome-ignore lint/suspicious/noExplicitAny: shape is validated below field-by-field
+  const parsed = localStorageJson.read<any>(LS_KEYS.providerConfig, null);
+  if (parsed && typeof parsed === "object") {
+    let ollama: OllamaProviderConfig[];
+    if (Array.isArray(parsed.ollama)) {
+      ollama = parsed.ollama;
+    } else if (parsed.ollama && typeof parsed.ollama === "object") {
+      // Pre-multi-Ollama shape was a singleton `{kind, host}` — migrate it
+      // into a one-element array, preserving the existing host and giving
+      // it the same stable id/label a fresh install's default card gets,
+      // so existing users' conversations (which reference this id via the
+      // old `providerSettings.activeId === "ollama"` sentinel, migrated
+      // separately in `backendSlice.ts`) keep resolving to the same card.
+      ollama = [
+        {
+          kind: "ollama",
+          id: DEFAULT_OLLAMA_ID,
+          label: "Ollama",
+          host: parsed.ollama.host ?? "localhost:11434",
+        },
+      ];
+    } else {
+      ollama = DEFAULT_PROVIDER_SETTINGS.ollama;
     }
-  } catch {
-    // fall through to default
+    return {
+      ollama,
+      openAiCompatible: Array.isArray(parsed.openAiCompatible)
+        ? parsed.openAiCompatible
+        : [],
+    };
   }
   return DEFAULT_PROVIDER_SETTINGS;
 }
 
 function saveProviderSettings(settings: ProviderSettings) {
-  localStorage.setItem(PROVIDER_CONFIG_KEY, JSON.stringify(settings));
+  localStorageJson.write(LS_KEYS.providerConfig, settings);
 }
 
 // Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like

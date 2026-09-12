@@ -1,8 +1,8 @@
 import type { StateCreator } from "zustand";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import { type AcpModelOptions, api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
-
-const AGENT_BACKEND_KEY = "ai-leash:agentBackend";
+import { localStorageJson } from "./localStorageJson";
 
 // One global agent backend setting (not per-project), same reasoning as
 // `providerSettings` — a session's chat "just uses whatever's active".
@@ -58,51 +58,44 @@ const DEFAULT_AGENT_BACKEND: AgentBackendSettings = {
 };
 
 function loadAgentBackend(): AgentBackendSettings {
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(AGENT_BACKEND_KEY) ?? "null",
-    );
-    if (parsed && typeof parsed === "object") {
-      // Pre-multi-agent shape was `{kind: "acp", launchCommand}` — migrate
-      // it into a single saved entry (seeding the presets alongside it too,
-      // as a one-time thing) so existing users don't lose their setup.
-      if (
-        parsed.kind === "acp" &&
-        typeof parsed.launchCommand === "string" &&
-        !Array.isArray(parsed.acpAgents)
-      ) {
-        return {
-          acpAgents: withDefaultAcpAgents([
-            {
-              id: crypto.randomUUID(),
-              label: "ACP agent",
-              launchCommand: parsed.launchCommand,
-            },
-          ]),
-        };
-      }
-      // Once a real `acpAgents` array has been saved, it's authoritative
-      // as-is — no re-seeding here, or deleting a default preset would
-      // silently bring it back on the next reload. Any `kind`/`activeAcpId`
-      // left over from the pre-unified-default shape are ignored here — the
-      // shared default backend now lives entirely in `backendSlice.ts`,
-      // migrated once from these same raw keys (see that file's
-      // `migrateFromOldKeys`).
-      if (Array.isArray(parsed.acpAgents)) {
-        return { acpAgents: parsed.acpAgents };
-      }
+  // biome-ignore lint/suspicious/noExplicitAny: shape is validated below field-by-field
+  const parsed = localStorageJson.read<any>(LS_KEYS.agentBackend, null);
+  if (parsed && typeof parsed === "object") {
+    // Pre-multi-agent shape was `{kind: "acp", launchCommand}` — migrate
+    // it into a single saved entry (seeding the presets alongside it too,
+    // as a one-time thing) so existing users don't lose their setup.
+    if (
+      parsed.kind === "acp" &&
+      typeof parsed.launchCommand === "string" &&
+      !Array.isArray(parsed.acpAgents)
+    ) {
+      return {
+        acpAgents: withDefaultAcpAgents([
+          {
+            id: crypto.randomUUID(),
+            label: "ACP agent",
+            launchCommand: parsed.launchCommand,
+          },
+        ]),
+      };
     }
-  } catch {
-    // fall through to default
+    // Once a real `acpAgents` array has been saved, it's authoritative
+    // as-is — no re-seeding here, or deleting a default preset would
+    // silently bring it back on the next reload. Any `kind`/`activeAcpId`
+    // left over from the pre-unified-default shape are ignored here — the
+    // shared default backend now lives entirely in `backendSlice.ts`,
+    // migrated once from these same raw keys (see that file's
+    // `migrateFromOldKeys`).
+    if (Array.isArray(parsed.acpAgents)) {
+      return { acpAgents: parsed.acpAgents };
+    }
   }
   return DEFAULT_AGENT_BACKEND;
 }
 
 function saveAgentBackend(backend: AgentBackendSettings) {
-  localStorage.setItem(AGENT_BACKEND_KEY, JSON.stringify(backend));
+  localStorageJson.write(LS_KEYS.agentBackend, backend);
 }
-
-const CONVERSATION_BACKEND_KEY = "ai-leash:conversationBackend";
 
 // Which provider/agent (and which specific model) a given conversation is
 // actually using — kept per-session-id so switching conversations restores
@@ -126,21 +119,19 @@ function loadConversationBackend(): Record<
   string,
   ConversationBackendSelection
 > {
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(CONVERSATION_BACKEND_KEY) ?? "{}",
-    );
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch {
-    // fall through
-  }
-  return {};
+  const parsed = localStorageJson.read<unknown>(
+    LS_KEYS.conversationBackend,
+    {},
+  );
+  return parsed && typeof parsed === "object"
+    ? (parsed as Record<string, ConversationBackendSelection>)
+    : {};
 }
 
 function saveConversationBackendMap(
   map: Record<string, ConversationBackendSelection>,
 ) {
-  localStorage.setItem(CONVERSATION_BACKEND_KEY, JSON.stringify(map));
+  localStorageJson.write(LS_KEYS.conversationBackend, map);
 }
 
 export interface AcpSlice {

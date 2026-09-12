@@ -1,9 +1,9 @@
 import type { StateCreator } from "zustand";
+import { LS_KEYS } from "../lib/localStorageKeys";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
+import { localStorageJson } from "./localStorageJson";
 import { PRIMARY_CHAT_TAB } from "./panelSlice";
-
-const RECENT_PROJECTS_KEY = "ai-leash:recentProjects";
 
 interface OpenFile {
   path: string;
@@ -21,18 +21,12 @@ export interface RecentProject {
 }
 
 function loadRecentProjects(): RecentProject[] {
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(RECENT_PROJECTS_KEY) ?? "[]",
-    );
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map((p) => ({ path: p.path, name: p.name }));
-    }
-  } catch {
-    // fall through to migration below
+  const parsed = localStorageJson.read<unknown>(LS_KEYS.recentProjects, []);
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    return parsed.map((p) => ({ path: p.path, name: p.name }));
   }
   // One-time migration from the old single-project key (pre-multi-project sidebar).
-  const legacy = localStorage.getItem("ai-leash:lastProjectRoot");
+  const legacy = localStorage.getItem(LS_KEYS.lastProjectRoot);
   if (!legacy) return [];
   const migrated = [
     {
@@ -40,13 +34,13 @@ function loadRecentProjects(): RecentProject[] {
       name: legacy.split("/").filter(Boolean).pop() ?? legacy,
     },
   ];
-  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(migrated));
-  localStorage.removeItem("ai-leash:lastProjectRoot");
+  localStorageJson.write(LS_KEYS.recentProjects, migrated);
+  localStorage.removeItem(LS_KEYS.lastProjectRoot);
   return migrated;
 }
 
 function saveRecentProjects(projects: RecentProject[]) {
-  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(projects));
+  localStorageJson.write(LS_KEYS.recentProjects, projects);
 }
 
 export interface ProjectSlice {
