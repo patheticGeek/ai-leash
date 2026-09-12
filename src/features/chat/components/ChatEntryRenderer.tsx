@@ -15,7 +15,7 @@ export function Chevron({ expanded }: { expanded: boolean }) {
   return (
     <ChevronRight
       size={12}
-      className={`shrink-0 text-zinc-600 transition-transform duration-200 ease-out ${expanded ? "rotate-90" : ""}`}
+      className={`shrink-0 text-current transition-transform duration-200 ease-out ${expanded ? "rotate-90" : ""}`}
     />
   );
 }
@@ -207,19 +207,19 @@ export default function ChatEntryRenderer({
         variant="unstyled"
         size="none"
         onClick={onToggleExpand}
-        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-zinc-500 hover:text-zinc-300"
       >
         <Chevron expanded={expanded} />
         {entry.name === "spawn_sub_agent" ||
         entry.name === "sub_agent_result" ? (
           <Bot
             size={12}
-            className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+            className={`shrink-0 ${failed ? "text-red-400" : ""}`}
           />
         ) : (
           <Wrench
             size={12}
-            className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
+            className={`shrink-0 ${failed ? "text-red-400" : ""}`}
           />
         )}
         <span className="shrink-0 truncate max-w-4/5">{entry.name}</span>
