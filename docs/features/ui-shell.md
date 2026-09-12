@@ -14,7 +14,7 @@ monitoring) lives in a multi-tab panel on the right:
 | project |                                 |  active tab's content  |
 | list    |  active tab's content           |                        |
 +---------+---------------------------------+------------------------+
-|                         StatusBar                                 |
+|                         status bar                               |
 +---------------------------------------------------------------------+
 ```
 
@@ -22,7 +22,7 @@ monitoring) lives in a multi-tab panel on the right:
   inline SVG rendering "ai" with a `linearGradient` fill and "leash" in
   plain text, plus a `+` button that opens the native folder-picker
   dialog and calls `store.openProject`) above a list of
-  `store.ts`'s `recentProjects`. Clicking a project row calls
+  `store`'s `recentProjects`. Clicking a project row calls
   `openProject(path)` to switch to it (highlighted when it matches
   `projectRoot`). One row = one project = one conversation for now;
   wiring multiple named conversations per project is future work.
@@ -58,7 +58,7 @@ monitoring) lives in a multi-tab panel on the right:
   survive switching away) plus one closable tab per opened sub-agent
   conversation (`SubAgentChatTab.tsx`, read-only: no input box, no
   retry — a sub-agent can't be messaged further once spawned).
-  `store.ts`'s `chatTabs: ChatTab[]` + `activeChatTabId` track these;
+  `store`'s `chatTabs: ChatTab[]` + `activeChatTabId` track these;
   `subAgentThreads: Record<subSessionId, Entry[]>` holds each
   sub-agent's flat transcript, mirrored in parallel with the existing
   nested-under-tool-call thread by `ChatPanel`'s `subtask_start`
@@ -95,7 +95,7 @@ monitoring) lives in a multi-tab panel on the right:
   the result with the same `messagesToEntries()` a top-level session's
   history hydration already uses.
 - `SidePanel.tsx` (right) is a genuine multi-tab panel, not a
-  fixed set of two tabs: `store.ts`'s `panelTabs: PanelTab[]` +
+  fixed set of two tabs: `store`'s `panelTabs: PanelTab[]` +
   `activePanelTabId` track an arbitrary number of simultaneously open
   tabs of kind `filetree` | `subagents` | `terminal` | `file`.
   - `filetree` and `subagents` are singletons — opening one twice just
@@ -103,6 +103,9 @@ monitoring) lives in a multi-tab panel on the right:
   - `terminal` tabs are never deduped — each open creates a new
     `TerminalPanel` instance (own pty), id
     `` terminal:${crypto.randomUUID()} ``, labeled `Terminal N`.
+  - `actions` is a singleton management tab. Starting an Action opens a
+    separate `action:${actionId}` terminal tab attached to that Action's
+    persistent PTY.
   - `file` tabs are deduped by path (id `` file:${path} ``) and driven
     by the existing `openFiles`/`activePath` state — `store.openFile`
     both loads the file's content (if not already loaded) and calls
@@ -111,8 +114,8 @@ monitoring) lives in a multi-tab panel on the right:
   - When `panelTabs` is empty, or the tab strip's `+` button is
     clicked, `SidePanel` shows `TabPicker.tsx` — a grid of tiles (one
     per non-file kind) instead of tab content. Picking a tile calls
-    `openPanelTab` and hides the picker. Git-diff and an embedded
-    browser are planned additions to this same grid in milestone 8.
+    `    `openPanelTab` and hides the picker. Actions are available from this
+    grid alongside File Tree, Terminal, and Sub Agents.
   - All currently-open `terminal` tabs, and the (singleton) `filetree`
     tab if open, stay mounted (hidden via CSS, not unmounted)
     regardless of which tab is active — so pty sessions/scrollback and
@@ -120,11 +123,11 @@ monitoring) lives in a multi-tab panel on the right:
     `FileTree.tsx`'s `Node`) survive switching to another tab.
     `subagents` and `file` content is cheap to rebuild from store
     state on every activation, so those unmount when inactive.
-  - `FileEditorTab.tsx` (replacing the old `EditorArea.tsx`) renders
+  - `FileEditorTab.tsx` renders
     just the CodeMirror view for the currently active file — no
     internal per-file tab strip of its own, since the outer
     `SidePanel` tab strip already covers that.
-  - **Tabs are remembered per project** (`store.ts`'s
+  - **Tabs are remembered per project** (`store`'s
     `panelStateByConversation: Record<string, {panelTabs,
     activePanelTabId}>`, keyed by project path — doubling as a
     conversation id for now, since it's one conversation per project
@@ -147,7 +150,7 @@ monitoring) lives in a multi-tab panel on the right:
 
 Permission requests are per-project, not a single app-wide overlay:
 `PermissionPopover.tsx` renders inside `ChatPanel.tsx`, anchored above
-that project's own textarea, only when `permissionForSession` (`store.ts`)
+that project's own textarea, only when `permissionForSession` (`store`)
 resolves a pending request for the currently open session (or a sub-agent
 it spawned). `LeftBar.tsx` is where the one global `permission://request`/
 `permission://resolved` listener pair lives (mounted regardless of which
@@ -156,6 +159,11 @@ awaiting approval in the background gets a pulsing amber glow on its
 sidebar row (`ProjectRow`'s `awaitingApproval`) rather than being silently
 invisible until you happen to switch to it. See
 [tools.md](./tools.md#permissions).
+
+The chat transcript groups consecutive thinking and tool-call entries
+into one collapsed activity block. It shows the latest entry by default
+and provides a `Show all (N thoughts, M tools used)` control, omitting
+zero-count categories; expanding it reveals the complete activity run.
 
 ## Dark mode only
 
@@ -183,13 +191,13 @@ palette that exists in the codebase.
 
 ## Status bar
 
-`StatusBar.tsx`: aggregate connectivity across every configured provider
+The status bar: aggregate connectivity across every configured provider
 (Ollama + each saved OpenAI-compatible config), as "`N`/`M` providers
 connected" with a colored dot — gray until at least one check has
 returned, green if all are connected, amber if some are, red if none are.
 Hovering the dot/text shows a per-provider tooltip (label + "checking…" /
-"connected" / "disconnected"). Backed by `store.ts`'s
-`providerConnectivity`/`refreshProviderConnectivity` (see
+"connected" / "disconnected"). Backed by the provider store's
+`providerConnectivity`/`refreshProviderConnectivity` in the provider store (see
 [agent-chat.md](./agent-chat.md) for the polling behavior and how this
 differs from the active-provider-only `ollamaConnected` check).
 

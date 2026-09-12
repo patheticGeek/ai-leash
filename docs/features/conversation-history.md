@@ -2,7 +2,8 @@
 
 ## Storage
 
-`db.rs` opens a SQLite database at `<config-dir>/ai-leash/history.db`
+`src-tauri/src/db/` opens a SQLite database at
+`<config-dir>/ai-leash/history.db`
 (the same `dirs::config_dir().join("ai-leash")` convention
 `context.rs` uses for the global `AGENTS.md`/memory — see
 [context-and-memory.md](./context-and-memory.md)), created on first run
@@ -43,14 +44,14 @@ restarts as long as you reopen the same project. `CenterPanel` already
 remounts `ChatPanel` on `projectRoot` change (`key={projectRoot}`), so
 this only evaluates once per project per app run. This matches the
 existing "one conversation per project for now" scoping used elsewhere
-(`store.ts`'s `panelStateByConversation`, also keyed by project path —
+(`store/panelSlice.ts`'s `panelStateByConversation`, also keyed by project path —
 see [ui-shell.md](./ui-shell.md)); wiring multiple named conversations
 per project later will need a real conversation id distinct from the
 project path, at which point this doubling-up goes away.
 
 ## What gets persisted, and what doesn't
 
-`chat.rs`'s `push_message` — the single choke point everything already
+`chat/history.rs`'s message persistence — the single choke point everything already
 went through for updating in-memory `chat_sessions` — now also calls
 `db::save_message` before it touches the `HashMap`. Only one thing is
 silently skipped there (`db::save_message` no-ops rather than erroring,
@@ -98,7 +99,7 @@ there's no stable id to key a conversation by without one.
 
 ## Loading history back
 
-`load_conversation_history(session_id)` (Tauri command, `chat.rs`) is
+`load_conversation_history(session_id)` (Tauri command, `chat/mod.rs`) is
 called once from a `ChatPanel` mount effect, before the
 event-listener-registration effect. It checks `chat_sessions` first —
 if the session's already in memory it's returned as-is; otherwise
@@ -140,7 +141,7 @@ with it.
 
 ## Testing
 
-`db.rs` has `#[cfg(test)]` unit tests exercising the SQL directly
+The `db/` modules have `#[cfg(test)]` unit tests exercising the SQL directly
 (round-tripping plain messages in order, round-tripping `tool_calls`
 JSON, confirming only `system` messages are excluded — sub-agent
 sessions round-trip like any other, confirming two conversations'

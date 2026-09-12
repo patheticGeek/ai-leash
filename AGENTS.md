@@ -2,9 +2,9 @@
 
 Context for agents working in this repo. `ai-leash` is a Tauri v2
 agentic harness — not an IDE, the editor/file tree/terminal exist to
-support the agent chat, not the other way around — built around a local
-Ollama-backed agent loop (no cloud account, no telemetry; an ACP branch
-in progress adds driving external agents like Claude Code/Copilot CLI).
+support the agent chat, not the other way around. It includes a local
+Ollama/OpenAI-compatible agent loop and an ACP backend for driving
+external agents such as Claude Code and GitHub Copilot CLI.
 See `README.md` for the product pitch and `docs/features/*.md` for
 per-feature implementation detail — those are kept in sync with the
 code and are the first place to check before making backend/frontend
@@ -13,12 +13,10 @@ behavior changes.
 ## Layout
 
 ```
-src-tauri/src/    Rust backend: tools.rs (tool defs + execution,
-                  ~800 lines), chat.rs (agent loop, sub-agents),
-                  provider.rs (Ollama/OpenAI-compatible calls),
-                  context.rs (AGENTS.md/memory/skills prompt assembly),
-                  db.rs (SQLite persistence), acp.rs, pty.rs, state.rs
-src/              React frontend (Vite): components/, lib/, hooks/
+src-tauri/src/    Rust backend: chat/, tools/, provider/, acp/, db/,
+                  actions.rs, commands.rs, context.rs, pty.rs, state.rs
+src/              React frontend (Vite): app/, features/, lib/, store/,
+                  ui/, hooks/
 docs/features/    Per-feature reference docs — read these, not just
                   the code, when touching a feature they cover
 website/          Nextra docs site; content under src/content/ and the
