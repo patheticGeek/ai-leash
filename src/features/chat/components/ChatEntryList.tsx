@@ -217,17 +217,6 @@ export default function ChatEntryList({
               Ask about your code, plan a change, or let the agent explore the
               project with you.
             </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-zinc-500">
-              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
-                Explain this project
-              </span>
-              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
-                Find a bug
-              </span>
-              <span className="rounded-full bg-white/[0.04] px-3 py-1.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
-                Build a feature
-              </span>
-            </div>
           </div>
         </div>
       )}
