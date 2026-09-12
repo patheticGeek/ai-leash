@@ -79,7 +79,7 @@ export default function ChatInputBar({
         className={`relative flex flex-col rounded-lg bg-[#17181c] transition-shadow duration-150 ${
           shellMode
             ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6)]"
-            : "shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.05)] focus-within:shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_1px_rgba(58,95,143,0.55)]"
+            : "shadow-[var(--al-shadow)] focus-within:shadow-[0_0_0_1px_rgba(58,95,143,0.55),var(--al-shadow)]"
         }`}
       >
         {pendingPermission ? (
@@ -123,14 +123,14 @@ export default function ChatInputBar({
             {contextUsage}
             <Button
               variant="unstyled"
-              size="icon"
+              size="none"
               onClick={sending ? onStop : onSend}
               disabled={!sending && sendDisabled}
               title={sending ? "Stop" : "Send"}
-              className={`text-white transition-all duration-150 ${
+              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none transition-all duration-150 ${
                 sending
-                  ? "bg-red-600/90 shadow-[0_1px_4px_rgba(220,38,38,0.45),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-red-500 hover:shadow-[0_2px_9px_rgba(220,38,38,0.55),0_0_0_1px_rgba(255,255,255,0.1)]"
-                  : "bg-[#3a5f8f] shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-[#4a6f9f] hover:shadow-[0_2px_9px_rgba(58,95,143,0.6),0_0_0_1px_rgba(255,255,255,0.1)] disabled:hover:bg-[#3a5f8f] disabled:hover:shadow-[0_1px_4px_rgba(58,95,143,0.5),0_0_0_1px_rgba(255,255,255,0.08)]"
+                  ? "bg-red-950/30 text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.6)] hover:bg-red-950/50 hover:text-red-300"
+                  : "bg-blue-950/40 text-blue-400 shadow-[0_0_0_1px_rgba(30,64,175,0.6)] hover:bg-blue-950/60 hover:text-blue-300 disabled:hover:bg-blue-950/40 disabled:hover:text-blue-400"
               }`}
             >
               {sending ? (
@@ -138,6 +138,7 @@ export default function ChatInputBar({
               ) : (
                 <Send size={14} />
               )}
+              <span>{sending ? "Stop" : "Send"}</span>
             </Button>
           </div>
         </div>
