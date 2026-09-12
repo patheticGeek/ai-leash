@@ -27,6 +27,10 @@ export default defineConfig(() => ({
   },
   define: {
     __COMMIT_HASH__: JSON.stringify(commitHash()),
+    // "pr" for a CI build off a pull request (see build.yml), "" otherwise
+    // (a release build, or a plain local `npm run build`) — see
+    // src/lib/buildChannel.ts for how this becomes the dev/PR badge.
+    __BUILD_CHANNEL__: JSON.stringify(process.env.AI_LEASH_BUILD_CHANNEL ?? ""),
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

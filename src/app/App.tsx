@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
 import { useResizableWidth } from "../hooks/useResizableWidth";
+import { BUILD_LABEL } from "../lib/buildChannel";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
@@ -92,6 +93,9 @@ function App() {
 
   return (
     <div className="relative flex h-screen w-screen flex-col text-zinc-200">
+      {BUILD_LABEL && (
+        <div className="pointer-events-none fixed inset-0 z-[999] border border-amber-500/50" />
+      )}
       <TitleBar leftBarWidth={leftBarWidth} rightPanelWidth={rightPanelWidth} />
       <SettingsModal />
       <div

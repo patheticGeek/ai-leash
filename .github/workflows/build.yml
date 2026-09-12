@@ -11,6 +11,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+    # Consumed by vite.config.ts (frontend) and src-tauri/src/lib.rs
+    # (backend, via option_env!) to badge the window title/UI so a PR build
+    # is never visually mistaken for what actually ships — empty for the
+    # push-to-master build the `release` job below publishes.
+    env:
+      AI_LEASH_BUILD_CHANNEL: ${{ github.event_name == 'pull_request' && 'pr' || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

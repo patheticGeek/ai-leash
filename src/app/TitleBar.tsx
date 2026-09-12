@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
+import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
 import Logo from "../ui/Logo";
 import TitleBarActions from "./TitleBarActions";
@@ -128,7 +129,14 @@ export default function TitleBar({
         style={{ width: leftBarWidth }}
         className="flex shrink-0 items-center justify-between px-1.5 shadow-[var(--al-shadow-r)]"
       >
-        <Logo className="h-3.5 w-auto shrink-0 ml-1.5" />
+        <div className="flex min-w-0 items-center gap-1.5 ml-1.5">
+          <Logo className="h-3.5 w-auto shrink-0" />
+          {BUILD_LABEL && (
+            <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-wide text-amber-400">
+              {BUILD_LABEL}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"

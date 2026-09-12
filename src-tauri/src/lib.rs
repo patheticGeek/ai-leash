@@ -16,6 +16,23 @@ mod tools;
 use state::AppState;
 use tauri::Manager;
 
+/// "dev" for a `cargo tauri dev` build, "PR" for a CI build off a pull
+/// request (`AI_LEASH_BUILD_CHANNEL`, set in `.github/workflows/build.yml`
+/// and read here via `option_env!` since it's baked in at compile time, not
+/// available at runtime), `None` for an actual release build — the only
+/// case whose window title should look exactly like what a user installs.
+/// Mirrored on the frontend by `src/lib/buildChannel.ts`'s `BUILD_LABEL`
+/// (computed independently there, from the same env var threaded through
+/// `vite.config.ts`, since the window title is set before any frontend code
+/// runs and can't itself be read back out cheaply).
+fn build_label() -> Option<&'static str> {
+    if cfg!(debug_assertions) {
+        Some("dev")
+    } else {
+        option_env!("AI_LEASH_BUILD_CHANNEL").and_then(|c| (c == "pr").then_some("PR"))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // First thing, before anything else that could itself panic — see the
@@ -36,8 +53,10 @@ pub fn run() {
     let mut context = tauri::generate_context!();
     if cfg!(debug_assertions) {
         context.config_mut().identifier.push_str(".dev");
+    }
+    if let Some(label) = build_label() {
         for window in &mut context.config_mut().app.windows {
-            window.title.push_str(" (dev)");
+            window.title.push_str(&format!(" ({label})"));
         }
     }
 
