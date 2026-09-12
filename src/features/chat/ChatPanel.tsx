@@ -734,7 +734,7 @@ export default function ChatPanel({
           onRetry={retry}
         />
         {helpOpen && (
-          <div className="absolute inset-0 z-10 flex flex-col bg-[#0e0f12]">
+          <div className="absolute inset-0 z-10 flex flex-col bg-[#111215]">
             <div className="flex items-center justify-between shadow-[var(--al-shadow-b)] px-3 py-2">
               <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                 Commands

@@ -58,7 +58,7 @@ export default function CenterPanel() {
 
   if (!projectRoot || !activeSessionId) {
     return (
-      <div className="flex h-full flex-col bg-[#0e0f12]">
+      <div className="flex h-full flex-col bg-[#111215]">
         <NoProjectState />
       </div>
     );
@@ -66,7 +66,7 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#0e0f12]">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#111215]">
         {chatTabs.map((tab) => (
           <div
             key={tab.id}
@@ -104,7 +104,7 @@ export default function CenterPanel() {
       <div className="relative flex-1 min-h-0">
         <div
           className={
-            activeChatTabId === "primary" ? "h-full bg-[#0e0f12]" : "hidden"
+            activeChatTabId === "primary" ? "h-full bg-[#111215]" : "hidden"
           }
         >
           <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
@@ -115,7 +115,7 @@ export default function CenterPanel() {
             <div
               key={tab.id}
               className={
-                tab.id === activeChatTabId ? "h-full bg-[#0e0f12]" : "hidden"
+                tab.id === activeChatTabId ? "h-full bg-[#111215]" : "hidden"
               }
             >
               <SubAgentChatTab subSessionId={tab.subSessionId} />
