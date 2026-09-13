@@ -85,6 +85,13 @@ pub fn list_conversations(state: State<AppState>) -> Result<Vec<db::Conversation
     Ok(db::list_all_conversations(&state.db))
 }
 
+/// Lists canonical projects for future project-management UI. The current
+/// frontend still owns its existing project picker and does not call this yet.
+#[tauri::command]
+pub fn list_projects(state: State<AppState>) -> Result<Vec<db::ProjectSummary>, String> {
+    Ok(db::list_projects(&state.db))
+}
+
 /// Removes one conversation from the sidebar for good — its own row plus
 /// every sub-agent it spawned (see `db::delete_conversation`'s doc comment),
 /// and each of their in-memory backend state too (same
