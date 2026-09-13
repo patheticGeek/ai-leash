@@ -1,3 +1,4 @@
+use crate::db;
 use crate::state::AppState;
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
@@ -55,8 +56,14 @@ pub fn set_project_root(
     if !p.is_dir() {
         return Err("not a directory".into());
     }
-    *state.project_root.lock().unwrap() = Some(p.clone());
-    start_fs_watcher(app, &state, &p)?;
+    // Keep the selected path shape unchanged for the existing frontend
+    // session keys; path normalization is a separate project-management step.
+    let root = p;
+    let root_string = root.display().to_string();
+    db::ensure_project(&state.db, &root_string);
+    db::touch_project(&state.db, &root_string);
+    *state.project_root.lock().unwrap() = Some(root.clone());
+    start_fs_watcher(app, &state, &root)?;
     Ok(())
 }
 

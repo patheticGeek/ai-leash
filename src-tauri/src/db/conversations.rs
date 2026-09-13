@@ -5,6 +5,7 @@
 //! table op, so it lives here rather than being split across files.
 
 use super::messages::title_from_message;
+use super::projects::ensure_project_connection;
 use super::Db;
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -15,6 +16,7 @@ use serde::Serialize;
 #[serde(rename_all = "camelCase")]
 pub struct ConversationSummary {
     pub id: String,
+    pub project_id: Option<String>,
     pub project_root: String,
     pub title: Option<String>,
     pub updated_at: i64,
@@ -31,7 +33,7 @@ pub struct ConversationSummary {
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
-        "SELECT id, project_root, title, updated_at FROM conversations \
+        "SELECT id, project_id, project_root, title, updated_at FROM conversations \
          WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
     ) else {
         return vec![];
@@ -39,9 +41,10 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     stmt.query_map([], |row| {
         Ok(ConversationSummary {
             id: row.get(0)?,
-            project_root: row.get(1)?,
-            title: row.get(2)?,
-            updated_at: row.get(3)?,
+            project_id: row.get(1)?,
+            project_root: row.get(2)?,
+            title: row.get(3)?,
+            updated_at: row.get(4)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
@@ -70,10 +73,13 @@ pub(super) fn upsert_conversation(
     project_root: &str,
     ts: i64,
 ) {
+    let project_id = ensure_project_connection(conn, project_root);
     let _ = conn.execute(
-        "INSERT INTO conversations (id, project_root, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)
-         ON CONFLICT(id) DO UPDATE SET updated_at = ?3",
-        params![conversation_id, project_root, ts],
+        "INSERT INTO conversations
+         (id, project_root, project_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?4)
+         ON CONFLICT(id) DO UPDATE SET updated_at = ?4, project_root = ?2, project_id = ?3",
+        params![conversation_id, project_root, project_id, ts],
     );
 }
 
