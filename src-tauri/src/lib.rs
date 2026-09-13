@@ -6,6 +6,7 @@ mod context;
 mod crashlog;
 mod db;
 mod env;
+mod git;
 pub mod mcp_bridge;
 mod paths;
 mod provider;
@@ -81,9 +82,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::set_project_root,
             commands::get_project_root,
+            commands::set_conversation_root,
             commands::list_dir,
             commands::read_file_text,
             commands::write_file_text,
+            git::list_git_branches,
+            git::list_git_worktrees,
+            git::get_current_git_branch,
+            git::create_git_worktree,
+            git::checkout_git_branch,
+            git::watch_git_branch,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

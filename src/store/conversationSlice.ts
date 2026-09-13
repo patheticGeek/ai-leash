@@ -10,6 +10,11 @@ export interface ConversationSummary {
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches the backend's `ConversationSummary`
+  // Non-null only when this conversation runs in a worktree instead of the
+  // project's primary checkout — see `BranchBar`. Never a branch name: what's
+  // checked out there can change outside the app, so the frontend always
+  // reads it live (`api.watchGitBranch`) instead of trusting a stored value.
+  worktreePath: string | null;
 }
 
 function nowSeconds(): number {
@@ -46,7 +51,11 @@ export interface ConversationSlice {
   initializeStartupSession: () => Promise<void>;
   openConversation: (id: string) => Promise<void>;
   startNewConversation: (projectRoot: string) => Promise<void>;
-  markConversationStarted: (id: string, projectRoot: string) => void;
+  markConversationStarted: (
+    id: string,
+    projectRoot: string,
+    worktreePath?: string | null,
+  ) => void;
   touchConversationActivity: (id: string) => void;
   setConversationTitle: (id: string, title: string | null) => void;
   deleteConversation: (id: string) => Promise<void>;
@@ -114,6 +123,14 @@ export const conversationSlice: StateCreator<
     const { projectRoot } = conversation;
     const token = ++latestSwitchToken;
     await api.setProjectRoot(projectRoot);
+    // Restores this conversation's own checkout (primary or worktree) —
+    // separate from the global `project_root` above, which only drives the
+    // file tree / terminal's "focused" project. See `BranchBar`.
+    await api.setConversationRoot(
+      id,
+      projectRoot,
+      conversation.worktreePath ?? projectRoot,
+    );
     // A newer switch (another click, or `startNewConversation`) started
     // while this one was awaiting the backend round trip — let it win
     // instead of overwriting whatever it already committed.
@@ -196,6 +213,12 @@ export const conversationSlice: StateCreator<
 
     const token = ++latestSwitchToken;
     await api.setProjectRoot(projectRoot);
+    // Locks in the primary checkout as this conversation's default cwd
+    // right away — before `ChatPanel`/`BranchBar` even mount — so an ACP
+    // subprocess warmed ahead of any worktree choice never starts against
+    // the wrong directory. `BranchBar` overwrites this if the user picks a
+    // worktree before sending the first message.
+    await api.setConversationRoot(id, projectRoot, projectRoot);
     // See `openConversation`'s identical guard — a newer switch already won.
     if (token !== latestSwitchToken) return;
 
@@ -231,13 +254,19 @@ export const conversationSlice: StateCreator<
   // thread" to a real, listed row in the sidebar without waiting on
   // anything async. No-op if already present (e.g. a second message in the
   // same still-fresh conversation).
-  markConversationStarted: (id, projectRoot) =>
+  markConversationStarted: (id, projectRoot, worktreePath = null) =>
     set((s) =>
       s.conversations.some((c) => c.id === id)
         ? s
         : {
             conversations: [
-              { id, projectRoot, title: null, updatedAt: nowSeconds() },
+              {
+                id,
+                projectRoot,
+                title: null,
+                updatedAt: nowSeconds(),
+                worktreePath,
+              },
               ...s.conversations,
             ],
           },

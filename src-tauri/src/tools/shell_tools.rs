@@ -76,7 +76,7 @@ pub async fn run_shell_command(
     session_id: String,
     command: String,
 ) -> Result<String, String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     let result = run_shell(&command, &root)
         .await
         .unwrap_or_else(|e| format!("Error: {e}"));

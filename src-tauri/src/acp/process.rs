@@ -158,7 +158,7 @@ async fn run_acp_session(
 ) {
     let root = {
         let state = app.state::<AppState>();
-        match commands::get_root_path(state.inner()) {
+        match commands::get_session_root(state.inner(), &session_id) {
             Ok(r) => r,
             Err(e) => {
                 let _ = app.emit(&format!("chat://{session_id}/error"), format!("ACP: {e}"));

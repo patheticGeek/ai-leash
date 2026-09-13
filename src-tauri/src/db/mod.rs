@@ -19,8 +19,8 @@ pub use acp_sessions::{
     delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id,
 };
 pub use conversations::{
-    clear_conversation, delete_conversation, get_conversation_title, list_all_conversations,
-    set_conversation_title, ConversationSummary,
+    clear_conversation, conversation_exists, delete_conversation, get_conversation_title,
+    list_all_conversations, set_conversation_title, set_conversation_worktree, ConversationSummary,
 };
 pub use messages::{
     finish_streaming_message, load_messages, save_message, set_message_duration,
@@ -167,6 +167,23 @@ impl Db {
                 [],
             )
             .expect("failed to migrate message durations");
+        }
+        // Existing databases predate per-conversation worktrees. Same
+        // existence check as `title`/`duration_seconds` above.
+        let has_worktree = conn
+            .prepare("PRAGMA table_info(conversations)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "worktree_path"))
+            .expect("failed to inspect conversations schema");
+        if !has_worktree {
+            conn.execute(
+                "ALTER TABLE conversations ADD COLUMN worktree_path TEXT",
+                [],
+            )
+            .expect("failed to migrate conversation worktree path");
         }
         Db(Mutex::new(conn))
     }

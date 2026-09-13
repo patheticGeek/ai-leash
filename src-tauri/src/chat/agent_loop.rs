@@ -112,7 +112,7 @@ pub(super) async fn run_agent_loop(
     let tool_result_event = format!("chat://{}/tool_result", session_id);
     let usage_event = format!("chat://{}/usage", session_id);
 
-    let root = commands::get_root_path(state.inner()).ok();
+    let root = commands::get_session_root(state.inner(), scope_id).ok();
     let mut last_call: Option<(String, Value)> = None;
 
     for _ in 0..MAX_TOOL_ITERATIONS {
@@ -336,8 +336,13 @@ fn touched_dirs_for(state: &State<'_, AppState>, session_id: &str) -> Vec<std::p
 /// `pub(crate)` so `acp.rs` can persist ACP-backed turns through the same
 /// SQLite + in-memory path the built-in loop already uses.
 pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, message: ChatMessage) {
-    if let Ok(root) = commands::get_root_path(state.inner()) {
-        db::save_message(&state.db, session_id, &root.to_string_lossy(), &message);
+    if let Ok(root) = commands::get_conversation_root(state.inner(), session_id) {
+        db::save_message(
+            &state.db,
+            session_id,
+            &root.project_root.to_string_lossy(),
+            &message,
+        );
     }
     remember_in_memory(state, session_id, message);
 }
@@ -385,11 +390,11 @@ pub(crate) fn start_streaming_message(
     session_id: &str,
     role: &str,
 ) -> Option<i64> {
-    let root = commands::get_root_path(state.inner()).ok()?;
+    let root = commands::get_conversation_root(state.inner(), session_id).ok()?;
     Some(db::start_streaming_message(
         &state.db,
         session_id,
-        &root.to_string_lossy(),
+        &root.project_root.to_string_lossy(),
         role,
     ))
 }

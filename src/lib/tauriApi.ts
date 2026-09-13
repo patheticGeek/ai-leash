@@ -91,6 +91,23 @@ export interface ConversationSummary {
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches SubAgentSummary.startedAt
+  // Non-null only when this conversation runs in a worktree instead of the
+  // project's primary checkout — see `BranchBar`. Never a branch name: what
+  // that path has checked out can change from outside the app, so the
+  // frontend always reads it live (see `watchGitBranch`) instead of trusting
+  // a stored value.
+  worktreePath: string | null;
+}
+
+export interface GitBranch {
+  name: string;
+  isCurrent: boolean;
+}
+
+export interface GitWorktree {
+  path: string;
+  branch: string | null;
+  isPrimary: boolean;
 }
 
 export interface ProjectSummary {
@@ -114,6 +131,39 @@ export interface ActionSummary {
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
+  // Locks in a conversation's own checkout — `cwd` is what its tools/shell/
+  // ACP subprocess actually run in, `projectRoot` stays the primary repo
+  // root either way (project identity). See `BranchBar`.
+  setConversationRoot: (sessionId: string, projectRoot: string, cwd: string) =>
+    invoke<void>("set_conversation_root", { sessionId, projectRoot, cwd }),
+  listGitBranches: (rootPath: string) =>
+    invoke<GitBranch[]>("list_git_branches", { rootPath }),
+  listGitWorktrees: (rootPath: string) =>
+    invoke<GitWorktree[]>("list_git_worktrees", { rootPath }),
+  getCurrentGitBranch: (rootPath: string) =>
+    invoke<string | null>("get_current_git_branch", { rootPath }),
+  // `baseBranch: null` attaches the worktree to an existing branch;
+  // non-null creates `branch` fresh off `baseBranch` instead.
+  createGitWorktree: (
+    rootPath: string,
+    branch: string,
+    baseBranch: string | null,
+  ) => invoke<string>("create_git_worktree", { rootPath, branch, baseBranch }),
+  // Switches what's checked out at `worktreePath` — an existing `branch`
+  // (`baseBranch: null`), or `branch` created fresh off `baseBranch`. Safe
+  // at any point in a conversation's life, not just before its first
+  // message — see `git.rs`'s doc comment.
+  checkoutGitBranch: (
+    worktreePath: string,
+    branch: string,
+    baseBranch: string | null,
+  ) =>
+    invoke<void>("checkout_git_branch", { worktreePath, branch, baseBranch }),
+  // Starts watching `rootPath`'s current branch live — pair with a
+  // `listen("git://branch_changed", ...)` subscription filtering on this
+  // same path. A no-op if already watching it.
+  watchGitBranch: (rootPath: string) =>
+    invoke<void>("watch_git_branch", { rootPath }),
   listDir: (path?: string) => invoke<DirEntryInfo[]>("list_dir", { path }),
   readFileText: (path: string) => invoke<string>("read_file_text", { path }),
   writeFileText: (path: string, contents: string) =>
