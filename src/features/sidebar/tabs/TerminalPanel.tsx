@@ -15,11 +15,11 @@ function base64ToBytes(b64: string): Uint8Array {
 
 export default function TerminalPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const projectRoot = useAppStore((s) => s.projectRoot);
+  const sessionId = useAppStore((s) => s.activeSessionId);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. projectRoot can't actually change under a mounted TerminalPanel: switching conversations replaces panelTabs wholesale (see openConversation/startNewConversation in conversationSlice.ts), which unmounts every terminal tab via its key rather than updating this one in place.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. sessionId can't actually change under a mounted TerminalPanel: switching conversations replaces panelTabs wholesale (see openConversation/startNewConversation in conversationSlice.ts), which unmounts every terminal tab via its key rather than updating this one in place.
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !sessionId) return;
 
     const term = new Terminal({
       convertEol: true,
@@ -42,11 +42,7 @@ export default function TerminalPanel() {
     let unlistenData: (() => void) | undefined;
 
     (async () => {
-      const id = await api.ptySpawn(
-        projectRoot ?? undefined,
-        term.cols,
-        term.rows,
-      );
+      const id = await api.ptySpawn(sessionId, term.cols, term.rows);
       if (disposed) {
         api.ptyKill(id);
         return;

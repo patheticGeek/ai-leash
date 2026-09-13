@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../../../lib/tauriApi";
+import { useAppStore } from "../../../store";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();
@@ -21,6 +22,11 @@ function base64ToBytes(b64: string): Uint8Array {
 // whichever pty is currently backing this action, re-attaching whenever
 // that changes (a fresh Run after a Stop gets a new ptyId).
 export default function ActionTerminalTab({ actionId }: { actionId: string }) {
+  // Actions/their run status are scoped to whichever checkout the currently
+  // focused conversation is pinned to (see `actions.rs`'s `run_key` doc
+  // comment) — this tab only ever exists as part of that conversation's own
+  // panel tabs, so `activeSessionId` is always the right one to ask.
+  const sessionId = useAppStore((s) => s.activeSessionId);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -28,7 +34,8 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   const unlistenRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !sessionId) return;
+    const currentSessionId = sessionId;
 
     const term = new Terminal({
       convertEol: true,
@@ -61,7 +68,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     async function attach(ptyId: string) {
       unlistenRef.current?.();
       attachedPtyIdRef.current = ptyId;
-      const backlog = await api.actionBacklog(actionId);
+      const backlog = await api.actionBacklog(currentSessionId, actionId);
       if (disposed) return;
       term.reset();
       term.write(base64ToBytes(backlog));
@@ -77,7 +84,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     }
 
     async function sync() {
-      const actions = await api.listActions();
+      const actions = await api.listActions(currentSessionId);
       if (disposed) return;
       const action = actions.find((a) => a.id === actionId);
       const ptyId = action?.running ? (action.ptyId ?? null) : null;
@@ -106,7 +113,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
       onData.dispose();
       term.dispose();
     };
-  }, [actionId]);
+  }, [actionId, sessionId]);
 
   return <div ref={containerRef} className="h-full bg-[#0b0c0e] px-2 py-1" />;
 }

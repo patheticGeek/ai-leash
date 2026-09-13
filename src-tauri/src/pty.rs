@@ -1,3 +1,4 @@
+use crate::commands;
 use crate::state::AppState;
 use base64::{engine::general_purpose, Engine as _};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
@@ -16,18 +17,21 @@ pub struct PtyHandle {
 /// interactive terminals pass `None`.
 pub(crate) type PtyDataCallback = Box<dyn Fn(&[u8]) + Send + 'static>;
 
+/// Opens in whichever checkout `session_id`'s conversation is pinned to
+/// (primary or worktree) — same resolution tools/shell/ACP and Actions
+/// already use, via `commands::get_session_root`.
 #[tauri::command]
 pub fn pty_spawn(
     app: AppHandle,
     state: State<AppState>,
-    cwd: Option<String>,
+    session_id: String,
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
     let mut cmd = CommandBuilder::new(shell);
     cmd.env("TERM", "xterm-256color");
-    if let Some(dir) = cwd {
+    if let Ok(dir) = commands::get_session_root(state.inner(), &session_id) {
         cmd.cwd(dir);
     }
     spawn_pty(&app, &state, cmd, cols, rows, None)

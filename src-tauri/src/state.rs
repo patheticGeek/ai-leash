@@ -40,9 +40,29 @@ pub struct AcpSession {
     pub available_commands: Option<serde_json::Value>,
 }
 
+/// A conversation's own effective checkout — set via
+/// `commands::set_conversation_root` once the conversation is created (as
+/// the primary checkout by default) or a worktree is picked for it. `cwd` is
+/// what the agent's tools/shell/ACP subprocess actually run in; `project_root`
+/// stays the primary repo root regardless, so a worktree conversation is
+/// still grouped under the same project rather than fragmenting into its own
+/// entry in `projects`/`recentProjects`.
+#[derive(Clone)]
+pub struct ConversationRoot {
+    pub project_root: PathBuf,
+    pub cwd: PathBuf,
+}
+
 #[derive(Default)]
 pub struct AppState {
     pub project_root: Mutex<Option<PathBuf>>,
+    /// Per-conversation working directory, keyed by top-level session_id —
+    /// see `commands::get_conversation_root`/`set_conversation_root`. Absent
+    /// for a session that never called `set_conversation_root` (any
+    /// conversation from before this feature existed, until it's reopened),
+    /// in which case callers fall back to the single global `project_root`
+    /// above, same as before this map existed.
+    pub conversation_roots: Mutex<HashMap<String, ConversationRoot>>,
     pub ptys: Mutex<HashMap<String, PtyHandle>>,
     pub chat_sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,
     pub pending_permissions: Mutex<HashMap<String, oneshot::Sender<bool>>>,
@@ -59,6 +79,11 @@ pub struct AppState {
     /// Replacing it (opening a different folder) drops the old one, which
     /// stops it automatically.
     pub fs_watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    /// One `HEAD`-file watcher per worktree path currently being observed by
+    /// a `BranchBar` — see `git::watch_git_branch`. Unlike `fs_watcher`,
+    /// several of these can be live at once (one per open conversation's
+    /// worktree), so this is a map rather than a single slot.
+    pub git_watchers: Mutex<HashMap<PathBuf, notify::RecommendedWatcher>>,
     /// SQLite-backed conversation history — see `db.rs`.
     pub db: Db,
     /// One entry per session_id (a project's path) that currently has a live
@@ -81,8 +106,13 @@ pub struct AppState {
     /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
     /// parent's cancellation flag the same way.
     pub permission_bypass: Mutex<HashSet<String>>,
-    /// Live/most-recent run per Action, keyed by the Action's stable `id`
-    /// (not its pty id) — see `actions.rs`. Persisted Action *definitions*
-    /// live in `.ai-leash/actions.json` under the project root, not here.
-    pub action_runs: Mutex<HashMap<String, ActionRun>>,
+    /// Live/most-recent run per Action, keyed by (the checkout it ran in,
+    /// the Action's stable `id` — not its pty id) — see `actions.rs::run_key`.
+    /// The checkout is part of the key, not just the id, because
+    /// `.ai-leash/actions.json` is a real tracked file: two worktrees of the
+    /// same project can each have their own copy (same ids, until one
+    /// diverges), and a run started in one must never show as running for a
+    /// conversation pinned to the other. Persisted Action *definitions* live
+    /// in `.ai-leash/actions.json` under whichever checkout, not here.
+    pub action_runs: Mutex<HashMap<(String, String), ActionRun>>,
 }

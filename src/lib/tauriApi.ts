@@ -91,6 +91,23 @@ export interface ConversationSummary {
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches SubAgentSummary.startedAt
+  // Non-null only when this conversation runs in a worktree instead of the
+  // project's primary checkout — see `BranchBar`. Never a branch name: what
+  // that path has checked out can change from outside the app, so the
+  // frontend always reads it live (see `watchGitBranch`) instead of trusting
+  // a stored value.
+  worktreePath: string | null;
+}
+
+export interface GitBranch {
+  name: string;
+  isCurrent: boolean;
+}
+
+export interface GitWorktree {
+  path: string;
+  branch: string | null;
+  isPrimary: boolean;
 }
 
 export interface ProjectSummary {
@@ -114,12 +131,52 @@ export interface ActionSummary {
 export const api = {
   setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
-  listDir: (path?: string) => invoke<DirEntryInfo[]>("list_dir", { path }),
-  readFileText: (path: string) => invoke<string>("read_file_text", { path }),
-  writeFileText: (path: string, contents: string) =>
-    invoke<void>("write_file_text", { path, contents }),
-  ptySpawn: (cwd: string | undefined, cols: number, rows: number) =>
-    invoke<string>("pty_spawn", { cwd, cols, rows }),
+  // Locks in a conversation's own checkout — `cwd` is what its tools/shell/
+  // ACP subprocess actually run in, `projectRoot` stays the primary repo
+  // root either way (project identity). See `BranchBar`.
+  setConversationRoot: (sessionId: string, projectRoot: string, cwd: string) =>
+    invoke<void>("set_conversation_root", { sessionId, projectRoot, cwd }),
+  listGitBranches: (rootPath: string) =>
+    invoke<GitBranch[]>("list_git_branches", { rootPath }),
+  listGitWorktrees: (rootPath: string) =>
+    invoke<GitWorktree[]>("list_git_worktrees", { rootPath }),
+  getCurrentGitBranch: (rootPath: string) =>
+    invoke<string | null>("get_current_git_branch", { rootPath }),
+  // `baseBranch: null` attaches the worktree to an existing branch;
+  // non-null creates `branch` fresh off `baseBranch` instead.
+  createGitWorktree: (
+    rootPath: string,
+    branch: string,
+    baseBranch: string | null,
+  ) => invoke<string>("create_git_worktree", { rootPath, branch, baseBranch }),
+  // Switches what's checked out at `worktreePath` — an existing `branch`
+  // (`baseBranch: null`), or `branch` created fresh off `baseBranch`. Safe
+  // at any point in a conversation's life, not just before its first
+  // message — see `git.rs`'s doc comment.
+  checkoutGitBranch: (
+    worktreePath: string,
+    branch: string,
+    baseBranch: string | null,
+  ) =>
+    invoke<void>("checkout_git_branch", { worktreePath, branch, baseBranch }),
+  // Starts watching `rootPath`'s current branch live — pair with a
+  // `listen("git://branch_changed", ...)` subscription filtering on this
+  // same path. A no-op if already watching it.
+  watchGitBranch: (rootPath: string) =>
+    invoke<void>("watch_git_branch", { rootPath }),
+  // File tree/editor operations are scoped to whichever checkout
+  // `sessionId`'s conversation is pinned to (primary or worktree), same as
+  // tools/shell/ACP, Actions, and the Terminal — see `get_session_root`.
+  listDir: (sessionId: string, path?: string) =>
+    invoke<DirEntryInfo[]>("list_dir", { sessionId, path }),
+  readFileText: (sessionId: string, path: string) =>
+    invoke<string>("read_file_text", { sessionId, path }),
+  writeFileText: (sessionId: string, path: string, contents: string) =>
+    invoke<void>("write_file_text", { sessionId, path, contents }),
+  // Opens in whichever checkout `sessionId`'s conversation is pinned to
+  // (primary or worktree) — see `pty.rs`'s doc comment.
+  ptySpawn: (sessionId: string, cols: number, rows: number) =>
+    invoke<string>("pty_spawn", { sessionId, cols, rows }),
   ptyWrite: (id: string, data: string) =>
     invoke<void>("pty_write", { id, data }),
   ptyResize: (id: string, cols: number, rows: number) =>
@@ -212,16 +269,29 @@ export const api = {
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),
   clearCrashLog: () => invoke<void>("clear_crash_log"),
-  listActions: () => invoke<ActionSummary[]>("list_actions"),
-  createAction: (name: string, command: string) =>
+  // Actions and their run status are scoped to whichever checkout
+  // `sessionId`'s conversation is pinned to (primary or worktree) — see
+  // `actions.rs`'s `run_key` doc comment.
+  listActions: (sessionId: string) =>
+    invoke<ActionSummary[]>("list_actions", { sessionId }),
+  createAction: (sessionId: string, name: string, command: string) =>
     invoke<{ id: string; name: string; command: string }>("create_action", {
+      sessionId,
       name,
       command,
     }),
-  updateAction: (id: string, name: string, command: string) =>
-    invoke<void>("update_action", { id, name, command }),
-  deleteAction: (id: string) => invoke<void>("delete_action", { id }),
-  runAction: (id: string) => invoke<string>("run_action_cmd", { id }),
-  stopAction: (id: string) => invoke<string>("stop_action_cmd", { id }),
-  actionBacklog: (id: string) => invoke<string>("action_backlog", { id }),
+  updateAction: (
+    sessionId: string,
+    id: string,
+    name: string,
+    command: string,
+  ) => invoke<void>("update_action", { sessionId, id, name, command }),
+  deleteAction: (sessionId: string, id: string) =>
+    invoke<void>("delete_action", { sessionId, id }),
+  runAction: (sessionId: string, id: string) =>
+    invoke<string>("run_action_cmd", { sessionId, id }),
+  stopAction: (sessionId: string, id: string) =>
+    invoke<string>("stop_action_cmd", { sessionId, id }),
+  actionBacklog: (sessionId: string, id: string) =>
+    invoke<string>("action_backlog", { sessionId, id }),
 };

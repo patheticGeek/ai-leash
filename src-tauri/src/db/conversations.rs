@@ -6,7 +6,7 @@
 
 use super::messages::title_from_message;
 use super::projects::ensure_project_connection;
-use super::Db;
+use super::{now, Db};
 use rusqlite::{params, Connection};
 use serde::Serialize;
 
@@ -20,6 +20,13 @@ pub struct ConversationSummary {
     pub project_root: String,
     pub title: Option<String>,
     pub updated_at: i64,
+    /// The conversation's own worktree path, if it was started in one
+    /// instead of the primary checkout — see `set_conversation_worktree`.
+    /// Never a branch name: what's checked out at this path can change from
+    /// outside the app, so the frontend always reads the true current
+    /// branch live (see `git::watch_git_branch`) instead of trusting a
+    /// stored value.
+    pub worktree_path: Option<String>,
 }
 
 /// Every top-level conversation across every known project — the
@@ -33,7 +40,8 @@ pub struct ConversationSummary {
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
-        "SELECT id, project_id, project_root, title, updated_at FROM conversations \
+        "SELECT id, project_id, project_root, title, updated_at, worktree_path \
+         FROM conversations \
          WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
     ) else {
         return vec![];
@@ -45,6 +53,7 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
             project_root: row.get(2)?,
             title: row.get(3)?,
             updated_at: row.get(4)?,
+            worktree_path: row.get(5)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
@@ -81,6 +90,45 @@ pub(super) fn upsert_conversation(
          ON CONFLICT(id) DO UPDATE SET updated_at = ?4, project_root = ?2, project_id = ?3",
         params![conversation_id, project_root, project_id, ts],
     );
+}
+
+/// Persists the checkout chosen for a conversation — the primary checkout
+/// (`worktree_path: None`) or a worktree path — independent of any message
+/// having been sent yet, so a reload can restore the same cwd (see
+/// `commands::set_conversation_root`) and the sidebar can show which one it
+/// is. Upserts like `upsert_conversation` since this can be called before
+/// the conversation's first message (right after a worktree is picked),
+/// when no row exists yet.
+pub fn set_conversation_worktree(
+    db: &Db,
+    conversation_id: &str,
+    project_root: &str,
+    worktree_path: Option<&str>,
+) {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    let ts = now();
+    let _ = conn.execute(
+        "INSERT INTO conversations
+         (id, project_root, project_id, worktree_path, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+         ON CONFLICT(id) DO UPDATE SET worktree_path = ?4",
+        params![conversation_id, project_root, project_id, worktree_path, ts],
+    );
+}
+
+/// Whether `conversation_id` already has a `conversations` row — used by
+/// `commands::set_conversation_root` to avoid inserting a stray empty
+/// conversation for a still-fresh thread defaulting to its primary checkout
+/// (nothing worth persisting yet if the user never sends a message).
+pub fn conversation_exists(db: &Db, conversation_id: &str) -> bool {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT 1 FROM conversations WHERE id = ?1",
+        params![conversation_id],
+        |_| Ok(()),
+    )
+    .is_ok()
 }
 
 /// Returns the persisted title for a conversation, if one has been assigned.

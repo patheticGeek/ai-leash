@@ -10,6 +10,7 @@ import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
 import ChatEntryList from "./components/ChatEntryList";
 import ChatInputBar from "./components/ChatInputBar";
+import CheckoutBar from "./components/CheckoutBar";
 import ClaudeRateLimitBanner from "./components/ClaudeRateLimitBanner";
 import ContextUsageRing from "./components/ContextUsageRing";
 import EffortPickerPopover from "./components/EffortPickerPopover";
@@ -46,6 +47,16 @@ export default function ChatPanel({
   // bottom-pinned one. Flips (without a remount: `sessionId` itself never
   // changes) the instant `submitPrompt` calls `markConversationStarted`.
   const isNewThread = !conversations.some((c) => c.id === sessionId);
+  const conversation = conversations.find((c) => c.id === sessionId);
+  // A worktree picked via `CheckoutBar` before this still-new thread's first
+  // message — `null` means the primary checkout (the default set by
+  // `startNewConversation`). Once the conversation has a real row, its own
+  // `worktreePath` takes over instead — fixed for the rest of its life, so
+  // there's no analogous "update" path needed for an already-started one.
+  const [pendingWorktree, setPendingWorktree] = useState<string | null>(null);
+  const worktreeCwd = isNewThread
+    ? (pendingWorktree ?? projectRoot)
+    : (conversation?.worktreePath ?? projectRoot);
   // Only read for the new-thread heading's project-switcher below — the
   // title bar's own "New Thread" button always targets whatever project is
   // already current, so switching *which* project a still-fresh thread
@@ -465,7 +476,7 @@ export default function ChatPanel({
   // going through the input box or `send()`'s own guards (those are about
   // whether the *user* is allowed to send right now, not this).
   async function submitPrompt(text: string) {
-    markConversationStarted(sessionId, projectRoot);
+    markConversationStarted(sessionId, projectRoot, pendingWorktree);
     setEntries((prev) => [
       ...prev,
       { kind: "text", role: "user", content: text, time: Date.now() },
@@ -683,6 +694,24 @@ export default function ChatPanel({
             />
           )
         }
+      />
+      <CheckoutBar
+        sessionId={sessionId}
+        projectRoot={projectRoot}
+        cwd={worktreeCwd}
+        editable={isNewThread}
+        onWorktreeSelected={(worktreePath) => {
+          // Only reachable while `editable` (a still-new thread) — the
+          // worktree is fixed for the rest of the conversation's life once
+          // it's started (see `CheckoutBarProps.editable`'s doc comment).
+          setPendingWorktree(worktreePath);
+          // `warmAcpSession` may have already connected against the primary
+          // checkout before this worktree was picked — re-trigger it now
+          // that `set_conversation_root` (called by `CheckoutBar` itself) has
+          // updated this session's cwd, same retry path a resume failure
+          // uses.
+          setAcpRetryNonce((n) => n + 1);
+        }}
       />
     </>
   );

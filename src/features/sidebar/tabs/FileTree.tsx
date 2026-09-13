@@ -9,27 +9,28 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
   const [children, setChildren] = useState<DirEntryInfo[] | null>(null);
   const openFile = useAppStore((s) => s.openFile);
   const activePath = useAppStore((s) => s.activePath);
+  const sessionId = useAppStore((s) => s.activeSessionId);
 
   async function toggle() {
     if (!entry.isDir) {
       openFile(entry.path, entry.name);
       return;
     }
-    if (!expanded && children === null) {
-      setChildren(await api.listDir(entry.path));
+    if (!expanded && children === null && sessionId) {
+      setChildren(await api.listDir(sessionId, entry.path));
     }
     setExpanded((e) => !e);
   }
 
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded || !sessionId) return;
     const unlisten = listen("fs://changed", () => {
-      api.listDir(entry.path).then(setChildren);
+      api.listDir(sessionId, entry.path).then(setChildren);
     });
     return () => {
       unlisten.then((f) => f());
     };
-  }, [expanded, entry.path]);
+  }, [expanded, entry.path, sessionId]);
 
   return (
     <div>
@@ -61,29 +62,32 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
 }
 
 export default function FileTree() {
-  const projectRoot = useAppStore((s) => s.projectRoot);
+  // The tree follows whichever checkout the focused conversation is pinned
+  // to (primary or worktree), not just whichever project is globally
+  // "open" — see `commands.rs`'s `get_session_root`.
+  const sessionId = useAppStore((s) => s.activeSessionId);
   const [rootEntries, setRootEntries] = useState<DirEntryInfo[]>([]);
 
   useEffect(() => {
-    if (projectRoot) {
-      api.listDir().then(setRootEntries);
+    if (sessionId) {
+      api.listDir(sessionId).then(setRootEntries);
     }
-  }, [projectRoot]);
+  }, [sessionId]);
 
   useEffect(() => {
-    if (!projectRoot) return;
+    if (!sessionId) return;
     const unlisten = listen("fs://changed", () => {
-      api.listDir().then(setRootEntries);
+      api.listDir(sessionId).then(setRootEntries);
     });
     return () => {
       unlisten.then((f) => f());
     };
-  }, [projectRoot]);
+  }, [sessionId]);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto pb-2">
-        {!projectRoot
+        {!sessionId
           ? null
           : rootEntries.map((entry) => (
               <Node key={entry.path} entry={entry} depth={0} />

@@ -1,7 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  Folder,
   FolderPlus,
+  GitBranch,
   Loader,
   SettingsIcon,
   ShieldAlert,
@@ -21,6 +23,7 @@ import {
   forgetGeneratingListener,
 } from "../lib/generatingListener";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
+import { useCurrentGitBranch } from "../lib/useCurrentGitBranch";
 import {
   type ConversationSummary,
   permissionForSession,
@@ -53,6 +56,20 @@ function ConversationRow({
     conversation.id,
   );
 
+  // Live — same watcher-backed hook `CheckoutBar` uses, so a branch switch
+  // made from there (or from outside the app entirely) shows up here too,
+  // not just a one-time snapshot from when the row first rendered.
+  const checkoutPath = conversation.worktreePath ?? conversation.projectRoot;
+  const branchName = useCurrentGitBranch(checkoutPath);
+
+  const projectAndWorkspace =
+    projectName +
+    " / " +
+    (conversation.worktreePath
+      ? (conversation.worktreePath.split(/[\\/]/).filter(Boolean).pop() ??
+        conversation.worktreePath)
+      : "primary");
+
   return (
     <Button
       variant="unstyled"
@@ -62,7 +79,7 @@ function ConversationRow({
       title={
         awaitingApproval ? `${projectName} — needs your approval` : projectName
       }
-      className={`mx-1.5 mb-0.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left ${
+      className={`mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-3 py-2 text-sm text-left ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -73,24 +90,41 @@ function ConversationRow({
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="block min-w-0 truncate text-zinc-200">
-          {conversation.title || "New conversation"}
+        <span className="flex items-center gap-1.5 mb-1.5">
+          <span className="min-w-0 flex-1 truncate text-zinc-200">
+            {conversation.title || "New conversation"}
+          </span>
+          {awaitingApproval ? (
+            <span
+              title="Permission required"
+              className="shrink-0 text-amber-400"
+            >
+              <ShieldAlert size={12} />
+            </span>
+          ) : (
+            generating && (
+              <span title="Working" className="shrink-0 text-blue-400">
+                <Loader size={12} className="animate-spin" />
+              </span>
+            )
+          )}
         </span>
-        <span className="block truncate text-[11px] text-zinc-500">
-          {projectName}
+
+        <span className="flex items-center gap-1 text-xs text-zinc-500">
+          <Folder size={10} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate" title={projectAndWorkspace}>
+            {projectAndWorkspace}
+          </span>
+          {branchName && (
+            <>
+              <GitBranch size={10} className="shrink-0" />
+              <span className="max-w-24 shrink-0 truncate" title={branchName}>
+                {branchName}
+              </span>
+            </>
+          )}
         </span>
       </span>
-      {awaitingApproval ? (
-        <span title="Permission required" className="shrink-0 text-amber-400">
-          <ShieldAlert size={14} />
-        </span>
-      ) : (
-        generating && (
-          <span title="Working" className="shrink-0 text-blue-400">
-            <Loader size={14} className="animate-spin" />
-          </span>
-        )
-      )}
     </Button>
   );
 }
@@ -258,7 +292,7 @@ export default function LeftBar() {
           <FolderPlus size={17} />
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+      <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {sortedConversations.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">
             {projectFilter

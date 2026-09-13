@@ -89,6 +89,12 @@ fn find_def<'a>(defs: &'a [ActionDef], key: &str) -> Result<&'a ActionDef, Strin
         .ok_or_else(|| format!("no action named `{key}`"))
 }
 
+/// `action_runs`' actual key — see that field's doc comment on why the
+/// checkout is part of it, not just the action id.
+fn run_key(root: &Path, action_id: &str) -> (String, String) {
+    (root.display().to_string(), action_id.to_string())
+}
+
 /// Starts an action's command in a background pty, unless it's already
 /// running — re-running a live action is a deliberate no-op (not a
 /// restart), so a stray duplicate call (agent or user) can't kill a
@@ -99,9 +105,10 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
     let def = find_def(&defs, key)?.clone();
 
     let state = app.state::<AppState>();
+    let key = run_key(root, &def.id);
     {
         let runs = state.action_runs.lock().unwrap();
-        if let Some(run) = runs.get(&def.id) {
+        if let Some(run) = runs.get(&key) {
             if pty::is_running(&state, &run.pty_id) {
                 return Ok(format!("Action `{}` is already running.", def.name));
             }
@@ -126,7 +133,7 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
     )?;
 
     state.action_runs.lock().unwrap().insert(
-        def.id.clone(),
+        key,
         ActionRun {
             pty_id,
             started_at: now(),
@@ -142,14 +149,15 @@ pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, St
     let def = find_def(&defs, key)?;
 
     let state = app.state::<AppState>();
+    let key = run_key(root, &def.id);
     let pty_id = {
         let runs = state.action_runs.lock().unwrap();
-        runs.get(&def.id).map(|r| r.pty_id.clone())
+        runs.get(&key).map(|r| r.pty_id.clone())
     };
     match pty_id {
         Some(id) if pty::is_running(&state, &id) => {
             pty::pty_kill(state.clone(), id)?;
-            state.action_runs.lock().unwrap().remove(&def.id);
+            state.action_runs.lock().unwrap().remove(&key);
             Ok(format!("Stopped action `{}`.", def.name))
         }
         _ => Ok(format!("Action `{}` is not running.", def.name)),
@@ -170,7 +178,7 @@ pub fn list_actions_status(app: &AppHandle, root: &Path) -> String {
     defs.iter()
         .map(|def| {
             let running = runs
-                .get(&def.id)
+                .get(&run_key(root, &def.id))
                 .is_some_and(|r| pty::is_running(&state, &r.pty_id));
             format!(
                 "- {} ({}): {}",
@@ -189,7 +197,7 @@ pub fn read_action_output(app: &AppHandle, root: &Path, key: &str) -> Result<Str
     let state = app.state::<AppState>();
     let runs = state.action_runs.lock().unwrap();
     let run = runs
-        .get(&def.id)
+        .get(&run_key(root, &def.id))
         .ok_or_else(|| format!("Action `{}` hasn't been run yet.", def.name))?;
     let buf = run.output.lock().unwrap();
     Ok(tools::truncate(String::from_utf8_lossy(&buf).into_owned()))
@@ -197,15 +205,23 @@ pub fn read_action_output(app: &AppHandle, root: &Path, key: &str) -> Result<Str
 
 // --- Frontend-facing Tauri commands ---
 
+/// Actions and their run status are scoped to whichever checkout
+/// `session_id`'s conversation is pinned to — see `state.rs`'s
+/// `action_runs` doc comment on why the checkout, not just the action id,
+/// has to be part of the key: `.ai-leash/actions.json` is a real tracked
+/// file, so two worktrees of the same project can each have their own copy.
 #[tauri::command]
-pub fn list_actions(state: State<AppState>) -> Result<Vec<ActionWithStatus>, String> {
-    let root = commands::get_root_path(state.inner())?;
+pub fn list_actions(
+    state: State<AppState>,
+    session_id: String,
+) -> Result<Vec<ActionWithStatus>, String> {
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     let defs = load_actions(&root);
     let runs = state.action_runs.lock().unwrap();
     Ok(defs
         .into_iter()
         .map(|def| {
-            let run = runs.get(&def.id);
+            let run = runs.get(&run_key(&root, &def.id));
             let running = run.is_some_and(|r| pty::is_running(&state, &r.pty_id));
             ActionWithStatus {
                 id: def.id,
@@ -234,10 +250,11 @@ fn new_action(root: &Path, name: String, command: String) -> Result<ActionDef, S
 #[tauri::command]
 pub fn create_action(
     state: State<AppState>,
+    session_id: String,
     name: String,
     command: String,
 ) -> Result<ActionDef, String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     new_action(&root, name, command)
 }
 
@@ -256,11 +273,12 @@ pub fn create_action_tool(root: &Path, name: &str, command: &str) -> Result<Stri
 #[tauri::command]
 pub fn update_action(
     state: State<AppState>,
+    session_id: String,
     id: String,
     name: String,
     command: String,
 ) -> Result<(), String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     let mut defs = load_actions(&root);
     let def = defs
         .iter_mut()
@@ -272,13 +290,22 @@ pub fn update_action(
 }
 
 #[tauri::command]
-pub fn delete_action(app: AppHandle, state: State<AppState>, id: String) -> Result<(), String> {
-    let root = commands::get_root_path(state.inner())?;
+pub fn delete_action(
+    app: AppHandle,
+    state: State<AppState>,
+    session_id: String,
+    id: String,
+) -> Result<(), String> {
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     let _ = stop_action(&app, &root, &id);
     let mut defs = load_actions(&root);
     defs.retain(|a| a.id != id);
     save_actions(&root, &defs)?;
-    state.action_runs.lock().unwrap().remove(&id);
+    state
+        .action_runs
+        .lock()
+        .unwrap()
+        .remove(&run_key(&root, &id));
     Ok(())
 }
 
@@ -286,9 +313,10 @@ pub fn delete_action(app: AppHandle, state: State<AppState>, id: String) -> Resu
 pub fn run_action_cmd(
     app: AppHandle,
     state: State<AppState>,
+    session_id: String,
     id: String,
 ) -> Result<String, String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     run_action(&app, &root, &id)
 }
 
@@ -296,9 +324,10 @@ pub fn run_action_cmd(
 pub fn stop_action_cmd(
     app: AppHandle,
     state: State<AppState>,
+    session_id: String,
     id: String,
 ) -> Result<String, String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     stop_action(&app, &root, &id)
 }
 
@@ -307,9 +336,14 @@ pub fn stop_action_cmd(
 /// `ActionTerminalTab.tsx`. Empty (not an error) if the action has never
 /// been run.
 #[tauri::command]
-pub fn action_backlog(state: State<AppState>, id: String) -> Result<String, String> {
+pub fn action_backlog(
+    state: State<AppState>,
+    session_id: String,
+    id: String,
+) -> Result<String, String> {
+    let root = commands::get_session_root(state.inner(), &session_id)?;
     let runs = state.action_runs.lock().unwrap();
-    match runs.get(&id) {
+    match runs.get(&run_key(&root, &id)) {
         Some(run) => Ok(general_purpose::STANDARD.encode(&*run.output.lock().unwrap())),
         None => Ok(String::new()),
     }

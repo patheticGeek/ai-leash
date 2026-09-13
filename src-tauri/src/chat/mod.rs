@@ -285,6 +285,7 @@ mod tests {
     fn test_state() -> AppState {
         AppState {
             project_root: Mutex::new(None),
+            conversation_roots: Mutex::new(HashMap::new()),
             ptys: Mutex::new(HashMap::new()),
             chat_sessions: Mutex::new(HashMap::new()),
             pending_permissions: Mutex::new(HashMap::new()),
@@ -292,6 +293,7 @@ mod tests {
             touched_dirs: Mutex::new(HashMap::new()),
             session_locks: Mutex::new(HashMap::new()),
             fs_watcher: Mutex::new(None),
+            git_watchers: Mutex::new(HashMap::new()),
             db: temp_db(),
             acp_sessions: Mutex::new(HashMap::new()),
             mcp_bridge: Mutex::new(None),

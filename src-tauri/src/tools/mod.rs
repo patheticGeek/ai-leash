@@ -116,7 +116,7 @@ pub async fn execute_tool(
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
-    let root = commands::get_root_path(state.inner())?;
+    let root = commands::get_session_root(state.inner(), session_id)?;
 
     match name {
         "read_file" => fs_tools::read_file(state, session_id, &root, args),
