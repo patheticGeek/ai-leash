@@ -168,8 +168,10 @@ export const api = {
   readFileText: (path: string) => invoke<string>("read_file_text", { path }),
   writeFileText: (path: string, contents: string) =>
     invoke<void>("write_file_text", { path, contents }),
-  ptySpawn: (cwd: string | undefined, cols: number, rows: number) =>
-    invoke<string>("pty_spawn", { cwd, cols, rows }),
+  // Opens in whichever checkout `sessionId`'s conversation is pinned to
+  // (primary or worktree) — see `pty.rs`'s doc comment.
+  ptySpawn: (sessionId: string, cols: number, rows: number) =>
+    invoke<string>("pty_spawn", { sessionId, cols, rows }),
   ptyWrite: (id: string, data: string) =>
     invoke<void>("pty_write", { id, data }),
   ptyResize: (id: string, cols: number, rows: number) =>
