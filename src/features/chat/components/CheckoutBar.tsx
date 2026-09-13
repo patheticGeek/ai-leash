@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { Folder as FolderIcon, GitBranch as GitBranchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from "@/ui/select";
 import { api, type GitBranch, type GitWorktree } from "../../../lib/tauriApi";
+import { useCurrentGitBranch } from "../../../lib/useCurrentGitBranch";
 
 interface CheckoutBarProps {
   sessionId: string;
@@ -57,7 +57,10 @@ export default function CheckoutBar({
   onWorktreeSelected,
 }: CheckoutBarProps) {
   const [worktrees, setWorktrees] = useState<GitWorktree[]>([]);
-  const [branch, setBranch] = useState<string | null>(null);
+  // Live — updates on its own once `checkoutGitBranch` below actually moves
+  // `HEAD`, via the same watcher this hook starts (see its doc comment), so
+  // `selectBranch`/`createBranch` don't need to set it themselves.
+  const branch = useCurrentGitBranch(cwd);
 
   useEffect(() => {
     api
@@ -65,27 +68,6 @@ export default function CheckoutBar({
       .then(setWorktrees)
       .catch(() => setWorktrees([]));
   }, [projectRoot]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const refresh = () => {
-      api
-        .getCurrentGitBranch(cwd)
-        .then((b) => {
-          if (!cancelled) setBranch(b);
-        })
-        .catch(() => {});
-    };
-    api.watchGitBranch(cwd).catch(() => {});
-    refresh();
-    const unlisten = listen<string>("git://branch_changed", (e) => {
-      if (e.payload === cwd) refresh();
-    });
-    return () => {
-      cancelled = true;
-      unlisten.then((f) => f());
-    };
-  }, [cwd]);
 
   async function selectWorktree(path: string, isPrimary: boolean) {
     const worktreePath = isPrimary ? projectRoot : path;
@@ -109,12 +91,10 @@ export default function CheckoutBar({
 
   async function selectBranch(name: string) {
     await api.checkoutGitBranch(cwd, name, null);
-    setBranch(name);
   }
 
   async function createBranch(name: string, base: string) {
     await api.checkoutGitBranch(cwd, name, base);
-    setBranch(name);
     // This worktree's own label/branch in the left list may now be stale —
     // cheap enough to just refetch rather than patch it in place.
     api

@@ -22,7 +22,8 @@ import {
   ensureGeneratingListener,
   forgetGeneratingListener,
 } from "../lib/generatingListener";
-import { api, type PermissionRequestPayload } from "../lib/tauriApi";
+import type { PermissionRequestPayload } from "../lib/tauriApi";
+import { useCurrentGitBranch } from "../lib/useCurrentGitBranch";
 import {
   type ConversationSummary,
   permissionForSession,
@@ -55,26 +56,11 @@ function ConversationRow({
     conversation.id,
   );
 
-  // Fetched once per row rather than live-watched (see `git.rs`'s module
-  // doc on why a stored branch name isn't trusted) — a sidebar label can
-  // tolerate briefly going stale if something outside the app moves it;
-  // only the focused conversation's `CheckoutBar` needs to stay perfectly
-  // current.
+  // Live — same watcher-backed hook `CheckoutBar` uses, so a branch switch
+  // made from there (or from outside the app entirely) shows up here too,
+  // not just a one-time snapshot from when the row first rendered.
   const checkoutPath = conversation.worktreePath ?? conversation.projectRoot;
-  const [branchName, setBranchName] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .getCurrentGitBranch(checkoutPath)
-      .then((b) => {
-        if (!cancelled) setBranchName(b);
-      })
-      .catch(() => setBranchName(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [checkoutPath]);
+  const branchName = useCurrentGitBranch(checkoutPath);
 
   const projectAndWorkspace =
     projectName +
