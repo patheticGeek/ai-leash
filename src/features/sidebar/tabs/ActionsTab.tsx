@@ -12,7 +12,7 @@ const emptyForm = { name: "", command: "" };
 
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, refresh } = useActions();
+  const { actions, refresh, sessionId } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -37,26 +37,28 @@ export default function ActionsTab() {
   async function saveForm() {
     const name = form.name.trim();
     const command = form.command.trim();
-    if (!name || !command) return;
+    if (!name || !command || !sessionId) return;
     if (editingId) {
-      await api.updateAction(editingId, name, command);
+      await api.updateAction(sessionId, editingId, name, command);
     } else {
-      await api.createAction(name, command);
+      await api.createAction(sessionId, name, command);
     }
     cancelForm();
     refresh();
   }
 
   async function remove(id: string) {
-    await api.deleteAction(id);
+    if (!sessionId) return;
+    await api.deleteAction(sessionId, id);
     refresh();
   }
 
   async function toggle(action: ActionSummary) {
+    if (!sessionId) return;
     if (action.running) {
-      await api.stopAction(action.id);
+      await api.stopAction(sessionId, action.id);
     } else {
-      await api.runAction(action.id);
+      await api.runAction(sessionId, action.id);
       openTerminal(action);
     }
     refresh();

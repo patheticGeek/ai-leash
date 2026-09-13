@@ -106,8 +106,13 @@ pub struct AppState {
     /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
     /// parent's cancellation flag the same way.
     pub permission_bypass: Mutex<HashSet<String>>,
-    /// Live/most-recent run per Action, keyed by the Action's stable `id`
-    /// (not its pty id) — see `actions.rs`. Persisted Action *definitions*
-    /// live in `.ai-leash/actions.json` under the project root, not here.
-    pub action_runs: Mutex<HashMap<String, ActionRun>>,
+    /// Live/most-recent run per Action, keyed by (the checkout it ran in,
+    /// the Action's stable `id` — not its pty id) — see `actions.rs::run_key`.
+    /// The checkout is part of the key, not just the id, because
+    /// `.ai-leash/actions.json` is a real tracked file: two worktrees of the
+    /// same project can each have their own copy (same ids, until one
+    /// diverges), and a run started in one must never show as running for a
+    /// conversation pinned to the other. Persisted Action *definitions* live
+    /// in `.ai-leash/actions.json` under whichever checkout, not here.
+    pub action_runs: Mutex<HashMap<(String, String), ActionRun>>,
 }

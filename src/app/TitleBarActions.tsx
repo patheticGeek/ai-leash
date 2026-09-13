@@ -23,7 +23,7 @@ function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
 // action without having to open the side panel.
 export default function TitleBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, refresh } = useActions();
+  const { actions, refresh, sessionId } = useActions();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -51,10 +51,11 @@ export default function TitleBarActions() {
   const rest = actions.filter((a) => a.id !== current.id);
 
   async function handleToggle(action: ActionSummary) {
+    if (!sessionId) return;
     if (action.running) {
-      await api.stopAction(action.id);
+      await api.stopAction(sessionId, action.id);
     } else {
-      await api.runAction(action.id);
+      await api.runAction(sessionId, action.id);
       openPanelTab("action", { path: action.id, label: action.name });
     }
     refresh();

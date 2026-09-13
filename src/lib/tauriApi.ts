@@ -262,16 +262,29 @@ export const api = {
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),
   clearCrashLog: () => invoke<void>("clear_crash_log"),
-  listActions: () => invoke<ActionSummary[]>("list_actions"),
-  createAction: (name: string, command: string) =>
+  // Actions and their run status are scoped to whichever checkout
+  // `sessionId`'s conversation is pinned to (primary or worktree) — see
+  // `actions.rs`'s `run_key` doc comment.
+  listActions: (sessionId: string) =>
+    invoke<ActionSummary[]>("list_actions", { sessionId }),
+  createAction: (sessionId: string, name: string, command: string) =>
     invoke<{ id: string; name: string; command: string }>("create_action", {
+      sessionId,
       name,
       command,
     }),
-  updateAction: (id: string, name: string, command: string) =>
-    invoke<void>("update_action", { id, name, command }),
-  deleteAction: (id: string) => invoke<void>("delete_action", { id }),
-  runAction: (id: string) => invoke<string>("run_action_cmd", { id }),
-  stopAction: (id: string) => invoke<string>("stop_action_cmd", { id }),
-  actionBacklog: (id: string) => invoke<string>("action_backlog", { id }),
+  updateAction: (
+    sessionId: string,
+    id: string,
+    name: string,
+    command: string,
+  ) => invoke<void>("update_action", { sessionId, id, name, command }),
+  deleteAction: (sessionId: string, id: string) =>
+    invoke<void>("delete_action", { sessionId, id }),
+  runAction: (sessionId: string, id: string) =>
+    invoke<string>("run_action_cmd", { sessionId, id }),
+  stopAction: (sessionId: string, id: string) =>
+    invoke<string>("stop_action_cmd", { sessionId, id }),
+  actionBacklog: (sessionId: string, id: string) =>
+    invoke<string>("action_backlog", { sessionId, id }),
 };
