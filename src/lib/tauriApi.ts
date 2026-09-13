@@ -164,10 +164,15 @@ export const api = {
   // same path. A no-op if already watching it.
   watchGitBranch: (rootPath: string) =>
     invoke<void>("watch_git_branch", { rootPath }),
-  listDir: (path?: string) => invoke<DirEntryInfo[]>("list_dir", { path }),
-  readFileText: (path: string) => invoke<string>("read_file_text", { path }),
-  writeFileText: (path: string, contents: string) =>
-    invoke<void>("write_file_text", { path, contents }),
+  // File tree/editor operations are scoped to whichever checkout
+  // `sessionId`'s conversation is pinned to (primary or worktree), same as
+  // tools/shell/ACP, Actions, and the Terminal — see `get_session_root`.
+  listDir: (sessionId: string, path?: string) =>
+    invoke<DirEntryInfo[]>("list_dir", { sessionId, path }),
+  readFileText: (sessionId: string, path: string) =>
+    invoke<string>("read_file_text", { sessionId, path }),
+  writeFileText: (sessionId: string, path: string, contents: string) =>
+    invoke<void>("write_file_text", { sessionId, path, contents }),
   // Opens in whichever checkout `sessionId`'s conversation is pinned to
   // (primary or worktree) — see `pty.rs`'s doc comment.
   ptySpawn: (sessionId: string, cols: number, rows: number) =>

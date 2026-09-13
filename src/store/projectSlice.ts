@@ -114,8 +114,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   },
 
   openFile: async (path, name) => {
+    const sessionId = get().activeSessionId;
+    if (!sessionId) return;
     if (!get().openFiles.some((f) => f.path === path)) {
-      const content = await api.readFileText(path);
+      const content = await api.readFileText(sessionId, path);
       set((s) => ({
         openFiles: [...s.openFiles, { path, name, content, dirty: false }],
       }));
@@ -133,10 +135,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
     })),
 
   saveActive: async () => {
-    const { activePath, openFiles } = get();
+    const { activePath, openFiles, activeSessionId } = get();
     const file = openFiles.find((f) => f.path === activePath);
-    if (!file) return;
-    await api.writeFileText(file.path, file.content);
+    if (!file || !activeSessionId) return;
+    await api.writeFileText(activeSessionId, file.path, file.content);
     set((s) => ({
       openFiles: s.openFiles.map((f) =>
         f.path === file.path ? { ...f, dirty: false } : f,

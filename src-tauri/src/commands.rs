@@ -114,8 +114,16 @@ pub fn get_session_root(state: &AppState, session_id: &str) -> Result<PathBuf, S
 /// checkout (no row exists yet and there's no worktree to remember), so
 /// picking a project for a new thread doesn't leave a stray empty
 /// conversation behind if the user never actually sends a message.
+///
+/// Also (re)points the file-tree/editor watcher at `cwd` — see
+/// `start_fs_watcher`'s doc comment. Every call site represents this
+/// conversation becoming (or staying) the one currently shown, so this is
+/// unconditional, not gated behind the ACP-session `changed` check below:
+/// reopening an already-focused conversation with its own unchanged root
+/// still means "the file tree should be looking at this cwd right now."
 #[tauri::command]
 pub fn set_conversation_root(
+    app: AppHandle,
     state: State<AppState>,
     session_id: String,
     project_root: String,
@@ -125,6 +133,7 @@ pub fn set_conversation_root(
     if !cwd_path.is_dir() {
         return Err("not a directory".into());
     }
+    start_fs_watcher(app, &state, &cwd_path)?;
     let project_root_path = PathBuf::from(&project_root);
     let mut roots = state.conversation_roots.lock().unwrap();
     let changed = roots.get(&session_id).is_some_and(|r| r.cwd != cwd_path);
@@ -147,11 +156,7 @@ pub fn set_conversation_root(
 }
 
 #[tauri::command]
-pub fn set_project_root(
-    app: AppHandle,
-    state: State<AppState>,
-    path: String,
-) -> Result<(), String> {
+pub fn set_project_root(state: State<AppState>, path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.is_dir() {
         return Err("not a directory".into());
@@ -162,19 +167,21 @@ pub fn set_project_root(
     let root_string = root.display().to_string();
     db::ensure_project(&state.db, &root_string);
     db::touch_project(&state.db, &root_string);
-    *state.project_root.lock().unwrap() = Some(root.clone());
-    start_fs_watcher(app, &state, &root)?;
+    *state.project_root.lock().unwrap() = Some(root);
     Ok(())
 }
 
-/// Watches the project root recursively and tells the frontend to refresh
-/// the file tree whenever anything changes underneath it — file edits from
-/// the agent's tools, `git checkout`/builds run in the terminal, or changes
-/// made outside the app entirely. Events are debounced (batched over a short
+/// Watches a checkout recursively and tells the frontend to refresh the
+/// file tree whenever anything changes underneath it — file edits from the
+/// agent's tools, `git checkout`/builds run in the terminal, or changes made
+/// outside the app entirely. Events are debounced (batched over a short
 /// window) so a burst of changes (e.g. a build writing many files) triggers
 /// one refresh instead of a flood of them. Replacing `state.fs_watcher` (on
-/// the next `set_project_root` call) drops this watcher and its background
-/// thread exits on its own once the channel closes.
+/// the next call — see `set_conversation_root`, the sole caller: it always
+/// runs right after `set_project_root` when a conversation becomes active,
+/// pointed at that conversation's own cwd rather than the plain project
+/// root) drops the old watcher and its background thread exits on its own
+/// once the channel closes.
 fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
@@ -217,12 +224,18 @@ pub fn get_project_root(state: State<AppState>) -> Option<String> {
         .map(|p| p.display().to_string())
 }
 
+/// Scoped to whichever checkout `session_id`'s conversation is pinned to
+/// (primary or worktree), same as tools/shell/ACP, Actions, and the
+/// Terminal — see `get_session_root`.
 #[tauri::command]
-pub fn list_dir(state: State<AppState>, path: Option<String>) -> Result<Vec<DirEntryInfo>, String> {
-    let root_guard = state.project_root.lock().unwrap();
-    let root = root_guard.as_ref().ok_or("no project open")?;
+pub fn list_dir(
+    state: State<AppState>,
+    session_id: String,
+    path: Option<String>,
+) -> Result<Vec<DirEntryInfo>, String> {
+    let root = get_session_root(state.inner(), &session_id)?;
     let target = match path {
-        Some(p) => resolve_within_root(root, &p)?,
+        Some(p) => resolve_within_root(&root, &p)?,
         None => root.clone(),
     };
 
@@ -249,21 +262,24 @@ pub fn list_dir(state: State<AppState>, path: Option<String>) -> Result<Vec<DirE
 }
 
 #[tauri::command]
-pub fn read_file_text(state: State<AppState>, path: String) -> Result<String, String> {
-    let root_guard = state.project_root.lock().unwrap();
-    let root = root_guard.as_ref().ok_or("no project open")?;
-    let resolved = resolve_within_root(root, &path)?;
+pub fn read_file_text(
+    state: State<AppState>,
+    session_id: String,
+    path: String,
+) -> Result<String, String> {
+    let root = get_session_root(state.inner(), &session_id)?;
+    let resolved = resolve_within_root(&root, &path)?;
     std::fs::read_to_string(resolved).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn write_file_text(
     state: State<AppState>,
+    session_id: String,
     path: String,
     contents: String,
 ) -> Result<(), String> {
-    let root_guard = state.project_root.lock().unwrap();
-    let root = root_guard.as_ref().ok_or("no project open")?;
-    let resolved = resolve_within_root(root, &path)?;
+    let root = get_session_root(state.inner(), &session_id)?;
+    let resolved = resolve_within_root(&root, &path)?;
     std::fs::write(resolved, contents).map_err(|e| e.to_string())
 }

@@ -177,7 +177,7 @@ export const conversationSlice: StateCreator<
     );
     for (const tab of fileTabs) {
       try {
-        const content = await api.readFileText(tab.path);
+        const content = await api.readFileText(id, tab.path);
         set((s) => ({
           openFiles: s.openFiles.some((f) => f.path === tab.path)
             ? s.openFiles
