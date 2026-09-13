@@ -12,10 +12,22 @@ and initializing schema eagerly). WAL journal mode is enabled for
 better concurrent read/write behavior. Schema:
 
 ```sql
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY,             -- stable local project identity
+    root_path TEXT NOT NULL UNIQUE,  -- current filesystem location
+    name TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    last_opened_at INTEGER
+);
+```
+
+```sql
 CREATE TABLE conversations (
-    id TEXT PRIMARY KEY,           -- == project root path, for now
+    id TEXT PRIMARY KEY,             -- conversation identity
     project_root TEXT NOT NULL,
-    title TEXT,                    -- compact session title, nullable
+    project_id TEXT,                 -- stable owner in `projects`
+    title TEXT,                      -- compact session title, nullable
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
@@ -30,6 +42,12 @@ CREATE TABLE messages (
 );
 ```
 
+`projects` is now the canonical persisted owner for conversations. The
+existing `project_root` column is retained temporarily for compatibility while
+the data model is being evolved; new conversation writes populate both
+columns. The current UI still selects projects by path, and project selection
+and path-move flows will be updated separately.
+
 (See "What gets persisted, and what doesn't" below for the third table,
 `sub_agents` — sub-agent metadata that doesn't fit `conversations`.)
 
@@ -43,19 +61,18 @@ is normalized, only the first sentence is kept, and the result is capped at
 `SessionInfoUpdate` title; it is persisted and emitted through
 `chat://{sessionId}/title` so the navigation and title bar update immediately.
 
-## Conversation id == project path (for now)
+## Conversation identity and project ownership
 
-There's no independent "conversation" concept yet — `ChatPanel.tsx`'s
+Persisted conversations now have an independent identity — `ChatPanel.tsx`'s
 `sessionId` (previously a fresh `crypto.randomUUID()` on every mount)
-is now `projectRoot ?? crypto.randomUUID()`, so it's stable across app
-restarts as long as you reopen the same project. `CenterPanel` already
+is a conversation UUID for new threads. The existing frontend still uses the
+selected project path in some runtime session state. `CenterPanel` already
 remounts `ChatPanel` on `projectRoot` change (`key={projectRoot}`), so
-this only evaluates once per project per app run. This matches the
-existing "one conversation per project for now" scoping used elsewhere
+this only evaluates once per project per app run. The project picker remains
+unchanged, and this compatibility layer is separate from persisted ownership.
 (`store/panelSlice.ts`'s `panelStateByConversation`, also keyed by project path —
-see [ui-shell.md](./ui-shell.md)); wiring multiple named conversations
-per project later will need a real conversation id distinct from the
-project path, at which point this doubling-up goes away.
+see [ui-shell.md](./ui-shell.md)); multiple named conversations per project
+can be added without changing the database relationship.
 
 ## What gets persisted, and what doesn't
 

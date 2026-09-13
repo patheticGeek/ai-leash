@@ -87,9 +87,19 @@ export interface SubAgentSummary {
 // own `SubAgentSummary`/Sub Agents sidebar instead).
 export interface ConversationSummary {
   id: string;
+  projectId: string | null;
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches SubAgentSummary.startedAt
+}
+
+export interface ProjectSummary {
+  id: string;
+  rootPath: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  lastOpenedAt: number | null;
 }
 
 export interface ActionSummary {
@@ -191,6 +201,7 @@ export const api = {
   deleteSubAgent: (subSessionId: string) =>
     invoke<void>("delete_sub_agent", { subSessionId }),
   listConversations: () => invoke<ConversationSummary[]>("list_conversations"),
+  listProjects: () => invoke<ProjectSummary[]>("list_projects"),
   deleteConversation: (sessionId: string) =>
     invoke<void>("delete_conversation", { sessionId }),
   respondPermission: (id: string, approved: boolean) =>
