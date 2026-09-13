@@ -16,6 +16,7 @@ import ContextUsageRing from "./components/ContextUsageRing";
 import EffortPickerPopover from "./components/EffortPickerPopover";
 import ModelPickerPopover from "./components/ModelPickerPopover";
 import PermissionModePopover from "./components/PermissionModePopover";
+import QueuedMessagesBanner from "./components/QueuedMessageBanner";
 import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
@@ -140,6 +141,10 @@ export default function ChatPanel({
   useEffect(() => {
     setSending(generating);
   }, [generating]);
+
+  // Messages typed while a turn is in flight, held here (FIFO) until each
+  // gets its turn — see `queueMessage` and the flush effect below.
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
 
   // Slash-command popover bookkeeping — "/model" opening the picker without
   // a real click lives here too (`runLocalCommand` below), which is why
@@ -512,6 +517,30 @@ export default function ChatPanel({
     }
   }
 
+  // Appends the current input to the back of the queue — the flush effect
+  // below delivers each entry in order, through the normal `submitPrompt`
+  // path, as the turn ahead of it finishes. Only reachable while `sending`
+  // (see `ChatInputBar`'s `showQueue`), so there's always at least one turn
+  // ahead of it to wait on.
+  function queueMessage() {
+    const text = input.trim();
+    if (!text) return;
+    setQueuedMessages((prev) => [...prev, text]);
+    setInputValue("");
+  }
+
+  function removeQueuedMessage(index: number) {
+    setQueuedMessages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only `sending`'s transition to false should trigger this — `queuedMessages`/`submitPrompt` are read fresh, not meant to re-run the effect on their own
+  useEffect(() => {
+    if (sending || queuedMessages.length === 0) return;
+    const [next, ...rest] = queuedMessages;
+    setQueuedMessages(rest);
+    submitPrompt(next);
+  }, [sending]);
+
   function autoResumeFromRateLimit() {
     if (!isClaudeAcp || sending) return;
     setOllamaError(null);
@@ -573,11 +602,19 @@ export default function ChatPanel({
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      if (sending && (e.ctrlKey || e.metaKey)) {
+        queueMessage();
+        return;
+      }
       send();
     }
   }
 
   async function stop() {
+    // An explicit stop means "I don't want this to keep going" — queued
+    // messages auto-firing right after would contradict that, so drop them
+    // all too.
+    setQueuedMessages([]);
     await api.cancelPrompt(sessionId);
     setSending(false);
   }
@@ -635,6 +672,12 @@ export default function ChatPanel({
           onDismiss={dismissClaudeRateLimit}
         />
       )}
+      {queuedMessages.length > 0 && (
+        <QueuedMessagesBanner
+          messages={queuedMessages}
+          onCancel={removeQueuedMessage}
+        />
+      )}
       <ChatInputBar
         input={input}
         onChange={setInput}
@@ -650,6 +693,7 @@ export default function ChatPanel({
         sending={sending}
         onSend={send}
         onStop={stop}
+        onQueue={queueMessage}
         sendDisabled={
           !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
         }

@@ -1,4 +1,4 @@
-import { Send, Square, SquareTerminal } from "lucide-react";
+import { Clock, Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
@@ -27,6 +27,10 @@ export interface ChatInputBarProps {
   sending: boolean;
   onSend: () => void;
   onStop: () => void;
+  // Only reachable while `sending` and the box has text — see
+  // `ChatPanel.tsx`'s `queueMessage`. Sits alongside `onStop`, which stays
+  // available throughout.
+  onQueue: () => void;
   sendDisabled: boolean;
   // Model/agent + permission-mode pickers (and, for OpenAI-compatible
   // providers, the free-text model id input) — composed by `ChatPanel.tsx`
@@ -54,10 +58,12 @@ export default function ChatInputBar({
   sending,
   onSend,
   onStop,
+  onQueue,
   sendDisabled,
   toolbarLeft,
   contextUsage,
 }: ChatInputBarProps) {
+  const showQueue = sending && input.trim().length > 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: input is a trigger-only dep — recompute textarea height on every keystroke, its value isn't read in the body
   useEffect(() => {
     const el = textareaRef.current;
@@ -121,6 +127,18 @@ export default function ChatInputBar({
           <div className="flex min-w-0 items-center gap-1.5">{toolbarLeft}</div>
           <div className="flex items-center gap-1.5">
             {contextUsage}
+            {showQueue && (
+              <Button
+                variant="unstyled"
+                size="none"
+                onClick={onQueue}
+                title="Send after the current turn finishes (Ctrl+Enter)"
+                className="flex items-center gap-1.5 rounded-md bg-zinc-800/60 px-2 py-1 text-xs text-zinc-300 shadow-[0_0_0_1px_rgba(82,82,91,0.6)] outline-none transition-all duration-150 hover:bg-zinc-800 hover:text-zinc-100"
+              >
+                <Clock size={12} />
+                <span>Queue</span>
+              </Button>
+            )}
             <Button
               variant="unstyled"
               size="none"
