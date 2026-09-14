@@ -55,6 +55,13 @@ export default function CenterPanel() {
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
   const closeChatTab = useAppStore((s) => s.closeChatTab);
+  // Backend-driven per-session activity — `generatingSessions` covers the
+  // primary tab (keyed by top-level session id, populated for every known
+  // conversation by `LeftBar.tsx`'s always-mounted listener), `subAgentTasks`
+  // covers sub-agent tabs (no `generating` event of its own; `status` is
+  // already tracked for the Sub Agents sidebar).
+  const generatingSessions = useAppStore((s) => s.generatingSessions);
+  const subAgentTasks = useAppStore((s) => s.subAgentTasks);
 
   if (!projectRoot || !activeSessionId) {
     return (
@@ -67,39 +74,54 @@ export default function CenterPanel() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#111215]">
-        {chatTabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
-              tab.id === activeChatTabId
-                ? "bg-white/10 text-zinc-100"
-                : "text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            <Button
-              variant="unstyled"
-              size="none"
-              onClick={() => setActiveChatTab(tab.id)}
-              className={cn(
-                "max-w-[12rem] truncate text-left pl-2 py-1.5",
-                tab.kind !== "subagent" ? "pr-2" : "pr-1.5",
-              )}
+        {chatTabs.map((tab) => {
+          const isActive = tab.id === activeChatTabId;
+          const running =
+            tab.kind === "primary"
+              ? !!generatingSessions[activeSessionId]
+              : subAgentTasks.find((t) => t.subSessionId === tab.subSessionId)
+                  ?.status === "running";
+          // Only shine while this tab isn't the one you're already looking
+          // at — the active tab's own content already shows its running
+          // state (the "Working for…"/"Waiting" indicator), so shining the
+          // tab title too would just be redundant right where it matters
+          // least.
+          const shine = running && !isActive;
+          return (
+            <div
+              key={tab.id}
+              className={`flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
+                isActive
+                  ? "bg-white/10 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
             >
-              {tab.label}
-            </Button>
-            {tab.kind === "subagent" && (
               <Button
-                variant="ghost"
-                size="icon-sm"
-                title="Close tab"
-                onClick={() => closeChatTab(tab.id)}
-                className="text-zinc-600 hover:text-zinc-300"
+                variant="unstyled"
+                size="none"
+                onClick={() => setActiveChatTab(tab.id)}
+                className={cn(
+                  "max-w-[12rem] truncate text-left pl-2 py-1.5",
+                  tab.kind !== "subagent" ? "pr-2" : "pr-1.5",
+                  shine && "shine-text",
+                )}
               >
-                <X size={12} />
+                {tab.label}
               </Button>
-            )}
-          </div>
-        ))}
+              {tab.kind === "subagent" && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title="Close tab"
+                  onClick={() => closeChatTab(tab.id)}
+                  className="text-zinc-600 hover:text-zinc-300"
+                >
+                  <X size={12} />
+                </Button>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="relative flex-1 min-h-0">
         <div

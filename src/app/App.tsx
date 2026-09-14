@@ -20,6 +20,7 @@ function App() {
     (s) => s.initializeStartupSession,
   );
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
+  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
     LS_KEYS.leftBarWidth,
@@ -66,6 +67,17 @@ function App() {
       refreshAcpModelCache();
     })();
   }, [initializeStartupSession, refreshAcpModelCache]);
+
+  // Runs on every conversation switch regardless of whether the Sub Agents
+  // panel tab is even open — that tab is `mountMode: "active-only"`
+  // (`tabKinds.ts`), so relying on its own mount effect alone left
+  // `subAgentTasks` (and every count derived from it — the Sub Agents tab
+  // itself, `SidePanel.tsx`'s inline badge, `TabPicker.tsx`'s corner badge)
+  // showing whatever the *previous* conversation last loaded until the user
+  // happened to open that tab for the new one.
+  useEffect(() => {
+    if (activeSessionId) loadSubAgentTasks(activeSessionId);
+  }, [activeSessionId, loadSubAgentTasks]);
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no

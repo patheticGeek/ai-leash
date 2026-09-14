@@ -32,16 +32,12 @@ export default function SubAgentsTab() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const allTasks = useAppStore((s) => s.subAgentTasks);
   const openChatTab = useAppStore((s) => s.openChatTab);
-  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const deleteSubAgentTask = useAppStore((s) => s.deleteSubAgentTask);
 
-  // Scoped to whichever conversation is currently open — re-fetches
-  // whenever that changes, since this tab is mounted once for the whole
-  // app (not remounted per conversation) and `loadSubAgentTasks` itself
-  // only ever asks the backend for one parent's sub-agents at a time.
-  useEffect(() => {
-    if (activeSessionId) loadSubAgentTasks(activeSessionId);
-  }, [activeSessionId, loadSubAgentTasks]);
+  // Fetching is owned by `App.tsx` (runs on every conversation switch,
+  // regardless of whether this tab is even open — see its own comment on
+  // why) — this component only ever reads/filters `subAgentTasks` by
+  // whichever conversation is currently active.
 
   const tasks = allTasks.filter((t) => t.parentSessionId === activeSessionId);
 
