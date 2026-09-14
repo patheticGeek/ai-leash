@@ -4,7 +4,7 @@ import NewConversationPopover from "@/app/NewConversationPopover";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
-import { ensureGeneratingListener } from "../../lib/generatingListener";
+import { useGenerating } from "../../lib/generatingQuery";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
 import { permissionForSession, useAppStore } from "../../store";
@@ -91,7 +91,7 @@ export default function ChatPanel({
   // spawned) has one pending — see `permissionForSession`. Global listeners
   // that populate `pendingPermissions` live in `LeftBar.tsx`, always
   // mounted regardless of which project is currently open, same pattern as
-  // `generatingSessions`.
+  // `useGeneratingListener`.
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
   const resolvePendingPermission = useAppStore(
     (s) => s.resolvePendingPermission,
@@ -101,18 +101,15 @@ export default function ChatPanel({
     (s) => s.clearSubAgentTasksForParent,
   );
   // Backend-driven, independent of this component's mount lifecycle (see
-  // `run_with_cancellation` in chat.rs and `LeftBar.tsx`'s always-mounted
-  // subscriber) — this is what lets `sending` come back correctly true if
-  // you switch back to a project whose turn kept running while you were
-  // looking at a different one. Excludes *autonomous* turns (the model
-  // reacting to a finished background sub-agent) — the user isn't waiting
-  // on those, so they shouldn't show the Stop button or block a new send;
-  // see `autonomousGeneratingSessions`.
-  const generating = useAppStore(
-    (s) =>
-      !!s.generatingSessions[sessionId] &&
-      !s.autonomousGeneratingSessions[sessionId],
-  );
+  // `run_with_cancellation` in chat.rs and `useGeneratingListener`'s
+  // always-mounted top-level subscriber) — this is what lets `sending` come
+  // back correctly true if you switch back to a project whose turn kept
+  // running while you were looking at a different one. Excludes
+  // *autonomous* turns (the model reacting to a finished background
+  // sub-agent) — the user isn't waiting on those, so they shouldn't show
+  // the Stop button or block a new send.
+  const generatingState = useGenerating(sessionId);
+  const generating = generatingState.active && !generatingState.autonomous;
 
   const [ollamaError, setOllamaError] = useState<string | null>(null);
   const [input, setInput] = useState(() => loadChatDraft(chatDraftKey));
@@ -131,13 +128,7 @@ export default function ChatPanel({
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `send`/`retry`/`stop` still set this directly
   // too, for instant feedback ahead of the round-trip.
-  const [sending, setSending] = useState(() => {
-    const st = useAppStore.getState();
-    return (
-      !!st.generatingSessions[sessionId] &&
-      !st.autonomousGeneratingSessions[sessionId]
-    );
-  });
+  const [sending, setSending] = useState(generating);
   useEffect(() => {
     setSending(generating);
   }, [generating]);
@@ -488,11 +479,6 @@ export default function ChatPanel({
     ]);
     setSending(true);
     try {
-      // Must resolve before the backend call below: it emits
-      // `chat://{sessionId}/generating` (active: true) the instant it
-      // starts, and a brand-new conversation's listener wouldn't otherwise
-      // be registered yet — see `generatingListener.ts`.
-      await ensureGeneratingListener(sessionId);
       if (isAcp && activeAcpAgent) {
         await api.sendPromptAcp(
           sessionId,

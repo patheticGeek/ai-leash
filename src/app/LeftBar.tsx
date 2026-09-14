@@ -11,7 +11,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import {
   Select,
@@ -20,10 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
-import {
-  ensureGeneratingListener,
-  forgetGeneratingListener,
-} from "../lib/generatingListener";
+import { useGenerating } from "../lib/generatingQuery";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import { useCurrentGitBranch } from "../lib/useCurrentGitBranch";
 import {
@@ -51,9 +48,7 @@ function ConversationRow({
   onContextMenu: (event: MouseEvent) => void;
   onMarkDone: () => void;
 }) {
-  const generating = useAppStore(
-    (s) => !!s.generatingSessions[conversation.id],
-  );
+  const generating = useGenerating(conversation.id).active;
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
   const awaitingApproval = !!permissionForSession(
     pendingPermissions,
@@ -248,12 +243,12 @@ export default function LeftBar() {
     };
   }, [contextMenu]);
 
-  // Unlike `chat://{sessionId}/generating`, `permission://request` isn't
-  // path-templated per conversation — it's one global event carrying its
-  // own `sessionId` (see `tools::request_permission`) — so this only needs
-  // one listener each, not one per known conversation. Still lives here
-  // rather than e.g. `App.tsx` so it's colocated with the other
-  // always-mounted, cross-conversation state this component already owns.
+  // One global event carrying its own `sessionId` (see
+  // `tools::request_permission`), same shape as `chat://generating` — so
+  // this only needs one listener each, not one per known conversation.
+  // Still lives here rather than e.g. `App.tsx` so it's colocated with the
+  // other always-mounted, cross-conversation state this component already
+  // owns.
   useEffect(() => {
     const unlistens = [
       listen<PermissionRequestPayload>("permission://request", (e) => {
@@ -269,64 +264,6 @@ export default function LeftBar() {
       });
     };
   }, [addPendingPermission, resolvePendingPermission]);
-
-  // Always mounted regardless of which conversation (if any) is currently
-  // open, so a turn's `generating` state is tracked even while you're
-  // looking at a different conversation entirely — see
-  // `run_with_cancellation` in chat.rs, the single place this event is
-  // emitted from. One listener per conversation id (not per project) since
-  // multiple conversations for the same project can now generate
-  // independently. A turn starting is also what bumps the conversation's
-  // sort order (`touchConversationActivity`), not merely opening/switching
-  // to it — otherwise clicking around the sidebar to look at things would
-  // keep reshuffling it.
-  //
-  // Diffed against a persistent ref rather than keyed directly off
-  // `conversations` in the dependency array: that array gets a new
-  // reference on every title/activity update, not just when a conversation
-  // is actually added or removed. Tearing down and rebuilding every
-  // listener on each of those unrelated mutations reopens a real race — a
-  // brand new conversation's first turn fires `markConversationStarted`
-  // (adds the row) immediately followed by this same listener's own
-  // `touchConversationActivity` call on `active: true`, both of which used
-  // to retrigger this effect right as the turn starts. `listen()` is async,
-  // so if the backend's `active: false` lands while the old listener has
-  // been torn down but the new one hasn't finished registering yet, it's
-  // lost for good — `generatingSessions` never flips back off and the
-  // "Working for" timer runs forever until the user manually stops.
-  // Registration itself lives in `generatingListener.ts`, shared with
-  // `ChatPanel.submitPrompt` so a brand-new conversation's first turn can
-  // await it before invoking the backend — see that module for why. This
-  // ref just tracks which ids *this component* has already asked for, so
-  // it knows which to release when a conversation disappears.
-  const trackedGeneratingIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const ids = new Set(conversations.map((c) => c.id));
-    const tracked = trackedGeneratingIdsRef.current;
-    for (const id of tracked) {
-      if (!ids.has(id)) {
-        forgetGeneratingListener(id);
-        tracked.delete(id);
-      }
-    }
-    for (const id of ids) {
-      if (tracked.has(id)) continue;
-      tracked.add(id);
-      ensureGeneratingListener(id);
-    }
-  }, [conversations]);
-  // Only tears every listener down on unmount — LeftBar stays mounted for
-  // the app's whole lifetime, so in practice this is dead code, but it's
-  // the honest cleanup counterpart to the ref above.
-  useEffect(() => {
-    const tracked = trackedGeneratingIdsRef.current;
-    return () => {
-      for (const id of tracked) {
-        forgetGeneratingListener(id);
-      }
-      tracked.clear();
-    };
-  }, []);
 
   const filteredConversations = conversations.filter(
     (c) => !projectFilter || c.projectRoot === projectFilter,
