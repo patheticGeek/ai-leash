@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
+import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { LS_KEYS } from "../lib/localStorageKeys";
@@ -21,6 +22,10 @@ function App() {
   );
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
+
+  // Always on regardless of which sidebar tab is open — see its comment for
+  // why this can't just live inside `FileTree`.
+  useFsChangeInvalidator();
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
     LS_KEYS.leftBarWidth,

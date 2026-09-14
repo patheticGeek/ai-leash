@@ -1,36 +1,35 @@
-import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/ui/button";
-import { api, type DirEntryInfo } from "../../../lib/tauriApi";
+import type { DirEntryInfo } from "../../../lib/tauriApi";
+import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useAppStore } from "../../../store";
+import { useFsDir } from "./useFsDir";
 
-function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
+function Node({
+  entry,
+  depth,
+  checkoutPath,
+}: {
+  entry: DirEntryInfo;
+  depth: number;
+  checkoutPath: string;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const [children, setChildren] = useState<DirEntryInfo[] | null>(null);
   const openFile = useAppStore((s) => s.openFile);
   const activePath = useAppStore((s) => s.activePath);
-  const sessionId = useAppStore((s) => s.activeSessionId);
+  const { data: children } = useFsDir(
+    checkoutPath,
+    entry.path,
+    entry.isDir && expanded,
+  );
 
-  async function toggle() {
+  function toggle() {
     if (!entry.isDir) {
       openFile(entry.path, entry.name);
       return;
     }
-    if (!expanded && children === null && sessionId) {
-      setChildren(await api.listDir(sessionId, entry.path));
-    }
     setExpanded((e) => !e);
   }
-
-  useEffect(() => {
-    if (!expanded || !sessionId) return;
-    const unlisten = listen("fs://changed", () => {
-      api.listDir(sessionId, entry.path).then(setChildren);
-    });
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, [expanded, entry.path, sessionId]);
 
   return (
     <div>
@@ -53,7 +52,12 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
       {entry.isDir && expanded && children && (
         <div>
           {children.map((child) => (
-            <Node key={child.path} entry={child} depth={depth + 1} />
+            <Node
+              key={child.path}
+              entry={child}
+              depth={depth + 1}
+              checkoutPath={checkoutPath}
+            />
           ))}
         </div>
       )}
@@ -64,33 +68,22 @@ function Node({ entry, depth }: { entry: DirEntryInfo; depth: number }) {
 export default function FileTree() {
   // The tree follows whichever checkout the focused conversation is pinned
   // to (primary or worktree), not just whichever project is globally
-  // "open" — see `commands.rs`'s `get_session_root`.
-  const sessionId = useAppStore((s) => s.activeSessionId);
-  const [rootEntries, setRootEntries] = useState<DirEntryInfo[]>([]);
-
-  useEffect(() => {
-    if (sessionId) {
-      api.listDir(sessionId).then(setRootEntries);
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const unlisten = listen("fs://changed", () => {
-      api.listDir(sessionId).then(setRootEntries);
-    });
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, [sessionId]);
+  // "open" — see `commands.rs`'s `list_dir` doc comment.
+  const checkoutPath = useActiveCheckoutPath();
+  const { data: rootEntries } = useFsDir(checkoutPath);
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto pb-2">
-        {!sessionId
+        {!checkoutPath
           ? null
-          : rootEntries.map((entry) => (
-              <Node key={entry.path} entry={entry} depth={0} />
+          : (rootEntries ?? []).map((entry) => (
+              <Node
+                key={entry.path}
+                entry={entry}
+                depth={0}
+                checkoutPath={checkoutPath}
+              />
             ))}
       </div>
     </div>

@@ -1,7 +1,5 @@
 # Live data refactor
 
-Branch: `live-data-react-query`
-
 Goal: unify the app's real-time/live data (git branch, models, actions,
 generating status, fs tree, etc.) behind React Query instead of the three
 ad-hoc patterns currently in use (per-component `useState` + `listen()`,
@@ -10,7 +8,13 @@ slices), and fix the concrete duplicate-listener/poller bugs found along
 the way.
 
 Workflow: one phase at a time. Implement → user verifies in the running
-app → commit → next phase. This file is updated after every phase.
+app → commit → next phase. This file is updated after every phase. Each
+phase (or small group of phases) becomes its own PR, stacked on the
+previous one rather than all landing on one branch:
+
+- `live-data-react-query` (→ `master`): Phase 0 + Phase 1, committed.
+- `live-data-react-query-phase2` (→ `live-data-react-query`): Phase 2+,
+  current branch.
 
 ## Inventory (source of truth for what's live today)
 
@@ -93,14 +97,54 @@ app → commit → next phase. This file is updated after every phase.
   (actions module) all clean.
 - **Status: implemented, awaiting user verification + commit.**
 
-### Phase 2 — Push-driven data → `useQuery` + event-fed cache
-- Git branch: `useQuery(["git-branch", path])`, fetched once, kept fresh by
-  one shared `useTauriEvent("git://branch_changed", ...)` that calls
-  `setQueryData`. `LeftBar` and `CheckoutBar` share cache + one listener.
-- Filesystem tree: query key per directory path; the single shared
-  `fs://changed` listener invalidates the relevant path(s) instead of every
-  node refetching itself.
-- **Status: not started.**
+### Phase 2 — Push-driven data → `useQuery` + event-fed cache ✅ done (uncommitted)
+- Git branch (`src/lib/useCurrentGitBranch.ts`): same exported signature
+  (`useCurrentGitBranch(path): string | null`), now backed by
+  `useQuery(["git-branch", path], () => api.getCurrentGitBranch(path))`. The
+  `git://branch_changed` event payload is just the changed path (not a
+  branch name — confirmed via `git.rs`'s `watch_git_branch`), so the
+  `useTauriEvent` handler filters on path and calls `invalidateQueries`
+  rather than `setQueryData` directly; a refetch still happens, but now once
+  per distinct path instead of once per mounted `LeftBar` row / `CheckoutBar`
+  (they all share the same query key so React Query dedupes the fetch too).
+  `api.watchGitBranch(path)` (idempotent server-side) still fires per
+  mounted path via a small `useEffect`, unchanged in spirit from before.
+- Filesystem tree (`src/features/sidebar/tabs/FileTree.tsx` +
+  new `useFsDir.ts`): query key `["fs-dir", checkoutPath, path ?? checkoutPath]`
+  — checkout-path-keyed like Actions (Phase 1), not session-id-keyed, since
+  `list_dir` is checkout-scoped too. The root listing's path slot is
+  `checkoutPath` itself rather than a `null` sentinel, on purpose (see next
+  point).
+- Updated `useTauriEvent.ts`'s doc comment, which had described this fix in
+  past tense before either consumer actually existed.
+- **Correction 3** (both caught by user on first read): the initial cut of
+  this had two problems.
+  1. The shared `fs://changed` listener lived inside `FileTree`, which only
+     exists while its sidebar tab is mounted — changes made while the tab is
+     closed would go un-invalidated, leaving stale cached listings for up to
+     `staleTime` once reopened. Moved to a dedicated `useFsChangeInvalidator()`
+     (`useFsDir.ts`), called once from `App.tsx` (always mounted) instead —
+     `useTauriEvent` already dedupes to one real `listen()` regardless of how
+     many places call it, so this costs nothing extra over the old approach.
+  2. The event was payload-less, so any change invalidated *every* open
+     `fs-dir` query across every project, not just the changed one. Fixed on
+     the backend: `start_fs_watcher` (`commands.rs`) now collects each
+     `notify::Event`'s paths during the debounce window, maps each to its
+     parent directory (a listing changes when something under it does, not
+     at its own path), dedupes, and emits that `Vec<String>` of absolute
+     changed directories as the event payload instead of `()`. The frontend
+     invalidator matches those directly against each cached query's path
+     slot via `invalidateQueries({ predicate: ... })` — which is also why the
+     root listing keys on `checkoutPath` rather than `null`: every key's path
+     slot needs to be a real absolute path to compare against the payload.
+     This also meant `list_dir` (`commands.rs`) needed the same
+     `session_id` → `checkout_path` signature change as Phase 1's Actions
+     commands, for the same reason (key/queryFn param match, and file-tree
+     state being checkout- not session-scoped) — `tauriApi.ts`'s `listDir`
+     and `FileTree.tsx` updated to match, now resolving via
+     `useActiveCheckoutPath()` instead of `activeSessionId`.
+- cargo check/clippy/fmt + typecheck + lint all clean.
+- **Status: implemented, awaiting user verification + commit.**
 
 ### Phase 3 — Replace `generatingListener.ts`
 - Fold "generating" state into `useQuery(["generating", sessionId])`,

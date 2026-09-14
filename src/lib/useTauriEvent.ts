@@ -33,12 +33,10 @@ function subscribe<T>(eventName: string, handler: Handler<T>): () => void {
 
 // Shares one real Tauri `listen()` call across every component subscribed to
 // the same `eventName`, fanning each event out to all of their handlers.
-// Before this, e.g. `fs://changed` got one `listen()` per expanded file-tree
-// node, so a single filesystem change fired N redundant refetches; the same
-// pattern applied to `git://branch_changed` (one listener per sidebar row
-// *and* per open `CheckoutBar`) and others. Callers still get a fresh
-// closure every render (handler is read via a ref), so no dependency array
-// footguns.
+// Used by `useCurrentGitBranch` (one listener instead of one per sidebar row
+// and per open `CheckoutBar`) and `FileTree` (one listener instead of one
+// per expanded tree node). Callers still get a fresh closure every render
+// (handler is read via a ref), so no dependency array footguns.
 export function useTauriEvent<T>(eventName: string, handler: Handler<T>): void {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
