@@ -160,18 +160,26 @@ export const conversationSlice: StateCreator<
     const prevSessionId = get().activeSessionId;
     const prevPanelTabs = get().panelTabs;
     const prevActivePanelTabId = get().activePanelTabId;
+    const prevChatTabs = get().chatTabs;
+    const prevActiveChatTabId = get().activeChatTabId;
 
     const restored = get().panelStateByConversation[id];
     const restoredActiveTab = restored?.panelTabs.find(
       (t) => t.id === restored.activePanelTabId,
     );
+    const restoredChat = get().chatStateByConversation[id];
 
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
+      const chatStateByConversation = { ...s.chatStateByConversation };
       if (prevSessionId) {
         panelStateByConversation[prevSessionId] = {
           panelTabs: prevPanelTabs,
           activePanelTabId: prevActivePanelTabId,
+        };
+        chatStateByConversation[prevSessionId] = {
+          chatTabs: prevChatTabs,
+          activeChatTabId: prevActiveChatTabId,
         };
       }
       return {
@@ -185,8 +193,9 @@ export const conversationSlice: StateCreator<
         panelTabs: restored?.panelTabs ?? [],
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
-        chatTabs: [PRIMARY_CHAT_TAB],
-        activeChatTabId: "primary",
+        chatTabs: restoredChat?.chatTabs ?? [PRIMARY_CHAT_TAB],
+        activeChatTabId: restoredChat?.activeChatTabId ?? "primary",
+        chatStateByConversation,
       };
     });
 
@@ -243,13 +252,20 @@ export const conversationSlice: StateCreator<
     const prevSessionId = get().activeSessionId;
     const prevPanelTabs = get().panelTabs;
     const prevActivePanelTabId = get().activePanelTabId;
+    const prevChatTabs = get().chatTabs;
+    const prevActiveChatTabId = get().activeChatTabId;
 
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
+      const chatStateByConversation = { ...s.chatStateByConversation };
       if (prevSessionId) {
         panelStateByConversation[prevSessionId] = {
           panelTabs: prevPanelTabs,
           activePanelTabId: prevActivePanelTabId,
+        };
+        chatStateByConversation[prevSessionId] = {
+          chatTabs: prevChatTabs,
+          activeChatTabId: prevActiveChatTabId,
         };
       }
       return {
@@ -262,6 +278,7 @@ export const conversationSlice: StateCreator<
         panelStateByConversation,
         chatTabs: [PRIMARY_CHAT_TAB],
         activeChatTabId: "primary",
+        chatStateByConversation,
       };
     });
   },
@@ -272,7 +289,7 @@ export const conversationSlice: StateCreator<
   // thread" to a real, listed row in the sidebar without waiting on
   // anything async. No-op if already present (e.g. a second message in the
   // same still-fresh conversation).
-  markConversationStarted: (id, projectRoot, worktreePath = null) =>
+  markConversationStarted: (id, projectRoot, worktreePath = null) => {
     set((s) =>
       s.conversations.some((c) => c.id === id)
         ? s
@@ -289,7 +306,12 @@ export const conversationSlice: StateCreator<
               ...s.conversations,
             ],
           },
-    ),
+    );
+    // Catches any tabs opened while this was still a new/unsent thread —
+    // `persistActiveSessionTabState` skipped them until now, since the id
+    // wasn't in `conversations` yet.
+    get().persistActiveSessionTabState();
+  },
 
   touchConversationActivity: (id) =>
     set((s) => {
@@ -326,10 +348,11 @@ export const conversationSlice: StateCreator<
   // agents are scoped to whichever conversation spawned them — see
   // `db::delete_conversation`'s doc comment). This mirrors that on the
   // frontend: drops the localStorage-backed settings (`conversationBackend`/
-  // `permissionMode`) and panel-state snapshot this id will never use again,
-  // its chat draft, and any sub-agent bookkeeping (`subAgentTasks`/
-  // `subAgentThreads`/their `chatTabs`) via the same `clearSubAgentTasksForParent`
-  // action `/clear` already uses.
+  // `permissionMode`) and panel-/chat-tab state (both in-memory and its
+  // disk-persisted entry) this id will never use again, its chat draft, and
+  // any sub-agent bookkeeping (`subAgentTasks`/`subAgentThreads`/their
+  // `chatTabs`) via the same `clearSubAgentTasksForParent` action `/clear`
+  // already uses.
   deleteConversation: async (id) => {
     const conversation = get().conversations.find((c) => c.id === id);
     await api.deleteConversation(id);

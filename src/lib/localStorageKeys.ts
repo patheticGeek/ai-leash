@@ -17,4 +17,10 @@ export const LS_KEYS = {
   // Per-session draft text — not a standalone key, see `chatDraftKey` in
   // `chatDraft.ts` for how a session id is appended to this.
   chatDraftPrefix: "ai-leash:chatDraft:",
+  // Per-conversation sidebar (`PanelTab`) and chat-panel (`ChatTab`) open-tab
+  // state, keyed by conversation id — see `panelSlice.ts`'s
+  // `persistActiveSessionTabState`. Only ever written for conversations that
+  // have actually been sent (listed in `conversations`); a new, unsent
+  // thread's tabs live in memory only and are gone on the next restart.
+  tabState: "ai-leash:tabState",
 } as const;
