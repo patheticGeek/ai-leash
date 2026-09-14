@@ -12,8 +12,16 @@ export default function SidePanel() {
   const closePanelTab = useAppStore((s) => s.closePanelTab);
   const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
   const openFiles = useAppStore((s) => s.openFiles);
+  // Scoped to the active conversation, same as `SubAgentsTab.tsx` itself —
+  // otherwise this would count another conversation's still-running
+  // sub-agents too, once more than one has ever been loaded into memory
+  // this session.
   const runningSubAgents = useAppStore(
-    (s) => s.subAgentTasks.filter((t) => t.status === "running").length,
+    (s) =>
+      s.subAgentTasks.filter(
+        (t) =>
+          t.status === "running" && t.parentSessionId === s.activeSessionId,
+      ).length,
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 

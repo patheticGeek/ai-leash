@@ -1,5 +1,6 @@
 use super::{BridgeRequest, BridgeResponse};
 use crate::context;
+use crate::tools::sub_agent_tools;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -85,46 +86,10 @@ fn initialize_result(req: &Value) -> Value {
 
 fn tools_list_result() -> Value {
     let mut tools = vec![
-        json!({
-            "name": "spawn_sub_agent",
-            "description": "Delegate one or more self-contained subtasks to fresh AI Leash sub-agents, each with its own isolated context. Runs via AI Leash's own configured native provider (not this agent) — sub-agents only have AI Leash's own tools, not this agent's. If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. This call returns immediately once the sub-agent(s) are spawned, without waiting for any of them to finish — each result is appended to AI Leash's Sub Agents tab, and this conversation gets a follow-up message once it's ready. Use `list_sub_agents`/`read_sub_agent` if you need to check on one proactively instead of waiting.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "tasks": {
-                        "type": "array",
-                        "description": "One entry per independent subtask to run concurrently",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "description": { "type": "string", "description": "Short (3-6 word) label for this subtask" },
-                                "prompt": { "type": "string", "description": "Full, self-contained instructions for the sub-agent" }
-                            },
-                            "required": ["description", "prompt"]
-                        }
-                    }
-                },
-                "required": ["tasks"]
-            }
-        }),
-        json!({
-            "name": "list_sub_agents",
-            "description": "List sub-agents spawned from this conversation via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find a sub_session_id for read_sub_agent.",
-            "inputSchema": { "type": "object", "properties": {}, "required": [] }
-        }),
-        json!({
-            "name": "read_sub_agent",
-            "description": "Read the full prompt and transcript (including tool calls and the final result) of one sub-agent spawned from this conversation, by its sub_session_id. For long transcripts, prefer offset/limit over reading it all at once.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
-                    "offset": { "type": "integer", "description": "1-based line number to start reading from. Omit to start at line 1." },
-                    "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
-                },
-                "required": ["sub_session_id"]
-            }
-        }),
+        mcp_tool(sub_agent_tools::spawn_sub_agent_def()),
+        mcp_tool(sub_agent_tools::list_sub_agents_def()),
+        mcp_tool(sub_agent_tools::read_sub_agent_def()),
+        mcp_tool(sub_agent_tools::list_agent_options_def()),
         json!({
             "name": "read_memory",
             "description": "Read AI Leash's persistent memory notes for this project or globally. Unlike AI Leash's native-provider agent, these aren't injected into your context automatically — call this yourself if you want them.",
@@ -207,6 +172,17 @@ fn tools_list_result() -> Value {
     json!({ "tools": tools })
 }
 
+fn mcp_tool(mut definition: Value) -> Value {
+    let parameters = definition
+        .as_object_mut()
+        .and_then(|object| object.remove("parameters"))
+        .unwrap_or_else(|| json!({ "type": "object", "properties": {}, "required": [] }));
+    if let Some(object) = definition.as_object_mut() {
+        object.insert("inputSchema".to_string(), parameters);
+    }
+    definition
+}
+
 fn tools_call_result(
     req: &Value,
     port: u16,
@@ -227,8 +203,8 @@ fn tools_call_result(
     let outcome: Result<String, String> = match name {
         "read_memory" => read_memory_tool(root, &arguments),
         "update_memory" => update_memory_tool(root, &arguments),
-        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "create_action"
-        | "run_action" | "stop_action" | "list_actions" | "read_action" => {
+        "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
+        | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action" => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         other => Err(format!("unknown tool `{other}`")),

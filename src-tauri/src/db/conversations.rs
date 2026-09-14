@@ -40,7 +40,8 @@ pub struct ConversationSummary {
 /// project's conversations regardless of which one is currently active).
 /// Excludes sub-agent conversations (id contains `::spawn_sub_agent::` —
 /// see `tools::sub_agent_tools`), which have their own dedicated Sub
-/// Agents sidebar (`list_all_sub_agents`) instead.
+/// Agents sidebar (`list_sub_agents_for_parent`, scoped to the active
+/// conversation) instead.
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
@@ -339,6 +340,8 @@ mod tests {
             "/proj",
             "count files",
             "count the files",
+            "llama3",
+            None,
         );
         save_message(
             &db,
@@ -356,6 +359,8 @@ mod tests {
             "/other",
             "unrelated task",
             "do something else",
+            "llama3",
+            None,
         );
 
         clear_conversation(&db, "/proj");
@@ -430,6 +435,8 @@ mod tests {
             "/proj-a",
             "count files",
             "count the files",
+            "llama3",
+            None,
         );
         save_message(
             &db,
@@ -496,6 +503,8 @@ mod tests {
             "/proj",
             "count files",
             "count the files",
+            "llama3",
+            None,
         );
         save_message(
             &db,
@@ -513,6 +522,8 @@ mod tests {
             "/other",
             "unrelated task",
             "do something else",
+            "llama3",
+            None,
         );
 
         delete_conversation(&db, "/proj");

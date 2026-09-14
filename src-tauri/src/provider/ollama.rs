@@ -164,6 +164,7 @@ pub(super) async fn stream_turn_ollama(
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
     message_id: Option<i64>,
+    _effort: Option<&str>,
 ) -> Result<TurnResult, ProviderError> {
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();

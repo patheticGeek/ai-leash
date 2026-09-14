@@ -1,14 +1,9 @@
-import { Wrench } from "lucide-react";
-import { useEffect, useRef } from "react";
-import {
-  type Entry,
-  isToolError,
-  messagesToEntries,
-} from "../../lib/chatEntries";
+import { useEffect, useState } from "react";
+import { messagesToEntries } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import { Badge } from "../../ui/badge";
-import Markdown from "../../ui/Markdown";
+import ChatEntryList from "./components/ChatEntryList";
 
 const statusStyles: Record<string, string> = {
   running:
@@ -17,66 +12,12 @@ const statusStyles: Record<string, string> = {
   error: "text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20",
 };
 
-function EntryBlock({ entry }: { entry: Entry }) {
-  if (entry.kind === "text") {
-    return (
-      <div
-        className={entry.role === "user" ? "text-zinc-200" : "text-zinc-300"}
-      >
-        <div className="mb-0.5 text-[10px] uppercase tracking-wide text-zinc-600">
-          {entry.role === "user" ? "task" : "sub-agent"}
-        </div>
-        {entry.role === "user" ? (
-          <div className="whitespace-pre-wrap text-sm">{entry.content}</div>
-        ) : (
-          <Markdown content={entry.content} />
-        )}
-      </div>
-    );
-  }
-  if (entry.kind === "thinking") {
-    return (
-      <div className="text-xs italic text-zinc-600">
-        {entry.content}
-        {!entry.done && "…"}
-      </div>
-    );
-  }
-  const failed = isToolError(entry.result);
-  return (
-    <div
-      className={`rounded-md px-2.5 py-1.5 text-xs ${
-        failed
-          ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/10"
-          : "shadow-[var(--al-shadow)] bg-[#141518]"
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-1.5 text-zinc-400">
-        <Wrench
-          size={12}
-          className={`shrink-0 ${failed ? "text-red-400" : "text-zinc-600"}`}
-        />
-        <span className="shrink-0">{entry.name}</span>
-        <span className="min-w-0 flex-1 truncate text-zinc-600">
-          {JSON.stringify(entry.args)}
-        </span>
-        {entry.result === undefined && (
-          <span className="shrink-0 text-zinc-600">running…</span>
-        )}
-      </div>
-      {entry.result !== undefined && (
-        <pre
-          className={`mt-1 max-h-40 overflow-auto whitespace-pre-wrap ${
-            failed ? "text-red-300" : "text-zinc-500"
-          }`}
-        >
-          {entry.result}
-        </pre>
-      )}
-    </div>
-  );
-}
-
+// Shows a sub-agent's own transcript through the same `ChatEntryList`/
+// `ChatEntryRenderer` a top-level conversation uses — tool calls and
+// thinking blocks render identically (collapsible, same icons/labels), just
+// with `allowRetry`/the top-level-only banners turned off, since a
+// sub-agent has no `retry_last`/system-prompt/Ollama-error/ACP-restore
+// concept of its own.
 export default function SubAgentChatTab({
   subSessionId,
 }: {
@@ -88,8 +29,6 @@ export default function SubAgentChatTab({
   const task = useAppStore((s) =>
     s.subAgentTasks.find((t) => t.subSessionId === subSessionId),
   );
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const autoScrollRef = useRef(true);
 
   // Reopening this tab after an app restart (or after a live event listener
   // never populated it, e.g. it started before this tab was ever mounted)
@@ -105,18 +44,15 @@ export default function SubAgentChatTab({
     });
   }, [subSessionId, rawEntries, setSubAgentEntries]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is a trigger-only dep — re-run the scroll check on every new message, its value isn't read in the body
+  const running = task?.status === "running";
+  // Ticks once a second while running, so `ChatEntryList`'s "Working for…"
+  // footer keeps advancing — same pattern as `SubAgentsTab.tsx`'s own timer.
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    if (autoScrollRef.current) {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-    }
-  }, [entries]);
-
-  function onScroll(e: React.UIEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    autoScrollRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-  }
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   return (
     <div className="flex h-full flex-col bg-[#111215]">
@@ -131,22 +67,32 @@ export default function SubAgentChatTab({
         <span className="min-w-0 flex-1 truncate text-zinc-300">
           {task?.description}
         </span>
+        {task?.model && (
+          <span className="shrink-0 truncate text-zinc-600">
+            {task.model}
+            {task.effort ? ` (${task.effort})` : ""}
+          </span>
+        )}
       </div>
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="flex-1 select-text overflow-y-auto p-3 space-y-3"
-      >
-        {entries.length === 0 && (
+      {entries.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center px-4">
           <div className="text-sm text-zinc-600">
             Waiting for sub-agent output…
           </div>
-        )}
-        {entries.map((entry, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
-          <EntryBlock key={i} entry={entry} />
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="relative flex-1 overflow-hidden">
+          <ChatEntryList
+            entries={entries}
+            sending={running}
+            isAcp={false}
+            allowRetry={false}
+            turnDurations={{}}
+            replyStartedAt={task?.startedAt ?? null}
+            nowTick={now}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -97,13 +97,21 @@ export interface ChatEntryRendererProps {
   onRetry: () => void;
   turnDuration: number | undefined;
   showFooter: boolean;
+  // Whether the last reply's footer may show a Retry button at all — false
+  // for a transcript with no real "send this again" concept of its own
+  // (e.g. `SubAgentChatTab.tsx`, which has no `retry_last` equivalent, so
+  // showing the button would just be a dead control). Independent of
+  // `isAcp`, which already suppresses it for a different reason (an ACP
+  // agent's own turn can't be resent through the native retry path either).
+  allowRetry: boolean;
 }
 
 // Renders one transcript entry ("info"/"text"/"thinking"/"tool") — the
 // counterpart to `ChatEntryList.tsx`'s grouping/iteration over the whole
-// array. `SubAgentChatTab.tsx` renders the same `Entry` union but keeps its
-// own, deliberately simpler `EntryBlock` rather than this component — see
-// that file's top-of-file note for why the two weren't unified.
+// array. Also reused as-is by `SubAgentChatTab.tsx` (via `ChatEntryList`) so
+// a sub-agent's own transcript shows tool calls/thinking identically to a
+// top-level conversation's, just with `allowRetry`/`isAcp` forced off and no
+// system-prompt/Ollama/ACP-restore banners.
 export default function ChatEntryRenderer({
   entry,
   isLast,
@@ -116,6 +124,7 @@ export default function ChatEntryRenderer({
   onRetry,
   turnDuration,
   showFooter,
+  allowRetry,
 }: ChatEntryRendererProps) {
   if (entry.kind === "info") {
     return (
@@ -152,7 +161,7 @@ export default function ChatEntryRenderer({
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
             </Button>
-            {!sending && isLast && !isAcp && (
+            {!sending && isLast && !isAcp && allowRetry && (
               <Button
                 variant="ghost"
                 size="icon-sm"

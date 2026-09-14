@@ -9,7 +9,7 @@ mod memory_tools;
 pub(crate) mod permissions;
 mod schema;
 pub(crate) mod shell_tools;
-mod sub_agent_tools;
+pub(crate) mod sub_agent_tools;
 
 use crate::commands;
 use crate::provider::ProviderConfig;
@@ -131,6 +131,7 @@ pub async fn execute_tool(
         }
         "list_sub_agents" => sub_agent_tools::list_sub_agents(state, session_id),
         "read_sub_agent" => sub_agent_tools::read_sub_agent(state, session_id, args),
+        "list_agent_options" => sub_agent_tools::list_agent_options(state, provider).await,
         "load_skill" => memory_tools::load_skill(state, session_id, &root, args),
         "create_action" => action_tools::create_action(app, state, session_id, &root, args).await,
         "run_action" => action_tools::run_action(app, &root, args),

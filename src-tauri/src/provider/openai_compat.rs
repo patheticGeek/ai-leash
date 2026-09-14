@@ -72,6 +72,8 @@ struct OpenAiChatRequest<'a> {
     stream: bool,
     tools: Value,
     stream_options: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -242,6 +244,7 @@ pub(super) async fn stream_turn_openai(
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
     message_id: Option<i64>,
+    effort: Option<&str>,
 ) -> Result<TurnResult, ProviderError> {
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
@@ -251,6 +254,7 @@ pub(super) async fn stream_turn_openai(
         stream: true,
         tools: tools::tool_definitions(root, touched_dirs, allow_subtasks),
         stream_options: serde_json::json!({ "include_usage": true }),
+        reasoning_effort: effort,
     };
     let mut request = client
         .post(format!("{base_url}/chat/completions"))

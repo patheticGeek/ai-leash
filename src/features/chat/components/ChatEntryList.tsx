@@ -9,16 +9,24 @@ import ChatEntryRenderer, {
 
 export interface ChatEntryListProps {
   entries: PanelEntry[];
-  ollamaError: string | null;
-  acpRestoreFailed: string | null;
-  onRetryAcpSession: () => void;
-  systemPrompt: string | null;
+  // These four are top-level-conversation-only concerns (Ollama/ACP-restore
+  // banners, the collapsible system prompt block) — optional so a caller
+  // with no such concept (e.g. `SubAgentChatTab.tsx`) doesn't need to pass
+  // dummy values for all of them.
+  ollamaError?: string | null;
+  acpRestoreFailed?: string | null;
+  onRetryAcpSession?: () => void;
+  systemPrompt?: string | null;
   sending: boolean;
   isAcp: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
   nowTick: number;
-  onRetry: () => void;
+  onRetry?: () => void;
+  // Whether the last reply's footer may show a Retry button — see
+  // `ChatEntryRenderer`'s doc comment on the same prop. Defaults to `true`
+  // (top-level conversations always have a real retry_last to call).
+  allowRetry?: boolean;
 }
 
 // Whether the assistant text entry at `i` is the last chunk of its reply
@@ -60,16 +68,17 @@ function isVisibleFinalChunk(
 // position) — none of it is read anywhere outside this component.
 export default function ChatEntryList({
   entries,
-  ollamaError,
-  acpRestoreFailed,
-  onRetryAcpSession,
-  systemPrompt,
+  ollamaError = null,
+  acpRestoreFailed = null,
+  onRetryAcpSession = () => {},
+  systemPrompt = null,
   sending,
   isAcp,
   turnDurations,
   replyStartedAt,
   nowTick,
-  onRetry,
+  onRetry = () => {},
+  allowRetry = true,
 }: ChatEntryListProps) {
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
@@ -170,6 +179,7 @@ export default function ChatEntryList({
         onRetry={onRetry}
         turnDuration={turnDurations[i]}
         showFooter={showFooter}
+        allowRetry={allowRetry}
       />
     );
   }

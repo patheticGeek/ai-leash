@@ -40,6 +40,25 @@ pub struct AcpSession {
     pub available_commands: Option<serde_json::Value>,
 }
 
+/// One configured ACP agent (id/label/launch command) plus whatever
+/// model/effort options the frontend has discovered for it, pushed down
+/// wholesale via `acp::sync_acp_agent_catalog` whenever `acpSlice.ts`'s
+/// `agentBackend.acpAgents`/`acpModelCache` changes. Discovery itself only
+/// ever happens on the frontend (`acp::fetch_acp_models`, a throwaway
+/// subprocess spawn) — this cache is what lets backend tool calls
+/// (`list_agent_options`, `spawn_sub_agent`'s `agent` argument) look up an
+/// ACP agent by name and its selectable models/effort levels without paying
+/// for a fresh discovery connection on every call.
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpAgentCatalogEntry {
+    pub id: String,
+    pub label: String,
+    pub launch_command: String,
+    pub model_options: Option<serde_json::Value>,
+    pub effort_options: Option<serde_json::Value>,
+}
+
 /// A conversation's own effective checkout — set via
 /// `commands::set_conversation_root` once the conversation is created (as
 /// the primary checkout by default) or a worktree is picked for it. `cwd` is
@@ -93,6 +112,8 @@ pub struct AppState {
     /// instead of silently reusing the old agent's process) and the channel
     /// used to send it prompts/cancellations. See `acp.rs::ensure_acp_session`.
     pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
+    /// See `AcpAgentCatalogEntry`'s doc comment.
+    pub acp_agent_catalog: Mutex<Vec<AcpAgentCatalogEntry>>,
     /// Loopback bridge external ACP agent subprocesses relay a handful of
     /// tool calls through — see `mcp_bridge`. Bound once at startup
     /// (`lib.rs`'s `.setup()` hook); `None` only in the brief window before

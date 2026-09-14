@@ -25,12 +25,19 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 /// Sent from Tauri-command call sites into a running ACP connection actor
 /// (`run_acp_session`) over its per-session channel.
 pub(crate) enum AcpCommand {
-    Prompt(String),
+    /// The `oneshot::Sender`, when present, is signalled with this prompt's
+    /// outcome once `PromptRequest` resolves — used by
+    /// `run_sub_agent_acp` to await a one-shot sub-agent's turn without a
+    /// frontend polling `chat://{session_id}/done`/`error` the way a normal
+    /// top-level conversation does. `None` for every ordinary
+    /// `send_prompt_acp` call, which has no one to notify beyond those
+    /// events.
+    Prompt(String, Option<oneshot::Sender<Result<(), String>>>),
     Cancel,
     /// Sets the agent's "model" session config option, if it exposes one
     /// (see `find_model_config_option`) — a no-op (with a surfaced error) if
@@ -362,7 +369,7 @@ async fn drive_acp_connection(
 
             while let Some(cmd) = commands.recv().await {
                 match cmd {
-                    AcpCommand::Prompt(text) => {
+                    AcpCommand::Prompt(text, done_tx) => {
                         *current_segment.lock().unwrap() = None;
                         let _ = app.emit(
                             &format!("chat://{session_id}/generating"),
@@ -390,12 +397,17 @@ async fn drive_acp_connection(
                                 // (see `close_segment`) isn't lost.
                                 close_segment(&app, &session_id, &current_segment);
                                 let _ = app.emit(&format!("chat://{session_id}/done"), ());
+                                if let Some(tx) = done_tx {
+                                    let _ = tx.send(Ok(()));
+                                }
                             }
                             Err(e) => {
-                                let _ = app.emit(
-                                    &format!("chat://{session_id}/error"),
-                                    format_acp_error(&e),
-                                );
+                                let message = format_acp_error(&e);
+                                let _ = app
+                                    .emit(&format!("chat://{session_id}/error"), message.clone());
+                                if let Some(tx) = done_tx {
+                                    let _ = tx.send(Err(message));
+                                }
                             }
                         }
                     }

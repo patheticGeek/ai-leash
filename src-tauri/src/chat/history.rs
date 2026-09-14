@@ -139,12 +139,20 @@ pub async fn delete_conversation(
     Ok(())
 }
 
-/// All sub-agents ever spawned, across every project — the Sub Agents
-/// sidebar's own scope (a cross-project history, not scoped to whichever
-/// project is currently open). See `db::list_all_sub_agents`.
+/// Sub-agents spawned by one top-level conversation — the Sub Agents
+/// sidebar's own scope, scoped to whichever conversation is currently
+/// active (`SubAgentsTab.tsx` re-fetches this whenever `activeSessionId`
+/// changes). See `db::list_sub_agents_for_parent`.
 #[tauri::command]
-pub fn list_sub_agents(state: State<AppState>) -> Result<Vec<db::SubAgentSummary>, String> {
-    Ok(db::list_all_sub_agents(&state.db))
+pub fn list_sub_agents(
+    state: State<AppState>,
+    session_id: String,
+) -> Result<Vec<db::SubAgentSummary>, String> {
+    Ok(db::list_sub_agents_for_parent(
+        &state.db,
+        &session_id,
+        usize::MAX,
+    ))
 }
 
 /// Removes one entry from the Sub Agents sidebar for good — see

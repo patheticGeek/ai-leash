@@ -21,6 +21,8 @@ pub struct SubAgentSummary {
     pub status: String,
     pub started_at: i64,
     pub finished_at: Option<i64>,
+    pub model: String,
+    pub effort: Option<String>,
 }
 
 pub struct SubAgentMeta {
@@ -34,11 +36,13 @@ pub fn record_sub_agent_started(
     parent_session_id: &str,
     description: &str,
     prompt: &str,
+    model: &str,
+    effort: Option<&str>,
 ) {
     let conn = db.0.lock().unwrap();
     let _ = conn.execute(
-        "INSERT INTO sub_agents (id, parent_session_id, description, prompt, status, started_at) VALUES (?1, ?2, ?3, ?4, 'running', ?5)",
-        params![id, parent_session_id, description, prompt, now()],
+        "INSERT INTO sub_agents (id, parent_session_id, description, prompt, status, started_at, model, effort) VALUES (?1, ?2, ?3, ?4, 'running', ?5, ?6, ?7)",
+        params![id, parent_session_id, description, prompt, now(), model, effort],
     );
 }
 
@@ -56,7 +60,7 @@ fn query_sub_agents(
     params: &[&dyn rusqlite::ToSql],
 ) -> Vec<SubAgentSummary> {
     let sql = format!(
-        "SELECT id, parent_session_id, description, status, started_at, finished_at FROM sub_agents {where_clause} ORDER BY started_at DESC"
+        "SELECT id, parent_session_id, description, status, started_at, finished_at, model, effort FROM sub_agents {where_clause} ORDER BY started_at DESC"
     );
     let Ok(mut stmt) = conn.prepare(&sql) else {
         return vec![];
@@ -69,6 +73,8 @@ fn query_sub_agents(
             status: row.get(3)?,
             started_at: row.get(4)?,
             finished_at: row.get(5)?,
+            model: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
+            effort: row.get(7)?,
         })
     });
     match rows {
@@ -89,16 +95,6 @@ pub fn list_sub_agents_for_parent(
         params![parent_session_id],
     );
     items.truncate(limit);
-    items
-}
-
-/// Cross-project — the Sub Agents sidebar's own scope (it's a global
-/// history, not scoped to the currently open project). Capped at a generous
-/// but bounded count so a very long-lived app doesn't load an unbounded list.
-pub fn list_all_sub_agents(db: &Db) -> Vec<SubAgentSummary> {
-    let conn = db.0.lock().unwrap();
-    let mut items = query_sub_agents(&conn, "", params![]);
-    items.truncate(500);
     items
 }
 
@@ -152,12 +148,16 @@ mod tests {
             "/proj",
             "count files",
             "count the files",
+            "llama3",
+            Some("high"),
         );
 
         let running = list_sub_agents_for_parent(&db, "/proj", 50);
         assert_eq!(running.len(), 1);
         assert_eq!(running[0].status, "running");
         assert!(running[0].finished_at.is_none());
+        assert_eq!(running[0].model, "llama3");
+        assert_eq!(running[0].effort.as_deref(), Some("high"));
 
         record_sub_agent_finished(
             &db,
@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn list_all_sub_agents_spans_parents() {
+    fn list_sub_agents_for_parent_stays_isolated_per_parent() {
         let db = temp_db();
         record_sub_agent_started(
             &db,
@@ -184,6 +184,8 @@ mod tests {
             "/proj-a",
             "task a",
             "do a",
+            "llama3",
+            None,
         );
         record_sub_agent_started(
             &db,
@@ -191,9 +193,10 @@ mod tests {
             "/proj-b",
             "task b",
             "do b",
+            "llama3",
+            None,
         );
 
-        assert_eq!(list_all_sub_agents(&db).len(), 2);
         assert_eq!(list_sub_agents_for_parent(&db, "/proj-a", 50).len(), 1);
         assert_eq!(list_sub_agents_for_parent(&db, "/proj-b", 50).len(), 1);
     }

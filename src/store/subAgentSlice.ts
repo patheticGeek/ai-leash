@@ -10,6 +10,8 @@ export interface SubAgentTask {
   status: "running" | "done" | "error";
   startedAt: number;
   endedAt?: number;
+  model: string;
+  effort?: string;
 }
 
 export interface SubAgentSlice {
@@ -24,6 +26,8 @@ export interface SubAgentSlice {
     subSessionId: string;
     parentSessionId: string;
     description: string;
+    model: string;
+    effort?: string;
   }) => void;
   finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
   // Drops every sub-agent spawned by `parentSessionId` from local state —
@@ -43,10 +47,12 @@ export interface SubAgentSlice {
   // Backend is the source of truth (SQLite, kept indefinitely) — this merges
   // in anything not already known locally, without clobbering live updates
   // a `subtask_start`/`done`/`error` event may have already applied. Safe
-  // to call repeatedly (e.g. on every mount of `SubAgentsTab`/`App`). Discards
-  // its result if `clearSubAgentTasksForParent` ran while the fetch was in
-  // flight, so a stale read can't resurrect rows a `/clear` just removed.
-  loadSubAgentTasks: () => Promise<void>;
+  // to call repeatedly (e.g. whenever `SubAgentsTab` mounts or
+  // `activeSessionId` changes — it only ever fetches `parentSessionId`'s own
+  // sub-agents, since that's the sidebar's whole scope). Discards its result
+  // if `clearSubAgentTasksForParent` ran while the fetch was in flight, so a
+  // stale read can't resurrect rows a `/clear` just removed.
+  loadSubAgentTasks: (parentSessionId: string) => Promise<void>;
   setSubAgentEntries: (
     subSessionId: string,
     updater: (prev: Entry[]) => Entry[],
@@ -61,7 +67,13 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
   subAgentTasksEpoch: 0,
   subAgentThreads: {},
 
-  startSubAgentTask: ({ subSessionId, parentSessionId, description }) =>
+  startSubAgentTask: ({
+    subSessionId,
+    parentSessionId,
+    description,
+    model,
+    effort,
+  }) =>
     set((s) => ({
       subAgentTasks: [
         ...s.subAgentTasks,
@@ -71,13 +83,15 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
           description,
           status: "running",
           startedAt: Date.now(),
+          model,
+          effort,
         },
       ],
     })),
 
-  loadSubAgentTasks: async () => {
+  loadSubAgentTasks: async (parentSessionId) => {
     const epochAtStart = get().subAgentTasksEpoch;
-    const rows = await api.listSubAgents();
+    const rows = await api.listSubAgents(parentSessionId);
     set((s) => {
       // A `/clear` ran while this fetch was in flight — `rows` reflects a
       // pre-clear snapshot, so merging it back in would resurrect entries
@@ -93,6 +107,8 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
           status: r.status,
           startedAt: r.startedAt * 1000,
           endedAt: r.finishedAt ? r.finishedAt * 1000 : undefined,
+          model: r.model,
+          effort: r.effort ?? undefined,
         }));
       return fromDb.length
         ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] }

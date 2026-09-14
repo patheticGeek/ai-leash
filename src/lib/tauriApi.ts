@@ -48,6 +48,25 @@ export interface AcpEffortOptions {
   options: { value: string; name: string }[];
 }
 
+// Return shape of `fetch_acp_models` — both fields independently null when
+// the agent connects fine but simply doesn't expose that config option.
+export interface AcpAgentOptions {
+  model: AcpModelOptions | null;
+  effort: AcpEffortOptions | null;
+}
+
+// One entry of the ACP agent catalog snapshot pushed to the backend via
+// `syncAcpAgentCatalog` — see `acpSlice.ts`. Lets backend tool calls
+// (`list_agent_options`, `spawn_sub_agent`'s `agent` argument) look up a
+// configured ACP agent and its cached models/effort levels by id or label.
+export interface AcpAgentCatalogEntry {
+  id: string;
+  label: string;
+  launchCommand: string;
+  modelOptions: unknown;
+  effortOptions: unknown;
+}
+
 // Payload of the `chat://{sessionId}/acp_commands` event, emitted whenever
 // the connected ACP agent (re-)announces its slash commands — typically
 // once, right after the session opens, but an agent can send this again if
@@ -80,6 +99,8 @@ export interface SubAgentSummary {
   status: "running" | "done" | "error";
   startedAt: number; // epoch seconds, matches PersistedMessage.createdAt
   finishedAt: number | null;
+  model: string;
+  effort: string | null;
 }
 
 // One row of `list_conversations` — every top-level conversation across
@@ -257,8 +278,11 @@ export const api = {
   setAcpEffort: (sessionId: string, value: string) =>
     invoke<void>("set_acp_effort", { sessionId, value }),
   fetchAcpModels: (launchCommand: string) =>
-    invoke<AcpModelOptions | null>("fetch_acp_models", { launchCommand }),
-  listSubAgents: () => invoke<SubAgentSummary[]>("list_sub_agents"),
+    invoke<AcpAgentOptions>("fetch_acp_models", { launchCommand }),
+  syncAcpAgentCatalog: (agents: AcpAgentCatalogEntry[]) =>
+    invoke<void>("sync_acp_agent_catalog", { agents }),
+  listSubAgents: (sessionId: string) =>
+    invoke<SubAgentSummary[]>("list_sub_agents", { sessionId }),
   deleteSubAgent: (subSessionId: string) =>
     invoke<void>("delete_sub_agent", { subSessionId }),
   listConversations: () => invoke<ConversationSummary[]>("list_conversations"),
