@@ -29,14 +29,21 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function SubAgentsTab() {
-  const tasks = useAppStore((s) => s.subAgentTasks);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const allTasks = useAppStore((s) => s.subAgentTasks);
   const openChatTab = useAppStore((s) => s.openChatTab);
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const deleteSubAgentTask = useAppStore((s) => s.deleteSubAgentTask);
 
+  // Scoped to whichever conversation is currently open — re-fetches
+  // whenever that changes, since this tab is mounted once for the whole
+  // app (not remounted per conversation) and `loadSubAgentTasks` itself
+  // only ever asks the backend for one parent's sub-agents at a time.
   useEffect(() => {
-    loadSubAgentTasks();
-  }, [loadSubAgentTasks]);
+    if (activeSessionId) loadSubAgentTasks(activeSessionId);
+  }, [activeSessionId, loadSubAgentTasks]);
+
+  const tasks = allTasks.filter((t) => t.parentSessionId === activeSessionId);
 
   // Ticks once a second so a running task's "running for" duration keeps
   // advancing — only while something is actually running, since otherwise
@@ -53,7 +60,8 @@ export default function SubAgentsTab() {
     return (
       <div className="flex h-full items-center justify-center px-4">
         <div className="text-center text-sm text-zinc-600">
-          No sub-agents running. The main agent spawns these via the{" "}
+          No sub-agents running in this conversation. The main agent spawns
+          these via the{" "}
           <code className="mx-1 text-zinc-500">spawn_sub_agent</code> tool.
         </div>
       </div>
@@ -112,9 +120,10 @@ export default function SubAgentsTab() {
                 </Button>
               )}
             </div>
-            <div className="mt-1 text-[10px] text-zinc-600">
+            <div className="mt-1 truncate text-[10px] text-zinc-600">
               started {formatTime(task.startedAt)} ·{" "}
-              {running ? "running" : "ran"} for {duration}
+              {running ? "running" : "ran"} for {duration} · {task.model}
+              {task.effort ? ` (${task.effort})` : ""}
             </div>
           </Card>
         );

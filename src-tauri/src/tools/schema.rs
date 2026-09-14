@@ -1,4 +1,5 @@
 use crate::context;
+use crate::tools::sub_agent_tools;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -137,55 +138,14 @@ pub fn tool_definitions(
 
     if allow_subtasks {
         if let Value::Array(arr) = &mut tools {
-            arr.push(json!({
-                "type": "function",
-                "function": {
-                    "name": "spawn_sub_agent",
-                    "description": "Delegate one or more self-contained subtasks to fresh sub-agents, each with its own isolated context and the same tools (except spawn_sub_agent itself, so they can't spawn further sub-agents). If the request has multiple independent parts, list them all in `tasks` — they run concurrently, which is faster than doing them one at a time. If it's a single simple thing, or its parts depend on each other's results, either pass just one entry or don't call this at all and handle it yourself. This call returns immediately once the sub-agent(s) are spawned, without waiting for any of them to finish — each one's result is appended to this conversation as its own turn as soon as it's ready, and you'll automatically get a chance to react, without the user needing to say anything. Use `list_sub_agents`/`read_sub_agent` if you need to check on one proactively instead of waiting.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "tasks": {
-                                "type": "array",
-                                "description": "One entry per independent subtask to run concurrently",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "description": { "type": "string", "description": "Short (3-6 word) label for this subtask, shown to the user" },
-                                        "prompt": { "type": "string", "description": "Full, self-contained instructions for the sub-agent" }
-                                    },
-                                    "required": ["description", "prompt"]
-                                }
-                            }
-                        },
-                        "required": ["tasks"]
-                    }
-                }
-            }));
-            arr.push(json!({
-                "type": "function",
-                "function": {
-                    "name": "list_sub_agents",
-                    "description": "List the sub-agents you've spawned via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find a sub_session_id for read_sub_agent.",
-                    "parameters": { "type": "object", "properties": {}, "required": [] }
-                }
-            }));
-            arr.push(json!({
-                "type": "function",
-                "function": {
-                    "name": "read_sub_agent",
-                    "description": "Read the full prompt and transcript (including tool calls and the final result) of one sub-agent you spawned, by its sub_session_id. For long transcripts, prefer offset/limit over reading it all at once.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
-                            "offset": { "type": "integer", "description": "1-based line number to start reading from. Omit to start at line 1." },
-                            "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
-                        },
-                        "required": ["sub_session_id"]
-                    }
-                }
-            }));
+            for definition in [
+                sub_agent_tools::spawn_sub_agent_def(),
+                sub_agent_tools::list_sub_agents_def(),
+                sub_agent_tools::read_sub_agent_def(),
+                sub_agent_tools::list_agent_options_def(),
+            ] {
+                arr.push(json!({ "type": "function", "function": definition }));
+            }
         }
     }
 

@@ -45,6 +45,7 @@ pub(crate) fn run_sub_agent<'a>(
     prompt: &'a str,
     provider: &'a ProviderConfig,
     model: &'a str,
+    effort: Option<&'a str>,
     cancel_flag: &'a Arc<AtomicBool>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
     Box::pin(async move {
@@ -65,6 +66,7 @@ pub(crate) fn run_sub_agent<'a>(
             parent_session_id,
             provider,
             model,
+            effort,
             cancel_flag,
             false,
         )
@@ -105,11 +107,13 @@ pub(crate) fn run_sub_agent<'a>(
 /// which calls `run_with_cancellation` -> `run_agent_loop` -> `execute_tool`
 /// again), so it needs the same explicit boxed-future signature rather than
 /// being a plain `async fn`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn resume_after_background_subtask(
     app: AppHandle,
     session_id: String,
     provider: ProviderConfig,
     model: String,
+    effort: Option<String>,
     sub_session_id: String,
     description: String,
     result: String,
@@ -167,6 +171,7 @@ pub(crate) fn resume_after_background_subtask(
             &session_id,
             &provider,
             &model,
+            effort.as_deref(),
             true,
             true,
         )

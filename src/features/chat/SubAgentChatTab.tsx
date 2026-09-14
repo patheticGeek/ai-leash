@@ -131,6 +131,12 @@ export default function SubAgentChatTab({
         <span className="min-w-0 flex-1 truncate text-zinc-300">
           {task?.description}
         </span>
+        {task?.model && (
+          <span className="shrink-0 truncate text-zinc-600">
+            {task.model}
+            {task.effort ? ` (${task.effort})` : ""}
+          </span>
+        )}
       </div>
       <div
         ref={scrollRef}

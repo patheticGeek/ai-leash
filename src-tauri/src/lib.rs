@@ -121,6 +121,7 @@ pub fn run() {
             acp::set_acp_model,
             acp::set_acp_effort,
             acp::fetch_acp_models,
+            acp::sync_acp_agent_catalog,
             actions::list_actions,
             actions::create_action,
             actions::update_action,

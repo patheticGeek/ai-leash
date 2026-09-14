@@ -46,6 +46,8 @@ interface SubtaskStartPayload {
   callId: string | null;
   subSessionId: string;
   description: string;
+  model: string;
+  effort: string | null;
 }
 
 function addSubtaskThread(
@@ -253,7 +255,7 @@ export function useChatStream(
     // subtask's own thread, nested under the parent tool call once expanded.
     unlistens.push(
       listen<SubtaskStartPayload>(`chat://${sessionId}/subtask_start`, (e) => {
-        const { subSessionId, description } = e.payload;
+        const { subSessionId, description, model, effort } = e.payload;
         const callId = String(e.payload.callId);
 
         setEntries((prev) =>
@@ -263,6 +265,8 @@ export function useChatStream(
           subSessionId,
           parentSessionId: sessionId,
           description,
+          model,
+          effort: effort ?? undefined,
         });
         // Surface the running sub-agent immediately rather than leaving the
         // user to notice it under a collapsed tool-call entry.

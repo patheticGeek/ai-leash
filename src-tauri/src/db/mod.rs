@@ -29,8 +29,8 @@ pub use messages::{
 };
 pub use projects::{ensure_project, list_projects, touch_project, ProjectSummary};
 pub use sub_agents::{
-    delete_sub_agent, get_sub_agent, list_all_sub_agents, list_sub_agents_for_parent,
-    record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
+    delete_sub_agent, get_sub_agent, list_sub_agents_for_parent, record_sub_agent_finished,
+    record_sub_agent_started, SubAgentSummary,
 };
 
 pub struct Db(Mutex<Connection>);
@@ -203,6 +203,22 @@ impl Db {
                 [],
             )
             .expect("failed to migrate conversation done flag");
+        }
+        // Existing databases predate recording a sub-agent's model/effort
+        // override. Same existence check as `title`/`duration_seconds` above.
+        let has_model = conn
+            .prepare("PRAGMA table_info(sub_agents)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "model"))
+            .expect("failed to inspect sub_agents schema");
+        if !has_model {
+            conn.execute("ALTER TABLE sub_agents ADD COLUMN model TEXT", [])
+                .expect("failed to migrate sub_agent model");
+            conn.execute("ALTER TABLE sub_agents ADD COLUMN effort TEXT", [])
+                .expect("failed to migrate sub_agent effort");
         }
         Db(Mutex::new(conn))
     }

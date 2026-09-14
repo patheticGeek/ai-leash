@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import { LS_KEYS } from "../lib/localStorageKeys";
-import { type AcpModelOptions, api } from "../lib/tauriApi";
+import { type AcpAgentOptions, api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -97,6 +97,48 @@ function saveAgentBackend(backend: AgentBackendSettings) {
   localStorageJson.write(LS_KEYS.agentBackend, backend);
 }
 
+// Only successful discoveries (`v !== null`) are ever persisted — a failed
+// one (`null`, the agent couldn't be reached) is deliberately dropped so
+// it's retried fresh on the next launch instead of staying permanently
+// stuck the way an in-memory-only cache with no retry logic would (see
+// `fetchAcpModelsFor`'s `agentId in get().acpModelCache` guard, which never
+// re-fetches anything already present — including a stale `null`).
+function loadAcpModelCache(): AcpSlice["acpModelCache"] {
+  return localStorageJson.read<AcpSlice["acpModelCache"]>(
+    LS_KEYS.acpModelCache,
+    {},
+  );
+}
+
+// Called after every change to `agentBackend.acpAgents`/`acpModelCache`:
+// (1) persists successful discoveries to localStorage so a restart doesn't
+// need to re-spawn a subprocess per agent, and (2) mirrors the whole
+// catalog down to the Rust backend (`AcpAgentCatalogEntry`/
+// `acp::sync_acp_agent_catalog`) so tool calls (`list_agent_options`,
+// `spawn_sub_agent`'s `agent` argument) can look one up without spawning
+// their own discovery subprocess either. Both are fire-and-forget/best
+// effort — a failed sync just means one or the other is briefly stale, not
+// anything worth surfacing to the user.
+function syncAcpModelCache(
+  agentBackend: AgentBackendSettings,
+  acpModelCache: AcpSlice["acpModelCache"],
+) {
+  const persistable = Object.fromEntries(
+    Object.entries(acpModelCache).filter(([, v]) => v !== null),
+  );
+  localStorageJson.write(LS_KEYS.acpModelCache, persistable);
+
+  void api.syncAcpAgentCatalog(
+    agentBackend.acpAgents.map((agent) => ({
+      id: agent.id,
+      label: agent.label,
+      launchCommand: agent.launchCommand,
+      modelOptions: acpModelCache[agent.id]?.model ?? null,
+      effortOptions: acpModelCache[agent.id]?.effort ?? null,
+    })),
+  );
+}
+
 // Which provider/agent (and which specific model) a given conversation is
 // actually using — kept per-session-id so switching conversations restores
 // what that one last used instead of showing whatever any other
@@ -136,13 +178,18 @@ function saveConversationBackendMap(
 
 export interface AcpSlice {
   agentBackend: AgentBackendSettings;
-  // Per-ACP-agent model list, keyed by `AcpAgentConfig.id`, populated by
-  // briefly spawning and discarding a real connection to that agent (see
-  // `fetchAcpModelsFor`) — an entry missing from this map means "not
-  // fetched yet"; `null` means "fetched, agent has no model option or
-  // failed to connect". Lets `ChatPanel`'s picker show per-model rows for
-  // an ACP agent before the user has ever actually chatted with it.
-  acpModelCache: Record<string, AcpModelOptions | null>;
+  // Per-ACP-agent model/effort options, keyed by `AcpAgentConfig.id`,
+  // populated by briefly spawning and discarding a real connection to that
+  // agent (see `fetchAcpModelsFor`) — an entry missing from this map means
+  // "not fetched yet"; `null` means "failed to connect" (as opposed to
+  // connecting fine but having no model/effort option, which is an
+  // `AcpAgentOptions` whose `model`/`effort` fields are themselves null).
+  // Lets `ChatPanel`'s picker show per-model rows for an ACP agent before
+  // the user has ever actually chatted with it, and is mirrored to the
+  // backend (see `syncAcpModelCache`) so tool calls can discover it too.
+  // Successful entries survive a restart (`loadAcpModelCache`); failures do
+  // not, so they're retried fresh next launch.
+  acpModelCache: Record<string, AcpAgentOptions | null>;
   // Per-conversation backend/model choice, keyed by session id — see
   // `ConversationBackendSelection`'s doc comment.
   conversationBackend: Record<string, ConversationBackendSelection>;
@@ -166,7 +213,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
   get,
 ) => ({
   agentBackend: loadAgentBackend(),
-  acpModelCache: {},
+  acpModelCache: loadAcpModelCache(),
   conversationBackend: loadConversationBackend(),
 
   saveAcpAgentConfig: (config) => {
@@ -189,6 +236,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
       );
       return { agentBackend, acpModelCache };
     });
+    syncAcpModelCache(get().agentBackend, get().acpModelCache);
     if (commandChanged) get().fetchAcpModelsFor(config.id);
   },
 
@@ -202,6 +250,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
       );
       return { agentBackend, acpModelCache };
     });
+    syncAcpModelCache(get().agentBackend, get().acpModelCache);
     get().reconcileDefaultBackend();
   },
 
@@ -222,6 +271,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
       set((s) => ({ acpModelCache: { ...s.acpModelCache, [agentId]: null } }));
     } finally {
       acpModelFetchesInFlight.delete(agentId);
+      syncAcpModelCache(get().agentBackend, get().acpModelCache);
     }
   },
 

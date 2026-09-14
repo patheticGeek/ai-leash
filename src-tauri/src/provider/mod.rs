@@ -10,6 +10,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
+pub(crate) const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
+
 /// Sent from the frontend on every call that talks to a model — there is no
 /// backend-persisted provider config, this mirrors how `model: String` is
 /// already passed per-call today. Tagged so it serializes to/from the
@@ -128,6 +130,7 @@ pub async fn stream_turn(
     touched_dirs: &[PathBuf],
     allow_subtasks: bool,
     message_id: Option<i64>,
+    effort: Option<&str>,
 ) -> Result<TurnResult, ProviderError> {
     match provider {
         ProviderConfig::Ollama { host } => {
@@ -144,6 +147,7 @@ pub async fn stream_turn(
                 touched_dirs,
                 allow_subtasks,
                 message_id,
+                effort,
             )
             .await
         }
@@ -162,6 +166,7 @@ pub async fn stream_turn(
                 touched_dirs,
                 allow_subtasks,
                 message_id,
+                effort,
             )
             .await
         }

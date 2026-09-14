@@ -223,6 +223,7 @@ pub async fn send_prompt(
         &session_id,
         &provider,
         &model,
+        None,
         true,
         false,
     )
@@ -259,6 +260,7 @@ pub async fn retry_last(
         &session_id,
         &provider,
         &model,
+        None,
         true,
         false,
     )
@@ -296,6 +298,7 @@ mod tests {
             git_watchers: Mutex::new(HashMap::new()),
             db: temp_db(),
             acp_sessions: Mutex::new(HashMap::new()),
+            acp_agent_catalog: Mutex::new(Vec::new()),
             mcp_bridge: Mutex::new(None),
             permission_bypass: Mutex::new(HashSet::new()),
             action_runs: Mutex::new(HashMap::new()),

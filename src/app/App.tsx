@@ -19,7 +19,6 @@ function App() {
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
-  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
@@ -47,20 +46,26 @@ function App() {
     return () => clearInterval(interval);
   }, [refreshProviderConnectivity]);
 
+  // `refreshAcpModelCache` is sequenced after `initializeStartupSession`
+  // resolves rather than fired in its own parallel effect: `fetch_acp_models`
+  // (the discovery subprocess spawn) requires a project root
+  // (`commands::get_root_path`), which `initializeStartupSession` is what
+  // actually sets (`api.setProjectRoot`) — running them in parallel let this
+  // race and fail with "no project open" before any project was picked,
+  // permanently caching a `null` for every agent for the rest of the app
+  // session (nothing ever retried a cached miss).
   useEffect(() => {
-    initializeStartupSession();
-  }, [initializeStartupSession]);
-
-  useEffect(() => {
-    loadSubAgentTasks();
-  }, [loadSubAgentTasks]);
-
-  // One-shot per launch, not polled — each fetch briefly spawns and kills a
-  // real subprocess per uncached ACP agent (see fetch_acp_models/acp.rs),
-  // so this is a "figure it out once at startup" cache, not a live check.
-  useEffect(() => {
-    refreshAcpModelCache();
-  }, [refreshAcpModelCache]);
+    (async () => {
+      await initializeStartupSession();
+      // One-shot per launch, not polled — each fetch briefly spawns and
+      // kills a real subprocess per not-yet-cached ACP agent (see
+      // fetch_acp_models/acp.rs); successful discoveries persist across
+      // restarts (see `acpSlice.ts`'s `loadAcpModelCache`), so this only
+      // actually does work for agents that were never (successfully)
+      // discovered before.
+      refreshAcpModelCache();
+    })();
+  }, [initializeStartupSession, refreshAcpModelCache]);
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no

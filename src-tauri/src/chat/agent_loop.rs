@@ -56,6 +56,7 @@ pub(super) async fn run_with_cancellation(
     scope_id: &str,
     provider: &ProviderConfig,
     model: &str,
+    effort: Option<&str>,
     allow_subtasks: bool,
     autonomous: bool,
 ) -> Result<(), String> {
@@ -80,6 +81,7 @@ pub(super) async fn run_with_cancellation(
         scope_id,
         provider,
         model,
+        effort,
         &cancel_flag,
         allow_subtasks,
     )
@@ -101,6 +103,7 @@ pub(super) async fn run_agent_loop(
     scope_id: &str,
     provider: &ProviderConfig,
     model: &str,
+    effort: Option<&str>,
     cancel_flag: &Arc<AtomicBool>,
     allow_subtasks: bool,
 ) -> Result<(), String> {
@@ -165,6 +168,7 @@ pub(super) async fn run_agent_loop(
                 &touched,
                 allow_subtasks,
                 assistant_message_id,
+                effort,
             )
             .await
             {

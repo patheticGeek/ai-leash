@@ -4,6 +4,11 @@
 export const LS_KEYS = {
   defaultBackend: "ai-leash:defaultBackend",
   agentBackend: "ai-leash:agentBackend",
+  // Successful ACP agent model/effort discoveries only — see
+  // `acpSlice.ts`'s `persistAcpModelCache`. A failed discovery (`null`) is
+  // deliberately never written here, so it gets retried on the next launch
+  // instead of staying permanently stuck.
+  acpModelCache: "ai-leash:acpModelCache",
   conversationBackend: "ai-leash:conversationBackend",
   providerConfig: "ai-leash:providerConfig",
   permissionMode: "ai-leash:permissionMode",

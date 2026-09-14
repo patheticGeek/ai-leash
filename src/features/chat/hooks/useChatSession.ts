@@ -64,7 +64,19 @@ export function useChatSession(
   const providerSettings = useAppStore((s) => s.providerSettings);
   const agentBackend = useAppStore((s) => s.agentBackend);
   const acpModelCache = useAppStore((s) => s.acpModelCache);
+  const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
   const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
+  // Retries discovery for any configured ACP agent still missing from the
+  // cache (never fetched yet, or a past attempt failed) every time this
+  // hook mounts — i.e. on every conversation switch, since this remounts
+  // per conversation (`App.tsx`'s `key={activeSessionId}`). `App.tsx`'s own
+  // startup call only runs once per launch, so an agent added afterward, or
+  // one whose earlier discovery failed transiently, would otherwise never
+  // get another chance until the app restarts. `refreshAcpModelCache`
+  // itself already no-ops for anything already cached, so this is cheap.
+  useEffect(() => {
+    refreshAcpModelCache();
+  }, [refreshAcpModelCache]);
   // This conversation's own backend/model choice — read once at mount (this
   // component remounts per conversation, via `App.tsx`'s `key={activeSessionId}`,
   // so `sessionId` is stable for its whole lifetime) from whatever it last
@@ -397,7 +409,8 @@ export function useChatSession(
       // strictly fresher, and covers the rare case where the cache fetch
       // failed but a real chat still succeeded.
       const known =
-        acpModelCache[c.id] ?? (c.id === acpActiveId ? acpModelOptions : null);
+        acpModelCache[c.id]?.model ??
+        (c.id === acpActiveId ? acpModelOptions : null);
       if (known && known.options.length > 0) {
         return known.options.map((o) => ({
           key: `acp:${c.id}:${o.value}`,
@@ -421,7 +434,7 @@ export function useChatSession(
     acpModelChoice ??
     acpModelOptions?.currentValue ??
     (activeAcpAgent
-      ? acpModelCache[activeAcpAgent.id]?.currentValue
+      ? acpModelCache[activeAcpAgent.id]?.model?.currentValue
       : undefined) ??
     null;
   const activeBackendKey = isAcp
