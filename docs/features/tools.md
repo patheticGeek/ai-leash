@@ -1,136 +1,119 @@
-# Default tools & permissions
+# Tools and permissions
 
-Tool schemas and execution live in `src-tauri/src/tools/`;
-`tool_definitions()`
-returns the JSON (OpenAI/Ollama function-calling format) sent with every
-`/api/chat` request, and `execute_tool()` dispatches a called tool by
-name.
+The agent can do more than answer questions. With access to your project, it
+can inspect files, search for information, make changes, run commands, and
+keep track of useful project context. These tools let it investigate a task
+and carry out the work instead of only describing what you could do yourself.
 
-## Tool list
+## What the agent can do
 
-| Tool | Params | Permission? | Notes |
-|---|---|---|---|
-| `read_file` | `path`, `offset?`, `limit?` | No | See "Partial reads" below. |
-| `edit_file` | `path`, `old_string`, `new_string` | Yes (`edit`) | Exact-match find/replace, not full overwrite. |
-| `write_file` | `path`, `content` | Yes (`edit`) | Full create/overwrite. |
-| `list_dir` | `path` (`.` for root) | No | Hides the same `IGNORED_NAMES` as the sidebar. |
-| `grep` | `pattern` (regex), `path?` | No | Walks with the `ignore` crate, so it respects `.gitignore`. |
-| `update_memory` | `scope` (`"project"` \| `"global"`), `content` | Yes (`edit`) | Full overwrite of that scope's `MEMORY.md` — see [context-and-memory.md](./context-and-memory.md). |
-| `shell` | `command` | Yes (`shell`) | Runs via `sh -c`, capped at 30s. |
-| `create_action` | `name`, `command` | Yes (`edit`) | Defines a named project Action in `.ai-leash/actions.json`. |
-| `list_actions` | none | No | Lists named project Actions and their running state. |
-| `run_action` | `name` | No | Starts a named project Action in a persistent PTY. |
-| `read_action` | `name` | No | Reads buffered output from an Action. |
-| `stop_action` | `name` | No | Stops a running project Action. |
-| `load_skill` | `name` | No | Fetches a skill's full body — see [context-and-memory.md](./context-and-memory.md). Only offered to the model at all when the project actually has at least one discoverable skill. |
-| `spawn_sub_agent` | `tasks: [{description, prompt}, ...]` | No (its own sub-actions are still gated individually) | Delegates one or more subtasks to isolated sub-agents. Always returns immediately, without waiting on any of them — see [agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool). Only offered to top-level sessions, never to a sub-agent's own session. |
-| `list_sub_agents` | none | No | Lists sub-agents spawned by this session (running and finished), most recent first. Same gating as `spawn_sub_agent`. |
-| `read_sub_agent` | `sub_session_id`, `offset?`, `limit?` | No | Full prompt + transcript of one sub-agent this session spawned, paginated like `read_file`. Same gating as `spawn_sub_agent`. Tolerates a bare UUID (missing the `{parent}::spawn_sub_agent::` prefix) by reconstructing the full id — models sometimes copy just the `sub_session_id` suffix they see in a `sub_agent_result` tool call. Still rejects ids that don't actually belong to the calling session. |
+### Explore your project
 
-`sub_agent_result` isn't a real, callable tool — it's a synthetic tool
-call/result pair the backend injects into a session's history whenever a
-background-spawned sub-agent finishes, so its result shows up in the
-transcript the same way a real tool call does rather than as an
-invisible dangling message. See
-[agent-chat.md](./agent-chat.md#sub-agents-the-spawn_sub_agent-tool).
+The agent can:
 
-All string arguments pulled from tool calls pass through
-`fix_literal_escapes()` first: if a string has **zero** real newline
-characters but **does** contain a literal two-character `\n`, it's
-treated as a local model having double-escaped its JSON string content,
-and those literal escapes are converted back to real newlines/tabs. This
-guards against a real failure mode seen with smaller quantized models,
-without touching strings that already contain real newlines (where a
-literal `\n` substring is far more likely to be intentional, e.g. in a
-regex).
+- Read files, including selected sections of large files.
+- List the files and folders in your project.
+- Search across project files for text or patterns.
 
-Every tool's string output is truncated to **`MAX_TOOL_OUTPUT` = 20,000
-characters** (with a `...[truncated]` suffix) before being fed back to
-the model.
+These are read-only activities, so they do not change your project and do not
+need an approval prompt.
 
-### Why `edit_file` isn't a full-file overwrite
+### Make changes
 
-An earlier version of `edit_file` took the whole new file content and
-overwrote the file. In practice, a local model asked to reproduce an
-entire file (to add one line) would sometimes silently drop or corrupt
-content it didn't retype faithfully — the model doesn't need read
-access to know what it's overwriting, so mistakes were invisible until
-the file was already wrong on disk.
+When you ask the agent to work on your project, it can:
 
-The current design instead requires an exact `old_string` → `new_string`
-replacement:
-- The tool description explicitly tells the model to call `read_file`
-  first and copy `old_string` verbatim.
-- If `old_string` isn't found in the file, or matches more than once,
-  the tool returns a plain-text explanation (not an error) telling the
-  model to re-read the file or add more surrounding context — this
-  keeps the model in the loop to self-correct instead of the operation
-  silently failing or guessing.
-- Only a genuinely new/replacement file should use `write_file`.
+- Edit part of an existing file.
+- Create a new file or replace the contents of an existing file.
+- Update project or general notes that help it remember useful context in
+  future conversations.
+- Create named Actions for commands you use regularly.
 
-### Partial reads (`read_file`, `read_sub_agent`)
+Before a change is made, the app shows you what the agent wants to change,
+including a readable before-and-after view for file edits. You can review it
+before deciding whether to approve it.
 
-Both tools share the same `paginate_lines()` helper
-(`src-tauri/src/tools/`):
-- `offset` is 1-based; `limit` defaults to **`DEFAULT_READ_LIMIT` =
-  2000** lines.
-- If the requested range doesn't cover the whole thing, the result has a
-  trailing note: `[showing lines A-B of N in <label>; call <tool> again
-  with offset=B+1 to continue]`.
-- Requesting an `offset` past the end returns a plain message instead of
-  an empty read.
-- `read_file`'s tool description explicitly nudges the model to use
-  `grep` or a small `limit` first on large files, rather than reading
-  everything.
+### Run commands
 
-### `grep`
+The agent can run a command in your project to inspect its output, perform a
+task, or check its work. Commands run for a limited time and the result is
+returned to the conversation.
 
-Results are capped at **`MAX_GREP_RESULTS` = 200** matches, formatted as
-`path:line: content` (path relative to the project root, line content
-trimmed). Binary/unreadable files are silently skipped.
+You can also create named Actions for recurring commands, such as starting a
+development server. Creating an Action requires approval. Once you have
+approved and created it, the agent can start, stop, and check that Action
+without asking you to approve the same predefined command every time.
 
-### `shell`
+For longer-running work, see [terminal.md](./terminal.md).
 
-Runs `sh -c "<command>"` with the project root as the working directory,
-via `tokio::process::Command`, with a hard **30-second timeout**.
-Combined stdout + (if non-empty) a `[stderr]` section + stderr, plus a
-trailing `[exit code: N]` line, truncated like any other tool output.
-This is a one-shot command runner for the agent, separate from the
-interactive PTY terminal (see [terminal.md](./terminal.md)) — it doesn't
-stream live output to the UI, only the final combined result once the
-command exits.
+### Work with additional agent help
 
-## Permissions
+When available, the agent can delegate separate pieces of work to background
+sub-agents. It can then show you which sub-agents are running and read their
+results. Any actions those sub-agents want to take are still subject to the
+permission rules.
 
-`shell`, `edit_file`, `write_file`, and `update_memory` require approval
-before doing anything. `request_permission()` (`src-tauri/src/tools/permissions.rs`) generates a UUID, stores a
-`tokio::sync::oneshot::Sender<bool>` for it in
-`AppState.pending_permissions`, emits a `permission://request` event
-with `{ id, sessionId, kind: "shell" | "edit" | "acp", title, detail }`,
-and `.await`s the receiver — the whole tool call (and the agent loop)
-blocks until the user responds. `sessionId` is what routes the request to
-the right project's UI — a sub-agent's tool call carries its own synthetic
-session id, not its parent's (see [ui-shell.md](./ui-shell.md)).
+For more about this, see [agent-chat.md](./agent-chat.md#sub-agents).
 
-`ChatPanel.tsx` renders it via `PermissionPopover.tsx`, a box popover
-anchored above that project's textarea (only shown when
-`permissionForSession` — `store/permissionSlice.ts` — resolves a match for the currently
-open session):
-- `shell` — the raw command in a monospace block.
-- `edit` — a line-by-line diff (`+`/`-`/` ` prefixed, colored
-  green/red/gray), built server-side by `diff_text()` using the
-  `similar` crate (`TextDiff::from_lines`) — used for `edit_file`,
-  `write_file`, and `update_memory`.
+### Use project skills
 
-Approve/Deny calls `respond_permission(id, approved)`, which looks up
-and fires the stored oneshot sender, then emits `permission://resolved
-{ id }` so every subscriber (not just whichever popover instance called
-it) clears it from `pendingPermissions` — needed since a sub-agent's
-request is answered from its *parent* project's popover, not one of its
-own. If denied, the tool returns a plain-text "the user denied
-permission..." result (not an error) so the model can adapt (e.g. ask the
-user what they'd prefer) rather than the turn just failing.
+Projects may provide optional skills with specialized instructions. The
+agent can load one when it is relevant to your request. Skills add guidance
+for a particular kind of work; they do not bypass the app's permission
+controls.
 
-There's currently no "always allow" / remembered-permission option —
-every shell command and every edit is approved individually, every
-time.
+For more about skills and remembered context, see
+[context-and-memory.md](./context-and-memory.md).
+
+## Why permission prompts appear
+
+Some actions can change files, alter project settings, or execute commands.
+Those actions may have consequences beyond the current conversation, so the
+app asks for your approval before allowing them.
+
+In **Ask** mode, you receive a prompt whenever the agent requests permission
+for an action that needs it. The prompt explains what the agent wants to do:
+
+- For a file change, you can review the proposed additions, removals, and
+  surrounding unchanged lines.
+- For a command, you can read the command before it runs.
+- For another approved operation, you can review the description shown by the
+  prompt.
+
+The agent waits for your decision. Nothing is changed or run until you
+approve it.
+
+## Your choices
+
+When a prompt appears, choose:
+
+- **Approve** to allow that specific request.
+- **Deny** to block it. The agent is told that you denied the request and can
+  adjust its approach or ask what you would prefer.
+
+There is no separate "always allow this action" choice on an individual
+prompt. In Ask mode, later file changes and commands produce their own
+prompts, so you remain involved in each approval.
+
+The permission control beside the chat input also lets you choose:
+
+- **Ask** — show a prompt before every action that needs approval. This is
+  the default and gives you the most oversight.
+- **Bypass** — automatically approve permission requests for the current
+  conversation, without showing prompts. Use this only when you are
+  comfortable letting the agent carry out those actions on your behalf. You
+  can switch back to Ask at any time.
+
+Read-only exploration does not require permission in either mode. Actions
+that you have already defined are also treated as pre-approved when the
+agent starts or stops them.
+
+## Staying in control
+
+The agent works within the project you opened, and permission prompts give
+you a chance to inspect consequential actions before they happen. You can
+keep Ask mode enabled while reviewing changes one at a time, deny anything
+that does not match your intent, or use Bypass for a conversation where you
+want the agent to work with fewer interruptions.
+
+If you are unsure what a proposed command or change will do, deny it and ask
+the agent to explain or take a safer, smaller step.

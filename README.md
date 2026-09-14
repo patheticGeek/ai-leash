@@ -18,9 +18,11 @@ backend, not a bundled Chromium.
   - [Agent chat](#agent-chat)
   - [Sub-agents](#sub-agents)
   - [AGENTS.md, memory & skills](#agentsmd-memory--skills)
+  - [Conversation history](#conversation-history)
   - [Editor & file tree](#editor--file-tree)
   - [Terminal](#terminal)
   - [Actions](#actions)
+  - [Crash log](#crash-log)
   - [Everything else](#everything-else)
 - [Install](#install)
   - [Linux](#linux)
@@ -35,8 +37,9 @@ backend, not a bundled Chromium.
 
 The center pane is a chat with a real agent loop behind it: tool calls,
 streaming responses, retry/regenerate, and per-turn token usage against
-the model's context window. Choose a configured model or external agent
-from the dropdown.
+the model's context window. Queue a follow-up while the agent works, stop a
+turn that is no longer useful, or use slash commands for common tasks such as
+clearing or compacting a conversation.
 
 Tool calls (file reads/edits, shell commands) show up inline, collapsed
 by default with the raw args one click away, and destructive ones
@@ -44,7 +47,8 @@ by default with the raw args one click away, and destructive ones
 
 The built-in runtime supports multiple model providers, and the
 [Agent Client Protocol](https://agentclientprotocol.com) backend can
-drive external agents such as Claude Code and GitHub Copilot CLI.
+drive external agents such as Claude Code and GitHub Copilot CLI. Each
+conversation retains its own provider, model, and compatible agent controls.
 
 ### Sub-agents
 
@@ -67,6 +71,14 @@ Skills are single markdown files the model can load on demand by name
 plain-text memory file gives the agent durable notes across sessions —
 both scoped the same way, project and global.
 
+### Conversation history
+
+Conversations, tool activity, and completed-turn timing are saved locally as
+you work, then restored when you reopen the app. Keep separate threads for
+different tasks or projects, mark finished work as done to tuck it away, and
+delete a thread when you no longer need its transcript. Sub-agent work stays
+with the conversation that created it, so you can review it later.
+
 ### Editor & file tree
 
 CodeMirror 6 with syntax highlighting for the common languages, a lazy
@@ -74,36 +86,45 @@ file tree that only fetches a directory's contents when you expand it,
 and every filesystem operation — editor and agent tools alike — checked
 against the project root so nothing can read or write outside it.
 
+Open several files alongside the chat, edit them directly, and save with
+`Ctrl+S` or `Command+S`. The tree refreshes after changes made by the agent,
+your terminal, or another program.
+
 ### Terminal
 
 A real interactive terminal (xterm.js + a PTY on the backend), not a
 sandboxed command box. Open more than one, they persist in the
-background when you switch tabs. Separate from the agent's own `shell`
-tool, which is a one-shot command runner with its own 30s timeout and
-output cap.
+background when you switch tabs, and use them for commands you want to run
+yourself. This is separate from the agent's own `shell` tool, which returns
+a one-shot command result in the conversation.
 
 ### Actions
 
 Define named project commands such as `dev → npm run dev` in the
 project's `.ai-leash/actions.json`. Actions run in their own persistent
-PTY, can be started or stopped from the Actions panel, and expose their
-output to the built-in agent. The same action interface is available to
-ACP agents through the local MCP bridge.
+terminal, can be started or stopped from the Actions panel, and expose their
+live output to you and the built-in agent. Once you approve an Action's saved
+command, the agent can reuse it without asking you to approve that same
+predefined command every time. The same action interface is available to ACP
+agents through the local MCP bridge.
+
+### Crash log
+
+When the app encounters an error, it records the details locally—even when
+the window stays open. Open **Settings → Crash log** to review, copy, refresh,
+or clear those entries before reporting a problem.
 
 ### Everything else
 
-- Conversation history persisted to SQLite, restored on reopen.
 - A left-sidebar project switcher — recent projects sorted by last
-  activity, with a live indicator when one's generating in the
-  background.
+  activity, with live indicators when a conversation is generating in the
+  background or waiting for an approval.
 - Resizable panels throughout, markdown rendering for assistant
   messages, and a debounced filesystem watcher that keeps the file tree
   in sync with edits made by the agent, terminal commands, builds, or
   changes made outside the app.
 
-See [docs/features](./docs/features) for the actual implementation
-detail behind all of the above — it's a running build log kept in sync
-with the code, not marketing copy.
+See [docs/features](./docs/features) for guides to using each feature.
 
 ## Install
 
