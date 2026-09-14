@@ -91,6 +91,15 @@ fn spawn_pty(
 
     let id = Uuid::new_v4().to_string();
     let data_event = format!("pty://{}/data", id);
+    // Fires once the reader hits EOF/an error — either the process actually
+    // exited, or `pty_kill` closed the pty out from under it, since either
+    // way there's nothing left to read. `TerminalPanel.tsx` is the one
+    // consumer that cares (an interactive shell going silent with no
+    // explanation); it unsubscribes before calling `pty_kill` itself on
+    // unmount, same as its `data_event` listener, so a deliberate close
+    // never shows a stray "process exited". `ActionTerminalTab.tsx` doesn't
+    // listen to this — it already gets accurate running/stopped status from
+    // the polled Actions list (`is_running`, above).
     let exit_event = format!("pty://{}/exit", id);
 
     let app_handle = app.clone();
