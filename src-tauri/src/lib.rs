@@ -105,6 +105,7 @@ pub fn run() {
             chat::history::set_message_duration,
             chat::history::get_conversation_title,
             chat::history::set_conversation_title,
+            chat::history::set_conversation_done,
             chat::clear_conversation,
             chat::compact_conversation,
             chat::history::list_sub_agents,
