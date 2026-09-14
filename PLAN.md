@@ -40,12 +40,58 @@ app → commit → next phase. This file is updated after every phase.
 - Nothing consumes these yet; inert change, typecheck + lint clean.
 - **Status: implemented, awaiting user verification + commit.**
 
-### Phase 1 — Poll-only data → `useQuery` with `refetchInterval`
-- Actions (`useActions`): one `useQuery(["actions", sessionId])`, consumed
-  by `TitleBarActions`, `ActionsTab`, `ActionTerminalTab` — collapses 3
-  independent 2s pollers into 1.
-- Ollama models, provider connectivity: same treatment for consistency.
-- **Status: not started.**
+### Phase 1 — Poll-only data → `useQuery` with `refetchInterval` ✅ done (uncommitted)
+- `useActions` (`src/features/actions/useActions.ts`) now backed by
+  `useQuery(actionsQueryKey(checkoutPath))` with `refetchInterval: 2000`
+  instead of its own `setState`/`setInterval`. Returns `{ actions, refresh,
+  checkoutPath }` (see Correction 2 below for why `checkoutPath` and not
+  `sessionId`); `TitleBarActions`/`ActionsTab` updated to match.
+- `ActionTerminalTab.tsx` no longer runs its own independent
+  `setInterval(sync, 2000)` + `listActions` call; it now consumes the same
+  `actionsQueryKey(checkoutPath)` query (via `useQuery`, same key as above)
+  and re-runs its attach/detach logic in a `useEffect` keyed on the query's
+  `data`. Collapses what was 3 independent 2s pollers of `listActions` down
+  to 1.
+- Ollama models / provider connectivity polls: left as-is for this pass —
+  each was already a single shared poll (not duplicated), so there's no bug
+  to fix; migrating them to `useQuery` is cosmetic/consistency-only and
+  lower priority than the duplication fixes. Deferred, can revisit later.
+- **Correction 1**: the query was initially keyed on `sessionId`. User
+  caught that this doesn't match the backend's actual granularity —
+  confirmed via investigation that `actions.rs`'s `run_key` (and everything
+  derived from it: `action_runs`, running ptys) is keyed by the *resolved
+  checkout path*, not session id, and a session id maps to a checkout path
+  many-to-one (every new conversation defaults to the primary root;
+  worktrees can be shared too). Keying the frontend cache on `sessionId`
+  would have kept two conversations sharing a checkout on two separate
+  cache entries/polls for what the backend treats as identical state.
+  Fixed: added `conversationCheckoutPath()` (`src/store/
+  conversationSlice.ts`) and `useActiveCheckoutPath()` (`src/lib/
+  useActiveCheckoutPath.ts`), query key switched to the resolved checkout
+  path.
+- **Correction 2**: after correction 1, the query *key* was the checkout
+  path but the `queryFn` still called `api.listActions(sessionId)` — key
+  and fetcher params had drifted apart (an anti-pattern: the queryFn's
+  actual inputs should always be exactly what the key is, so they can't
+  silently diverge). Traced why: the Tauri commands themselves
+  (`list_actions`, `create_action`, `update_action`, `delete_action`,
+  `run_action_cmd`, `stop_action_cmd`, `action_backlog` — `src-tauri/src/
+  actions.rs`) took `session_id: String` and resolved it to `root: &Path`
+  server-side via `get_session_root`, purely so the frontend didn't have to
+  pass a path. But the frontend already has the path (that's the query
+  key), and the agent-tool-facing side of these same functions
+  (`action_tools.rs`) already calls the inner `root`-based functions
+  directly, bypassing session id entirely — so the session-id parameter on
+  these 7 commands was serving no one. Changed all 7 to take
+  `checkout_path: String` directly (dropped the now-unused `state`
+  param from the 4 commands where it had no other use); updated
+  `tauriApi.ts`'s 7 wrappers and all call sites (`useActions.ts`,
+  `ActionTerminalTab.tsx`, `ActionsTab.tsx`, `TitleBarActions.tsx`) to pass
+  `checkoutPath` throughout. `useActions()` now returns `checkoutPath`
+  instead of `sessionId`.
+- typecheck + lint + `cargo clippy` + `cargo fmt --check` + `cargo test`
+  (actions module) all clean.
+- **Status: implemented, awaiting user verification + commit.**
 
 ### Phase 2 — Push-driven data → `useQuery` + event-fed cache
 - Git branch: `useQuery(["git-branch", path])`, fetched once, kept fresh by
