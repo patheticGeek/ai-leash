@@ -20,7 +20,8 @@ pub use acp_sessions::{
 };
 pub use conversations::{
     clear_conversation, conversation_exists, delete_conversation, get_conversation_title,
-    list_all_conversations, set_conversation_title, set_conversation_worktree, ConversationSummary,
+    list_all_conversations, set_conversation_done, set_conversation_title,
+    set_conversation_worktree, ConversationSummary,
 };
 pub use messages::{
     finish_streaming_message, load_messages, save_message, set_message_duration,
@@ -67,6 +68,7 @@ impl Db {
                 project_root TEXT NOT NULL,
                 project_id TEXT,
                 title TEXT,
+                done INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
@@ -184,6 +186,23 @@ impl Db {
                 [],
             )
             .expect("failed to migrate conversation worktree path");
+        }
+        // Existing databases predate the "done" flag. Same existence check as
+        // `title`/`duration_seconds`/`worktree_path` above.
+        let has_done = conn
+            .prepare("PRAGMA table_info(conversations)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "done"))
+            .expect("failed to inspect conversations schema");
+        if !has_done {
+            conn.execute(
+                "ALTER TABLE conversations ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .expect("failed to migrate conversation done flag");
         }
         Db(Mutex::new(conn))
     }

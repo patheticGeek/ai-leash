@@ -21,29 +21,33 @@ export interface ChatEntryListProps {
   onRetry: () => void;
 }
 
-// Whether the assistant text entry at `i` is the last chunk of its turn —
-// a turn's reply can be split into several text entries by tool calls
-// interleaved in between (see the backend's `TurnSegment`), and only the
-// final chunk should show the copy/timestamp/"Worked for" footer, not every
-// intermediate one.
-function isFinalAssistantChunk(
+// Whether the assistant text entry at `i` is the last chunk of its reply
+// group — a turn's reply can be split into several text entries by tool
+// calls interleaved in between (see the backend's `TurnSegment`), and only
+// the group's final chunk should show the copy/timestamp/"Worked for"
+// footer, not every intermediate one. A group is "closed" once a later user
+// text entry shows up (a new turn has definitely started, so this group is
+// done regardless of whether the agent is still sending); otherwise this
+// chunk trails off the end of `entries` and is still part of whatever's
+// actively being sent, so its footer stays hidden until `sending` clears.
+// (An earlier version gated on `i < entries.length - 1` instead of whether
+// the group was closed, which hid footers on *every* earlier, already-closed
+// group too the moment any new turn started sending.)
+function isVisibleFinalChunk(
   entries: PanelEntry[],
   i: number,
   sending: boolean,
 ): boolean {
+  let groupClosed = false;
   for (let j = i + 1; j < entries.length; j++) {
     const e = entries[j];
     if (e.kind === "text") {
       if (e.role === "assistant") return false;
+      groupClosed = true;
       break;
     }
   }
-  // No later assistant text exists *yet* — but while the turn is still
-  // generating, a tool call already appended after this chunk (thinking/
-  // tool entries) can still resolve into more text, so this chunk isn't
-  // provably final until the turn finishes. Only the entry with nothing at
-  // all after it is the one actively streaming right now.
-  if (sending && i < entries.length - 1) return false;
+  if (!groupClosed && sending) return false;
   return true;
 }
 
@@ -150,9 +154,8 @@ export default function ChatEntryList({
   function renderEntry(i: number) {
     const entry = entries[i];
     const showFooter =
-      entry.kind !== "text" ||
-      entry.role === "user" ||
-      isFinalAssistantChunk(entries, i, sending);
+      entry.kind === "text" &&
+      (entry.role === "user" || isVisibleFinalChunk(entries, i, sending));
     return (
       <ChatEntryRenderer
         key={i}

@@ -91,6 +91,8 @@ export interface ConversationSummary {
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches SubAgentSummary.startedAt
+  // Sidebar organization only — see `setConversationDone`.
+  done: boolean;
   // Non-null only when this conversation runs in a worktree instead of the
   // project's primary checkout — see `BranchBar`. Never a branch name: what
   // that path has checked out can change from outside the app, so the
@@ -194,6 +196,8 @@ export const api = {
     invoke<string | null>("get_conversation_title", { sessionId }),
   setConversationTitle: (sessionId: string, title: string | null) =>
     invoke<void>("set_conversation_title", { sessionId, title }),
+  setConversationDone: (sessionId: string, done: boolean) =>
+    invoke<void>("set_conversation_done", { sessionId, done }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
   compactConversation: (

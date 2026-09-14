@@ -20,6 +20,10 @@ pub struct ConversationSummary {
     pub project_root: String,
     pub title: Option<String>,
     pub updated_at: i64,
+    /// Whether the conversation has been marked done in the sidebar — see
+    /// `set_conversation_done`. Purely a user-facing organizational flag,
+    /// doesn't affect anything else about the conversation.
+    pub done: bool,
     /// The conversation's own worktree path, if it was started in one
     /// instead of the primary checkout — see `set_conversation_worktree`.
     /// Never a branch name: what's checked out at this path can change from
@@ -40,7 +44,7 @@ pub struct ConversationSummary {
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
-        "SELECT id, project_id, project_root, title, updated_at, worktree_path \
+        "SELECT id, project_id, project_root, title, updated_at, worktree_path, done \
          FROM conversations \
          WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
     ) else {
@@ -54,6 +58,7 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
             title: row.get(3)?,
             updated_at: row.get(4)?,
             worktree_path: row.get(5)?,
+            done: row.get(6)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
@@ -175,6 +180,17 @@ pub fn set_conversation_title(db: &Db, conversation_id: &str, title: Option<&str
     let _ = conn.execute(
         "UPDATE conversations SET title = ?1 WHERE id = ?2",
         params![title, conversation_id],
+    );
+}
+
+/// Marks or unmarks a conversation as done — sidebar organization only,
+/// doesn't change its activity order (see `set_conversation_title`, which
+/// this mirrors).
+pub fn set_conversation_done(db: &Db, conversation_id: &str, done: bool) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE conversations SET done = ?1 WHERE id = ?2",
+        params![done, conversation_id],
     );
 }
 

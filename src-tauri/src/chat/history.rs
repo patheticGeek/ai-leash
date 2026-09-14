@@ -77,6 +77,16 @@ pub fn set_conversation_title(
     Ok(())
 }
 
+#[tauri::command]
+pub fn set_conversation_done(
+    state: State<'_, AppState>,
+    session_id: String,
+    done: bool,
+) -> Result<(), String> {
+    db::set_conversation_done(&state.db, &session_id, done);
+    Ok(())
+}
+
 /// Every top-level conversation across every known project — the
 /// sidebar's own scope, same cross-project reasoning as `list_sub_agents`
 /// below. See `db::list_all_conversations`.

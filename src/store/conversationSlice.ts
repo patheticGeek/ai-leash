@@ -10,6 +10,10 @@ export interface ConversationSummary {
   projectRoot: string;
   title: string | null;
   updatedAt: number; // epoch seconds, matches the backend's `ConversationSummary`
+  // Sidebar organization only — see `setConversationDone`. Marked done
+  // conversations sort to their own collapsed section at the bottom of
+  // `LeftBar` instead of the main list.
+  done: boolean;
   // Non-null only when this conversation runs in a worktree instead of the
   // project's primary checkout — see `BranchBar`. Never a branch name: what's
   // checked out there can change outside the app, so the frontend always
@@ -58,6 +62,7 @@ export interface ConversationSlice {
   ) => void;
   touchConversationActivity: (id: string) => void;
   setConversationTitle: (id: string, title: string | null) => void;
+  setConversationDone: (id: string, done: boolean) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
 }
 
@@ -265,6 +270,7 @@ export const conversationSlice: StateCreator<
                 projectRoot,
                 title: null,
                 updatedAt: nowSeconds(),
+                done: false,
                 worktreePath,
               },
               ...s.conversations,
@@ -288,6 +294,19 @@ export const conversationSlice: StateCreator<
         c.id === id ? { ...c, title } : c,
       ),
     })),
+
+  // Optimistic like `setConversationTitle`, but round-trips to the backend
+  // (unlike title, which the backend derives itself) since "done" has no
+  // other source of truth to reconcile against on the next
+  // `loadAllConversations`.
+  setConversationDone: async (id, done) => {
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === id ? { ...c, done } : c,
+      ),
+    }));
+    await api.setConversationDone(id, done);
+  },
 
   // Removes a conversation for good — the backend cascades its own
   // messages/title/ACP-session rows *and* every sub-agent it spawned (sub-

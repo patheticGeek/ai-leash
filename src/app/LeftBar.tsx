@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  Check,
   Folder,
   FolderPlus,
   GitBranch,
@@ -8,6 +9,7 @@ import {
   SettingsIcon,
   ShieldAlert,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/ui/button";
@@ -40,12 +42,14 @@ function ConversationRow({
   active,
   onClick,
   onContextMenu,
+  onMarkDone,
 }: {
   conversation: ConversationSummary;
   projectName: string;
   active: boolean;
   onClick: () => void;
   onContextMenu: (event: MouseEvent) => void;
+  onMarkDone: () => void;
 }) {
   const generating = useAppStore(
     (s) => !!s.generatingSessions[conversation.id],
@@ -71,15 +75,8 @@ function ConversationRow({
       : "primary");
 
   return (
-    <Button
-      variant="unstyled"
-      size="none"
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      title={
-        awaitingApproval ? `${projectName} — needs your approval` : projectName
-      }
-      className={`mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md px-3 py-2 text-sm text-left ${
+    <div
+      className={`group mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center rounded-md px-3 py-2 text-sm ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -89,8 +86,19 @@ function ConversationRow({
           : ""
       }`}
     >
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 mb-1.5">
+      <Button
+        variant="unstyled"
+        size="none"
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        title={
+          awaitingApproval
+            ? `${projectName} — needs your approval`
+            : projectName
+        }
+        className="flex min-w-0 flex-1 flex-col items-start text-left gap-2"
+      >
+        <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
           <span className="min-w-0 flex-1 truncate text-zinc-200">
             {conversation.title || "New conversation"}
           </span>
@@ -108,24 +116,86 @@ function ConversationRow({
               </span>
             )
           )}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Mark as done"
+            onClick={(event) => {
+              event.stopPropagation();
+              onMarkDone();
+            }}
+            className="absolute right-0 z-10 gap-1 -mr-2 px-1.5 text-xs bg-white/5 text-zinc-500 opacity-0 hover:text-emerald-400 group-hover:opacity-100"
+          >
+            <Check size={12} />
+            done
+          </Button>
         </span>
 
-        <span className="flex items-center gap-1 text-xs text-zinc-500">
-          <Folder size={10} className="shrink-0" />
+        <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
+          <Folder className="size-2.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate" title={projectAndWorkspace}>
             {projectAndWorkspace}
           </span>
           {branchName && (
             <>
-              <GitBranch size={10} className="shrink-0" />
+              <GitBranch className="size-2.5 shrink-0" />
               <span className="max-w-24 shrink-0 truncate" title={branchName}>
                 {branchName}
               </span>
             </>
           )}
         </span>
-      </span>
-    </Button>
+      </Button>
+    </div>
+  );
+}
+
+// Done conversations only show their title and a way back — see `LeftBar`'s
+// collapsed "Done" section.
+function DoneConversationRow({
+  conversation,
+  active,
+  onClick,
+  onContextMenu,
+  onUndo,
+}: {
+  conversation: ConversationSummary;
+  active: boolean;
+  onClick: () => void;
+  onContextMenu: (event: MouseEvent) => void;
+  onUndo: () => void;
+}) {
+  return (
+    <div
+      className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md text-sm ${
+        active
+          ? "bg-white/10 text-zinc-100"
+          : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+      }`}
+    >
+      <Button
+        variant="unstyled"
+        size="none"
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+        title={conversation.title || "New conversation"}
+        className="min-w-0 flex-1 justify-start truncate text-left px-3 py-2"
+      >
+        {conversation.title || "New conversation"}
+      </Button>
+      <Button
+        variant="ghost"
+        title="Mark as not done"
+        onClick={(event) => {
+          event.stopPropagation();
+          onUndo();
+        }}
+        className="shrink-0 text-zinc-500 hover:text-zinc-200 py-4 px-3"
+      >
+        <Undo2 size={14} />
+      </Button>
+    </div>
   );
 }
 
@@ -135,6 +205,7 @@ export default function LeftBar() {
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openConversation = useAppStore((s) => s.openConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
+  const setConversationDone = useAppStore((s) => s.setConversationDone);
   const addProject = useAppStore((s) => s.addProject);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
@@ -150,6 +221,11 @@ export default function LeftBar() {
   // projects, all conversations," matching the flat list this sidebar
   // already showed before this filter existed.
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  // Collapsed by default — only the 3 most recently-done conversations show
+  // until expanded, so a long "done" backlog doesn't push active
+  // conversations out of view.
+  const [doneExpanded, setDoneExpanded] = useState(false);
+  const DEFAULT_VISIBLE_DONE = 3;
 
   async function onAddProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -252,9 +328,18 @@ export default function LeftBar() {
     };
   }, []);
 
-  const sortedConversations = [...conversations]
-    .filter((c) => !projectFilter || c.projectRoot === projectFilter)
+  const filteredConversations = conversations.filter(
+    (c) => !projectFilter || c.projectRoot === projectFilter,
+  );
+  const sortedConversations = filteredConversations
+    .filter((c) => !c.done)
     .sort((a, b) => b.updatedAt - a.updatedAt);
+  const doneConversations = filteredConversations
+    .filter((c) => c.done)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const visibleDoneConversations = doneExpanded
+    ? doneConversations
+    : doneConversations.slice(0, DEFAULT_VISIBLE_DONE);
 
   return (
     <div className="relative flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
@@ -293,34 +378,75 @@ export default function LeftBar() {
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
-        {sortedConversations.length === 0 ? (
+        {sortedConversations.length === 0 && doneConversations.length === 0 ? (
           <div className="px-3 py-6 text-center text-xs text-zinc-600">
             {projectFilter
               ? "No conversations for this project"
               : "No conversations yet"}
           </div>
         ) : (
-          sortedConversations.map((c) => (
-            <ConversationRow
-              key={c.id}
-              conversation={c}
-              projectName={
-                recentProjects.find((p) => p.path === c.projectRoot)?.name ??
-                c.projectRoot
-              }
-              active={c.id === activeSessionId}
-              onClick={() => openConversation(c.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setContextMenu({
-                  conversation: c,
-                  x: event.clientX,
-                  y: event.clientY,
-                });
-              }}
-            />
-          ))
+          <>
+            {sortedConversations.map((c) => (
+              <ConversationRow
+                key={c.id}
+                conversation={c}
+                projectName={
+                  recentProjects.find((p) => p.path === c.projectRoot)?.name ??
+                  c.projectRoot
+                }
+                active={c.id === activeSessionId}
+                onClick={() => openConversation(c.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setContextMenu({
+                    conversation: c,
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                }}
+                onMarkDone={() => setConversationDone(c.id, true)}
+              />
+            ))}
+            {doneConversations.length > 0 && (
+              <>
+                <div className="mx-1.5 mt-3 my-1.5 px-3 text-xs font-medium text-zinc-600 flex items-center gap-2">
+                  <span>Done</span>
+                  <div className="h-px flex-1 bg-white/[0.06]" />
+                </div>
+                {visibleDoneConversations.map((c) => (
+                  <DoneConversationRow
+                    key={c.id}
+                    conversation={c}
+                    active={c.id === activeSessionId}
+                    onClick={() => openConversation(c.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setContextMenu({
+                        conversation: c,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                    onUndo={() => setConversationDone(c.id, false)}
+                  />
+                ))}
+                {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDoneExpanded((v) => !v)}
+                    className="mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+                  >
+                    {doneExpanded
+                      ? "Show less"
+                      : `Show all (${doneConversations.length})`}
+                  </Button>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
       <div className="shrink-0 border-t border-white/[0.06] p-2">
