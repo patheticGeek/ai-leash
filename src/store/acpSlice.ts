@@ -1,6 +1,12 @@
 import type { StateCreator } from "zustand";
+import { acpCatalogQueryKey } from "../lib/acpCatalogQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
-import { type AcpAgentOptions, api } from "../lib/tauriApi";
+import { queryClient } from "../lib/queryClient";
+import {
+  type AcpAgentCatalogEntry,
+  type AcpAgentOptions,
+  api,
+} from "../lib/tauriApi";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -49,8 +55,7 @@ function withDefaultAcpAgents(agents: AcpAgentConfig[]): AcpAgentConfig[] {
 }
 
 // Not store state — this only dedupes concurrent `fetchAcpModelsFor` calls
-// for the same agent (e.g. `refreshAcpModelCache`'s `Promise.all` racing
-// against a popover open), it doesn't need to be reactive.
+// for the same agent, it doesn't need to be reactive.
 const acpModelFetchesInFlight = new Set<string>();
 
 const DEFAULT_AGENT_BACKEND: AgentBackendSettings = {
@@ -97,46 +102,46 @@ function saveAgentBackend(backend: AgentBackendSettings) {
   localStorageJson.write(LS_KEYS.agentBackend, backend);
 }
 
-// Only successful discoveries (`v !== null`) are ever persisted — a failed
-// one (`null`, the agent couldn't be reached) is deliberately dropped so
-// it's retried fresh on the next launch instead of staying permanently
-// stuck the way an in-memory-only cache with no retry logic would (see
-// `fetchAcpModelsFor`'s `agentId in get().acpModelCache` guard, which never
-// re-fetches anything already present — including a stale `null`).
-function loadAcpModelCache(): AcpSlice["acpModelCache"] {
-  return localStorageJson.read<AcpSlice["acpModelCache"]>(
-    LS_KEYS.acpModelCache,
-    {},
-  );
-}
-
-// Called after every change to `agentBackend.acpAgents`/`acpModelCache`:
-// (1) persists successful discoveries to localStorage so a restart doesn't
-// need to re-spawn a subprocess per agent, and (2) mirrors the whole
-// catalog down to the Rust backend (`AcpAgentCatalogEntry`/
-// `acp::sync_acp_agent_catalog`) so tool calls (`list_agent_options`,
-// `spawn_sub_agent`'s `agent` argument) can look one up without spawning
-// their own discovery subprocess either. Both are fire-and-forget/best
-// effort — a failed sync just means one or the other is briefly stale, not
-// anything worth surfacing to the user.
-function syncAcpModelCache(
-  agentBackend: AgentBackendSettings,
-  acpModelCache: AcpSlice["acpModelCache"],
+// Pushes `agents` to the Rust catalog (`acp::sync_acp_agent_catalog`),
+// preserving each surviving agent's already-known `modelOptions`/
+// `effortOptions` by reading the catalog back first — `sync_acp_agent_catalog`
+// replaces the whole list wholesale, so anything not included here would be
+// dropped rather than left alone. `override`, if given, replaces one
+// specific agent's options outright (the just-fetched result), rather than
+// whatever's currently cached for it. Rust is the sole source of truth for
+// this data now (`useAcpAgentCatalog`, `src/lib/acpCatalogQuery.ts`) — this
+// is fire-and-forget/best effort, a failed push just means the backend is
+// briefly stale, not anything worth surfacing to the user.
+async function pushAcpCatalog(
+  agents: AcpAgentConfig[],
+  override?: { id: string; options: AcpAgentOptions },
 ) {
-  const persistable = Object.fromEntries(
-    Object.entries(acpModelCache).filter(([, v]) => v !== null),
-  );
-  localStorageJson.write(LS_KEYS.acpModelCache, persistable);
-
-  void api.syncAcpAgentCatalog(
-    agentBackend.acpAgents.map((agent) => ({
+  const current = await api
+    .getAcpAgentCatalog()
+    .catch<AcpAgentCatalogEntry[]>(() => []);
+  const byId = new Map(current.map((entry) => [entry.id, entry]));
+  const merged: AcpAgentCatalogEntry[] = agents.map((agent) => {
+    const options =
+      override && override.id === agent.id
+        ? override.options
+        : {
+            model: byId.get(agent.id)?.modelOptions ?? null,
+            effort: byId.get(agent.id)?.effortOptions ?? null,
+          };
+    return {
       id: agent.id,
       label: agent.label,
       launchCommand: agent.launchCommand,
-      modelOptions: acpModelCache[agent.id]?.model ?? null,
-      effortOptions: acpModelCache[agent.id]?.effort ?? null,
-    })),
-  );
+      modelOptions: options.model,
+      effortOptions: options.effort,
+    };
+  });
+  await api.syncAcpAgentCatalog(merged);
+  // `sync_acp_agent_catalog` doesn't emit `acp://catalog-updated` itself
+  // (that event is only for Rust's own background refresh) — without this,
+  // a just-discovered agent's models wouldn't show up in the picker until
+  // the query's `staleTime` happened to lapse on its own.
+  queryClient.setQueryData(acpCatalogQueryKey, merged);
 }
 
 // Which provider/agent (and which specific model) a given conversation is
@@ -178,25 +183,20 @@ function saveConversationBackendMap(
 
 export interface AcpSlice {
   agentBackend: AgentBackendSettings;
-  // Per-ACP-agent model/effort options, keyed by `AcpAgentConfig.id`,
-  // populated by briefly spawning and discarding a real connection to that
-  // agent (see `fetchAcpModelsFor`) — an entry missing from this map means
-  // "not fetched yet"; `null` means "failed to connect" (as opposed to
-  // connecting fine but having no model/effort option, which is an
-  // `AcpAgentOptions` whose `model`/`effort` fields are themselves null).
-  // Lets `ChatPanel`'s picker show per-model rows for an ACP agent before
-  // the user has ever actually chatted with it, and is mirrored to the
-  // backend (see `syncAcpModelCache`) so tool calls can discover it too.
-  // Successful entries survive a restart (`loadAcpModelCache`); failures do
-  // not, so they're retried fresh next launch.
-  acpModelCache: Record<string, AcpAgentOptions | null>;
   // Per-conversation backend/model choice, keyed by session id — see
   // `ConversationBackendSelection`'s doc comment.
   conversationBackend: Record<string, ConversationBackendSelection>;
   saveAcpAgentConfig: (config: AcpAgentConfig) => void;
   deleteAcpAgentConfig: (id: string) => void;
+  // On-demand discovery for one agent — briefly spawns and discards a real
+  // connection to it (`api.fetchAcpModels`), then pushes the result into
+  // the Rust catalog (`pushAcpCatalog`). Called after adding/editing an
+  // agent in Settings (`saveAcpAgentConfig`, below); reading the result
+  // back out goes through `useAcpAgentCatalog()`
+  // (`src/lib/acpCatalogQuery.ts`), not this store — Rust is the sole
+  // source of truth for discovered models now, persisted to disk and kept
+  // fresh across restarts by its own background refresh.
   fetchAcpModelsFor: (agentId: string) => Promise<void>;
-  refreshAcpModelCache: () => Promise<void>;
   setConversationBackend: (
     sessionId: string,
     selection: ConversationBackendSelection,
@@ -213,7 +213,6 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
   get,
 ) => ({
   agentBackend: loadAgentBackend(),
-  acpModelCache: loadAcpModelCache(),
   conversationBackend: loadConversationBackend(),
 
   saveAcpAgentConfig: (config) => {
@@ -227,17 +226,17 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
         : [...s.agentBackend.acpAgents, config];
       const agentBackend = { ...s.agentBackend, acpAgents };
       saveAgentBackend(agentBackend);
-      // A changed launch command invalidates any cached model list fetched
-      // for the old one — drop it so `fetchAcpModelsFor` below re-fetches
-      // instead of trusting stale data.
-      if (!commandChanged) return { agentBackend };
-      const acpModelCache = Object.fromEntries(
-        Object.entries(s.acpModelCache).filter(([id]) => id !== config.id),
-      );
-      return { agentBackend, acpModelCache };
+      return { agentBackend };
     });
-    syncAcpModelCache(get().agentBackend, get().acpModelCache);
-    if (commandChanged) get().fetchAcpModelsFor(config.id);
+    // A changed launch command invalidates whatever's cached for the old
+    // one — `fetchAcpModelsFor` re-discovers and pushes fresh options for
+    // just this agent. An unchanged command (a label-only edit) still needs
+    // its label pushed, but has nothing to re-discover.
+    if (commandChanged) {
+      get().fetchAcpModelsFor(config.id);
+    } else {
+      void pushAcpCatalog(get().agentBackend.acpAgents);
+    }
   },
 
   deleteAcpAgentConfig: (id) => {
@@ -245,40 +244,28 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
       const acpAgents = s.agentBackend.acpAgents.filter((c) => c.id !== id);
       const agentBackend = { ...s.agentBackend, acpAgents };
       saveAgentBackend(agentBackend);
-      const acpModelCache = Object.fromEntries(
-        Object.entries(s.acpModelCache).filter(([cachedId]) => cachedId !== id),
-      );
-      return { agentBackend, acpModelCache };
+      return { agentBackend };
     });
-    syncAcpModelCache(get().agentBackend, get().acpModelCache);
+    void pushAcpCatalog(get().agentBackend.acpAgents);
     get().reconcileDefaultBackend();
   },
 
   fetchAcpModelsFor: async (agentId) => {
-    if (agentId in get().acpModelCache || acpModelFetchesInFlight.has(agentId))
-      return;
+    if (acpModelFetchesInFlight.has(agentId)) return;
     const agent = get().agentBackend.acpAgents.find((c) => c.id === agentId);
     if (!agent) return;
     acpModelFetchesInFlight.add(agentId);
     try {
-      const options = await api.fetchAcpModels(agent.launchCommand);
-      set((s) => ({
-        acpModelCache: { ...s.acpModelCache, [agentId]: options },
-      }));
-    } catch {
-      // Agent failed to launch/connect for discovery — cache the miss too,
-      // so a broken command doesn't get retried on every popover open.
-      set((s) => ({ acpModelCache: { ...s.acpModelCache, [agentId]: null } }));
+      const options = await api
+        .fetchAcpModels(agent.launchCommand)
+        .catch<AcpAgentOptions>(() => ({ model: null, effort: null }));
+      await pushAcpCatalog(get().agentBackend.acpAgents, {
+        id: agentId,
+        options,
+      });
     } finally {
       acpModelFetchesInFlight.delete(agentId);
-      syncAcpModelCache(get().agentBackend, get().acpModelCache);
     }
-  },
-
-  refreshAcpModelCache: async () => {
-    await Promise.all(
-      get().agentBackend.acpAgents.map((c) => get().fetchAcpModelsFor(c.id)),
-    );
   },
 
   setConversationBackend: (sessionId, selection) =>

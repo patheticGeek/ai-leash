@@ -161,9 +161,7 @@ export default function ChatPanel({
     selectBackendOption,
     selectAcpEffort,
     resetAcpConnectionState,
-  } = useChatSession(sessionId, setOllamaError, sending, () =>
-    setSlashDismissed(null),
-  );
+  } = useChatSession(sessionId, setOllamaError, () => setSlashDismissed(null));
   // Gates the Claude session-limit auto-resume banner (see `useChatStream`)
   // — Copilot's ACP wrapper reports errors in its own format, so this stays
   // Claude-only until that's known and worth matching too.

@@ -6,6 +6,7 @@ mod process;
 use crate::chat::{self, ChatMessage};
 use crate::commands;
 use crate::db;
+use crate::paths;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpAgentCatalogEntry, AppState};
 use agent_client_protocol::schema::v1::{
@@ -14,8 +15,9 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
+use std::path::PathBuf;
 use std::str::FromStr;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::oneshot;
 
 // `pub(crate)`, not `pub use`: `state.rs` and `tools/sub_agent_tools.rs`
@@ -149,7 +151,17 @@ pub async fn fetch_acp_models(
         let state = app.state::<AppState>();
         commands::get_root_path(state.inner())?
     };
-    let agent = AcpAgent::from_str(&launch_command).map_err(|e| format_acp_error(&e))?;
+    discover_acp_options(root, &launch_command).await
+}
+
+/// The actual "fake session" handshake, factored out of the `fetch_acp_models`
+/// command so `refresh_acp_catalog_in_background` (below) can reuse it
+/// without going through the Tauri IPC/command layer.
+async fn discover_acp_options(
+    root: PathBuf,
+    launch_command: &str,
+) -> Result<AcpDiscoveredOptions, String> {
+    let agent = AcpAgent::from_str(launch_command).map_err(|e| format_acp_error(&e))?;
 
     Client
         .builder()
@@ -200,7 +212,85 @@ pub async fn fetch_acp_models(
 /// model/effort options change. See `AcpAgentCatalogEntry`'s doc comment.
 #[tauri::command]
 pub fn sync_acp_agent_catalog(state: State<'_, AppState>, agents: Vec<AcpAgentCatalogEntry>) {
+    save_acp_catalog_to_disk(&agents);
     *state.acp_agent_catalog.lock().unwrap() = agents;
+}
+
+/// Returns the current in-memory catalog — what the frontend's
+/// `useAcpAgentCatalog()` query reads, and what's populated at startup from
+/// disk (see `lib.rs`'s `.setup()` hook) before any discovery has run.
+#[tauri::command]
+pub fn get_acp_agent_catalog(state: State<'_, AppState>) -> Vec<AcpAgentCatalogEntry> {
+    state.acp_agent_catalog.lock().unwrap().clone()
+}
+
+fn acp_catalog_path() -> PathBuf {
+    paths::versioned_file("acp-catalog", "json")
+}
+
+/// `unwrap_or_default()` on any read/parse failure (no file yet on a first
+/// launch, corrupt file, etc.) — same idiom as `actions::load_actions`.
+pub fn load_acp_catalog_from_disk() -> Vec<AcpAgentCatalogEntry> {
+    std::fs::read_to_string(acp_catalog_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_acp_catalog_to_disk(entries: &[AcpAgentCatalogEntry]) {
+    let path = acp_catalog_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(entries) {
+        let _ = std::fs::write(path, json);
+    }
+}
+
+/// Re-runs discovery for every agent already in the catalog (loaded from
+/// disk at startup, or synced in earlier this run) — the once-per-launch
+/// background refresh that keeps the persisted cache from going stale
+/// across restarts, without blocking anything on it. Called from
+/// `commands::set_project_root` the first time a root becomes available
+/// (see `AppState.acp_catalog_refresh_started`'s doc comment for why it's
+/// triggered there and not from `lib.rs`'s `.setup()` hook directly).
+///
+/// A per-agent discovery failure keeps that entry's last-known-good
+/// `model_options`/`effort_options` rather than blanking them — a
+/// transient failure (binary temporarily missing/busy) shouldn't erase a
+/// catalog entry that was working before this refresh happened to run.
+pub(crate) async fn refresh_acp_catalog_in_background(app: AppHandle) {
+    let snapshot = {
+        let state = app.state::<AppState>();
+        let catalog = state.acp_agent_catalog.lock().unwrap().clone();
+        catalog
+    };
+    if snapshot.is_empty() {
+        return;
+    }
+
+    let root = {
+        let state = app.state::<AppState>();
+        match commands::get_root_path(state.inner()) {
+            Ok(root) => root,
+            Err(_) => return,
+        }
+    };
+
+    let mut refreshed = snapshot;
+    for entry in refreshed.iter_mut() {
+        if let Ok(options) = discover_acp_options(root.clone(), &entry.launch_command).await {
+            entry.model_options = options.model;
+            entry.effort_options = options.effort;
+        }
+    }
+
+    save_acp_catalog_to_disk(&refreshed);
+    {
+        let state = app.state::<AppState>();
+        *state.acp_agent_catalog.lock().unwrap() = refreshed.clone();
+    }
+    let _ = app.emit("acp://catalog-updated", &refreshed);
 }
 
 /// Runs a `spawn_sub_agent` subtask through an external ACP agent (e.g.

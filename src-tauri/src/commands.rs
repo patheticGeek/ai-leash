@@ -157,7 +157,11 @@ pub fn set_conversation_root(
 }
 
 #[tauri::command]
-pub fn set_project_root(state: State<AppState>, path: String) -> Result<(), String> {
+pub fn set_project_root(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.is_dir() {
         return Err("not a directory".into());
@@ -169,6 +173,17 @@ pub fn set_project_root(state: State<AppState>, path: String) -> Result<(), Stri
     db::ensure_project(&state.db, &root_string);
     db::touch_project(&state.db, &root_string);
     *state.project_root.lock().unwrap() = Some(root);
+
+    // First root of the process is the earliest point ACP catalog discovery
+    // has anything to connect with — see `AppState.acp_catalog_refresh_started`'s
+    // doc comment for why this, not `lib.rs`'s `.setup()` hook, is where the
+    // background refresh gets kicked off.
+    if !state
+        .acp_catalog_refresh_started
+        .swap(true, std::sync::atomic::Ordering::SeqCst)
+    {
+        tauri::async_runtime::spawn(crate::acp::refresh_acp_catalog_in_background(app));
+    }
     Ok(())
 }
 

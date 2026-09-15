@@ -15,6 +15,7 @@ mod state;
 mod tools;
 
 use state::AppState;
+use std::sync::Mutex;
 use tauri::Manager;
 
 /// "dev" for a `cargo tauri dev` build, "PR" for a CI build off a pull
@@ -64,7 +65,23 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState::default())
+        // Loads last-known-good ACP agent/model data from disk into the
+        // managed state *before* it's ever reachable by a command — doing
+        // this inside `.setup()` instead (mutating `AppState::default()`
+        // after the fact) left a real window where the webview could
+        // already be executing and calling `get_acp_agent_catalog` before
+        // `.setup()` got around to populating it, returning an empty
+        // catalog for that first call; `staleTime` then kept that empty
+        // result cached client-side until the background refresh
+        // (`commands::set_project_root`, which can take a genuine few
+        // seconds — real subprocess handshakes) emitted an update to
+        // correct it. Building the state with this already filled in makes
+        // "empty because nothing's loaded it yet" impossible by
+        // construction, no ordering-with-`.setup()` assumption needed.
+        .manage(AppState {
+            acp_agent_catalog: Mutex::new(acp::load_acp_catalog_from_disk()),
+            ..Default::default()
+        })
         .setup(|app| {
             // Loopback listener external ACP agent subprocesses relay a
             // handful of tool calls through — see `mcp_bridge` and
@@ -77,6 +94,7 @@ pub fn run() {
                 std_listener,
                 info.token,
             ));
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -122,6 +140,7 @@ pub fn run() {
             acp::set_acp_effort,
             acp::fetch_acp_models,
             acp::sync_acp_agent_catalog,
+            acp::get_acp_agent_catalog,
             actions::list_actions,
             actions::create_action,
             actions::update_action,

@@ -3,9 +3,14 @@ import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { useResizableWidth } from "../hooks/useResizableWidth";
+import {
+  useAcpAgentCatalogQuery,
+  useAcpCatalogInvalidator,
+} from "../lib/acpCatalogQuery";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
+import { useOllamaModelsByConfig } from "../lib/ollamaModelsQuery";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
@@ -14,15 +19,16 @@ import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
+  const providerSettings = useAppStore((s) => s.providerSettings);
   const refreshProviderConnectivity = useAppStore(
     (s) => s.refreshProviderConnectivity,
   );
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
-  const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
   const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
+  const agentBackend = useAppStore((s) => s.agentBackend);
+  const fetchAcpModelsFor = useAppStore((s) => s.fetchAcpModelsFor);
 
   // Always on regardless of which sidebar tab is open — see its comment for
   // why this can't just live inside `FileTree`.
@@ -31,6 +37,55 @@ function App() {
   // for why a single top-level listener replaces what used to be a
   // per-session one.
   useGeneratingListener();
+  // Always on — invalidates `useAcpAgentCatalog()` whenever Rust's
+  // background refresh (or an on-demand discovery) updates the catalog.
+  useAcpCatalogInvalidator();
+  // Keeps the catalog query warm here too, not just inside `ChatPanel`'s
+  // `useChatSession` (its only other caller) — that one lives under
+  // `CenterPanel`'s `key={activeSessionId}`, so it fully unmounts and
+  // remounts on every conversation switch. Without a subscriber that
+  // survives the switch, the query would otherwise drop to zero observers
+  // between the old conversation's unmount and the new one's mount and the
+  // picker would flash empty for a tick each time, even though the
+  // underlying data itself hasn't changed.
+  const acpCatalogQuery = useAcpAgentCatalogQuery();
+  // Same reasoning, for Ollama's per-config model lists — keeps them warm
+  // across conversation switches now that they live in React Query instead
+  // of always-mounted Zustand state.
+  useOllamaModelsByConfig(providerSettings.ollama);
+
+  // Rust's own background refresh (`acp::refresh_acp_catalog_in_background`)
+  // only re-discovers agents *already* in its catalog — nothing ever seeds
+  // an agent into it for the first time except an explicit Settings save
+  // with a changed launch command. That leaves every agent that's only ever
+  // existed on the frontend (most importantly, the two default presets —
+  // `DEFAULT_ACP_PRESETS` in `acpSlice.ts` — merged into `agentBackend`
+  // without ever going through `saveAcpAgentConfig`) permanently
+  // undiscovered: the picker shows their bare agent row forever, only ever
+  // "breaking down" into actual models for the rest of that live ACP
+  // session once the user selects one and a real connection happens to
+  // report its options back. Runs once per agent id that's missing from the
+  // catalog — a no-op for anything already known, so this doesn't repeat
+  // work Rust's own refresh already does. Gated on the query's first fetch
+  // having actually resolved (`isSuccess`, not just checking `data`, which
+  // is `[]` both before that first fetch *and* once it's genuinely empty) —
+  // otherwise every launch would misread "haven't checked yet" as "unknown
+  // agent" and fire a redundant discovery for something Rust's own refresh
+  // already has covered from disk.
+  useEffect(() => {
+    if (!acpCatalogQuery.isSuccess) return;
+    const catalog = acpCatalogQuery.data;
+    for (const agent of agentBackend.acpAgents) {
+      if (!catalog.some((entry) => entry.id === agent.id)) {
+        fetchAcpModelsFor(agent.id);
+      }
+    }
+  }, [
+    agentBackend.acpAgents,
+    acpCatalogQuery.isSuccess,
+    acpCatalogQuery.data,
+    fetchAcpModelsFor,
+  ]);
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
     LS_KEYS.leftBarWidth,
@@ -48,35 +103,14 @@ function App() {
   );
 
   useEffect(() => {
-    refreshOllamaModels();
-  }, [refreshOllamaModels]);
-
-  useEffect(() => {
     refreshProviderConnectivity();
     const interval = setInterval(refreshProviderConnectivity, 5000);
     return () => clearInterval(interval);
   }, [refreshProviderConnectivity]);
 
-  // `refreshAcpModelCache` is sequenced after `initializeStartupSession`
-  // resolves rather than fired in its own parallel effect: `fetch_acp_models`
-  // (the discovery subprocess spawn) requires a project root
-  // (`commands::get_root_path`), which `initializeStartupSession` is what
-  // actually sets (`api.setProjectRoot`) — running them in parallel let this
-  // race and fail with "no project open" before any project was picked,
-  // permanently caching a `null` for every agent for the rest of the app
-  // session (nothing ever retried a cached miss).
   useEffect(() => {
-    (async () => {
-      await initializeStartupSession();
-      // One-shot per launch, not polled — each fetch briefly spawns and
-      // kills a real subprocess per not-yet-cached ACP agent (see
-      // fetch_acp_models/acp.rs); successful discoveries persist across
-      // restarts (see `acpSlice.ts`'s `loadAcpModelCache`), so this only
-      // actually does work for agents that were never (successfully)
-      // discovered before.
-      refreshAcpModelCache();
-    })();
-  }, [initializeStartupSession, refreshAcpModelCache]);
+    initializeStartupSession();
+  }, [initializeStartupSession]);
 
   // Runs on every conversation switch regardless of whether the Sub Agents
   // panel tab is even open — that tab is `mountMode: "active-only"`
