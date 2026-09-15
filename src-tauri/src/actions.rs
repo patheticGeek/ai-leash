@@ -5,7 +5,6 @@
 //! `mcp_bridge` for ACP agents). At most one live run per action — see
 //! `run_action`'s doc comment.
 
-use crate::commands;
 use crate::pty;
 use crate::state::AppState;
 use crate::tools;
@@ -205,17 +204,21 @@ pub fn read_action_output(app: &AppHandle, root: &Path, key: &str) -> Result<Str
 
 // --- Frontend-facing Tauri commands ---
 
-/// Actions and their run status are scoped to whichever checkout
-/// `session_id`'s conversation is pinned to — see `state.rs`'s
-/// `action_runs` doc comment on why the checkout, not just the action id,
-/// has to be part of the key: `.ai-leash/actions.json` is a real tracked
-/// file, so two worktrees of the same project can each have their own copy.
+/// Actions and their run status are scoped to a checkout path directly
+/// (not a session id) — see `state.rs`'s `action_runs` doc comment on why
+/// the checkout, not just the action id, has to be part of the key:
+/// `.ai-leash/actions.json` is a real tracked file, so two worktrees of the
+/// same project can each have their own copy. The frontend already has to
+/// resolve this same path itself (it's what these commands' React Query
+/// cache is keyed on — see `useActions.ts`), so these take it directly
+/// rather than a session id the backend would just re-resolve to the same
+/// path via `get_session_root`.
 #[tauri::command]
 pub fn list_actions(
     state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
 ) -> Result<Vec<ActionWithStatus>, String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     let defs = load_actions(&root);
     let runs = state.action_runs.lock().unwrap();
     Ok(defs
@@ -249,12 +252,11 @@ fn new_action(root: &Path, name: String, command: String) -> Result<ActionDef, S
 
 #[tauri::command]
 pub fn create_action(
-    state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
     name: String,
     command: String,
 ) -> Result<ActionDef, String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     new_action(&root, name, command)
 }
 
@@ -272,13 +274,12 @@ pub fn create_action_tool(root: &Path, name: &str, command: &str) -> Result<Stri
 
 #[tauri::command]
 pub fn update_action(
-    state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
     id: String,
     name: String,
     command: String,
 ) -> Result<(), String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     let mut defs = load_actions(&root);
     let def = defs
         .iter_mut()
@@ -293,10 +294,10 @@ pub fn update_action(
 pub fn delete_action(
     app: AppHandle,
     state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
     id: String,
 ) -> Result<(), String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     let _ = stop_action(&app, &root, &id);
     let mut defs = load_actions(&root);
     defs.retain(|a| a.id != id);
@@ -310,24 +311,18 @@ pub fn delete_action(
 }
 
 #[tauri::command]
-pub fn run_action_cmd(
-    app: AppHandle,
-    state: State<AppState>,
-    session_id: String,
-    id: String,
-) -> Result<String, String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+pub fn run_action_cmd(app: AppHandle, checkout_path: String, id: String) -> Result<String, String> {
+    let root = PathBuf::from(checkout_path);
     run_action(&app, &root, &id)
 }
 
 #[tauri::command]
 pub fn stop_action_cmd(
     app: AppHandle,
-    state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
     id: String,
 ) -> Result<String, String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     stop_action(&app, &root, &id)
 }
 
@@ -338,10 +333,10 @@ pub fn stop_action_cmd(
 #[tauri::command]
 pub fn action_backlog(
     state: State<AppState>,
-    session_id: String,
+    checkout_path: String,
     id: String,
 ) -> Result<String, String> {
-    let root = commands::get_session_root(state.inner(), &session_id)?;
+    let root = PathBuf::from(checkout_path);
     let runs = state.action_runs.lock().unwrap();
     match runs.get(&run_key(&root, &id)) {
         Some(run) => Ok(general_purpose::STANDARD.encode(&*run.output.lock().unwrap())),

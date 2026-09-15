@@ -1,10 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
-import { api } from "../../../lib/tauriApi";
-import { useAppStore } from "../../../store";
+import { type ActionSummary, api } from "../../../lib/tauriApi";
+import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
+import { actionsQueryKey } from "../../actions/useActions";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();
@@ -22,20 +24,35 @@ function base64ToBytes(b64: string): Uint8Array {
 // whichever pty is currently backing this action, re-attaching whenever
 // that changes (a fresh Run after a Stop gets a new ptyId).
 export default function ActionTerminalTab({ actionId }: { actionId: string }) {
-  // Actions/their run status are scoped to whichever checkout the currently
-  // focused conversation is pinned to (see `actions.rs`'s `run_key` doc
-  // comment) — this tab only ever exists as part of that conversation's own
-  // panel tabs, so `activeSessionId` is always the right one to ask.
-  const sessionId = useAppStore((s) => s.activeSessionId);
+  // Actions/their run status are scoped to a checkout path (see
+  // `actions.rs`'s `run_key` doc comment), not a session id — this tab only
+  // ever exists as part of the focused conversation's own panel tabs, so
+  // its resolved checkout is always the right one to ask.
+  const checkoutPath = useActiveCheckoutPath();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const attachedPtyIdRef = useRef<string | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const syncRef = useRef<(() => void) | null>(null);
+  const actionsRef = useRef<ActionSummary[]>([]);
+
+  // Shares the same 2s-polled `actionsQueryKey(checkoutPath)` query as
+  // `useActions` (ActionsTab / TitleBarActions) instead of running its own
+  // independent `listActions` poll — see PLAN.md Phase 1. Keyed on the
+  // checkout path so two conversations pinned to the same checkout share
+  // one cache entry/poll, matching the backend's own `run_key` granularity.
+  const { data: actionsData } = useQuery({
+    queryKey: actionsQueryKey(checkoutPath),
+    queryFn: () => api.listActions(checkoutPath as string),
+    enabled: checkoutPath != null,
+    refetchInterval: checkoutPath != null ? 2000 : false,
+  });
+  actionsRef.current = actionsData ?? [];
 
   useEffect(() => {
-    if (!containerRef.current || !sessionId) return;
-    const currentSessionId = sessionId;
+    if (!containerRef.current || !checkoutPath) return;
+    const currentCheckoutPath = checkoutPath;
 
     const term = new Terminal({
       convertEol: true,
@@ -68,7 +85,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     async function attach(ptyId: string) {
       unlistenRef.current?.();
       attachedPtyIdRef.current = ptyId;
-      const backlog = await api.actionBacklog(currentSessionId, actionId);
+      const backlog = await api.actionBacklog(currentCheckoutPath, actionId);
       if (disposed) return;
       term.reset();
       term.write(base64ToBytes(backlog));
@@ -83,22 +100,21 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
       attachedPtyIdRef.current = null;
     }
 
-    async function sync() {
-      const actions = await api.listActions(currentSessionId);
+    function sync() {
       if (disposed) return;
-      const action = actions.find((a) => a.id === actionId);
+      const action = actionsRef.current.find((a) => a.id === actionId);
       const ptyId = action?.running ? (action.ptyId ?? null) : null;
       if (ptyId !== attachedPtyIdRef.current) {
         if (ptyId) {
-          await attach(ptyId);
+          attach(ptyId);
         } else {
           detach();
         }
       }
     }
 
+    syncRef.current = sync;
     sync();
-    const pollId = setInterval(sync, 2000);
 
     const onData = term.onData((data) => {
       if (attachedPtyIdRef.current)
@@ -107,13 +123,20 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
 
     return () => {
       disposed = true;
-      clearInterval(pollId);
+      syncRef.current = null;
       resizeObserver.disconnect();
       unlistenRef.current?.();
       onData.dispose();
       term.dispose();
     };
-  }, [actionId, sessionId]);
+  }, [actionId, checkoutPath]);
+
+  // Re-derive attach/detach whenever the shared actions query refreshes —
+  // this is what used to be this component's own `setInterval` poll.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: syncRef is a ref; actionsData is the actual trigger
+  useEffect(() => {
+    syncRef.current?.();
+  }, [actionsData]);
 
   return <div ref={containerRef} className="h-full bg-[#0b0c0e] px-2 py-1" />;
 }

@@ -12,7 +12,7 @@ const emptyForm = { name: "", command: "" };
 
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, refresh, sessionId } = useActions();
+  const { actions, refresh, checkoutPath } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -37,28 +37,28 @@ export default function ActionsTab() {
   async function saveForm() {
     const name = form.name.trim();
     const command = form.command.trim();
-    if (!name || !command || !sessionId) return;
+    if (!name || !command || !checkoutPath) return;
     if (editingId) {
-      await api.updateAction(sessionId, editingId, name, command);
+      await api.updateAction(checkoutPath, editingId, name, command);
     } else {
-      await api.createAction(sessionId, name, command);
+      await api.createAction(checkoutPath, name, command);
     }
     cancelForm();
     refresh();
   }
 
   async function remove(id: string) {
-    if (!sessionId) return;
-    await api.deleteAction(sessionId, id);
+    if (!checkoutPath) return;
+    await api.deleteAction(checkoutPath, id);
     refresh();
   }
 
   async function toggle(action: ActionSummary) {
-    if (!sessionId) return;
+    if (!checkoutPath) return;
     if (action.running) {
-      await api.stopAction(sessionId, action.id);
+      await api.stopAction(checkoutPath, action.id);
     } else {
-      await api.runAction(sessionId, action.id);
+      await api.runAction(checkoutPath, action.id);
       openTerminal(action);
     }
     refresh();

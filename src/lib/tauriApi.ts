@@ -297,29 +297,31 @@ export const api = {
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),
   clearCrashLog: () => invoke<void>("clear_crash_log"),
-  // Actions and their run status are scoped to whichever checkout
-  // `sessionId`'s conversation is pinned to (primary or worktree) — see
-  // `actions.rs`'s `run_key` doc comment.
-  listActions: (sessionId: string) =>
-    invoke<ActionSummary[]>("list_actions", { sessionId }),
-  createAction: (sessionId: string, name: string, command: string) =>
+  // Actions and their run status are scoped to a checkout path directly
+  // (primary or worktree), not a session id — see `actions.rs`'s
+  // `run_key` doc comment. Callers should pass the same resolved checkout
+  // path they use as their React Query key (`useActions.ts`), not a
+  // session id.
+  listActions: (checkoutPath: string) =>
+    invoke<ActionSummary[]>("list_actions", { checkoutPath }),
+  createAction: (checkoutPath: string, name: string, command: string) =>
     invoke<{ id: string; name: string; command: string }>("create_action", {
-      sessionId,
+      checkoutPath,
       name,
       command,
     }),
   updateAction: (
-    sessionId: string,
+    checkoutPath: string,
     id: string,
     name: string,
     command: string,
-  ) => invoke<void>("update_action", { sessionId, id, name, command }),
-  deleteAction: (sessionId: string, id: string) =>
-    invoke<void>("delete_action", { sessionId, id }),
-  runAction: (sessionId: string, id: string) =>
-    invoke<string>("run_action_cmd", { sessionId, id }),
-  stopAction: (sessionId: string, id: string) =>
-    invoke<string>("stop_action_cmd", { sessionId, id }),
-  actionBacklog: (sessionId: string, id: string) =>
-    invoke<string>("action_backlog", { sessionId, id }),
+  ) => invoke<void>("update_action", { checkoutPath, id, name, command }),
+  deleteAction: (checkoutPath: string, id: string) =>
+    invoke<void>("delete_action", { checkoutPath, id }),
+  runAction: (checkoutPath: string, id: string) =>
+    invoke<string>("run_action_cmd", { checkoutPath, id }),
+  stopAction: (checkoutPath: string, id: string) =>
+    invoke<string>("stop_action_cmd", { checkoutPath, id }),
+  actionBacklog: (checkoutPath: string, id: string) =>
+    invoke<string>("action_backlog", { checkoutPath, id }),
 };

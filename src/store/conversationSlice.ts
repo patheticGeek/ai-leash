@@ -21,6 +21,19 @@ export interface ConversationSummary {
   worktreePath: string | null;
 }
 
+// The resolved checkout a conversation runs in — a worktree, or the
+// project's primary checkout when there isn't one. Backend state that's
+// scoped per-checkout rather than per-conversation (see `actions.rs`'s
+// `run_key`) should key off this, not off a conversation/session id:
+// multiple conversations routinely share a checkout (every brand-new
+// conversation defaults to the primary root), and nothing keeps that data
+// in sync across sessions on its own.
+export function conversationCheckoutPath(
+  c: Pick<ConversationSummary, "worktreePath" | "projectRoot">,
+): string {
+  return c.worktreePath ?? c.projectRoot;
+}
+
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
