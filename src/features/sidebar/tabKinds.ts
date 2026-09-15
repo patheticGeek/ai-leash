@@ -1,7 +1,8 @@
-import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
+import { Bot, FolderTree, Radio, SquareTerminal, Zap } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { createElement } from "react";
 import type { PanelTab, PanelTabKind } from "../../store";
+import AcpEventsTab from "./tabs/AcpEventsTab";
 import ActionsTab from "./tabs/ActionsTab";
 import ActionTerminalTab from "./tabs/ActionTerminalTab";
 import FileEditorTab from "./tabs/FileEditorTab";
@@ -68,6 +69,15 @@ export const PANEL_TAB_KINDS: Record<PanelTabKind, PanelTabKindDef> = {
     label: "Sub Agents",
     hint: "Watch running sub-agent tasks",
     icon: Bot,
+  },
+  "acp-events": {
+    kind: "acp-events",
+    render: () => createElement(AcpEventsTab),
+    mountMode: "active-only",
+    openableFromPicker: true,
+    label: "ACP Events",
+    hint: "Inspect live agent connection events",
+    icon: Radio,
   },
   actions: {
     kind: "actions",

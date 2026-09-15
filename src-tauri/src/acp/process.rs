@@ -3,8 +3,8 @@ use super::discovery::{
     model_options_payload, thought_level_options_payload,
 };
 use super::events::{
-    close_segment, handle_session_notification, CurrentSegment, PendingToolCallContent,
-    SuppressReplay,
+    close_segment, debug_json, emit_acp_debug, handle_session_notification, CurrentSegment,
+    PendingToolCallContent, SuppressReplay,
 };
 use super::permissions::bridge_acp_permission;
 use crate::commands;
@@ -168,6 +168,13 @@ async fn run_acp_session(
         match commands::get_session_root(state.inner(), &session_id) {
             Ok(r) => r,
             Err(e) => {
+                emit_acp_debug(
+                    &app,
+                    &session_id,
+                    "received",
+                    "connection/error",
+                    json!({ "message": format!("ACP: {e}") }),
+                );
                 let _ = app.emit(&format!("chat://{session_id}/error"), format!("ACP: {e}"));
                 remove_if_still_current(&app, &session_id, &launch_command);
                 return;
@@ -178,17 +185,29 @@ async fn run_acp_session(
     let agent = match AcpAgent::from_str(&launch_command) {
         Ok(a) => a,
         Err(e) => {
-            let _ = app.emit(
-                &format!("chat://{session_id}/error"),
-                format!(
-                    "Failed to parse ACP launch command: {}",
-                    format_acp_error(&e)
-                ),
+            let message = format!(
+                "Failed to parse ACP launch command: {}",
+                format_acp_error(&e)
             );
+            emit_acp_debug(
+                &app,
+                &session_id,
+                "received",
+                "connection/error",
+                json!({ "message": message }),
+            );
+            let _ = app.emit(&format!("chat://{session_id}/error"), message);
             remove_if_still_current(&app, &session_id, &launch_command);
             return;
         }
     };
+    emit_acp_debug(
+        &app,
+        &session_id,
+        "sent",
+        "connection/start",
+        json!({ "launchCommand": launch_command }),
+    );
 
     if let Err(e) = drive_acp_connection(
         app.clone(),
@@ -200,12 +219,24 @@ async fn run_acp_session(
     )
     .await
     {
-        let _ = app.emit(
-            &format!("chat://{session_id}/error"),
-            format!("ACP agent exited: {}", format_acp_error(&e)),
+        let message = format!("ACP agent exited: {}", format_acp_error(&e));
+        emit_acp_debug(
+            &app,
+            &session_id,
+            "received",
+            "connection/error",
+            json!({ "message": message }),
         );
+        let _ = app.emit(&format!("chat://{session_id}/error"), message);
     }
 
+    emit_acp_debug(
+        &app,
+        &session_id,
+        "received",
+        "connection/closed",
+        json!({}),
+    );
     remove_if_still_current(&app, &session_id, &launch_command);
 }
 
@@ -259,12 +290,27 @@ async fn drive_acp_connection(
         )
         .on_receive_request(
             async move |request: RequestPermissionRequest, responder, _cx| {
+                emit_acp_debug(
+                    &perm_app,
+                    &perm_session_id,
+                    "received",
+                    "session/request_permission",
+                    debug_json(&request),
+                );
                 let outcome = bridge_acp_permission(&perm_app, &perm_session_id, &request).await;
+                emit_acp_debug(
+                    &perm_app,
+                    &perm_session_id,
+                    "sent",
+                    "session/request_permission_response",
+                    debug_json(&outcome),
+                );
                 responder.respond(RequestPermissionResponse::new(outcome))
             },
             agent_client_protocol::on_receive_request!(),
         )
         .connect_with(agent, async move |connection: ConnectionTo<Agent>| {
+            emit_acp_debug(&app, &session_id, "sent", "initialize", json!({}));
             let init_response = connection
                 .send_request(
                     InitializeRequest::new(ProtocolVersion::V1)
@@ -272,6 +318,13 @@ async fn drive_acp_connection(
                 )
                 .block_task()
                 .await?;
+            emit_acp_debug(
+                &app,
+                &session_id,
+                "received",
+                "initialize/response",
+                debug_json(&init_response),
+            );
 
             let mcp_servers = mcp_servers_for(&app, &session_id, &cwd);
 
@@ -287,6 +340,13 @@ async fn drive_acp_connection(
 
             let (acp_session_id, config_options): (SessionId, Option<Vec<SessionConfigOption>>) =
                 if let Some(stored_id) = stored_agent_session_id {
+                    emit_acp_debug(
+                        &app,
+                        &session_id,
+                        "sent",
+                        "session/load",
+                        json!({ "sessionId": stored_id }),
+                    );
                     suppress_replay.store(true, Ordering::Release);
                     let load_result = connection
                         .send_request(
@@ -298,8 +358,24 @@ async fn drive_acp_connection(
                     suppress_replay.store(false, Ordering::Release);
 
                     match load_result {
-                        Ok(resp) => (SessionId::new(stored_id), resp.config_options),
+                        Ok(resp) => {
+                            emit_acp_debug(
+                                &app,
+                                &session_id,
+                                "received",
+                                "session/load/response",
+                                debug_json(&resp),
+                            );
+                            (SessionId::new(stored_id), resp.config_options)
+                        }
                         Err(e) => {
+                            emit_acp_debug(
+                                &app,
+                                &session_id,
+                                "received",
+                                "session/load/error",
+                                json!({ "message": format_acp_error(&e) }),
+                            );
                             // The agent no longer recognizes this id (expired,
                             // or its own session store was cleared) — drop it
                             // so the next attempt (the user retrying, or just
@@ -324,10 +400,18 @@ async fn drive_acp_connection(
                         }
                     }
                 } else {
+                    emit_acp_debug(&app, &session_id, "sent", "session/new", json!({}));
                     let new_session = connection
                         .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
                         .block_task()
                         .await?;
+                    emit_acp_debug(
+                        &app,
+                        &session_id,
+                        "received",
+                        "session/new/response",
+                        debug_json(&new_session),
+                    );
                     let state = app.state::<AppState>();
                     db::set_acp_agent_session_id(
                         &state.db,
@@ -370,6 +454,13 @@ async fn drive_acp_connection(
             while let Some(cmd) = commands.recv().await {
                 match cmd {
                     AcpCommand::Prompt(text, done_tx) => {
+                        emit_acp_debug(
+                            &app,
+                            &session_id,
+                            "sent",
+                            "session/prompt",
+                            json!({ "text": text }),
+                        );
                         *current_segment.lock().unwrap() = None;
                         let _ = app.emit(
                             "chat://generating",
@@ -391,6 +482,13 @@ async fn drive_acp_connection(
 
                         match result {
                             Ok(_response) => {
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/prompt/response",
+                                    json!({}),
+                                );
                                 // Whatever run was still open (reply or
                                 // thinking) is done now that the turn has
                                 // resolved — close it out so its bookkeeping
@@ -403,6 +501,13 @@ async fn drive_acp_connection(
                             }
                             Err(e) => {
                                 let message = format_acp_error(&e);
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/prompt/error",
+                                    json!({ "message": message }),
+                                );
                                 let _ = app
                                     .emit(&format!("chat://{session_id}/error"), message.clone());
                                 if let Some(tx) = done_tx {
@@ -412,10 +517,24 @@ async fn drive_acp_connection(
                         }
                     }
                     AcpCommand::Cancel => {
+                        emit_acp_debug(
+                            &app,
+                            &session_id,
+                            "sent",
+                            "session/cancel",
+                            json!({}),
+                        );
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
                     }
                     AcpCommand::SetModel(value) => {
+                        emit_acp_debug(
+                            &app,
+                            &session_id,
+                            "sent",
+                            "session/set_model",
+                            json!({ "value": value }),
+                        );
                         let Some(config_id) = model_config_id.clone() else {
                             let _ = app.emit(
                                 &format!("chat://{session_id}/error"),
@@ -433,6 +552,13 @@ async fn drive_acp_connection(
                             .await
                         {
                             Ok(resp) => {
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/set_model/response",
+                                    debug_json(&resp),
+                                );
                                 if let Some(option) = find_model_config_option(&resp.config_options)
                                 {
                                     let payload = model_options_payload(option);
@@ -446,6 +572,13 @@ async fn drive_acp_connection(
                                 }
                             }
                             Err(e) => {
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/set_model/error",
+                                    json!({ "message": format_acp_error(&e) }),
+                                );
                                 let _ = app.emit(
                                     &format!("chat://{session_id}/error"),
                                     format!("Failed to set model: {}", format_acp_error(&e)),
@@ -454,6 +587,13 @@ async fn drive_acp_connection(
                         }
                     }
                     AcpCommand::SetEffort(value) => {
+                        emit_acp_debug(
+                            &app,
+                            &session_id,
+                            "sent",
+                            "session/set_effort",
+                            json!({ "value": value }),
+                        );
                         let Some(config_id) = effort_config_id.clone() else {
                             let _ = app.emit(
                                 &format!("chat://{session_id}/error"),
@@ -472,6 +612,13 @@ async fn drive_acp_connection(
                             .await
                         {
                             Ok(resp) => {
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/set_effort/response",
+                                    debug_json(&resp),
+                                );
                                 if let Some(option) =
                                     find_thought_level_config_option(&resp.config_options)
                                 {
@@ -486,6 +633,13 @@ async fn drive_acp_connection(
                                 }
                             }
                             Err(e) => {
+                                emit_acp_debug(
+                                    &app,
+                                    &session_id,
+                                    "received",
+                                    "session/set_effort/error",
+                                    json!({ "message": format_acp_error(&e) }),
+                                );
                                 let _ = app.emit(
                                     &format!("chat://{session_id}/error"),
                                     format!("Failed to set effort: {}", format_acp_error(&e)),

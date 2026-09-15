@@ -89,6 +89,14 @@ conversation in the center area.
 While a sub-agent is running, you can stop it from this list. Finished
 sub-agent entries can be removed from the list.
 
+### ACP Events
+
+The **ACP Events** tab shows the live protocol activity for the current
+conversation's external-agent connection, including sent requests, received
+responses, notifications, permissions, and connection errors. It receives
+events only while the tab is open and discards them when you close it, switch
+away, or clear the list; no event data is saved with the conversation.
+
 ### Actions
 
 **Actions** contains the reusable actions available for the project. Use it
