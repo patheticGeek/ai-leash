@@ -2,6 +2,7 @@ use crate::db;
 use crate::state::{AppState, ConversationRoot};
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
@@ -176,17 +177,22 @@ pub fn set_project_root(state: State<AppState>, path: String) -> Result<(), Stri
 /// agent's tools, `git checkout`/builds run in the terminal, or changes made
 /// outside the app entirely. Events are debounced (batched over a short
 /// window) so a burst of changes (e.g. a build writing many files) triggers
-/// one refresh instead of a flood of them. Replacing `state.fs_watcher` (on
-/// the next call — see `set_conversation_root`, the sole caller: it always
-/// runs right after `set_project_root` when a conversation becomes active,
-/// pointed at that conversation's own cwd rather than the plain project
-/// root) drops the old watcher and its background thread exits on its own
-/// once the channel closes.
+/// one refresh instead of a flood of them, and carry the *directories* whose
+/// listings actually changed (each event's own path's parent — a listing
+/// changes when an entry is added/removed/renamed underneath it, not at the
+/// entry's own path) as the event payload, so the frontend can invalidate
+/// just those cached directory listings instead of every open one across
+/// every project. Replacing `state.fs_watcher` (on the next call — see
+/// `set_conversation_root`, the sole caller: it always runs right after
+/// `set_project_root` when a conversation becomes active, pointed at that
+/// conversation's own cwd rather than the plain project root) drops the old
+/// watcher and its background thread exits on its own once the channel
+/// closes.
 fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Result<(), String> {
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::channel::<Vec<PathBuf>>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if res.is_ok() {
-            let _ = tx.send(());
+        if let Ok(event) = res {
+            let _ = tx.send(event.paths);
         }
     })
     .map_err(|e| e.to_string())?;
@@ -198,14 +204,27 @@ fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Res
 
     std::thread::spawn(move || {
         const DEBOUNCE: Duration = Duration::from_millis(300);
-        while rx.recv().is_ok() {
+        while let Ok(first) = rx.recv() {
+            let mut changed_dirs: HashSet<String> = HashSet::new();
+            let mut collect = |paths: Vec<PathBuf>| {
+                for path in paths {
+                    let dir = path.parent().unwrap_or(&path);
+                    changed_dirs.insert(dir.display().to_string());
+                }
+            };
+            collect(first);
             let deadline = Instant::now() + DEBOUNCE;
             while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
-                if remaining.is_zero() || rx.recv_timeout(remaining).is_err() {
+                if remaining.is_zero() {
                     break;
                 }
+                match rx.recv_timeout(remaining) {
+                    Ok(paths) => collect(paths),
+                    Err(_) => break,
+                }
             }
-            if app.emit("fs://changed", ()).is_err() {
+            let dirs: Vec<String> = changed_dirs.into_iter().collect();
+            if app.emit("fs://changed", dirs).is_err() {
                 break;
             }
         }
@@ -224,16 +243,13 @@ pub fn get_project_root(state: State<AppState>) -> Option<String> {
         .map(|p| p.display().to_string())
 }
 
-/// Scoped to whichever checkout `session_id`'s conversation is pinned to
-/// (primary or worktree), same as tools/shell/ACP, Actions, and the
-/// Terminal — see `get_session_root`.
+/// Takes the checkout path directly rather than a session id — like
+/// Actions (see `actions.rs`'s module doc), the file tree is scoped to the
+/// checkout itself, not to any particular conversation pinned to it, and
+/// the frontend's `useQuery` cache key is (and must be) this same path.
 #[tauri::command]
-pub fn list_dir(
-    state: State<AppState>,
-    session_id: String,
-    path: Option<String>,
-) -> Result<Vec<DirEntryInfo>, String> {
-    let root = get_session_root(state.inner(), &session_id)?;
+pub fn list_dir(checkout_path: String, path: Option<String>) -> Result<Vec<DirEntryInfo>, String> {
+    let root = PathBuf::from(checkout_path);
     let target = match path {
         Some(p) => resolve_within_root(&root, &p)?,
         None => root.clone(),

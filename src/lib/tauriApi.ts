@@ -187,11 +187,10 @@ export const api = {
   // same path. A no-op if already watching it.
   watchGitBranch: (rootPath: string) =>
     invoke<void>("watch_git_branch", { rootPath }),
-  // File tree/editor operations are scoped to whichever checkout
-  // `sessionId`'s conversation is pinned to (primary or worktree), same as
-  // tools/shell/ACP, Actions, and the Terminal — see `get_session_root`.
-  listDir: (sessionId: string, path?: string) =>
-    invoke<DirEntryInfo[]>("list_dir", { sessionId, path }),
+  // Scoped to the checkout path itself, not a session id — see
+  // `commands.rs`'s `list_dir` doc comment.
+  listDir: (checkoutPath: string, path?: string) =>
+    invoke<DirEntryInfo[]>("list_dir", { checkoutPath, path }),
   readFileText: (sessionId: string, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),
   writeFileText: (sessionId: string, path: string, contents: string) =>
