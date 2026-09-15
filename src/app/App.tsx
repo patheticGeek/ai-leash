@@ -4,6 +4,7 @@ import SidePanel from "../features/sidebar/SidePanel";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 import { BUILD_LABEL } from "../lib/buildChannel";
+import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
@@ -26,6 +27,10 @@ function App() {
   // Always on regardless of which sidebar tab is open — see its comment for
   // why this can't just live inside `FileTree`.
   useFsChangeInvalidator();
+  // Always on regardless of which conversation is open — see its comment
+  // for why a single top-level listener replaces what used to be a
+  // per-session one.
+  useGeneratingListener();
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
     LS_KEYS.leftBarWidth,

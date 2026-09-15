@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
+import { useGenerating } from "../lib/generatingQuery";
 import { useAppStore } from "../store";
 
 function NoProjectState() {
@@ -55,12 +56,13 @@ export default function CenterPanel() {
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
   const closeChatTab = useAppStore((s) => s.closeChatTab);
-  // Backend-driven per-session activity — `generatingSessions` covers the
-  // primary tab (keyed by top-level session id, populated for every known
-  // conversation by `LeftBar.tsx`'s always-mounted listener), `subAgentTasks`
+  // Backend-driven per-session activity — the primary tab is covered by the
+  // always-mounted `useGeneratingListener` (`App.tsx`), `subAgentTasks`
   // covers sub-agent tabs (no `generating` event of its own; `status` is
-  // already tracked for the Sub Agents sidebar).
-  const generatingSessions = useAppStore((s) => s.generatingSessions);
+  // already tracked for the Sub Agents sidebar). Queried even before the
+  // `activeSessionId` null-check below since hooks can't be conditional;
+  // an empty-string fallback session id is harmless (never actually shown).
+  const primaryGenerating = useGenerating(activeSessionId ?? "").active;
   const subAgentTasks = useAppStore((s) => s.subAgentTasks);
 
   if (!projectRoot || !activeSessionId) {
@@ -78,7 +80,7 @@ export default function CenterPanel() {
           const isActive = tab.id === activeChatTabId;
           const running =
             tab.kind === "primary"
-              ? !!generatingSessions[activeSessionId]
+              ? primaryGenerating
               : subAgentTasks.find((t) => t.subSessionId === tab.subSessionId)
                   ?.status === "running";
           // Only shine while this tab isn't the one you're already looking

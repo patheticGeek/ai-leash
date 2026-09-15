@@ -56,8 +56,8 @@ export interface PermissionSlice {
   // of their own to surface a popover — they're shown above the *parent*
   // project's textarea instead. One global `permission://request`/
   // `permission://resolved` listener pair maintains this (see
-  // `LeftBar.tsx`) — unlike `generatingSessions`, no per-project listener
-  // is needed since the backend event itself now carries `sessionId`.
+  // `LeftBar.tsx`), same shape as `chat://generating` — one listener total,
+  // not one per project, since the backend event itself carries `sessionId`.
   pendingPermissions: Record<string, PermissionRequestPayload>;
   addPendingPermission: (payload: PermissionRequestPayload) => void;
   resolvePendingPermission: (id: string) => void;

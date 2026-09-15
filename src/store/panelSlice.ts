@@ -48,18 +48,6 @@ export interface PanelSlice {
   panelStateByConversation: Record<string, ConversationPanelState>;
   chatTabs: ChatTab[];
   activeChatTabId: string;
-  // Which sessions (by session id — a project's own path, for a top-level
-  // conversation) currently have a turn in flight, driven entirely by the
-  // backend's `chat://{sessionId}/generating` event rather than any
-  // frontend action — see `LeftBar.tsx`, the always-mounted subscriber.
-  generatingSessions: Record<string, boolean>;
-  // Which of those active sessions are running an *autonomous* turn right
-  // now — the model reacting to a finished background sub-agent, not
-  // anything the user just sent. `ChatPanel.tsx` uses this to avoid
-  // showing the Stop button / blocking new sends for a turn the user isn't
-  // actually waiting on; `LeftBar.tsx`'s busy dot ignores it (any activity
-  // still lights it up).
-  autonomousGeneratingSessions: Record<string, boolean>;
   openPanelTab: (
     kind: PanelTabKind,
     opts?: { path?: string; label?: string },
@@ -69,15 +57,12 @@ export interface PanelSlice {
   openChatTab: (subSessionId: string, label: string) => void;
   closeChatTab: (id: string) => void;
   setActiveChatTab: (id: string) => void;
-  setSessionGenerating: (
-    sessionId: string,
-    generating: boolean,
-    autonomous: boolean,
-  ) => void;
-  // Drops a deleted conversation's saved panel-tab snapshot and any
-  // leftover generating/autonomous flags — called by
+  // Drops a deleted conversation's saved panel-tab snapshot — called by
   // `conversationSlice.deleteConversation`, mirroring
   // `acpSlice.forgetConversationBackend`/`permissionSlice.forgetPermissionMode`.
+  // The `["generating", sessionId]` query cache entry (see
+  // `generatingQuery.ts`) needs no equivalent cleanup — React Query garbage
+  // collects it on its own once nothing's observing that key anymore.
   forgetConversationPanelState: (sessionId: string) => void;
 }
 
@@ -90,8 +75,6 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
   panelStateByConversation: {},
   chatTabs: [PRIMARY_CHAT_TAB],
   activeChatTabId: "primary",
-  generatingSessions: {},
-  autonomousGeneratingSessions: {},
 
   openPanelTab: (kind, opts) => {
     const id =
@@ -184,45 +167,10 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
 
   setActiveChatTab: (id) => set({ activeChatTabId: id }),
 
-  setSessionGenerating: (sessionId, generating, autonomous) =>
-    set((s) => {
-      const already = !!s.generatingSessions[sessionId];
-      const alreadyAutonomous = !!s.autonomousGeneratingSessions[sessionId];
-      if (generating === already && autonomous === alreadyAutonomous) return s;
-
-      const next = { ...s.generatingSessions };
-      const nextAutonomous = { ...s.autonomousGeneratingSessions };
-      if (generating) {
-        next[sessionId] = true;
-        if (autonomous) {
-          nextAutonomous[sessionId] = true;
-        } else {
-          delete nextAutonomous[sessionId];
-        }
-      } else {
-        delete next[sessionId];
-        delete nextAutonomous[sessionId];
-      }
-      return {
-        generatingSessions: next,
-        autonomousGeneratingSessions: nextAutonomous,
-      };
-    }),
-
   forgetConversationPanelState: (sessionId) =>
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
-      const generatingSessions = { ...s.generatingSessions };
-      const autonomousGeneratingSessions = {
-        ...s.autonomousGeneratingSessions,
-      };
       delete panelStateByConversation[sessionId];
-      delete generatingSessions[sessionId];
-      delete autonomousGeneratingSessions[sessionId];
-      return {
-        panelStateByConversation,
-        generatingSessions,
-        autonomousGeneratingSessions,
-      };
+      return { panelStateByConversation };
     }),
 });

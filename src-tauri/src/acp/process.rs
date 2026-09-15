@@ -372,8 +372,8 @@ async fn drive_acp_connection(
                     AcpCommand::Prompt(text, done_tx) => {
                         *current_segment.lock().unwrap() = None;
                         let _ = app.emit(
-                            &format!("chat://{session_id}/generating"),
-                            json!({ "active": true, "autonomous": false }),
+                            "chat://generating",
+                            json!({ "sessionId": session_id, "active": true, "autonomous": false }),
                         );
 
                         let result = connection
@@ -385,8 +385,8 @@ async fn drive_acp_connection(
                             .await;
 
                         let _ = app.emit(
-                            &format!("chat://{session_id}/generating"),
-                            json!({ "active": false, "autonomous": false }),
+                            "chat://generating",
+                            json!({ "sessionId": session_id, "active": false, "autonomous": false }),
                         );
 
                         match result {

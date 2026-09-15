@@ -28,16 +28,17 @@ fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()
 /// autonomously resuming the conversation (see `resume_after_background_subtask`)
 /// — so the two can never interleave writes to the same session's history.
 ///
-/// Also the single choke point for the `chat://{session_id}/generating`
-/// events the frontend uses to know a session is busy — emitted here rather
-/// than at each call site (`send_prompt`, `retry_last`,
+/// Also the single choke point for the `chat://generating` events the
+/// frontend uses to know a session is busy — emitted here rather than at
+/// each call site (`send_prompt`, `retry_last`,
 /// `resume_after_background_subtask`) specifically so a background subtask
 /// autonomously resuming the conversation (no frontend action kicks that
 /// off) still reports it's working, not just user-initiated turns. This is
 /// what lets the left sidebar show a project as generating even while
-/// you're looking at a different one — see `LeftBar.tsx`, which is always
-/// mounted and subscribes to this event for every known project regardless
-/// of which one's currently open.
+/// you're looking at a different one — see `useGeneratingListener` (`src/
+/// lib/generatingQuery.ts`), a single always-mounted top-level listener for
+/// every known project rather than one per session, since the event's own
+/// payload now carries `sessionId`.
 ///
 /// `autonomous` distinguishes *why* this turn is running: `false` for
 /// `send_prompt`/`retry_last` (the user is actually waiting on this one),
@@ -70,8 +71,8 @@ pub(super) async fn run_with_cancellation(
         .unwrap()
         .insert(session_id.to_string(), cancel_flag.clone());
     let _ = app.emit(
-        &format!("chat://{session_id}/generating"),
-        json!({ "active": true, "autonomous": autonomous }),
+        "chat://generating",
+        json!({ "sessionId": session_id, "active": true, "autonomous": autonomous }),
     );
 
     let result = run_agent_loop(
@@ -89,8 +90,8 @@ pub(super) async fn run_with_cancellation(
 
     state.cancellations.lock().unwrap().remove(session_id);
     let _ = app.emit(
-        &format!("chat://{session_id}/generating"),
-        json!({ "active": false, "autonomous": autonomous }),
+        "chat://generating",
+        json!({ "sessionId": session_id, "active": false, "autonomous": autonomous }),
     );
     result
 }
