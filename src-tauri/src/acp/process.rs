@@ -9,13 +9,14 @@ use super::events::{
 use super::permissions::bridge_acp_permission;
 use crate::commands;
 use crate::db;
+use crate::mcp_bridge;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
     CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, LoadSessionRequest,
-    NewSessionRequest, PromptRequest, RequestPermissionRequest, RequestPermissionResponse,
-    SessionConfigId, SessionConfigOption, SessionId, SessionNotification,
-    SetSessionConfigOptionRequest, TextContent,
+    McpServer, NewSessionRequest, PromptRequest, RequestPermissionRequest,
+    RequestPermissionResponse, SessionConfigId, SessionConfigOption, SessionId,
+    SessionNotification, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
@@ -47,6 +48,43 @@ pub(crate) enum AcpCommand {
     /// Sets the agent's "thought level" session config option, if it exposes
     /// one (see `find_thought_level_config_option`).
     SetEffort(String),
+}
+
+/// `debug_json(&mcp_servers)`, but with the local MCP bridge's auth token
+/// (`mcp_bridge::TOKEN_ENV`) redacted out of the `McpServerStdio` env list —
+/// unlike the rest of a conversation's own transcript, the ACP Events tab is
+/// meant to be safe to glance at or paste into a bug report, and that token
+/// is a live credential for AI Leash's own local MCP bridge server.
+fn mcp_servers_debug(mcp_servers: &[McpServer]) -> serde_json::Value {
+    let mut value = debug_json(&mcp_servers);
+    redact_env_value(&mut value, mcp_bridge::TOKEN_ENV);
+    value
+}
+
+/// Walks an arbitrary JSON value looking for `{"name": name, "value": ...}`
+/// objects (the shape ACP's `EnvVariable` serializes to) and blanks out
+/// `value` wherever `name` matches. Recurses into every object/array rather
+/// than assuming a fixed shape, since it's fed whatever `McpServer`'s own
+/// `Serialize` impl happens to produce.
+fn redact_env_value(value: &mut serde_json::Value, name: &str) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if map.get("name").and_then(|v| v.as_str()) == Some(name) {
+                if let Some(v) = map.get_mut("value") {
+                    *v = json!("<redacted>");
+                }
+            }
+            for v in map.values_mut() {
+                redact_env_value(v, name);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for v in items.iter_mut() {
+                redact_env_value(v, name);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Holds `state.acp_sessions`'s lock across the whole check-then-insert (no
@@ -345,7 +383,10 @@ async fn drive_acp_connection(
                         &session_id,
                         "sent",
                         "session/load",
-                        json!({ "sessionId": stored_id }),
+                        json!({
+                            "sessionId": stored_id,
+                            "mcpServers": mcp_servers_debug(&mcp_servers),
+                        }),
                     );
                     suppress_replay.store(true, Ordering::Release);
                     let load_result = connection
@@ -400,7 +441,13 @@ async fn drive_acp_connection(
                         }
                     }
                 } else {
-                    emit_acp_debug(&app, &session_id, "sent", "session/new", json!({}));
+                    emit_acp_debug(
+                        &app,
+                        &session_id,
+                        "sent",
+                        "session/new",
+                        json!({ "mcpServers": mcp_servers_debug(&mcp_servers) }),
+                    );
                     let new_session = connection
                         .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
                         .block_task()
