@@ -39,7 +39,13 @@ export default function TerminalPanel() {
 
     let ptyId: string | null = null;
     let disposed = false;
+    // Set once `pty://{id}/exit` fires — stops forwarding keystrokes/resizes
+    // to a process that's no longer there to receive them (harmless either
+    // way, `pty_write`/`pty_resize` just error on a missing id, but there's
+    // no point making the round trip).
+    let exited = false;
     let unlistenData: (() => void) | undefined;
+    let unlistenExit: (() => void) | undefined;
 
     (async () => {
       const id = await api.ptySpawn(sessionId, term.cols, term.rows);
@@ -51,14 +57,23 @@ export default function TerminalPanel() {
       unlistenData = await listen<string>(`pty://${id}/data`, (e) => {
         term.write(base64ToBytes(e.payload));
       });
+      // Previously unlistened-to anywhere, so the shell dying (crash, `exit`
+      // typed by the user, killed externally) just went silent with no
+      // indication anything happened — see `pty.rs`'s `exit_event` doc
+      // comment for why a deliberate close (this same tab's own unmount)
+      // never reaches this handler.
+      unlistenExit = await listen(`pty://${id}/exit`, () => {
+        exited = true;
+        term.write("\r\n\x1b[90m[process exited]\x1b[0m\r\n");
+      });
       term.onData((data) => {
-        api.ptyWrite(id, data);
+        if (!exited) api.ptyWrite(id, data);
       });
     })();
 
     const resizeObserver = new ResizeObserver(() => {
       fit.fit();
-      if (ptyId) api.ptyResize(ptyId, term.cols, term.rows);
+      if (ptyId && !exited) api.ptyResize(ptyId, term.cols, term.rows);
     });
     resizeObserver.observe(containerRef.current);
 
@@ -66,6 +81,7 @@ export default function TerminalPanel() {
       disposed = true;
       resizeObserver.disconnect();
       unlistenData?.();
+      unlistenExit?.();
       if (ptyId) api.ptyKill(ptyId);
       term.dispose();
     };
