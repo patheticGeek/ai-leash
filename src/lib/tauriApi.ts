@@ -280,6 +280,8 @@ export const api = {
     invoke<AcpAgentOptions>("fetch_acp_models", { launchCommand }),
   syncAcpAgentCatalog: (agents: AcpAgentCatalogEntry[]) =>
     invoke<void>("sync_acp_agent_catalog", { agents }),
+  getAcpAgentCatalog: () =>
+    invoke<AcpAgentCatalogEntry[]>("get_acp_agent_catalog"),
   listSubAgents: (sessionId: string) =>
     invoke<SubAgentSummary[]>("list_sub_agents", { sessionId }),
   deleteSubAgent: (subSessionId: string) =>

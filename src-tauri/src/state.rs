@@ -41,15 +41,19 @@ pub struct AcpSession {
 }
 
 /// One configured ACP agent (id/label/launch command) plus whatever
-/// model/effort options the frontend has discovered for it, pushed down
+/// model/effort options have been discovered for it. Written two ways:
 /// wholesale via `acp::sync_acp_agent_catalog` whenever `acpSlice.ts`'s
-/// `agentBackend.acpAgents`/`acpModelCache` changes. Discovery itself only
-/// ever happens on the frontend (`acp::fetch_acp_models`, a throwaway
-/// subprocess spawn) — this cache is what lets backend tool calls
+/// `agentBackend.acpAgents` changes (on-demand discovery of a new/edited
+/// agent, still frontend-triggered), and by Rust's own
+/// `acp::refresh_acp_catalog_in_background` re-running discovery for
+/// already-known agents once per launch. Persisted to disk
+/// (`acp::acp_catalog_path`) so it survives a restart and is loaded back
+/// into this field synchronously in `lib.rs`'s `.setup()` hook, before the
+/// frontend has even booted — this cache is what lets backend tool calls
 /// (`list_agent_options`, `spawn_sub_agent`'s `agent` argument) look up an
 /// ACP agent by name and its selectable models/effort levels without paying
 /// for a fresh discovery connection on every call.
-#[derive(Clone, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AcpAgentCatalogEntry {
     pub id: String,
@@ -114,6 +118,13 @@ pub struct AppState {
     pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
     /// See `AcpAgentCatalogEntry`'s doc comment.
     pub acp_agent_catalog: Mutex<Vec<AcpAgentCatalogEntry>>,
+    /// Guards `acp::refresh_acp_catalog_in_background` so it only ever runs
+    /// once per process — claimed via `swap(true, ...)` the first time
+    /// `commands::set_project_root` is called (the earliest point a project
+    /// root, and therefore a valid ACP discovery target, exists). A later
+    /// project switch shouldn't re-trigger it: an agent's models are a
+    /// property of its binary, not of whichever project happens to be open.
+    pub acp_catalog_refresh_started: AtomicBool,
     /// Loopback bridge external ACP agent subprocesses relay a handful of
     /// tool calls through — see `mcp_bridge`. Bound once at startup
     /// (`lib.rs`'s `.setup()` hook); `None` only in the brief window before

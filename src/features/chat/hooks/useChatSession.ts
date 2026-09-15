@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
+import { useAcpAgentCatalog } from "../../../lib/acpCatalogQuery";
 import { LS_KEYS } from "../../../lib/localStorageKeys";
 import {
   type AcpCommandInfo,
@@ -63,20 +64,12 @@ export function useChatSession(
   const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
   const providerSettings = useAppStore((s) => s.providerSettings);
   const agentBackend = useAppStore((s) => s.agentBackend);
-  const acpModelCache = useAppStore((s) => s.acpModelCache);
-  const refreshAcpModelCache = useAppStore((s) => s.refreshAcpModelCache);
+  // Rust-authoritative catalog of discovered ACP models/effort levels —
+  // persisted to disk and kept fresh across restarts by its own background
+  // refresh (see `acp::refresh_acp_catalog_in_background`), so there's no
+  // frontend-side retry-on-mount needed here anymore.
+  const acpCatalog = useAcpAgentCatalog();
   const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
-  // Retries discovery for any configured ACP agent still missing from the
-  // cache (never fetched yet, or a past attempt failed) every time this
-  // hook mounts — i.e. on every conversation switch, since this remounts
-  // per conversation (`App.tsx`'s `key={activeSessionId}`). `App.tsx`'s own
-  // startup call only runs once per launch, so an agent added afterward, or
-  // one whose earlier discovery failed transiently, would otherwise never
-  // get another chance until the app restarts. `refreshAcpModelCache`
-  // itself already no-ops for anything already cached, so this is cheap.
-  useEffect(() => {
-    refreshAcpModelCache();
-  }, [refreshAcpModelCache]);
   // This conversation's own backend/model choice — read once at mount (this
   // component remounts per conversation, via `App.tsx`'s `key={activeSessionId}`,
   // so `sessionId` is stable for its whole lifetime) from whatever it last
@@ -375,9 +368,9 @@ export function useChatSession(
   // `kind` as a side effect. Each Ollama config's own models are listed
   // individually (one entry per model, mirroring the ACP `flatMap` just
   // below), and so are an ACP agent's — using its cached model list (see
-  // `acpModelCache`/`fetchAcpModelsFor`) when one's known, falling back to
-  // a single bare-config/bare-agent row otherwise (unfetched yet, or
-  // nothing to pick from).
+  // `useAcpAgentCatalog`/`fetchAcpModelsFor`) when one's known, falling
+  // back to a single bare-config/bare-agent row otherwise (unfetched yet,
+  // or nothing to pick from).
   const backendOptions: PickerOption[] = [
     ...providerSettings.ollama.flatMap((c) => {
       const configModels = ollamaModelsByConfig[c.id] ?? [];
@@ -402,15 +395,17 @@ export function useChatSession(
       subtitle: "OpenAI-compatible",
     })),
     ...agentBackend.acpAgents.flatMap((c) => {
-      // Prefer the throwaway-session cache (available for every saved
-      // agent, not just the one this conversation has active), but fall
-      // back to the *live* connection's own options for whichever agent
-      // this conversation is actually connected to right now — that's
-      // strictly fresher, and covers the rare case where the cache fetch
-      // failed but a real chat still succeeded.
+      // Prefer the Rust-cached catalog (available for every saved agent,
+      // not just the one this conversation has active), but fall back to
+      // the *live* connection's own options for whichever agent this
+      // conversation is actually connected to right now — that's strictly
+      // fresher, and covers the rare case where the cached fetch failed but
+      // a real chat still succeeded.
       const known =
-        acpModelCache[c.id]?.model ??
-        (c.id === acpActiveId ? acpModelOptions : null);
+        (acpCatalog.find((e) => e.id === c.id)?.modelOptions as
+          | AcpModelOptions
+          | null
+          | undefined) ?? (c.id === acpActiveId ? acpModelOptions : null);
       if (known && known.options.length > 0) {
         return known.options.map((o) => ({
           key: `acp:${c.id}:${o.value}`,
@@ -434,7 +429,12 @@ export function useChatSession(
     acpModelChoice ??
     acpModelOptions?.currentValue ??
     (activeAcpAgent
-      ? acpModelCache[activeAcpAgent.id]?.model?.currentValue
+      ? (
+          acpCatalog.find((e) => e.id === activeAcpAgent.id)?.modelOptions as
+            | AcpModelOptions
+            | null
+            | undefined
+        )?.currentValue
       : undefined) ??
     null;
   const activeBackendKey = isAcp
@@ -450,10 +450,11 @@ export function useChatSession(
         : `ollama:${providerActiveId}`;
   const activeBackendLabel = isAcp
     ? // A chosen model's friendly name comes from `backendOptions`, built
-      // from `acpModelCache`/live `acpModelOptions` — but that cache can
-      // still be loading (or have failed to load) right after switching to
-      // this conversation, before it's had a chance to resolve. In that
-      // window, fall back to the raw model value rather than the agent's
+      // from the Rust-cached catalog/live `acpModelOptions` — but that
+      // cache can still be loading (or have failed to load) right after
+      // switching to this conversation, before it's had a chance to
+      // resolve. In that window, fall back to the raw model value rather
+      // than the agent's
       // own label — showing "Claude Code" as if *it* were the selected
       // model would be actively wrong, not just imprecise. Only fall back
       // to the agent label when no model has actually been chosen at all.
