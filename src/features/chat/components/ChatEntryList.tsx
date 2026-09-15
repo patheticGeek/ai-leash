@@ -1,5 +1,6 @@
 import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import type { PanelEntry } from "../hooks/useChatStream";
 import ChatEntryRenderer, {
@@ -8,6 +9,7 @@ import ChatEntryRenderer, {
 } from "./ChatEntryRenderer";
 
 export interface ChatEntryListProps {
+  className?: string;
   entries: PanelEntry[];
   // These four are top-level-conversation-only concerns (Ollama/ACP-restore
   // banners, the collapsible system prompt block) — optional so a caller
@@ -79,6 +81,7 @@ export default function ChatEntryList({
   nowTick,
   onRetry = () => {},
   allowRetry = true,
+  className,
 }: ChatEntryListProps) {
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
@@ -188,120 +191,123 @@ export default function ChatEntryList({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="h-full overflow-y-auto p-3 space-y-3 text-sm"
+      className={cn("h-full overflow-y-auto flex flex-col", className)}
     >
-      {systemPrompt && (
-        <div className="text-xs">
-          <Button
-            variant="unstyled"
-            size="none"
-            onClick={() => setSystemPromptExpanded((v) => !v)}
-            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
-          >
-            <Chevron expanded={systemPromptExpanded} />
-            <span className="italic">system prompt</span>
-          </Button>
-          {systemPromptExpanded && (
-            <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 text-zinc-600">
-              {systemPrompt}
-            </pre>
-          )}
-        </div>
-      )}
-      {entries.length === 0 && !ollamaError && (
-        <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
-          <div className="w-full max-w-md text-center">
-            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.16),0_10px_26px_rgba(0,0,0,0.2)]">
-              <MessageCircle size={25} strokeWidth={1.6} />
-              <Sparkles
-                size={13}
-                className="absolute -right-1 -top-1 text-amber-300"
-              />
-            </div>
-            <h2 className="text-lg font-medium text-zinc-100">
-              What are we working on?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Ask about your code, plan a change, or let the agent explore the
-              project with you.
-            </p>
+      <div className="p-3 space-y-3 text-sm w-full max-w-4xl mx-auto">
+        {systemPrompt && (
+          <div className="text-xs">
+            <Button
+              variant="unstyled"
+              size="none"
+              onClick={() => setSystemPromptExpanded((v) => !v)}
+              className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+            >
+              <Chevron expanded={systemPromptExpanded} />
+              <span className="italic">system prompt</span>
+            </Button>
+            {systemPromptExpanded && (
+              <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 text-zinc-600">
+                {systemPrompt}
+              </pre>
+            )}
           </div>
-        </div>
-      )}
-      {ollamaError && (
-        <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          {ollamaError}
-        </div>
-      )}
-      {acpRestoreFailed && (
-        <div className="flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          <span>
-            This agent couldn't restore its previous session ({acpRestoreFailed}
-            ). It no longer remembers this conversation.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            onClick={onRetryAcpSession}
-          >
-            Start new session
-          </Button>
-        </div>
-      )}
-      {renderItems.map((item) => {
-        if (item.kind === "activitygroup") {
-          const { indices } = item;
-          const groupKey = String(indices[0]);
-          const expanded = groupExpanded[groupKey] ?? false;
-          const showToggle = indices.length > 1;
-          const visible =
-            showToggle && !expanded ? [indices[indices.length - 1]] : indices;
-          const thoughtCount = indices.filter(
-            (idx) => entries[idx].kind === "thinking",
-          ).length;
-          const toolCount = indices.filter(
-            (idx) => entries[idx].kind === "tool",
-          ).length;
-          const activitySummary = [
-            thoughtCount > 0 && `${thoughtCount} thoughts`,
-            toolCount > 0 && `${toolCount} tools used`,
-          ]
-            .filter(Boolean)
-            .join(", ");
-          return (
-            <div key={`activity-${groupKey}`} className="space-y-1.5">
-              {visible.map((idx) => renderEntry(idx))}
-              {showToggle && (
-                <Button
-                  variant="unstyled"
-                  size="none"
-                  onClick={() => toggleGroup(groupKey)}
-                  className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
-                >
-                  <ChevronDown
-                    size={11}
-                    className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
-                  />
-                  {expanded ? "Hide" : `Show all (${activitySummary})`}
-                </Button>
-              )}
+        )}
+        {entries.length === 0 && !ollamaError && (
+          <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
+            <div className="w-full max-w-md text-center">
+              <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.16),0_10px_26px_rgba(0,0,0,0.2)]">
+                <MessageCircle size={25} strokeWidth={1.6} />
+                <Sparkles
+                  size={13}
+                  className="absolute -right-1 -top-1 text-amber-300"
+                />
+              </div>
+              <h2 className="text-lg font-medium text-zinc-100">
+                What are we working on?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">
+                Ask about your code, plan a change, or let the agent explore the
+                project with you.
+              </p>
             </div>
-          );
-        }
-        return renderEntry(item.index);
-      })}
-      {sending && (
-        <div className="text-sm">
-          {hasActivity && replyStartedAt ? (
-            <span className="shine-text">
-              {`Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`}
+          </div>
+        )}
+        {ollamaError && (
+          <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+            {ollamaError}
+          </div>
+        )}
+        {acpRestoreFailed && (
+          <div className="flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+            <span>
+              This agent couldn't restore its previous session (
+              {acpRestoreFailed}
+              ). It no longer remembers this conversation.
             </span>
-          ) : (
-            <span className="shine-text">Waiting</span>
-          )}
-        </div>
-      )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={onRetryAcpSession}
+            >
+              Start new session
+            </Button>
+          </div>
+        )}
+        {renderItems.map((item) => {
+          if (item.kind === "activitygroup") {
+            const { indices } = item;
+            const groupKey = String(indices[0]);
+            const expanded = groupExpanded[groupKey] ?? false;
+            const showToggle = indices.length > 1;
+            const visible =
+              showToggle && !expanded ? [indices[indices.length - 1]] : indices;
+            const thoughtCount = indices.filter(
+              (idx) => entries[idx].kind === "thinking",
+            ).length;
+            const toolCount = indices.filter(
+              (idx) => entries[idx].kind === "tool",
+            ).length;
+            const activitySummary = [
+              thoughtCount > 0 && `${thoughtCount} thoughts`,
+              toolCount > 0 && `${toolCount} tools used`,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            return (
+              <div key={`activity-${groupKey}`} className="space-y-1.5">
+                {visible.map((idx) => renderEntry(idx))}
+                {showToggle && (
+                  <Button
+                    variant="unstyled"
+                    size="none"
+                    onClick={() => toggleGroup(groupKey)}
+                    className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
+                  >
+                    <ChevronDown
+                      size={11}
+                      className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
+                    />
+                    {expanded ? "Hide" : `Show all (${activitySummary})`}
+                  </Button>
+                )}
+              </div>
+            );
+          }
+          return renderEntry(item.index);
+        })}
+        {sending && (
+          <div className="text-sm">
+            {hasActivity && replyStartedAt ? (
+              <span className="shine-text">
+                {`Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`}
+              </span>
+            ) : (
+              <span className="shine-text">Waiting</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

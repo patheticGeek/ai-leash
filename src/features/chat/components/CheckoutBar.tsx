@@ -31,7 +31,7 @@ interface CheckoutBarProps {
 }
 
 function worktreeLabel(w: GitWorktree): string {
-  if (w.isPrimary) return "Primary checkout";
+  if (w.isPrimary) return "primary";
   return w.path.split(/[\\/]/).filter(Boolean).pop() ?? w.path;
 }
 
@@ -113,7 +113,7 @@ export default function CheckoutBar({
         worktrees={worktrees}
         activePath={cwd}
         projectRoot={projectRoot}
-        label={active ? worktreeLabel(active) : "Primary checkout"}
+        label={active ? worktreeLabel(active) : "primary"}
         editable={editable}
         onSelect={selectWorktree}
         onCreate={createWorktree}
@@ -438,7 +438,7 @@ function BranchPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex max-w-40 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
+          className="inline-flex max-w-60 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
         >
           <GitBranchIcon size={12} className="shrink-0" />
           <span className="truncate">{branch ?? "detached"}</span>

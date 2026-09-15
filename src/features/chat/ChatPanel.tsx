@@ -1,6 +1,7 @@
 import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import NewConversationPopover from "@/app/NewConversationPopover";
+import { cn } from "@/lib/utils";
 import { Input } from "@/ui/input";
 import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
 import { useGenerating } from "../../lib/generatingQuery";
@@ -647,104 +648,109 @@ export default function ChatPanel({
   const usageContextLength = usage?.contextLength ?? contextLength;
 
   const inputBar = (
-    <>
-      {helpOpen && (
-        <HelpBanner commands={allCommands} onClose={() => setHelpOpen(false)} />
-      )}
-      {claudeRateLimit && (
-        <ClaudeRateLimitBanner
-          rateLimit={claudeRateLimit}
-          autoResumeArmed={claudeAutoResumeArmed}
-          onArmAutoResume={armClaudeAutoResume}
-          onDismiss={dismissClaudeRateLimit}
-        />
-      )}
-      {queuedMessages.length > 0 && (
-        <QueuedMessagesBanner
-          messages={queuedMessages}
-          onCancel={removeQueuedMessage}
-        />
-      )}
-      <ChatInputBar
-        input={input}
-        onChange={setInput}
-        onKeyDown={onKeyDown}
-        textareaRef={textareaRef}
-        shellMode={shellMode}
-        pendingPermission={pendingPermission}
-        onRespondPermission={respondPermission}
-        showSlashPopover={showSlashPopover}
-        slashMatches={slashMatches}
-        slashActiveIndex={slashActiveIndex}
-        onAcceptSlash={acceptSlashCommand}
-        sending={sending}
-        onSend={send}
-        onStop={stop}
-        onQueue={queueMessage}
-        sendDisabled={
-          !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
-        }
-        toolbarLeft={
-          <>
-            <ModelPickerPopover
-              options={backendOptions}
-              activeKey={activeBackendKey}
-              onSelect={selectBackendOption}
-              triggerLabel={activeBackendLabel}
-              open={modelPickerOpen}
-              onOpenChange={setModelPickerOpen}
-            />
-            {isAcp && acpEffortOptions && (
-              <EffortPickerPopover
-                options={acpEffortOptions.options}
-                value={acpEffortChoice ?? acpEffortOptions.currentValue}
-                onSelect={selectAcpEffort}
+    <div className={cn("w-full", !isNewThread && "absolute bottom-0")}>
+      <div className="mx-auto max-w-4xl">
+        {helpOpen && (
+          <HelpBanner
+            commands={allCommands}
+            onClose={() => setHelpOpen(false)}
+          />
+        )}
+        {claudeRateLimit && (
+          <ClaudeRateLimitBanner
+            rateLimit={claudeRateLimit}
+            autoResumeArmed={claudeAutoResumeArmed}
+            onArmAutoResume={armClaudeAutoResume}
+            onDismiss={dismissClaudeRateLimit}
+          />
+        )}
+        {queuedMessages.length > 0 && (
+          <QueuedMessagesBanner
+            messages={queuedMessages}
+            onCancel={removeQueuedMessage}
+          />
+        )}
+        <ChatInputBar
+          input={input}
+          onChange={setInput}
+          onKeyDown={onKeyDown}
+          textareaRef={textareaRef}
+          shellMode={shellMode}
+          pendingPermission={pendingPermission}
+          onRespondPermission={respondPermission}
+          showSlashPopover={showSlashPopover}
+          slashMatches={slashMatches}
+          slashActiveIndex={slashActiveIndex}
+          onAcceptSlash={acceptSlashCommand}
+          sending={sending}
+          onSend={send}
+          onStop={stop}
+          onQueue={queueMessage}
+          sendDisabled={
+            !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
+          }
+          toolbarLeft={
+            <>
+              <ModelPickerPopover
+                options={backendOptions}
+                activeKey={activeBackendKey}
+                onSelect={selectBackendOption}
+                triggerLabel={activeBackendLabel}
+                open={modelPickerOpen}
+                onOpenChange={setModelPickerOpen}
               />
-            )}
-            <PermissionModePopover
-              mode={permissionMode}
-              onSelect={(mode) => setPermissionMode(sessionId, mode)}
-              open={permissionModePickerOpen}
-              onOpenChange={setPermissionModePickerOpen}
-            />
-            {isOpenAiCompatible && !isAcp && (
-              <Input
-                variant="chip"
-                value={model}
-                onChange={(e) => setModel(e.currentTarget.value)}
-                placeholder="model id"
+              {isAcp && acpEffortOptions && (
+                <EffortPickerPopover
+                  options={acpEffortOptions.options}
+                  value={acpEffortChoice ?? acpEffortOptions.currentValue}
+                  onSelect={selectAcpEffort}
+                />
+              )}
+              <PermissionModePopover
+                mode={permissionMode}
+                onSelect={(mode) => setPermissionMode(sessionId, mode)}
+                open={permissionModePickerOpen}
+                onOpenChange={setPermissionModePickerOpen}
               />
-            )}
-          </>
-        }
-        contextUsage={
-          usedTokens !== null && (
-            <ContextUsageRing
-              usedTokens={usedTokens}
-              contextLength={usageContextLength}
-            />
-          )
-        }
-      />
-      <CheckoutBar
-        sessionId={sessionId}
-        projectRoot={projectRoot}
-        cwd={worktreeCwd}
-        editable={isNewThread}
-        onWorktreeSelected={(worktreePath) => {
-          // Only reachable while `editable` (a still-new thread) — the
-          // worktree is fixed for the rest of the conversation's life once
-          // it's started (see `CheckoutBarProps.editable`'s doc comment).
-          setPendingWorktree(worktreePath);
-          // `warmAcpSession` may have already connected against the primary
-          // checkout before this worktree was picked — re-trigger it now
-          // that `set_conversation_root` (called by `CheckoutBar` itself) has
-          // updated this session's cwd, same retry path a resume failure
-          // uses.
-          setAcpRetryNonce((n) => n + 1);
-        }}
-      />
-    </>
+              {isOpenAiCompatible && !isAcp && (
+                <Input
+                  variant="chip"
+                  value={model}
+                  onChange={(e) => setModel(e.currentTarget.value)}
+                  placeholder="model id"
+                />
+              )}
+            </>
+          }
+          contextUsage={
+            usedTokens !== null && (
+              <ContextUsageRing
+                usedTokens={usedTokens}
+                contextLength={usageContextLength}
+              />
+            )
+          }
+        />
+        <CheckoutBar
+          sessionId={sessionId}
+          projectRoot={projectRoot}
+          cwd={worktreeCwd}
+          editable={isNewThread}
+          onWorktreeSelected={(worktreePath) => {
+            // Only reachable while `editable` (a still-new thread) — the
+            // worktree is fixed for the rest of the conversation's life once
+            // it's started (see `CheckoutBarProps.editable`'s doc comment).
+            setPendingWorktree(worktreePath);
+            // `warmAcpSession` may have already connected against the primary
+            // checkout before this worktree was picked — re-trigger it now
+            // that `set_conversation_root` (called by `CheckoutBar` itself) has
+            // updated this session's cwd, same retry path a resume failure
+            // uses.
+            setAcpRetryNonce((n) => n + 1);
+          }}
+        />
+      </div>
+    </div>
   );
 
   if (isNewThread) {
@@ -791,7 +797,7 @@ export default function ChatPanel({
   }
 
   return (
-    <div className="flex mx-auto max-w-4xl h-full flex-col">
+    <div className="flex h-full flex-col">
       <div className="relative flex-1 overflow-hidden">
         <ChatEntryList
           entries={entries}
@@ -805,6 +811,7 @@ export default function ChatPanel({
           replyStartedAt={replyStartedAt}
           nowTick={nowTick}
           onRetry={retry}
+          className="pb-44 justify-end"
         />
       </div>
       {inputBar}
