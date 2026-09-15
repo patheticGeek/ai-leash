@@ -71,7 +71,7 @@ function ConversationRow({
 
   return (
     <div
-      className={`group mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center rounded-md px-3 py-2 text-sm ${
+      className={`group mx-1.5 mb-1.5 flex items-center rounded-md text-sm ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
@@ -91,7 +91,7 @@ function ConversationRow({
             ? `${projectName} — needs your approval`
             : projectName
         }
-        className="flex min-w-0 flex-1 flex-col items-start text-left gap-2"
+        className="flex min-w-0 flex-1 flex-col items-start text-left gap-2 px-3 py-2"
       >
         <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
           <span className="min-w-0 flex-1 truncate text-zinc-200">
@@ -120,7 +120,7 @@ function ConversationRow({
               event.stopPropagation();
               onMarkDone();
             }}
-            className="absolute right-0 z-10 gap-1 -mr-2 px-1.5 text-xs bg-white/5 text-zinc-500 opacity-0 hover:text-emerald-400 group-hover:opacity-100"
+            className="absolute right-0 z-10 gap-1 -mr-2 px-1.5 text-xs bg-zinc-700 hover:bg-zinc-800 opacity-0 text-zinc-400 hover:text-emerald-400 group-hover:opacity-100"
           >
             <Check size={12} />
             done
@@ -163,7 +163,7 @@ function DoneConversationRow({
 }) {
   return (
     <div
-      className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2 rounded-md text-sm ${
+      className={`mx-1.5 flex items-stretch gap-2 rounded-md text-sm ${
         active
           ? "bg-white/10 text-zinc-100"
           : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
@@ -186,7 +186,7 @@ function DoneConversationRow({
           event.stopPropagation();
           onUndo();
         }}
-        className="shrink-0 text-zinc-500 hover:text-zinc-200 py-4 px-3"
+        className="shrink-0 hover:bg-transparent text-zinc-500 hover:text-zinc-200 px-3 py-5"
       >
         <Undo2 size={14} />
       </Button>
@@ -279,8 +279,8 @@ export default function LeftBar() {
     : doneConversations.slice(0, DEFAULT_VISIBLE_DONE);
 
   return (
-    <div className="relative flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-r)]">
-      <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.06] p-1.5">
+    <div className="relative flex h-full flex-col bg-[#0b0c0e]">
+      <div className="flex shrink-0 items-center gap-1 border-b border-white/5 px-1.5 h-12">
         <Select
           value={projectFilter ?? ALL_PROJECTS}
           onValueChange={(value) =>
@@ -374,7 +374,7 @@ export default function LeftBar() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setDoneExpanded((v) => !v)}
-                    className="mx-1.5 mb-1.5 flex w-[calc(100%-0.75rem)] items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+                    className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
                   >
                     {doneExpanded
                       ? "Show less"

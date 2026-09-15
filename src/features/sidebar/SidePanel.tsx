@@ -37,7 +37,7 @@ export default function SidePanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e] shadow-[var(--al-shadow-l)]">
+    <div className="flex h-full flex-col bg-[#0b0c0e]">
       <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =

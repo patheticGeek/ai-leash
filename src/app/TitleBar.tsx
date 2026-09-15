@@ -127,7 +127,7 @@ export default function TitleBar({
       <div
         data-tauri-drag-region
         style={{ width: leftBarWidth }}
-        className="flex shrink-0 items-center justify-between px-1.5 shadow-[var(--al-shadow-r)]"
+        className="flex shrink-0 items-center justify-between px-1.5"
       >
         <div className="flex min-w-0 items-center gap-1.5 ml-1.5">
           <Logo className="h-3.5 w-auto shrink-0" />
@@ -148,8 +148,6 @@ export default function TitleBar({
           </Button>
         </div>
       </div>
-      {/* matches the 4px ResizeHandle between LeftBar and CenterPanel below */}
-      <div className="w-1 shrink-0" />
       <div
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-[#111215]"
@@ -170,12 +168,10 @@ export default function TitleBar({
           <TitleBarActions />
         </div>
       </div>
-      {/* matches the 4px ResizeHandle between CenterPanel and SidePanel below */}
-      <div className="w-1 shrink-0" />
       <div
         data-tauri-drag-region
         style={{ width: rightPanelWidth }}
-        className="flex shrink-0 items-center justify-end shadow-[var(--al-shadow-l)]"
+        className="flex shrink-0 items-center justify-end"
       >
         <WindowControls />
       </div>

@@ -1,7 +1,6 @@
-import { ChevronDown, MessageCircle, Sparkles, X } from "lucide-react";
+import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import NewConversationPopover from "@/app/NewConversationPopover";
-import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
 import { useGenerating } from "../../lib/generatingQuery";
@@ -14,6 +13,7 @@ import CheckoutBar from "./components/CheckoutBar";
 import ClaudeRateLimitBanner from "./components/ClaudeRateLimitBanner";
 import ContextUsageRing from "./components/ContextUsageRing";
 import EffortPickerPopover from "./components/EffortPickerPopover";
+import HelpBanner from "./components/HelpBanner";
 import ModelPickerPopover from "./components/ModelPickerPopover";
 import PermissionModePopover from "./components/PermissionModePopover";
 import QueuedMessagesBanner from "./components/QueuedMessageBanner";
@@ -648,6 +648,9 @@ export default function ChatPanel({
 
   const inputBar = (
     <>
+      {helpOpen && (
+        <HelpBanner commands={allCommands} onClose={() => setHelpOpen(false)} />
+      )}
       {claudeRateLimit && (
         <ClaudeRateLimitBanner
           rateLimit={claudeRateLimit}
@@ -803,47 +806,6 @@ export default function ChatPanel({
           nowTick={nowTick}
           onRetry={retry}
         />
-        {helpOpen && (
-          <div className="absolute inset-0 z-10 flex flex-col bg-[#111215]">
-            <div className="flex items-center justify-between shadow-[var(--al-shadow-b)] px-3 py-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                Commands
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setHelpOpen(false)}
-                title="Close"
-              >
-                <X size={14} />
-              </Button>
-            </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-              <div className="rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2">
-                <div className="text-sm font-medium text-zinc-100">
-                  !<span className="text-zinc-500"> command</span>
-                </div>
-                <div className="text-xs text-zinc-500">
-                  Run a shell command directly — no permission prompt, result
-                  shown as a tool call. Start with a space (" !...") to send a
-                  literal message instead.
-                </div>
-              </div>
-              {allCommands.map((c) => (
-                <div
-                  key={c.name}
-                  className="rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2"
-                >
-                  <div className="text-sm font-medium text-zinc-100">
-                    /{c.name}
-                    {c.hint && <span className="text-zinc-500"> {c.hint}</span>}
-                  </div>
-                  <div className="text-xs text-zinc-500">{c.description}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
       {inputBar}
     </div>
