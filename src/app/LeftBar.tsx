@@ -91,7 +91,7 @@ function ConversationRow({
             ? `${projectName} — needs your approval`
             : projectName
         }
-        className="flex min-w-0 flex-1 flex-col items-start text-left gap-2 px-3 py-2"
+        className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
       >
         <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
           <span className="min-w-0 flex-1 truncate text-zinc-200">
@@ -135,7 +135,7 @@ function ConversationRow({
           {branchName && (
             <>
               <GitBranch className="size-2.5 shrink-0" />
-              <span className="max-w-24 shrink-0 truncate" title={branchName}>
+              <span className="max-w-28 shrink-0 truncate" title={branchName}>
                 {branchName}
               </span>
             </>
@@ -175,7 +175,7 @@ function DoneConversationRow({
         onClick={onClick}
         onContextMenu={onContextMenu}
         title={conversation.title || "New conversation"}
-        className="min-w-0 flex-1 justify-start truncate text-left px-3 py-2"
+        className="min-w-0 flex-1 justify-start truncate text-left px-3 py-1.5"
       >
         {conversation.title || "New conversation"}
       </Button>
@@ -186,7 +186,7 @@ function DoneConversationRow({
           event.stopPropagation();
           onUndo();
         }}
-        className="shrink-0 hover:bg-transparent text-zinc-500 hover:text-zinc-200 px-3 py-5"
+        className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3 py-4"
       >
         <Undo2 size={14} />
       </Button>
