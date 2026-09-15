@@ -5,9 +5,13 @@ import { conversationCheckoutPath } from "../store/conversationSlice";
 // conversation is pinned to, or null before any conversation is known.
 export function useActiveCheckoutPath(): string | null {
   return useAppStore((s) => {
-    const conversation = s.conversations.find(
-      (c) => c.id === s.activeSessionId,
-    );
-    return conversation ? conversationCheckoutPath(conversation) : null;
+    const sessionId = s.activeSessionId;
+    if (!sessionId) return null;
+    const remembered = s.checkoutPathBySession[sessionId];
+    if (remembered) return remembered;
+    const conversation = s.conversations.find((c) => c.id === sessionId);
+    return conversation
+      ? conversationCheckoutPath(conversation)
+      : s.projectRoot;
   });
 }

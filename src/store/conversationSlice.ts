@@ -64,10 +64,19 @@ export interface ConversationSlice {
   // never has to fire mid-turn — see `conversationSlice.ts`'s module doc.
   // Only null before any project has ever been known.
   activeSessionId: string | null;
+  // The checkout each known session is currently pinned to. Unlike
+  // `conversations[*].worktreePath`, this also covers still-new threads that
+  // have not sent their first message yet and therefore do not have a
+  // conversation row to read from.
+  checkoutPathBySession: Record<string, string>;
   loadAllConversations: () => Promise<void>;
   initializeStartupSession: () => Promise<void>;
   openConversation: (id: string) => Promise<void>;
   startNewConversation: (projectRoot: string) => Promise<void>;
+  setConversationCheckoutPath: (
+    sessionId: string,
+    checkoutPath: string,
+  ) => void;
   markConversationStarted: (
     id: string,
     projectRoot: string,
@@ -87,6 +96,7 @@ export const conversationSlice: StateCreator<
 > = (set, get) => ({
   conversations: [],
   activeSessionId: null,
+  checkoutPathBySession: {},
 
   // Backend is the source of truth (SQLite, kept indefinitely) — this
   // merges in anything not already known locally, without clobbering a
@@ -139,16 +149,13 @@ export const conversationSlice: StateCreator<
     const conversation = get().conversations.find((c) => c.id === id);
     if (!conversation) return;
     const { projectRoot } = conversation;
+    const checkoutPath = conversationCheckoutPath(conversation);
     const token = ++latestSwitchToken;
     await api.setProjectRoot(projectRoot);
     // Restores this conversation's own checkout (primary or worktree) —
     // separate from the global `project_root` above, which only drives the
     // file tree / terminal's "focused" project. See `BranchBar`.
-    await api.setConversationRoot(
-      id,
-      projectRoot,
-      conversation.worktreePath ?? projectRoot,
-    );
+    await api.setConversationRoot(id, projectRoot, checkoutPath);
     // A newer switch (another click, or `startNewConversation`) started
     // while this one was awaiting the backend round trip — let it win
     // instead of overwriting whatever it already committed.
@@ -172,6 +179,10 @@ export const conversationSlice: StateCreator<
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
       const chatStateByConversation = { ...s.chatStateByConversation };
+      const checkoutPathBySession = {
+        ...s.checkoutPathBySession,
+        [id]: checkoutPath,
+      };
       if (prevSessionId) {
         panelStateByConversation[prevSessionId] = {
           panelTabs: prevPanelTabs,
@@ -185,6 +196,7 @@ export const conversationSlice: StateCreator<
       return {
         projectRoot,
         activeSessionId: id,
+        checkoutPathBySession,
         openFiles: [],
         activePath:
           restoredActiveTab?.kind === "file"
@@ -258,6 +270,10 @@ export const conversationSlice: StateCreator<
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
       const chatStateByConversation = { ...s.chatStateByConversation };
+      const checkoutPathBySession = {
+        ...s.checkoutPathBySession,
+        [id]: projectRoot,
+      };
       if (prevSessionId) {
         panelStateByConversation[prevSessionId] = {
           panelTabs: prevPanelTabs,
@@ -271,6 +287,7 @@ export const conversationSlice: StateCreator<
       return {
         projectRoot,
         activeSessionId: id,
+        checkoutPathBySession,
         openFiles: [],
         activePath: null,
         panelTabs: [],
@@ -283,6 +300,14 @@ export const conversationSlice: StateCreator<
     });
   },
 
+  setConversationCheckoutPath: (sessionId, checkoutPath) =>
+    set((s) => ({
+      checkoutPathBySession: {
+        ...s.checkoutPathBySession,
+        [sessionId]: checkoutPath,
+      },
+    })),
+
   // Optimistic insert the moment a new conversation's first message is
   // actually sent (called from `ChatPanel.submitPrompt`, before the
   // backend round trip) — this is what flips a conversation from "new
@@ -290,23 +315,25 @@ export const conversationSlice: StateCreator<
   // anything async. No-op if already present (e.g. a second message in the
   // same still-fresh conversation).
   markConversationStarted: (id, projectRoot, worktreePath = null) => {
-    set((s) =>
-      s.conversations.some((c) => c.id === id)
-        ? s
-        : {
-            conversations: [
-              {
-                id,
-                projectRoot,
-                title: null,
-                updatedAt: nowSeconds(),
-                done: false,
-                worktreePath,
-              },
-              ...s.conversations,
-            ],
-          },
-    );
+    set((s) => ({
+      checkoutPathBySession: {
+        ...s.checkoutPathBySession,
+        [id]: worktreePath ?? projectRoot,
+      },
+      conversations: s.conversations.some((c) => c.id === id)
+        ? s.conversations
+        : [
+            {
+              id,
+              projectRoot,
+              title: null,
+              updatedAt: nowSeconds(),
+              done: false,
+              worktreePath,
+            },
+            ...s.conversations,
+          ],
+    }));
     // Catches any tabs opened while this was still a new/unsent thread —
     // `persistActiveSessionTabState` skipped them until now, since the id
     // wasn't in `conversations` yet.
@@ -365,9 +392,14 @@ export const conversationSlice: StateCreator<
     } catch {
       // Best-effort, same as the draft read/write sites in ChatPanel.tsx.
     }
-    set((s) => ({
-      conversations: s.conversations.filter((c) => c.id !== id),
-    }));
+    set((s) => {
+      const checkoutPathBySession = { ...s.checkoutPathBySession };
+      delete checkoutPathBySession[id];
+      return {
+        conversations: s.conversations.filter((c) => c.id !== id),
+        checkoutPathBySession,
+      };
+    });
     if (get().activeSessionId === id && conversation) {
       await get().startNewConversation(conversation.projectRoot);
     }
