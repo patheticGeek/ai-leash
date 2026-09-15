@@ -1,10 +1,8 @@
 import type { StateCreator } from "zustand";
 import { LS_KEYS } from "../lib/localStorageKeys";
-import {
-  api,
-  type ModelSummary,
-  type ProviderConfigPayload,
-} from "../lib/tauriApi";
+import { ollamaModelsQueryKey } from "../lib/ollamaModelsQuery";
+import { queryClient } from "../lib/queryClient";
+import { api, type ProviderConfigPayload } from "../lib/tauriApi";
 import { DEFAULT_OLLAMA_ID } from "./backendSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
@@ -91,8 +89,9 @@ function saveProviderSettings(settings: ProviderSettings) {
 
 // Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like
 // `id`/`label`/`model`) down to exactly the shape the backend's
-// `ProviderConfig` enum expects.
-function toProviderConfigPayload(
+// `ProviderConfig` enum expects. Exported for `ollamaModelsQuery.ts`, the
+// only outside caller.
+export function toProviderConfigPayload(
   config: ProviderConfig,
 ): ProviderConfigPayload {
   if (config.kind === "ollama") {
@@ -106,12 +105,6 @@ function toProviderConfigPayload(
 }
 
 export interface ProviderSlice {
-  // Every configured Ollama connection's own model list, keyed by that
-  // config's `id` — used to populate the picker's per-model Ollama rows for
-  // *each* configured connection (see `useChatSession.ts`), so a config's
-  // models can't go empty or bleed into another config just because some
-  // conversation happens to have a different one active.
-  ollamaModelsByConfig: Record<string, ModelSummary[]>;
   providerSettings: ProviderSettings;
   // Live reachability per configured provider, keyed by an `ollama` or
   // `openAiCompatible` config's `id`, refreshed regardless of which
@@ -121,7 +114,6 @@ export interface ProviderSlice {
   providerConnectivity: Record<string, boolean | null>;
   // Shared by the settings modal's Agents tab.
   settingsModalOpen: boolean;
-  refreshOllamaModels: () => Promise<void>;
   refreshProviderConnectivity: () => Promise<void>;
   providerConfigFor: (id: string) => ProviderConfigPayload;
   setSettingsModalOpen: (open: boolean) => void;
@@ -135,27 +127,9 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
   set,
   get,
 ) => ({
-  ollamaModelsByConfig: {},
   providerSettings: loadProviderSettings(),
   providerConnectivity: {},
   settingsModalOpen: false,
-
-  refreshOllamaModels: async () => {
-    const { providerSettings } = get();
-    const results = await Promise.all(
-      providerSettings.ollama.map(async (config) => {
-        try {
-          const models = await api.listProviderModels(
-            toProviderConfigPayload(config),
-          );
-          return [config.id, models] as const;
-        } catch {
-          return [config.id, []] as const;
-        }
-      }),
-    );
-    set({ ollamaModelsByConfig: Object.fromEntries(results) });
-  },
 
   // Narrows `providerSettings` (which carries frontend-only bookkeeping like
   // `id`/`label`/`model`) down to exactly the shape the backend's
@@ -216,7 +190,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
 
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
 
-  saveOllamaConfig: (config) =>
+  saveOllamaConfig: (config) => {
     set((s) => {
       const exists = s.providerSettings.ollama.some((c) => c.id === config.id);
       const ollama = exists
@@ -227,20 +201,23 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       const providerSettings = { ...s.providerSettings, ollama };
       saveProviderSettings(providerSettings);
       return { providerSettings };
-    }),
+    });
+    // Covers an edited host pointing at a different server — a brand-new
+    // config's id has never been queried before, so it fetches on its own
+    // the moment something first reads it, without needing this.
+    queryClient.invalidateQueries({
+      queryKey: ollamaModelsQueryKey(config.id),
+    });
+  },
 
   deleteOllamaConfig: (id) => {
     set((s) => {
       const ollama = s.providerSettings.ollama.filter((c) => c.id !== id);
       const providerSettings = { ...s.providerSettings, ollama };
       saveProviderSettings(providerSettings);
-      const ollamaModelsByConfig = Object.fromEntries(
-        Object.entries(s.ollamaModelsByConfig).filter(
-          ([configId]) => configId !== id,
-        ),
-      );
-      return { providerSettings, ollamaModelsByConfig };
+      return { providerSettings };
     });
+    queryClient.removeQueries({ queryKey: ollamaModelsQueryKey(id) });
     get().reconcileDefaultBackend();
   },
 

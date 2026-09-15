@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { useAcpAgentCatalog } from "../../../lib/acpCatalogQuery";
 import { LS_KEYS } from "../../../lib/localStorageKeys";
+import { useOllamaModelsByConfig } from "../../../lib/ollamaModelsQuery";
 import {
   type AcpCommandInfo,
   type AcpEffortOptions,
@@ -49,20 +50,15 @@ export const COMPACT_COMMAND: AcpCommandInfo = {
 export function useChatSession(
   sessionId: string,
   setError: (message: string | null) => void,
-  // Whether a turn is currently in flight — only used to pause the 5s
-  // Ollama model-list poll while one is (see original `ChatPanel.tsx`
-  // behavior); owned by `ChatPanel` itself, not this hook.
-  sending: boolean,
   // Runs whenever the connected ACP agent changes and this hook resets its
   // own ACP-related state — lets the caller reset state it owns that also
   // needs to go stale at the same time (currently just the slash-command
   // popover's dismissed-query bookkeeping in `ChatPanel.tsx`).
   onAcpAgentReset: () => void,
 ) {
-  const ollamaModelsByConfig = useAppStore((s) => s.ollamaModelsByConfig);
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);
-  const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
   const providerSettings = useAppStore((s) => s.providerSettings);
+  const ollamaModelsByConfig = useOllamaModelsByConfig(providerSettings.ollama);
   const agentBackend = useAppStore((s) => s.agentBackend);
   // Rust-authoritative catalog of discovered ACP models/effort levels —
   // persisted to disk and kept fresh across restarts by its own background
@@ -270,16 +266,6 @@ export function useChatSession(
     }
     appliedAcpEffortRef.current = acpEffortChoice;
   }, [acpEffortOptions, acpEffortChoice]);
-
-  useEffect(() => {
-    refreshOllamaModels();
-  }, [refreshOllamaModels]);
-
-  useEffect(() => {
-    if (sending) return;
-    const interval = setInterval(refreshOllamaModels, 5000);
-    return () => clearInterval(interval);
-  }, [sending, refreshOllamaModels]);
 
   // Ollama has no live models yet the first time a brand-new conversation
   // opens on it — fill in a sensible one once this conversation's active

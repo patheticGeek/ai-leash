@@ -10,6 +10,7 @@ import {
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
+import { useOllamaModelsByConfig } from "../lib/ollamaModelsQuery";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
@@ -18,7 +19,7 @@ import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const refreshOllamaModels = useAppStore((s) => s.refreshOllamaModels);
+  const providerSettings = useAppStore((s) => s.providerSettings);
   const refreshProviderConnectivity = useAppStore(
     (s) => s.refreshProviderConnectivity,
   );
@@ -48,6 +49,10 @@ function App() {
   // picker would flash empty for a tick each time, even though the
   // underlying data itself hasn't changed.
   const acpCatalogQuery = useAcpAgentCatalogQuery();
+  // Same reasoning, for Ollama's per-config model lists — keeps them warm
+  // across conversation switches now that they live in React Query instead
+  // of always-mounted Zustand state.
+  useOllamaModelsByConfig(providerSettings.ollama);
 
   // Rust's own background refresh (`acp::refresh_acp_catalog_in_background`)
   // only re-discovers agents *already* in its catalog — nothing ever seeds
@@ -96,10 +101,6 @@ function App() {
     720,
     -1,
   );
-
-  useEffect(() => {
-    refreshOllamaModels();
-  }, [refreshOllamaModels]);
 
   useEffect(() => {
     refreshProviderConnectivity();
