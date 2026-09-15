@@ -1,4 +1,4 @@
-use super::{paginate_lines, truncate, ToolCall, ToolCallFunction, DEFAULT_READ_LIMIT};
+use super::{paginate_lines, truncate, DEFAULT_READ_LIMIT};
 use crate::acp::AcpCommand;
 use crate::chat;
 use crate::db;
@@ -417,16 +417,17 @@ pub(super) fn spawn_sub_agent(
             // its existing channel instead, the same mechanism a
             // real user message uses (`send_prompt_acp`). ACP has
             // no equivalent of injecting a synthetic tool-call/
-            // tool-result pair without generating a turn *into the
-            // subprocess itself*, so what's sent there is still a
-            // plain prompt string — but locally we push/emit the
-            // same synthetic tool-call/tool-result pair
-            // `resume_after_background_subtask` uses below first, so
-            // the result gets its own distinct block in the UI
-            // before the ACP agent's reaction streams in. Without
-            // this, nothing marks the previous assistant bubble as
-            // finished, and `appendChunk` (`chatEntries.ts`) silently
-            // tacks the reaction onto the end of it.
+            // tool-result pair into the *agent's own* context
+            // without generating a turn, so what's actually sent to
+            // it is necessarily a plain-text prompt —
+            // `record_sub_agent_result` separately gives AI Leash's
+            // own UI/history the same tool-call-shaped
+            // representation the native path gets, so the result
+            // lands as its own distinct block before the ACP agent's
+            // reaction streams in. Without this, nothing marks the
+            // previous assistant bubble as finished, and
+            // `appendChunk` (`chatEntries.ts`) silently tacks the
+            // reaction onto the end of it.
             let acp_sender = state
                 .acp_sessions
                 .lock()
@@ -435,44 +436,14 @@ pub(super) fn spawn_sub_agent(
                 .map(|s| s.sender.clone());
 
             if let Some(sender) = acp_sender {
-                let call_id = Uuid::new_v4().to_string();
-                let arguments = json!({
-                    "sub_session_id": sub_session_id,
-                    "description": description.clone(),
-                });
-                chat::push_message(
+                chat::record_sub_agent_result(
+                    &app_owned,
                     &state,
                     &session_id_owned,
-                    chat::ChatMessage {
-                        role: "assistant".into(),
-                        content: String::new(),
-                        tool_calls: Some(vec![ToolCall {
-                            id: Some(call_id.clone()),
-                            function: ToolCallFunction {
-                                name: "sub_agent_result".into(),
-                                arguments: arguments.clone(),
-                            },
-                        }]),
-                    },
+                    &sub_session_id,
+                    &description,
+                    &result,
                 );
-                let _ = app_owned.emit(
-                    &format!("chat://{session_id_owned}/tool_call"),
-                    json!({ "id": call_id, "name": "sub_agent_result", "arguments": arguments }),
-                );
-                chat::push_message(
-                    &state,
-                    &session_id_owned,
-                    chat::ChatMessage {
-                        role: "tool".into(),
-                        content: result.clone(),
-                        tool_calls: None,
-                    },
-                );
-                let _ = app_owned.emit(
-                    &format!("chat://{session_id_owned}/tool_result"),
-                    json!({ "id": call_id, "result": &result }),
-                );
-
                 let _ = sender.send(AcpCommand::Prompt(
                     format!("[Sub-agent \"{description}\" finished]\n\n{result}"),
                     None,
