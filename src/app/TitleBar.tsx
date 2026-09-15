@@ -162,7 +162,7 @@ export default function TitleBar({
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-[#111215]"
       >
-        {project && (
+        {project && !debugShowIds && (
           <span className="min-w-0 truncate">
             {project.name}
             {isNewThread ? (
@@ -177,7 +177,7 @@ export default function TitleBar({
         {debugShowIds && (
           <span
             title="project id / conversation id / session id"
-            className="ml-3 min-w-0 truncate font-mono text-[11px] text-zinc-600"
+            className="min-w-0 truncate font-mono text-[11px] text-zinc-600"
           >
             {projectRoot ?? "—"} / {activeSessionId ?? "—"} /{" "}
             {acpSessionId ?? "—"}
