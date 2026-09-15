@@ -89,14 +89,6 @@ conversation in the center area.
 While a sub-agent is running, you can stop it from this list. Finished
 sub-agent entries can be removed from the list.
 
-### ACP Events
-
-The **ACP Events** tab shows the live protocol activity for the current
-conversation's external-agent connection, including sent requests, received
-responses, notifications, permissions, and connection errors. It receives
-events only while the tab is open and discards them when you close it, switch
-away, or clear the list; no event data is saved with the conversation.
-
 ### Actions
 
 **Actions** contains the reusable actions available for the project. Use it
@@ -116,3 +108,9 @@ AI Leash uses a dark appearance throughout the app, including the window
 controls, chat, editors, and terminals. There is currently no light theme or
 appearance switch. The adjustable panel widths are the available workspace
 layout preference.
+
+## Debug mode
+
+Settings has a **Debug** section for inspecting the app's own behavior; see
+[Debug mode](./debug-mode.md) for the ACP Events devtools panel and the
+title bar's id display.

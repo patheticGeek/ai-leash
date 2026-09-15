@@ -12,9 +12,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Emits one protocol-level ACP event for the transient connection inspector.
-/// The frontend subscribes only while its ACP Events tab is open, so these
-/// events are neither retained nor included in conversation persistence.
+/// Emits one protocol-level ACP event for the global debug devtools panel.
+/// Emitted on a single app-wide channel (not a per-conversation
+/// `chat://{id}/...` one) with the conversation id embedded in the payload,
+/// so the frontend can capture events across every conversation at once and
+/// filter by id client-side. Nothing here is persisted by the backend —
+/// whether the frontend keeps or drops these is entirely its call (see
+/// `debugSlice.ts`'s capture-only-while-enabled behavior).
 pub(super) fn emit_acp_debug(
     app: &AppHandle,
     session_id: &str,
@@ -23,8 +27,9 @@ pub(super) fn emit_acp_debug(
     payload: serde_json::Value,
 ) {
     let _ = app.emit(
-        &format!("chat://{session_id}/acp_debug"),
+        "acp://debug",
         json!({
+            "sessionId": session_id,
             "direction": direction,
             "event": event,
             "payload": payload,

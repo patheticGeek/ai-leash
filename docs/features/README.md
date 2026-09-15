@@ -22,6 +22,7 @@ The guides below explain what each part of the app does and how to use it:
 - [Instructions, memory, and skills](./context-and-memory.md): give agents
   durable project guidance and specialized workflows.
 - [Crash logging](./crash-logging.md)
+- [Debug mode](./debug-mode.md)
 
 All conversation history and crash logs stay on the computer running AI
 Leash. In the default **Ask** permission mode, the app asks before an agent

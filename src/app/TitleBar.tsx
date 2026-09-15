@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
+import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
 import Logo from "../ui/Logo";
@@ -87,6 +88,8 @@ export default function TitleBar({
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const startNewConversation = useAppStore((s) => s.startNewConversation);
   const addProject = useAppStore((s) => s.addProject);
+  const debugShowIds = useAppStore((s) => s.debugShowIds);
+  const debugEvents = useAppStore((s) => s.debugEvents);
 
   const project = recentProjects.find((p) => p.path === projectRoot);
   const activeConversation = conversations.find(
@@ -100,6 +103,13 @@ export default function TitleBar({
     activeChatTab?.kind === "subagent"
       ? activeChatTab.label
       : activeConversation?.title;
+  // Only meaningful once debug mode has captured at least one
+  // `session/new`/`session/load` event for this conversation — see
+  // `latestAcpSessionId`'s doc comment for why this can't just be read off
+  // app state directly.
+  const acpSessionId = debugShowIds
+    ? latestAcpSessionId(debugEvents, activeSessionId)
+    : undefined;
 
   // Starts a fresh thread directly in whatever project is currently open —
   // no project picker here (see `ChatPanel.tsx`'s "What are we working on
@@ -162,6 +172,15 @@ export default function TitleBar({
                 <span className="text-zinc-600"> / {conversationTitle}</span>
               )
             )}
+          </span>
+        )}
+        {debugShowIds && (
+          <span
+            title="project id / conversation id / session id"
+            className="ml-3 min-w-0 truncate font-mono text-[11px] text-zinc-600"
+          >
+            {projectRoot ?? "—"} / {activeSessionId ?? "—"} /{" "}
+            {acpSessionId ?? "—"}
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center pl-3">

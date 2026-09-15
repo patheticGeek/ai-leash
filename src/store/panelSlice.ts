@@ -6,7 +6,6 @@ import { localStorageJson } from "./localStorageJson";
 export type PanelTabKind =
   | "filetree"
   | "subagents"
-  | "acp-events"
   | "terminal"
   | "file"
   | "actions"
@@ -186,7 +185,6 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
     const defaultLabels: Record<PanelTabKind, string> = {
       filetree: "Files",
       subagents: "Sub Agents",
-      "acp-events": "ACP Events",
       terminal: `Terminal ${get().panelTabs.filter((t) => t.kind === "terminal").length + 1}`,
       file: opts?.label ?? "file",
       actions: "Actions",
