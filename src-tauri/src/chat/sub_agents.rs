@@ -93,6 +93,68 @@ pub(crate) fn run_sub_agent<'a>(
     })
 }
 
+/// Persists and emits the `sub_agent_result` tool-call/tool-result pair a
+/// finished sub-agent's result is represented as in `session_id`'s own
+/// transcript — a real pair, not a bare injected message, so it renders in
+/// the UI exactly like any other tool call (live, via these two events; and
+/// on reload, via `messagesToEntries`' existing assistant-tool_calls/tool
+/// pairing) instead of being an invisible, dangling `tool`-role message with
+/// nothing to attach it to.
+///
+/// Shared by both ways a parent can learn its sub-agent finished:
+/// `resume_after_background_subtask` (native parent, below) and the ACP
+/// notify branch (`tools::sub_agent_tools::spawn_sub_agent`, when the parent
+/// is an external ACP agent's conversation). For the ACP case this is
+/// *purely* AI Leash's own UI/history — ACP has no way to inject a synthetic
+/// historical tool call into the agent's own context, so what's actually
+/// sent to that subprocess is still a plain-text prompt; without this call,
+/// that prompt would have no visible transcript entry in AI Leash at all.
+pub(crate) fn record_sub_agent_result(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    session_id: &str,
+    sub_session_id: &str,
+    description: &str,
+    result: &str,
+) {
+    let call_id = Uuid::new_v4().to_string();
+    let arguments = json!({ "sub_session_id": sub_session_id, "description": description });
+
+    push_message(
+        state,
+        session_id,
+        ChatMessage {
+            role: "assistant".into(),
+            content: String::new(),
+            tool_calls: Some(vec![ToolCall {
+                id: Some(call_id.clone()),
+                function: ToolCallFunction {
+                    name: "sub_agent_result".into(),
+                    arguments: arguments.clone(),
+                },
+            }]),
+        },
+    );
+    let _ = app.emit(
+        &format!("chat://{session_id}/tool_call"),
+        json!({ "id": call_id, "name": "sub_agent_result", "arguments": arguments }),
+    );
+
+    push_message(
+        state,
+        session_id,
+        ChatMessage {
+            role: "tool".into(),
+            content: result.to_string(),
+            tool_calls: None,
+        },
+    );
+    let _ = app.emit(
+        &format!("chat://{session_id}/tool_result"),
+        json!({ "id": call_id, "result": result }),
+    );
+}
+
 /// Called from the detached background task every `spawn_sub_agent`-spawned
 /// subtask runs in (see `tools.rs`) once it finishes — *after* the turn that
 /// launched it has already returned to the model. Injects that subtask's
@@ -121,47 +183,13 @@ pub(crate) fn resume_after_background_subtask(
     Box::pin(async move {
         let state = app.state::<AppState>();
 
-        // Represented as a real tool call/result pair — not a bare injected
-        // message — so it renders in the UI exactly like any other tool
-        // call (live, via these two events; and on reload, via
-        // `messagesToEntries`' existing assistant-tool_calls/tool pairing)
-        // instead of being an invisible, dangling `tool`-role message with
-        // nothing to attach it to.
-        let call_id = Uuid::new_v4().to_string();
-        let arguments = json!({ "sub_session_id": sub_session_id, "description": description });
-
-        push_message(
+        record_sub_agent_result(
+            &app,
             &state,
             &session_id,
-            ChatMessage {
-                role: "assistant".into(),
-                content: String::new(),
-                tool_calls: Some(vec![ToolCall {
-                    id: Some(call_id.clone()),
-                    function: ToolCallFunction {
-                        name: "sub_agent_result".into(),
-                        arguments: arguments.clone(),
-                    },
-                }]),
-            },
-        );
-        let _ = app.emit(
-            &format!("chat://{session_id}/tool_call"),
-            json!({ "id": call_id, "name": "sub_agent_result", "arguments": arguments }),
-        );
-
-        push_message(
-            &state,
-            &session_id,
-            ChatMessage {
-                role: "tool".into(),
-                content: result.clone(),
-                tool_calls: None,
-            },
-        );
-        let _ = app.emit(
-            &format!("chat://{session_id}/tool_result"),
-            json!({ "id": call_id, "result": &result }),
+            &sub_session_id,
+            &description,
+            &result,
         );
 
         let _ = run_with_cancellation(
