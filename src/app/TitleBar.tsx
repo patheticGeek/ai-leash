@@ -89,6 +89,7 @@ export default function TitleBar({
   const startNewConversation = useAppStore((s) => s.startNewConversation);
   const addProject = useAppStore((s) => s.addProject);
   const debugShowIds = useAppStore((s) => s.debugShowIds);
+  const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
   const debugEvents = useAppStore((s) => s.debugEvents);
 
   const project = recentProjects.find((p) => p.path === projectRoot);
@@ -162,7 +163,7 @@ export default function TitleBar({
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-[#111215]"
       >
-        {project && !debugShowIds && (
+        {project && !debugModeEnabled && (
           <span className="min-w-0 truncate">
             {project.name}
             {isNewThread ? (
