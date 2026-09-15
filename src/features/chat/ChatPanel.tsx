@@ -44,6 +44,9 @@ export default function ChatPanel({
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
   const conversations = useAppStore((s) => s.conversations);
   const markConversationStarted = useAppStore((s) => s.markConversationStarted);
+  const setConversationCheckoutPath = useAppStore(
+    (s) => s.setConversationCheckoutPath,
+  );
   // A conversation not yet in `conversations` has never had a message
   // sent — the centered "new thread" layout below, rather than the normal
   // bottom-pinned one. Flips (without a remount: `sessionId` itself never
@@ -741,6 +744,7 @@ export default function ChatPanel({
             // worktree is fixed for the rest of the conversation's life once
             // it's started (see `CheckoutBarProps.editable`'s doc comment).
             setPendingWorktree(worktreePath);
+            setConversationCheckoutPath(sessionId, worktreePath ?? projectRoot);
             // `warmAcpSession` may have already connected against the primary
             // checkout before this worktree was picked — re-trigger it now
             // that `set_conversation_root` (called by `CheckoutBar` itself) has
