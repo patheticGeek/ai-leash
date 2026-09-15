@@ -356,7 +356,11 @@ export function useChatSession(
   // below), and so are an ACP agent's — using its cached model list (see
   // `useAcpAgentCatalog`/`fetchAcpModelsFor`) when one's known, falling
   // back to a single bare-config/bare-agent row otherwise (unfetched yet,
-  // or nothing to pick from).
+  // or nothing to pick from). Every row also carries a `section` — one per
+  // provider config/ACP agent, not per backend kind — so
+  // `ModelPickerPopover` can render "GitHub Copilot" as its own heading
+  // with just its models under it, same for "Claude Code", each Ollama
+  // connection, etc., instead of one flat list.
   const backendOptions: PickerOption[] = [
     ...providerSettings.ollama.flatMap((c) => {
       const configModels = ollamaModelsByConfig[c.id] ?? [];
@@ -364,7 +368,8 @@ export function useChatSession(
         return configModels.map((m) => ({
           key: `ollama:${c.id}:${m.name}`,
           label: m.name,
-          subtitle: `${c.label} · Ollama`,
+          subtitle: "Ollama",
+          section: c.label,
         }));
       }
       return [
@@ -372,13 +377,15 @@ export function useChatSession(
           key: `ollama:${c.id}`,
           label: c.label,
           subtitle: c.host || "localhost:11434",
+          section: c.label,
         },
       ];
     }),
     ...providerSettings.openAiCompatible.map((c) => ({
       key: `openai:${c.id}`,
       label: c.label,
-      subtitle: "OpenAI-compatible",
+      subtitle: c.baseUrl || "OpenAI-compatible",
+      section: c.label,
     })),
     ...agentBackend.acpAgents.flatMap((c) => {
       // Prefer the Rust-cached catalog (available for every saved agent,
@@ -396,10 +403,18 @@ export function useChatSession(
         return known.options.map((o) => ({
           key: `acp:${c.id}:${o.value}`,
           label: o.name,
-          subtitle: `${c.label} · ACP`,
+          subtitle: "ACP",
+          section: c.label,
         }));
       }
-      return [{ key: `acp:${c.id}`, label: c.label, subtitle: "ACP agent" }];
+      return [
+        {
+          key: `acp:${c.id}`,
+          label: c.label,
+          subtitle: "ACP agent",
+          section: c.label,
+        },
+      ];
     }),
   ];
   // Falls all the way through to the cache's own `currentValue` (the
