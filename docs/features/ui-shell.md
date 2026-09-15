@@ -108,3 +108,9 @@ AI Leash uses a dark appearance throughout the app, including the window
 controls, chat, editors, and terminals. There is currently no light theme or
 appearance switch. The adjustable panel widths are the available workspace
 layout preference.
+
+## Debug mode
+
+Settings has a **Debug** section for inspecting the app's own behavior; see
+[Debug mode](./debug-mode.md) for the ACP Events devtools panel and the
+title bar's id display.

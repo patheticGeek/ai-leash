@@ -23,4 +23,8 @@ export const LS_KEYS = {
   // have actually been sent (listed in `conversations`); a new, unsent
   // thread's tabs live in memory only and are gone on the next restart.
   tabState: "ai-leash:tabState",
+  // Settings > Debug toggles — see `debugSlice.ts`.
+  debugModeEnabled: "ai-leash:debugModeEnabled",
+  debugShowIds: "ai-leash:debugShowIds",
+  debugPanelWidth: "ai-leash:debugPanelWidth",
 } as const;
