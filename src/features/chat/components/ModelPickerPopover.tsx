@@ -8,6 +8,11 @@ export interface PickerOption {
   key: string;
   label: string;
   subtitle: string;
+  // Heading this row is grouped under — one per provider config/ACP agent
+  // (e.g. "GitHub Copilot", listing that agent's own models beneath it),
+  // not per backend kind, so two same-kind configs never get merged into
+  // one ambiguous group.
+  section: string;
 }
 
 interface ModelPickerPopoverProps {
@@ -42,6 +47,15 @@ export default function ModelPickerPopover({
   const filtered = options.filter((o) =>
     `${o.label} ${o.subtitle}`.toLowerCase().includes(query.toLowerCase()),
   );
+  // Groups are already contiguous in `options` (built section-by-section
+  // upstream in `useChatSession.ts`), so a single pass preserves the
+  // original section order — no separate sort needed.
+  const sections = new Map<string, PickerOption[]>();
+  for (const o of filtered) {
+    const rows = sections.get(o.section);
+    if (rows) rows.push(o);
+    else sections.set(o.section, [o]);
+  }
 
   return (
     <Popover
@@ -68,7 +82,7 @@ export default function ModelPickerPopover({
         sideOffset={8}
         className="w-72 gap-0 overflow-hidden p-0"
       >
-        <div className="flex items-center gap-2 shadow-[var(--al-shadow-b)] px-3 py-2.5">
+        <div className="flex items-center gap-2 px-3 py-2.5">
           <Search size={14} className="shrink-0 text-zinc-500" />
           <Input
             variant="unstyled"
@@ -82,22 +96,31 @@ export default function ModelPickerPopover({
           {filtered.length === 0 && (
             <div className="px-3 py-3 text-sm text-zinc-600">No matches.</div>
           )}
-          {filtered.map((o) => (
-            <Button
-              key={o.key}
-              variant="unstyled"
-              size="none"
-              onClick={() => {
-                onSelect(o.key);
-                onOpenChange(false);
-              }}
-              className={`block w-full px-3 py-2 text-left ${
-                o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"
-              }`}
-            >
-              <div className="text-sm font-medium text-zinc-100">{o.label}</div>
-              <div className="text-xs text-zinc-500">{o.subtitle}</div>
-            </Button>
+          {[...sections.entries()].map(([section, rows]) => (
+            <div key={section}>
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+                {section}
+              </div>
+              {rows.map((o) => (
+                <Button
+                  key={o.key}
+                  variant="unstyled"
+                  size="none"
+                  onClick={() => {
+                    onSelect(o.key);
+                    onOpenChange(false);
+                  }}
+                  className={`block w-full px-3 py-2 text-left ${
+                    o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className="text-sm font-medium text-zinc-100">
+                    {o.label}
+                  </div>
+                  <div className="text-xs text-zinc-500">{o.subtitle}</div>
+                </Button>
+              ))}
+            </div>
           ))}
         </div>
       </PopoverContent>
