@@ -40,7 +40,7 @@ export default function SettingsModal() {
               <TabsTrigger
                 key={section.id}
                 value={section.id}
-                className="justify-start px-2 py-2 text-left"
+                className="justify-start px-2 py-2 text-left cursor-pointer"
               >
                 {section.label}
               </TabsTrigger>

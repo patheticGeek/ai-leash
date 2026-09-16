@@ -298,7 +298,11 @@ export default function LeftBar() {
               All projects
             </SelectItem>
             {recentProjects.map((p) => (
-              <SelectItem key={p.path} value={p.path} className="px-3 py-2">
+              <SelectItem
+                key={p.path}
+                value={p.path}
+                className="px-3 py-2 cursor-pointer"
+              >
                 {p.name}
               </SelectItem>
             ))}

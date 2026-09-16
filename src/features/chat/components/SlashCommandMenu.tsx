@@ -36,9 +36,9 @@ export default function SlashCommandMenu({
           }`}
         >
           <div className="text-sm font-medium text-zinc-100 flex">
-            /{c.name}
+            <span>/{c.name}</span>
             {c.hint && (
-              <span className="text-zinc-500 truncate"> {c.hint}</span>
+              <span className="text-zinc-500 truncate ml-2">{c.hint}</span>
             )}
           </div>
           <div className="text-xs text-zinc-500 whitespace-normal">
