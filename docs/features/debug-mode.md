@@ -9,7 +9,7 @@ Leash's own external-agent (ACP) connections while you use the app.
 2. Select **Debug**.
 3. Enable **Enable debug mode**.
 
-A small floating icon appears in the bottom-right corner of the window while
+A small bug icon appears in the title bar, before the window controls, while
 debug mode is on. Click it to open or close the **ACP Events** panel; click
 it again (or the panel's close button) to hide the panel without turning
 debug mode off.
@@ -40,8 +40,12 @@ Debug also has a **Show IDs in title bar** toggle. When enabled, the title
 bar's center section shows:
 
 ```
-<project root> / <conversation id> / <ACP session id>
+<project id> / <conversation id> / <ACP session id>
 ```
+
+The project id is AI Leash's own stable identifier for the open project,
+assigned the first time that folder is opened and unchanged if the folder is
+later moved or renamed — hover the line to see the project's current path.
 
 The ACP session id is the id assigned by the external agent itself (distinct
 from AI Leash's own conversation id) and only appears once the ACP Events

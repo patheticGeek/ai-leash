@@ -8,6 +8,10 @@ import { PRIMARY_CHAT_TAB } from "./panelSlice";
 export interface ConversationSummary {
   id: string;
   projectRoot: string;
+  // Stable project UUID (`db::ensure_project`'s id) — distinct from
+  // `projectRoot`'s filesystem path, which can move; only null for rows
+  // written before this column existed (see `db/mod.rs`'s backfill).
+  projectId: string | null;
   title: string | null;
   updatedAt: number; // epoch seconds, matches the backend's `ConversationSummary`
   // Sidebar organization only — see `setConversationDone`. Marked done
@@ -151,7 +155,7 @@ export const conversationSlice: StateCreator<
     const { projectRoot } = conversation;
     const checkoutPath = conversationCheckoutPath(conversation);
     const token = ++latestSwitchToken;
-    await api.setProjectRoot(projectRoot);
+    const projectId = await api.setProjectRoot(projectRoot);
     // Restores this conversation's own checkout (primary or worktree) —
     // separate from the global `project_root` above, which only drives the
     // file tree / terminal's "focused" project. See `BranchBar`.
@@ -195,6 +199,7 @@ export const conversationSlice: StateCreator<
       }
       return {
         projectRoot,
+        projectId,
         activeSessionId: id,
         checkoutPathBySession,
         openFiles: [],
@@ -251,7 +256,7 @@ export const conversationSlice: StateCreator<
     }
 
     const token = ++latestSwitchToken;
-    await api.setProjectRoot(projectRoot);
+    const projectId = await api.setProjectRoot(projectRoot);
     // Locks in the primary checkout as this conversation's default cwd
     // right away — before `ChatPanel`/`BranchBar` even mount — so an ACP
     // subprocess warmed ahead of any worktree choice never starts against
@@ -286,6 +291,7 @@ export const conversationSlice: StateCreator<
       }
       return {
         projectRoot,
+        projectId,
         activeSessionId: id,
         checkoutPathBySession,
         openFiles: [],
@@ -326,6 +332,13 @@ export const conversationSlice: StateCreator<
             {
               id,
               projectRoot,
+              // Mirrors what the backend stamps this row with (see
+              // `db::upsert_conversation`'s `ensure_project_connection`) —
+              // the id of the project this thread was started in, which is
+              // the open one. Left null (until the next
+              // `loadAllConversations` reconciles it) in the unexpected case
+              // where it isn't, rather than guessing a wrong id.
+              projectId: s.projectRoot === projectRoot ? s.projectId : null,
               title: null,
               updatedAt: nowSeconds(),
               done: false,

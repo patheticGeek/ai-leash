@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Copy, Minus, Square, SquarePen, X } from "lucide-react";
+import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
@@ -81,6 +81,7 @@ export default function TitleBar({
   rightPanelWidth: number;
 }) {
   const projectRoot = useAppStore((s) => s.projectRoot);
+  const projectId = useAppStore((s) => s.projectId);
   const recentProjects = useAppStore((s) => s.recentProjects);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const conversations = useAppStore((s) => s.conversations);
@@ -91,6 +92,8 @@ export default function TitleBar({
   const debugShowIds = useAppStore((s) => s.debugShowIds);
   const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
   const debugEvents = useAppStore((s) => s.debugEvents);
+  const debugPanelOpen = useAppStore((s) => s.debugPanelOpen);
+  const setDebugPanelOpen = useAppStore((s) => s.setDebugPanelOpen);
 
   const project = recentProjects.find((p) => p.path === projectRoot);
   const activeConversation = conversations.find(
@@ -177,10 +180,14 @@ export default function TitleBar({
         )}
         {debugShowIds && (
           <span
-            title="project id / conversation id / session id"
+            // The project root is the tooltip rather than the line itself:
+            // `projectId` is the project's real identity (it survives the
+            // folder being moved or renamed), but the path is what makes it
+            // recognizable at a glance.
+            title={`project id / conversation id / session id\n${projectRoot ?? "no project"}`}
             className="min-w-0 truncate font-mono text-[11px] text-zinc-600"
           >
-            {projectRoot ?? "—"} / {activeSessionId ?? "—"} /{" "}
+            {projectId ?? "—"} / {activeSessionId ?? "—"} /{" "}
             {acpSessionId ?? "—"}
           </span>
         )}
@@ -193,6 +200,17 @@ export default function TitleBar({
         style={{ width: rightPanelWidth }}
         className="flex shrink-0 items-center justify-end"
       >
+        {debugModeEnabled && (
+          <Button
+            variant="ghost"
+            size="icon"
+            title={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
+            onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+            className="h-full w-10 rounded-none text-amber-400 hover:text-amber-300"
+          >
+            <Bug size={15} />
+          </Button>
+        )}
         <WindowControls />
       </div>
     </div>

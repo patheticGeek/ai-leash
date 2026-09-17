@@ -45,6 +45,13 @@ function saveRecentProjects(projects: RecentProject[]) {
 
 export interface ProjectSlice {
   projectRoot: string | null;
+  // Stable project UUID for `projectRoot` (`db::ensure_project`'s id, from
+  // `api.setProjectRoot`'s return value) — set alongside `projectRoot` by
+  // `conversationSlice.ts`'s `openConversation`/`startNewConversation`.
+  // Distinct from the path itself so debug tooling (title bar id display)
+  // can show a real identity that survives the project folder being moved
+  // or renamed on disk.
+  projectId: string | null;
   openFiles: OpenFile[];
   activePath: string | null;
   recentProjects: RecentProject[];
@@ -73,6 +80,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   get,
 ) => ({
   projectRoot: null,
+  projectId: null,
   openFiles: [],
   activePath: null,
   recentProjects: loadRecentProjects(),
@@ -102,6 +110,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         recentProjects,
         conversations,
         projectRoot: null,
+        projectId: null,
         activeSessionId: null,
         openFiles: [],
         activePath: null,
