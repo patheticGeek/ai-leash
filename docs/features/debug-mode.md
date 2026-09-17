@@ -27,8 +27,9 @@ into large payloads (like an agent's full response or the MCP server
 configuration AI Leash sends when starting a session) without scrolling past
 a wall of text.
 
-The panel is absolutely positioned over the right-hand tool panel and has
-its own independently adjustable width, dragged from its left edge.
+The panel floats freely over the rest of the app — drag it by its "ACP
+Events" title to move it anywhere, or resize it from its bottom-right corner.
+Its position and size are remembered across restarts.
 
 Events are kept only in memory for as long as debug mode stays on. Closing
 the panel does not lose anything already captured; turning debug mode off

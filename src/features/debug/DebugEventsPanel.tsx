@@ -1,4 +1,4 @@
-import { Trash2, X } from "lucide-react";
+import { MoveDiagonal2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/ui/button";
 import { JsonViewer } from "@/ui/json-viewer";
@@ -22,11 +22,13 @@ const ALL_CONVERSATIONS = "__all__";
  * turning debug mode off does.
  */
 export default function DebugEventsPanel({
-  width,
   onClose,
+  onDragStart,
+  onResizeStart,
 }: {
-  width: number;
   onClose: () => void;
+  onDragStart: (e: React.MouseEvent) => void;
+  onResizeStart: (e: React.MouseEvent) => void;
 }) {
   const events = useAppStore((s) => s.debugEvents);
   const clearDebugEvents = useAppStore((s) => s.clearDebugEvents);
@@ -52,12 +54,16 @@ export default function DebugEventsPanel({
   }
 
   return (
-    <div
-      style={{ width }}
-      className="flex h-full min-h-0 flex-col border-l border-white/10 bg-[#0b0c0e] shadow-2xl"
-    >
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b0c0e] shadow-2xl">
       <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-3 py-2">
-        <div>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
+            drag affordance — the panel is still fully usable (open/close/
+            filter/clear) without ever moving it, so there's no keyboard
+            equivalent to wire up here. */}
+        <div
+          onMouseDown={onDragStart}
+          className="cursor-grab select-none active:cursor-grabbing"
+        >
           <div className="text-sm text-zinc-200">ACP Events</div>
           <div className="text-[11px] text-zinc-600">
             Live only, app-wide — cleared when debug mode is turned off.
@@ -89,10 +95,24 @@ export default function DebugEventsPanel({
           <SelectTrigger size="sm" className="w-full">
             <SelectValue placeholder="All conversations" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_CONVERSATIONS}>All conversations</SelectItem>
+          {/* This panel is `z-[999]` (see `DebugDevtoolsOverlay`) so it can
+              float above the whole app — `SelectContent`'s own portal
+              defaults to `z-50`, which paints *underneath* that regardless
+              of DOM order, making the dropdown open invisibly behind the
+              panel. Bumped above the panel's own z-index. */}
+          <SelectContent className="z-[1000]">
+            <SelectItem
+              value={ALL_CONVERSATIONS}
+              className="cursor-pointer px-3 py-2"
+            >
+              All conversations
+            </SelectItem>
             {conversationIds.map((id) => (
-              <SelectItem key={id} value={id}>
+              <SelectItem
+                key={id}
+                value={id}
+                className="cursor-pointer px-3 py-2"
+              >
                 {labelFor(id)}
               </SelectItem>
             ))}
@@ -106,6 +126,16 @@ export default function DebugEventsPanel({
       ) : (
         <DebugEventsList events={filtered} />
       )}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
+          resize affordance, same reasoning as the drag handle above —
+          the panel's default size is always usable without it. */}
+      <div
+        onMouseDown={onResizeStart}
+        title="Resize"
+        className="absolute bottom-0.5 right-0.5 flex h-4 w-4 cursor-nwse-resize items-center justify-center text-zinc-700 hover:text-zinc-500"
+      >
+        <MoveDiagonal2 size={12} />
+      </div>
     </div>
   );
 }
