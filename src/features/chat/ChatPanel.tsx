@@ -162,6 +162,7 @@ export default function ChatPanel({
     backendOptions,
     activeBackendKey,
     activeBackendLabel,
+    acpModelSwitchPending,
     selectBackendOption,
     selectAcpEffort,
     resetAcpConnectionState,
@@ -180,6 +181,7 @@ export default function ChatPanel({
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed,
+    acpHistoryTruncated,
     claudeRateLimit,
     claudeAutoResumeArmed,
     armClaudeAutoResume,
@@ -699,6 +701,7 @@ export default function ChatPanel({
                 activeKey={activeBackendKey}
                 onSelect={selectBackendOption}
                 triggerLabel={activeBackendLabel}
+                loading={acpModelSwitchPending}
                 open={modelPickerOpen}
                 onOpenChange={setModelPickerOpen}
               />
@@ -808,6 +811,8 @@ export default function ChatPanel({
           ollamaError={ollamaError}
           acpRestoreFailed={acpRestoreFailed}
           onRetryAcpSession={retryAcpSession}
+          acpHistoryTruncated={acpHistoryTruncated}
+          acpAgentLabel={activeAcpAgent?.label}
           systemPrompt={systemPrompt}
           sending={sending}
           isAcp={isAcp}

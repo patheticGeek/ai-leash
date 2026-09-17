@@ -157,6 +157,17 @@ fn remove_if_still_current(app: &AppHandle, session_id: &str, launch_command: &s
     }
 }
 
+/// Whether this conversation already has transcript worth telling the user
+/// they're about to lose — see `is_fresh_session`'s doc comment for why a
+/// freshly-connected agent can't just pick this history up itself. `false`
+/// for a genuinely brand-new conversation (nothing to lose) or a transcript
+/// that's only empty/tool-call rows.
+fn has_replayable_history(messages: &[db::PersistedMessage]) -> bool {
+    messages
+        .iter()
+        .any(|m| matches!(m.role.as_str(), "user" | "assistant") && !m.content.trim().is_empty())
+}
+
 async fn run_acp_session(
     app: AppHandle,
     session_id: String,
@@ -284,6 +295,16 @@ async fn drive_acp_connection(
             } else {
                 None
             };
+            // No `session/load` to fall back on for this connection (either
+            // this agent never advertised the capability, or it's simply
+            // never handled this conversation before) — ACP has no
+            // cross-agent "import history" primitive (`session/load` only
+            // lets an agent resume *its own* prior session), so rather than
+            // silently starting this agent blank, or synthesizing a fake
+            // context block it never actually saw, we tell the user their
+            // earlier messages won't be visible to it (see
+            // `chat://{session_id}/acp_history_truncated` below).
+            let is_fresh_session = stored_agent_session_id.is_none();
 
             let (acp_session_id, config_options): (SessionId, Option<Vec<SessionConfigOption>>) =
                 if let Some(stored_id) = stored_agent_session_id {
@@ -337,6 +358,18 @@ async fn drive_acp_connection(
                     );
                     (new_session.session_id, new_session.config_options)
                 };
+
+            // Emitted on every connect, true or false, so switching back to
+            // an agent that *can* resume natively clears a stale banner left
+            // over from an earlier switch to one that couldn't.
+            let history_truncated = is_fresh_session && {
+                let state = app.state::<AppState>();
+                has_replayable_history(&db::load_messages(&state.db, &session_id))
+            };
+            let _ = app.emit(
+                &format!("chat://{session_id}/acp_history_truncated"),
+                history_truncated,
+            );
 
             // If this agent exposes a Model config option, tell the
             // frontend what's selectable; most agents won't have one, in
