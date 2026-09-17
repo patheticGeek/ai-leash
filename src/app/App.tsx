@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
@@ -159,6 +160,7 @@ function App() {
       )}
       <TitleBar leftBarWidth={leftBarWidth} rightPanelWidth={rightPanelWidth} />
       <SettingsModal />
+      <DebugDevtoolsOverlay />
       <div
         className="flex flex-1 min-h-0"
         style={{ marginTop: TITLEBAR_HEIGHT }}

@@ -156,12 +156,15 @@ pub fn set_conversation_root(
     Ok(())
 }
 
+/// Returns the project's stable UUID (`db::ensure_project`'s return value)
+/// so the frontend can show/compare a real project identity instead of only
+/// having the filesystem path — see `projectSlice.ts`'s `projectId`.
 #[tauri::command]
 pub fn set_project_root(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let p = PathBuf::from(&path);
     if !p.is_dir() {
         return Err("not a directory".into());
@@ -170,7 +173,7 @@ pub fn set_project_root(
     // session keys; path normalization is a separate project-management step.
     let root = p;
     let root_string = root.display().to_string();
-    db::ensure_project(&state.db, &root_string);
+    let project_id = db::ensure_project(&state.db, &root_string);
     db::touch_project(&state.db, &root_string);
     *state.project_root.lock().unwrap() = Some(root);
 
@@ -184,7 +187,7 @@ pub fn set_project_root(
     {
         tauri::async_runtime::spawn(crate::acp::refresh_acp_catalog_in_background(app));
     }
-    Ok(())
+    Ok(project_id)
 }
 
 /// Watches a checkout recursively and tells the frontend to refresh the

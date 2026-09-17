@@ -23,4 +23,15 @@ export const LS_KEYS = {
   // have actually been sent (listed in `conversations`); a new, unsent
   // thread's tabs live in memory only and are gone on the next restart.
   tabState: "ai-leash:tabState",
+  // Settings > Debug toggles — see `debugSlice.ts`.
+  debugModeEnabled: "ai-leash:debugModeEnabled",
+  debugShowIds: "ai-leash:debugShowIds",
+  debugPanelWidth: "ai-leash:debugPanelWidth",
+  // The rest of the floating ACP Events panel's persisted geometry — see
+  // `useFloatingDebugPanel.ts`. `debugPanelWidth` predates it being
+  // free-floating (it was docked to the right edge, full height, width-only)
+  // and keeps its original key for continuity.
+  debugPanelHeight: "ai-leash:debugPanelHeight",
+  debugPanelX: "ai-leash:debugPanelX",
+  debugPanelY: "ai-leash:debugPanelY",
 } as const;

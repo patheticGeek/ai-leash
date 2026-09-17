@@ -152,7 +152,11 @@ export interface ActionSummary {
 }
 
 export const api = {
-  setProjectRoot: (path: string) => invoke<void>("set_project_root", { path }),
+  // Returns the project's stable UUID (`db::ensure_project`'s id), created
+  // the first time this path is opened and stable across renames of the
+  // folder afterward — see `projectSlice.ts`'s `projectId`.
+  setProjectRoot: (path: string) =>
+    invoke<string>("set_project_root", { path }),
   getProjectRoot: () => invoke<string | null>("get_project_root"),
   // Locks in a conversation's own checkout — `cwd` is what its tools/shell/
   // ACP subprocess actually run in, `projectRoot` stays the primary repo

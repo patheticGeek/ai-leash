@@ -12,6 +12,42 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Emits one protocol-level ACP event for the global debug devtools panel.
+/// Emitted on a single app-wide channel (not a per-conversation
+/// `chat://{id}/...` one) with the conversation id embedded in the payload,
+/// so the frontend can capture events across every conversation at once and
+/// filter by id client-side. Nothing here is persisted by the backend —
+/// whether the frontend keeps or drops these is entirely its call (see
+/// `debugSlice.ts`'s capture-only-while-enabled behavior).
+pub(super) fn emit_acp_debug(
+    app: &AppHandle,
+    session_id: &str,
+    direction: &str,
+    event: &str,
+    payload: serde_json::Value,
+) {
+    let _ = app.emit(
+        "acp://debug",
+        json!({
+            "sessionId": session_id,
+            "direction": direction,
+            "event": event,
+            "payload": payload,
+        }),
+    );
+}
+
+/// Converts an ACP protocol value to real JSON for the connection
+/// inspector, so the frontend's JSON viewer can render it as a collapsible
+/// tree instead of an opaque string. Every ACP schema type already derives
+/// `Serialize` (they go over JSON-RPC on the wire), so this should always
+/// succeed; on the rare failure it falls back to Rust's pretty `Debug`
+/// output wrapped as a single JSON string, so the event still has *some*
+/// payload rather than being dropped.
+pub(super) fn debug_json(value: &(impl serde::Serialize + std::fmt::Debug)) -> serde_json::Value {
+    serde_json::to_value(value).unwrap_or_else(|_| json!(format!("{value:#?}")))
+}
+
 /// Per-connection state tracking each in-flight ACP tool call's most
 /// recently seen `content`, keyed by tool-call id. `ToolCallUpdateFields`
 /// replaces the content collection rather than extending it (per the ACP
@@ -154,6 +190,13 @@ pub(super) fn handle_session_notification(
     suppress_replay: &SuppressReplay,
     update: SessionUpdate,
 ) {
+    emit_acp_debug(
+        app,
+        session_id,
+        "received",
+        "session/update",
+        debug_json(&update),
+    );
     if suppress_replay.load(Ordering::Acquire) {
         return;
     }
