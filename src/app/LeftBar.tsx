@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { type MouseEvent, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import {
   Select,
   SelectContent,
@@ -114,14 +114,19 @@ function ConversationRow({
           )}
 
           <Button
-            variant="ghost"
+            variant="chip"
             size="sm"
             title="Mark as done"
             onClick={(event) => {
               event.stopPropagation();
               onMarkDone();
             }}
-            className="absolute right-0 z-10 gap-1 -mr-2 px-1.5 text-xs bg-zinc-700 hover:bg-zinc-800 opacity-0 text-zinc-400 hover:text-emerald-400 group-hover:opacity-100"
+            // Overlays the title text, so it needs an opaque background
+            // (chip's own is translucent).
+            className={cn(
+              "absolute right-0 z-10 -mr-2 bg-raised hover:bg-raised hover:text-emerald-400",
+              revealOnGroupHover,
+            )}
           >
             <Check size={12} />
             done
