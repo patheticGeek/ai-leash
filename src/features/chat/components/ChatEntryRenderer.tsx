@@ -55,7 +55,7 @@ function SubEntryLine({ entry }: { entry: Entry }) {
         "rounded-md px-2 py-1",
         failed
           ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20 text-red-300"
-          : "shadow-[var(--al-shadow)] bg-background text-zinc-500",
+          : "bg-raised text-zinc-500",
       )}
     >
       <Wrench
@@ -121,7 +121,7 @@ export default function ChatEntryRenderer({
 }: ChatEntryRendererProps) {
   if (entry.kind === "info") {
     return (
-      <div className="select-text rounded-md shadow-[var(--al-shadow)] bg-raised px-3 py-2 text-xs text-zinc-400">
+      <div className="select-text rounded-md bg-raised px-3 py-2 text-xs text-zinc-400">
         <Markdown content={entry.content} />
       </div>
     );

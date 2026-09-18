@@ -17,7 +17,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded-md bg-background px-1 py-0.5 text-zinc-300"
+          className="rounded-md bg-sunken px-1 py-0.5 text-zinc-300"
           {...props}
         >
           {children}
@@ -32,7 +32,7 @@ const components: Components = {
   },
   pre: ({ children, ...props }) => (
     <pre
-      className="my-2 overflow-x-auto rounded-md bg-background p-2.5 text-xs shadow-[var(--al-shadow)]"
+      className="my-2 overflow-x-auto rounded-md bg-sunken p-2.5 text-xs"
       {...props}
     >
       {children}

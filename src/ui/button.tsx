@@ -47,7 +47,7 @@ const buttonVariants = cva(
         // Selectable card tile (agent type picker, tab picker) — a small
         // block of content rather than a single label, so it gets its own
         // padding/column layout instead of the horizontal chip/menu shapes.
-        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
+        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-raised px-3 py-2.5 text-left hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
         // popover list items) that still need the shared cursor/disabled
         // behavior above but fully own their own color/spacing classes.

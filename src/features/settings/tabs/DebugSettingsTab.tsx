@@ -18,7 +18,7 @@ function ToggleRow({
   return (
     <Label
       htmlFor={id}
-      className="cursor-pointer items-start gap-3 rounded-md bg-card px-3 py-2.5 font-normal leading-normal shadow-[var(--al-shadow)]"
+      className="cursor-pointer items-start gap-3 rounded-md bg-raised px-3 py-2.5 font-normal leading-normal"
     >
       <Checkbox
         id={id}

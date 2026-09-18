@@ -19,7 +19,7 @@ export default function HelpBanner({ commands, onClose }: HelpBannerProps) {
         </Button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-        <div className="rounded-md shadow-[var(--al-shadow)] bg-raised px-3 py-2">
+        <div className="rounded-md bg-raised px-3 py-2">
           <div className="text-sm font-medium text-zinc-100">
             !<span className="text-zinc-500"> command</span>
           </div>
@@ -30,10 +30,7 @@ export default function HelpBanner({ commands, onClose }: HelpBannerProps) {
           </div>
         </div>
         {commands.map((command) => (
-          <div
-            key={command.name}
-            className="rounded-md shadow-[var(--al-shadow)] bg-raised px-3 py-2"
-          >
+          <div key={command.name} className="rounded-md bg-raised px-3 py-2">
             <div className="text-sm font-medium text-zinc-100">
               /{command.name}
               {command.hint && (

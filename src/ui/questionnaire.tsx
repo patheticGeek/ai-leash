@@ -117,7 +117,7 @@ function Questionnaire({
                 }
               />
             ) : (
-              <div className="rounded-md bg-raised py-1 shadow-[var(--al-shadow)]">
+              <div className="rounded-md bg-raised py-1">
                 {q.options.map((o) => {
                   const value = answers[q.id];
                   const selected = Array.isArray(value)
