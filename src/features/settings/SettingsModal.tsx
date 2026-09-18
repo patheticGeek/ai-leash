@@ -38,7 +38,7 @@ export default function SettingsModal() {
           className="flex-1 min-h-0"
         >
           <TabsList
-            size="md"
+            size="lg"
             className="h-fit w-48 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-2"
           >
             {SECTIONS.map((section) => (
