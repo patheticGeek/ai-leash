@@ -15,7 +15,9 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "prepare": "lefthook install"
+    "prepare": "lefthook install",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css}": [
@@ -59,6 +61,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
+    "@storybook/addon-docs": "^10.6.0",
+    "@storybook/react-vite": "^10.6.0",
     "@tanstack/react-query-devtools": "^5.102.8",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
@@ -67,6 +71,7 @@
     "lefthook": "^2.1.12",
     "lint-staged": "^17.5.1",
     "shadcn": "^4.21.0",
+    "storybook": "^10.6.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.16"
   },

@@ -1,0 +1,8 @@
+/* index.css locks the body for the desktop shell (no scroll, no text
+   selection) — the Storybook canvas and docs pages need both back. */
+html,
+body {
+  overflow: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
