@@ -64,9 +64,10 @@ export default function TitleBarActions() {
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 items-center">
-      <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
+      <div className="flex items-center gap-px">
         <Button
-          variant={current.running ? "chip-warning" : "unstyled"}
+          variant={current.running ? "chip-warning" : "chip"}
+          bordered={false}
           size="sm"
           onClick={() => handleToggle(current)}
           title={
@@ -74,8 +75,7 @@ export default function TitleBarActions() {
           }
           className={cn(
             "flex min-w-0 max-w-[160px]",
-            !current.running &&
-              "rounded-md text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+            rest.length > 0 && "rounded-r-none",
           )}
         >
           {current.running ? <Square size={11} /> : <Play size={11} />}
@@ -83,11 +83,11 @@ export default function TitleBarActions() {
         </Button>
         {rest.length > 0 && (
           <Button
-            variant="ghost"
-            size="none"
+            variant="chip"
+            size="sm"
             onClick={() => setOpen((o) => !o)}
             title="Other actions"
-            className="flex items-center rounded-r-md px-1 py-1 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]"
+            className="rounded-l-none px-1.5"
           >
             <ChevronDown size={12} />
           </Button>
