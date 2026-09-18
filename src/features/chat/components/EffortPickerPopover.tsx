@@ -43,10 +43,10 @@ export default function EffortPickerPopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="unstyled"
+          variant="chip"
           size="none"
           title="Thinking effort"
-          className="flex min-w-0 max-w-[120px] items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200"
+          className="flex min-w-0 max-w-[120px] items-center gap-1"
         >
           <EffortIcon size={12} className="shrink-0" />
           <span className="truncate">{active?.name ?? "effort"}</span>
@@ -62,17 +62,13 @@ export default function EffortPickerPopover({
           {options.map((option) => (
             <Button
               key={option.value}
-              variant="unstyled"
+              variant="menu-item"
               size="none"
+              data-active={option.value === activeValue}
               onClick={() => {
                 onSelect(option.value);
                 setOpen(false);
               }}
-              className={`block w-full px-3 py-2 text-left ${
-                option.value === activeValue
-                  ? "bg-white/10"
-                  : "hover:bg-white/5"
-              }`}
             >
               <div className="text-sm font-medium text-zinc-100">
                 {option.name}

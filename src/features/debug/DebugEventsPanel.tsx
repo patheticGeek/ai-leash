@@ -71,20 +71,18 @@ export default function DebugEventsPanel({
         </div>
         <div className="flex items-center gap-1">
           <Button
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
             title="Clear events"
             onClick={clearDebugEvents}
-            className="text-zinc-500 hover:text-zinc-300"
           >
             <Trash2 size={13} />
           </Button>
           <Button
-            variant="ghost"
+            variant="quiet"
             size="icon-sm"
             title="Close panel"
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300"
           >
             <X size={13} />
           </Button>

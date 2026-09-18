@@ -153,21 +153,19 @@ export default function ChatEntryRenderer({
             className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
           >
             <Button
-              variant="ghost"
+              variant="quiet"
               size="icon-sm"
               onClick={onCopy}
               title="Copy"
-              className="text-zinc-600 hover:text-zinc-300"
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
             </Button>
             {!sending && isLast && !isAcp && allowRetry && (
               <Button
-                variant="ghost"
+                variant="quiet"
                 size="icon-sm"
                 onClick={onRetry}
                 title="Retry"
-                className="text-zinc-600 hover:text-zinc-300"
               >
                 <RotateCcw size={13} />
               </Button>

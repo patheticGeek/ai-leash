@@ -73,11 +73,10 @@ export default function SidePanel() {
                 )}
               </Button>
               <Button
-                variant="ghost"
+                variant="quiet"
                 size="icon-sm"
                 title="Close tab"
                 onClick={() => closePanelTab(tab.id)}
-                className="text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />
               </Button>

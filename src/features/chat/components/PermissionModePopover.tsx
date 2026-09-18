@@ -41,13 +41,13 @@ export default function PermissionModePopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant="unstyled"
+          variant={mode === "bypass" ? "unstyled" : "chip"}
           size="none"
           title="Tool-call permission mode"
           className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs outline-none ${
             mode === "bypass"
               ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
-              : "shadow-[var(--al-shadow)] bg-white/[0.04] text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+              : ""
           }`}
         >
           {mode === "bypass" ? (
@@ -68,15 +68,14 @@ export default function PermissionModePopover({
           {OPTIONS.map((o) => (
             <Button
               key={o.key}
-              variant="unstyled"
+              variant="menu-item"
               size="none"
+              data-active={o.key === mode}
+              className="whitespace-normal"
               onClick={() => {
                 onSelect(o.key);
                 onOpenChange(false);
               }}
-              className={`block w-full whitespace-normal px-3 py-2 text-left ${
-                o.key === mode ? "bg-white/10" : "hover:bg-white/5"
-              }`}
             >
               <div className="text-sm font-medium text-zinc-100">{o.label}</div>
               <div className="text-xs text-zinc-500">{o.subtitle}</div>

@@ -1,7 +1,7 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/ui/badge";
-import { Button } from "@/ui/button";
+import { Button, revealOnHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { Input } from "@/ui/input";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
@@ -114,7 +114,7 @@ export default function ActionsTab() {
               size="icon-sm"
               title="Delete"
               onClick={() => remove(action.id)}
-              className="shrink-0 opacity-0 group-hover:opacity-100"
+              className={revealOnHover}
             >
               <Trash2 size={12} />
             </Button>
@@ -123,7 +123,7 @@ export default function ActionsTab() {
               size="icon-sm"
               title="Edit"
               onClick={() => startEdit(action)}
-              className="shrink-0 opacity-0 group-hover:opacity-100"
+              className={revealOnHover}
             >
               <Pencil size={12} />
             </Button>

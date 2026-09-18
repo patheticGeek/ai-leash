@@ -67,10 +67,10 @@ export default function ModelPickerPopover({
     >
       <PopoverTrigger asChild>
         <Button
-          variant="unstyled"
+          variant="chip"
           size="none"
           disabled={disabled}
-          className="flex min-w-0 max-w-[160px] items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200"
+          className="flex min-w-0 max-w-[160px] items-center gap-1"
         >
           <Bot size={12} className="shrink-0" />
           <span className="truncate">{triggerLabel}</span>
@@ -104,15 +104,13 @@ export default function ModelPickerPopover({
               {rows.map((o) => (
                 <Button
                   key={o.key}
-                  variant="unstyled"
+                  variant="menu-item"
                   size="none"
+                  data-active={o.key === activeKey}
                   onClick={() => {
                     onSelect(o.key);
                     onOpenChange(false);
                   }}
-                  className={`block w-full px-3 py-2 text-left ${
-                    o.key === activeKey ? "bg-white/10" : "hover:bg-white/5"
-                  }`}
                 >
                   <div className="text-sm font-medium text-zinc-100">
                     {o.label}

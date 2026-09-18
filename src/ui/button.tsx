@@ -16,10 +16,22 @@ const buttonVariants = cva(
         secondary:
           "shadow-[var(--al-shadow)] text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
         ghost: "text-zinc-500 hover:bg-white/10 hover:text-zinc-200",
+        // Dimmer than `ghost` and brightens on hover without a hover
+        // background — for secondary icon actions (copy, retry, close tab,
+        // clear) that shouldn't compete with the primary controls around
+        // them.
+        quiet: "text-zinc-600 hover:text-zinc-300",
         danger: "text-zinc-500 hover:bg-red-500/10 hover:text-red-400",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
+        // Popover/dropdown trigger pill — icon + label chip sitting in a
+        // toolbar (model picker, effort picker, permission mode).
+        chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200",
+        // Row inside a popover/dropdown list (model picker, effort picker,
+        // slash command menu). Pass `data-active` to mark the selected row.
+        "menu-item":
+          "block w-full px-3 py-2 text-left hover:bg-white/5 data-[active=true]:bg-white/10 data-[active=true]:hover:bg-white/10",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
         // popover list items) that still need the shared cursor/disabled
         // behavior above but fully own their own color/spacing classes.
@@ -66,4 +78,10 @@ function Button({
   );
 }
 
-export { Button, buttonVariants };
+// Shared by icon buttons that only appear on hover of their nearest
+// ancestor `.group` (row actions like delete/edit). Needs a *named* group
+// (`group-hover/name:`) instead? Compose your own className — this only
+// covers the common unnamed-group case.
+const revealOnHover = "shrink-0 opacity-0 group-hover:opacity-100";
+
+export { Button, buttonVariants, revealOnHover };
