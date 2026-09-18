@@ -113,7 +113,7 @@ const components: Components = {
 // generated prose (matches the convention most chat UIs use).
 export default function Markdown({ content }: { content: string }) {
   return (
-    <div className="text-sm leading-relaxed [&>*:last-child]:mb-0">
+    <div className="text-sm leading-relaxed break-words [&>*:last-child]:mb-0">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>

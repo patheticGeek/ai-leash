@@ -19,6 +19,14 @@ Paragraph with **bold**, \`inline code\` and a [link](https://example.com).
 const x: number = 1;
 \`\`\`
 
+A long code line should scroll inside its block, not stretch the parent:
+
+\`\`\`sh
+cargo build --release --target x86_64-unknown-linux-gnu --features "acp,ollama,openai-compatible,claude-code,copilot-cli" --manifest-path src-tauri/Cargo.toml -- --verbose --locked --offline
+\`\`\`
+
+And a long unbroken inline token: \`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\`
+
 | Col A | Col B |
 | ----- | ----- |
 | 1     | 2     |
