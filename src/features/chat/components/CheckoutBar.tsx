@@ -5,7 +5,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
@@ -75,12 +75,14 @@ export default function CheckoutBar({
   // `selectBranch`/`createBranch` don't need to set it themselves.
   const branch = useCurrentGitBranch(cwd);
 
-  useEffect(() => {
+  const refreshWorktrees = useCallback(() => {
     api
       .listGitWorktrees(projectRoot)
       .then(setWorktrees)
       .catch(() => setWorktrees([]));
   }, [projectRoot]);
+
+  useEffect(refreshWorktrees, [refreshWorktrees]);
 
   async function selectWorktree(path: string, isPrimary: boolean) {
     const worktreePath = isPrimary ? projectRoot : path;
@@ -115,10 +117,7 @@ export default function CheckoutBar({
     await api.checkoutGitBranch(cwd, name, base);
     // This worktree's own label/branch in the left list may now be stale —
     // cheap enough to just refetch rather than patch it in place.
-    api
-      .listGitWorktrees(projectRoot)
-      .then(setWorktrees)
-      .catch(() => {});
+    refreshWorktrees();
   }
 
   const active = worktrees.find(
@@ -133,6 +132,7 @@ export default function CheckoutBar({
         projectRoot={projectRoot}
         label={active ? worktreeLabel(active) : "primary"}
         editable={editable}
+        onRefresh={refreshWorktrees}
         onSelect={selectWorktree}
         onCreate={createWorktree}
         onDelete={deleteWorktree}
@@ -240,6 +240,8 @@ function DeletableRow({
     <CommandItem
       value={value}
       disabled={selectDisabled}
+      data-checked={active}
+      checkIcon
       onSelect={onSelect}
       className="cursor-pointer justify-between gap-2 flex"
     >
@@ -274,6 +276,7 @@ function WorktreePicker({
   projectRoot,
   label,
   editable,
+  onRefresh,
   onSelect,
   onCreate,
   onDelete,
@@ -282,7 +285,10 @@ function WorktreePicker({
   activePath: string;
   projectRoot: string;
   label: string;
+  // When false the list is still browsable, but nothing can be switched,
+  // created or deleted.
   editable: boolean;
+  onRefresh: () => void;
   onSelect: (path: string, isPrimary: boolean) => void;
   onCreate: (branch: string, baseBranch: string | null) => Promise<void>;
   onDelete: (path: string, force: boolean) => Promise<void>;
@@ -295,6 +301,11 @@ function WorktreePicker({
   const [baseBranch, setBaseBranch] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Worktrees can be added/removed outside the app, so re-list on every open.
+  useEffect(() => {
+    if (open) onRefresh();
+  }, [open, onRefresh]);
 
   useEffect(() => {
     if (!open) return;
@@ -345,24 +356,20 @@ function WorktreePicker({
     }
   }
 
-  if (!editable) {
-    return (
-      <span
-        className="inline-flex max-w-40 cursor-default items-center gap-1.5 truncate text-zinc-500"
-        title={label}
-      >
-        <FolderIcon size={12} className="shrink-0" />
-        <span className="truncate">{label}</span>
-      </span>
-    );
-  }
-
   return (
     <Popover open={open} onOpenChange={closePopover}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex max-w-40 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
+          title={
+            editable
+              ? undefined
+              : "The worktree is fixed once the conversation has started"
+          }
+          className={cn(
+            "inline-flex max-w-40 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200",
+            !editable && "text-zinc-500",
+          )}
         >
           <FolderIcon size={12} className="shrink-0" />
           <span className="truncate">{label}</span>
@@ -381,14 +388,16 @@ function WorktreePicker({
               <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
                 No matches.
               </CommandEmpty>
-              <CommandItem
-                value="new-worktree"
-                forceMount
-                onSelect={() => setCreating(true)}
-                className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
-              >
-                New worktree…
-              </CommandItem>
+              {editable && (
+                <CommandItem
+                  value="new-worktree"
+                  forceMount
+                  onSelect={() => setCreating(true)}
+                  className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
+                >
+                  New worktree…
+                </CommandItem>
+              )}
               {worktrees.map((w) => {
                 const path = w.isPrimary ? projectRoot : w.path;
                 return (
@@ -397,9 +406,10 @@ function WorktreePicker({
                     value={`${worktreeLabel(w)} ${w.branch ?? ""}`}
                     label={worktreeLabel(w)}
                     active={path === activePath}
-                    deletable={!w.isPrimary && path !== activePath}
+                    deletable={editable && !w.isPrimary && path !== activePath}
+                    selectDisabled={!editable && path !== activePath}
                     onSelect={() => {
-                      onSelect(path, w.isPrimary);
+                      if (editable) onSelect(path, w.isPrimary);
                       closePopover(false);
                     }}
                     onDelete={(force) => onDelete(w.path, force)}
