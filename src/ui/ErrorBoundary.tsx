@@ -33,7 +33,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-sunken text-zinc-300">
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-sunken text-zinc-300">
           <div className="text-sm font-medium text-zinc-100">
             Something went wrong.
           </div>
