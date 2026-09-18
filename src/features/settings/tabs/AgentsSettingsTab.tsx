@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Card } from "@/ui/card";
 import { Input } from "@/ui/input";
 import { useAppStore } from "../../../store";
 
@@ -204,12 +204,7 @@ export default function AgentsSettingsTab() {
             Cancel
           </Button>
         </div>
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-          }}
-        >
+        <div className="flex flex-col gap-2">
           {(Object.keys(TYPE_META) as CardType[]).map((type) => {
             const meta = TYPE_META[type];
             return (
@@ -218,6 +213,7 @@ export default function AgentsSettingsTab() {
                 variant="card"
                 size="none"
                 onClick={() => startAdd(type)}
+                className="w-full"
               >
                 <div className="flex w-full items-center gap-2">
                   <meta.icon size={16} className="text-zinc-500" />
@@ -371,35 +367,29 @@ export default function AgentsSettingsTab() {
       <div className="mb-1.5 text-sm font-medium uppercase tracking-wide text-zinc-500">
         Agents
       </div>
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}
-      >
+      <div className="flex flex-col gap-2">
         {cards.map((c) => {
           const meta = TYPE_META[c.type];
           const active = isDefaultCard(c.type, c.id);
           return (
-            <div
+            <Card
               key={`${c.type}:${c.id}`}
-              className={cn(
-                "flex min-w-0 flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm",
-                active
-                  ? "shadow-[0_0_0_1px_var(--primary)] bg-primary/10"
-                  : "shadow-[var(--al-shadow)] bg-card",
-              )}
+              interactive
+              selected={active}
+              className="flex-row items-stretch gap-0 rounded-md py-0 text-sm"
             >
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="unstyled"
-                  size="none"
-                  onClick={() => makeDefault(c.type, c.id)}
-                  title={
-                    active
-                      ? "Default for new conversations"
-                      : "Make default for new conversations"
-                  }
-                  className="flex min-w-0 flex-1 items-center gap-2 cursor-pointer text-left"
-                >
+              <Button
+                variant="unstyled"
+                size="none"
+                onClick={() => makeDefault(c.type, c.id)}
+                title={
+                  active
+                    ? "Default for new conversations"
+                    : "Make default for new conversations"
+                }
+                className="min-w-0 flex-1 flex-col items-start gap-1.5 px-3 py-2.5 text-left"
+              >
+                <span className="flex w-full items-center gap-2">
                   <meta.icon size={15} className="shrink-0 text-zinc-500" />
                   <span className="min-w-0 flex-1 truncate text-zinc-200">
                     {c.label}
@@ -409,7 +399,12 @@ export default function AgentsSettingsTab() {
                       </span>
                     )}
                   </span>
-                </Button>
+                </span>
+                <span className="w-full truncate pl-[23px] text-xs text-zinc-600">
+                  {c.subtitle}
+                </span>
+              </Button>
+              <div className="flex shrink-0 items-center gap-1 pr-2">
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -427,17 +422,14 @@ export default function AgentsSettingsTab() {
                   <Trash2 size={13} />
                 </Button>
               </div>
-              <div className="truncate pl-[23px] text-xs text-zinc-600">
-                {c.subtitle}
-              </div>
-            </div>
+            </Card>
           );
         })}
         <Button
           variant="unstyled"
           size="none"
           onClick={() => setView({ step: "pickType" })}
-          className="flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-zinc-700 px-3 py-2.5 text-zinc-500 cursor-pointer hover:border-zinc-500 hover:text-zinc-300"
+          className="flex w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-zinc-700 px-3 py-2.5 text-zinc-500 cursor-pointer hover:border-zinc-500 hover:text-zinc-300"
         >
           <Plus size={16} />
           <span className="text-sm">Add</span>
