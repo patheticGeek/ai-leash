@@ -1,28 +1,10 @@
-import {
-  Bot,
-  Check,
-  ChevronRight,
-  Copy,
-  RotateCcw,
-  Wrench,
-} from "lucide-react";
+import { Bot, Check, Copy, RotateCcw, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Marker } from "@/ui/marker";
 import { type Entry, isToolError } from "../../../lib/chatEntries";
 import Markdown from "../../../ui/Markdown";
 import type { PanelEntry } from "../hooks/useChatStream";
-
-export function Chevron({ expanded }: { expanded: boolean }) {
-  return (
-    <ChevronRight
-      size={12}
-      className={cn(
-        "shrink-0 text-current transition-transform duration-200 ease-out",
-        expanded ? "rotate-90" : "",
-      )}
-    />
-  );
-}
 
 export function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -208,114 +190,86 @@ export default function ChatEntryRenderer({
   }
 
   if (entry.kind === "thinking") {
+    const thinking = !entry.done && isLast;
     return (
-      <div className="text-xs">
-        <Button
-          variant="quiet"
-          size="xs"
-          onClick={onToggleExpand}
-          className="rounded-md"
-        >
-          <Chevron expanded={expanded} />
-          {entry.done || !isLast ? (
-            <span className="italic">Thought</span>
-          ) : (
-            <span className="shine-text italic">Thinking…</span>
-          )}
-        </Button>
-        {expanded && (
-          <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_var(--border)] pl-2 italic text-zinc-600">
-            {entry.content}
-          </div>
-        )}
-      </div>
+      <Marker
+        italic
+        shine={thinking}
+        label={thinking ? "Thinking…" : "Thought"}
+        expanded={expanded}
+        onToggle={onToggleExpand}
+      >
+        <div className="whitespace-pre-wrap italic">{entry.content}</div>
+      </Marker>
     );
   }
 
   // entry.kind === "tool"
   const failed = isToolError(entry.result);
+  const Icon =
+    entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result"
+      ? Bot
+      : Wrench;
   return (
-    <div className="text-xs">
-      <Button
-        variant="quiet"
-        size="xs"
-        onClick={onToggleExpand}
-        className="w-full min-w-0 rounded-md text-left"
-      >
-        <Chevron expanded={expanded} />
-        {entry.name === "spawn_sub_agent" ||
-        entry.name === "sub_agent_result" ? (
-          <Bot
-            size={12}
-            className={cn("shrink-0", failed ? "text-red-400" : "")}
-          />
-        ) : (
-          <Wrench
-            size={12}
-            className={cn("shrink-0", failed ? "text-red-400" : "")}
-          />
-        )}
-        <span className="shrink-0 truncate max-w-4/5">{entry.name}</span>
-        <span className="select-text min-w-0 flex-1 truncate text-zinc-600">
-          {!expanded ? JSON.stringify(entry.args) : ""}
-        </span>
-        {entry.result === undefined && (
-          <span className="shrink-0 text-zinc-600">running…</span>
-        )}
-        {failed && <span className="shrink-0 text-red-400">failed</span>}
-      </Button>
-      {expanded && (
-        <div className="mt-1 ml-4 space-y-2 border-l-2 border-border pl-3 text-zinc-600">
-          <div>
-            <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
-              input
-            </div>
-            <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap">
-              {JSON.stringify(entry.args, null, 2)}
-            </pre>
-          </div>
-          {entry.subtasks && entry.subtasks.length > 0 && (
-            <div className="space-y-2">
-              {entry.subtasks.map((t) => (
-                <div
-                  key={t.subSessionId}
-                  className="shadow-[inset_2px_0_0_0_var(--border)] pl-2"
-                >
-                  <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
-                    {t.description}
-                  </div>
-                  <div className="space-y-1.5">
-                    {t.entries.map((sub, j) => (
-                      // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
-                      <SubEntryLine key={j} entry={sub} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {entry.result !== undefined && (
-            <div>
-              <div
-                className={cn(
-                  "mb-0.5 text-[9px] uppercase tracking-wide",
-                  failed ? "text-red-400" : "text-zinc-700",
-                )}
-              >
-                output
+    <Marker
+      fullWidth
+      icon={<Icon />}
+      label={entry.name}
+      summary={JSON.stringify(entry.args)}
+      status={
+        failed ? "failed" : entry.result === undefined ? "running" : undefined
+      }
+      expanded={expanded}
+      onToggle={onToggleExpand}
+    >
+      <div>
+        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+          input
+        </div>
+        <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap">
+          {JSON.stringify(entry.args, null, 2)}
+        </pre>
+      </div>
+      {entry.subtasks && entry.subtasks.length > 0 && (
+        <div className="space-y-2">
+          {entry.subtasks.map((t) => (
+            <div
+              key={t.subSessionId}
+              className="shadow-[inset_2px_0_0_0_var(--border)] pl-2"
+            >
+              <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
+                {t.description}
               </div>
-              <pre
-                className={cn(
-                  "select-text max-h-40 overflow-auto whitespace-pre-wrap",
-                  failed ? "text-red-300" : "text-zinc-500",
-                )}
-              >
-                {entry.result}
-              </pre>
+              <div className="space-y-1.5">
+                {t.entries.map((sub, j) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
+                  <SubEntryLine key={j} entry={sub} />
+                ))}
+              </div>
             </div>
-          )}
+          ))}
         </div>
       )}
-    </div>
+      {entry.result !== undefined && (
+        <div>
+          <div
+            className={cn(
+              "mb-0.5 text-[9px] uppercase tracking-wide",
+              failed ? "text-red-400" : "text-zinc-700",
+            )}
+          >
+            output
+          </div>
+          <pre
+            className={cn(
+              "select-text max-h-40 overflow-auto whitespace-pre-wrap",
+              failed ? "text-red-300" : "text-zinc-500",
+            )}
+          >
+            {entry.result}
+          </pre>
+        </div>
+      )}
+    </Marker>
   );
 }

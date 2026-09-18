@@ -2,11 +2,9 @@ import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Marker } from "@/ui/marker";
 import type { PanelEntry } from "../hooks/useChatStream";
-import ChatEntryRenderer, {
-  Chevron,
-  formatDuration,
-} from "./ChatEntryRenderer";
+import ChatEntryRenderer, { formatDuration } from "./ChatEntryRenderer";
 
 export interface ChatEntryListProps {
   className?: string;
@@ -195,22 +193,16 @@ export default function ChatEntryList({
     >
       <div className="p-3 space-y-3 text-sm w-full max-w-4xl mx-auto">
         {systemPrompt && (
-          <div className="text-xs">
-            <Button
-              variant="quiet"
-              size="xs"
-              onClick={() => setSystemPromptExpanded((v) => !v)}
-              className="rounded-md"
-            >
-              <Chevron expanded={systemPromptExpanded} />
-              <span className="italic">system prompt</span>
-            </Button>
-            {systemPromptExpanded && (
-              <pre className="mt-1 ml-4 max-h-64 overflow-auto whitespace-pre-wrap shadow-[inset_2px_0_0_0_var(--border)] pl-2 text-zinc-600">
-                {systemPrompt}
-              </pre>
-            )}
-          </div>
+          <Marker
+            italic
+            label="system prompt"
+            expanded={systemPromptExpanded}
+            onToggle={() => setSystemPromptExpanded((v) => !v)}
+          >
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
+              {systemPrompt}
+            </pre>
+          </Marker>
         )}
         {entries.length === 0 && !ollamaError && (
           <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
