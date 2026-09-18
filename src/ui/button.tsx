@@ -43,7 +43,7 @@ const buttonVariants = cva(
         // Row inside a popover/dropdown list (model picker, effort picker,
         // slash command menu). Pass `data-active` to mark the selected row.
         "menu-item":
-          "block w-full px-3 py-2 text-left hover:bg-white/5 data-[active=true]:bg-white/10 data-[active=true]:hover:bg-white/10",
+          "block w-full justify-start px-3 py-2 text-left hover:bg-white/5 data-[active=true]:bg-white/10 data-[active=true]:hover:bg-white/10",
         // Selectable card tile (agent type picker, tab picker) — a small
         // block of content rather than a single label, so it gets its own
         // padding/column layout instead of the horizontal chip/menu shapes.
