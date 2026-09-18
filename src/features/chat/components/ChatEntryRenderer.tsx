@@ -157,7 +157,9 @@ export default function ChatEntryRenderer({
         <div
           className={cn(
             "select-text",
-            isUser ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5" : undefined,
+            isUser
+              ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5"
+              : "min-w-0 max-w-full",
           )}
         >
           <Markdown content={entry.content} />

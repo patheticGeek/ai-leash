@@ -16,7 +16,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded-md bg-background px-1 py-0.5 text-[0.85em] text-zinc-300"
+          className="rounded-md bg-background px-1 py-0.5 text-zinc-300"
           {...props}
         >
           {children}
@@ -113,7 +113,7 @@ const components: Components = {
 // generated prose (matches the convention most chat UIs use).
 export default function Markdown({ content }: { content: string }) {
   return (
-    <div className="text-sm leading-relaxed break-words [&>*:last-child]:mb-0">
+    <div className="text-sm leading-relaxed wrap-break-words [&>*:last-child]:mb-0">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}
       </ReactMarkdown>
