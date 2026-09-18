@@ -133,6 +133,7 @@ export default function ChatInputBar({
             {showQueue && (
               <Button
                 variant="chip"
+                bordered
                 size="none"
                 onClick={onQueue}
                 title="Send after the current turn finishes (Ctrl+Enter)"

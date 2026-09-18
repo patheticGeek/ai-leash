@@ -132,35 +132,47 @@ export const IconActions: Story = {
 };
 
 export const ChipStates: Story = {
-  name: "Chip states (send / stop / bypass)",
-  render: () => (
-    <div className="flex items-center gap-2">
-      <Button variant="chip" size="none" className="flex items-center gap-1.5">
-        <Play size={12} /> chip
-      </Button>
-      <Button
-        variant="chip-primary"
-        size="none"
-        className="flex items-center gap-1.5"
-      >
-        <Send size={14} /> Send
-      </Button>
-      <Button
-        variant="chip-danger"
-        size="none"
-        className="flex items-center gap-1.5"
-      >
-        <Square size={12} fill="currentColor" /> Stop
-      </Button>
-      <Button
-        variant="chip-warning"
-        size="none"
-        className="flex items-center gap-1.5"
-      >
-        <Square size={11} /> Bypass
-      </Button>
-    </div>
-  ),
+  name: "Chip states (send / stop / bypass) × bordered",
+  render: () => {
+    const chips = [
+      { variant: "chip", label: "Queue", icon: <Play size={12} /> },
+      { variant: "chip-primary", label: "Send", icon: <Send size={14} /> },
+      {
+        variant: "chip-danger",
+        label: "Stop",
+        icon: <Square size={12} fill="currentColor" />,
+      },
+      {
+        variant: "chip-warning",
+        label: "Bypass",
+        icon: <Square size={11} />,
+      },
+    ] as const;
+    return (
+      <div className="grid grid-cols-[6rem_auto_auto] items-center gap-x-6 gap-y-3">
+        <span />
+        <span className="text-xs text-muted-foreground">bordered</span>
+        <span className="text-xs text-muted-foreground">no border</span>
+        {chips.map(({ variant, label, icon }) => (
+          <div key={variant} className="contents">
+            <code className="text-xs text-muted-foreground">{variant}</code>
+            {[true, false].map((bordered) => (
+              <div key={String(bordered)}>
+                <Button
+                  variant={variant}
+                  bordered={bordered}
+                  size="none"
+                  className="flex items-center gap-1.5"
+                >
+                  {icon} {label}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  },
 };
 
 export const MenuItems: Story = {

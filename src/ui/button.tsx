@@ -27,18 +27,18 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Popover/dropdown trigger pill — icon + label chip sitting in a
         // toolbar (model picker, effort picker, permission mode).
-        chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200",
+        chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200",
         // Same chip shape, tinted for a state the chip is currently *in*
         // rather than a neutral trigger — pick one per call site with a
         // ternary (see `ChatInputBar`'s send/stop, `PermissionModePopover`'s
         // ask/bypass). Colors come from the matching semantic token so they
         // stay in sync with the rest of the app's danger/warning/brand use.
         "chip-primary":
-          "rounded-md px-2 py-1 text-xs outline-none bg-primary/15 text-primary-hover shadow-[0_0_0_1px_var(--primary)] hover:bg-primary/25 disabled:hover:bg-primary/15",
+          "rounded-md px-2 py-1 text-xs outline-none bg-primary/15 text-primary-hover hover:bg-primary/25 disabled:hover:bg-primary/15",
         "chip-danger":
-          "rounded-md px-2 py-1 text-xs outline-none bg-destructive/10 text-destructive shadow-[0_0_0_1px_var(--destructive)] hover:bg-destructive/20",
+          "rounded-md px-2 py-1 text-xs outline-none bg-destructive/10 text-destructive hover:bg-destructive/20",
         "chip-warning":
-          "rounded-md px-1.5 py-1 text-xs outline-none bg-warning/10 text-warning shadow-[0_0_0_1px_var(--warning)] hover:bg-warning/20",
+          "rounded-md px-1.5 py-1 text-xs outline-none bg-warning/10 text-warning hover:bg-warning/20",
         // Row inside a popover/dropdown list (model picker, effort picker,
         // slash command menu). Pass `data-active` to mark the selected row.
         "menu-item":
@@ -70,7 +70,46 @@ const buttonVariants = cva(
         // were no-ops for unstyled buttons anyway.
         none: "gap-0",
       },
+      // Only meaningful on the chip variants (see compoundVariants) — a 1px
+      // ring around the chip. Button resolves the default per variant: the
+      // tinted chip-* variants are bordered unless told otherwise, the
+      // neutral `chip` isn't.
+      bordered: {
+        true: "",
+        false: "",
+      },
     },
+    compoundVariants: [
+      // Kept out of the base `chip` string: tailwind-merge doesn't treat a
+      // var()-based shadow as conflicting with the ring shadow below, so
+      // both would otherwise be emitted.
+      {
+        variant: "chip",
+        bordered: false,
+        class: "shadow-[var(--al-shadow)]",
+      },
+      {
+        variant: "chip",
+        bordered: true,
+        class:
+          "bg-zinc-800/60 text-zinc-300 shadow-[0_0_0_1px_rgba(82,82,91,0.6)] hover:bg-zinc-800 hover:text-zinc-100",
+      },
+      {
+        variant: "chip-primary",
+        bordered: true,
+        class: "shadow-[0_0_0_1px_var(--primary)]",
+      },
+      {
+        variant: "chip-danger",
+        bordered: true,
+        class: "shadow-[0_0_0_1px_var(--destructive)]",
+      },
+      {
+        variant: "chip-warning",
+        bordered: true,
+        class: "shadow-[0_0_0_1px_var(--warning)]",
+      },
+    ],
     defaultVariants: {
       variant: "secondary",
       size: "md",
@@ -82,6 +121,7 @@ function Button({
   className,
   variant,
   size,
+  bordered,
   asChild = false,
   ...props
 }: React.ComponentProps<"button"> &
@@ -95,7 +135,14 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({
+          variant,
+          size,
+          bordered: bordered ?? variant !== "chip",
+          className,
+        }),
+      )}
       {...props}
     />
   );
