@@ -378,6 +378,14 @@ function WorktreePicker({
               <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
                 No matches.
               </CommandEmpty>
+              <CommandItem
+                value="new-worktree"
+                forceMount
+                onSelect={() => setCreating(true)}
+                className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
+              >
+                New worktree…
+              </CommandItem>
               {worktrees.map((w) => {
                 const path = w.isPrimary ? projectRoot : w.path;
                 return (
@@ -395,14 +403,6 @@ function WorktreePicker({
                   />
                 );
               })}
-              <CommandItem
-                value="new-worktree"
-                forceMount
-                onSelect={() => setCreating(true)}
-                className="sticky bottom-0 border-t border-white/5 bg-popover text-zinc-200 cursor-pointer"
-              >
-                New worktree…
-              </CommandItem>
             </CommandList>
           </Command>
         ) : (
@@ -611,6 +611,14 @@ function BranchPicker({
               <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
                 No matches.
               </CommandEmpty>
+              <CommandItem
+                value="new-branch"
+                forceMount
+                onSelect={() => setCreating(true)}
+                className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
+              >
+                New branch…
+              </CommandItem>
               {branches.map((b) => (
                 <DeletableRow
                   key={b.name}
@@ -628,14 +636,6 @@ function BranchPicker({
                   {error}
                 </span>
               )}
-              <CommandItem
-                value="new-branch"
-                forceMount
-                onSelect={() => setCreating(true)}
-                className="cursor-pointer sticky bottom-0 border-t border-white/5 bg-popover text-zinc-200"
-              >
-                New branch…
-              </CommandItem>
             </CommandList>
           </Command>
         ) : (
