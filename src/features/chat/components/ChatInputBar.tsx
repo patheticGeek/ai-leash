@@ -1,5 +1,5 @@
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
@@ -25,6 +25,7 @@ export interface ChatInputBarProps {
   slashMatches: AcpCommandInfo[];
   slashActiveIndex: number;
   onAcceptSlash: (cmd: AcpCommandInfo) => void;
+  onSlashActiveIndexChange: (index: number) => void;
   sending: boolean;
   onSend: () => void;
   onStop: () => void;
@@ -56,6 +57,7 @@ export default function ChatInputBar({
   slashMatches,
   slashActiveIndex,
   onAcceptSlash,
+  onSlashActiveIndexChange,
   sending,
   onSend,
   onStop,
@@ -64,6 +66,7 @@ export default function ChatInputBar({
   toolbarLeft,
   contextUsage,
 }: ChatInputBarProps) {
+  const boxRef = useRef<HTMLDivElement>(null);
   const showQueue = sending && input.trim().length > 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: input is a trigger-only dep — recompute textarea height on every keystroke, its value isn't read in the body
   useEffect(() => {
@@ -83,6 +86,7 @@ export default function ChatInputBar({
   return (
     <div className="px-3 py-4">
       <div
+        ref={boxRef}
         className={cn(
           "relative flex flex-col rounded-xl bg-raised transition-shadow duration-150",
           shellMode
@@ -94,6 +98,7 @@ export default function ChatInputBar({
           <PermissionPopover
             request={pendingPermission}
             onRespond={onRespondPermission}
+            anchorRef={boxRef}
           />
         ) : (
           showSlashPopover && (
@@ -101,6 +106,8 @@ export default function ChatInputBar({
               matches={slashMatches}
               activeIndex={slashActiveIndex}
               onSelect={onAcceptSlash}
+              onActiveIndexChange={onSlashActiveIndexChange}
+              anchorRef={boxRef}
             />
           )
         )}
