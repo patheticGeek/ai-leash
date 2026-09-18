@@ -62,12 +62,12 @@ export const Variants: Story = {
         <div key={variant} className="contents">
           <code className="text-xs text-muted-foreground">{variant}</code>
           <div className="w-56">
-            <Button variant={variant} size="none">
+            <Button variant={variant} size="sm">
               {variant}
             </Button>
           </div>
           <div className="w-56">
-            <Button variant={variant} size="none" disabled>
+            <Button variant={variant} size="sm" disabled>
               {variant}
             </Button>
           </div>
@@ -158,12 +158,7 @@ export const ChipStates: Story = {
             <code className="text-xs text-muted-foreground">{variant}</code>
             {[true, false].map((bordered) => (
               <div key={String(bordered)}>
-                <Button
-                  variant={variant}
-                  bordered={bordered}
-                  size="none"
-                  className="flex items-center gap-1.5"
-                >
+                <Button variant={variant} bordered={bordered} size="xs">
                   {icon} {label}
                 </Button>
               </div>

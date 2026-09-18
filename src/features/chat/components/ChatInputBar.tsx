@@ -134,10 +134,9 @@ export default function ChatInputBar({
               <Button
                 variant="chip"
                 bordered
-                size="none"
+                size="xs"
                 onClick={onQueue}
                 title="Send after the current turn finishes (Ctrl+Enter)"
-                className="flex items-center gap-1.5"
               >
                 <Clock size={12} />
                 <span>Queue</span>
@@ -145,11 +144,10 @@ export default function ChatInputBar({
             )}
             <Button
               variant={sending ? "chip-danger" : "chip-primary"}
-              size="none"
+              size="xs"
               onClick={sending ? onStop : onSend}
               disabled={!sending && sendDisabled}
               title={sending ? "Stop" : "Send"}
-              className="flex items-center gap-1.5"
             >
               {sending ? (
                 <Square size={12} fill="currentColor" />

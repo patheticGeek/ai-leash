@@ -44,9 +44,9 @@ export default function EffortPickerPopover({
       <PopoverTrigger asChild>
         <Button
           variant="chip"
-          size="none"
+          size="xs"
           title="Thinking effort"
-          className="flex min-w-0 max-w-[120px] items-center gap-1"
+          className="flex min-w-0 max-w-[120px]"
         >
           <EffortIcon size={12} className="shrink-0" />
           <span className="truncate">{active?.name ?? "effort"}</span>

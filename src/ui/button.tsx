@@ -26,19 +26,20 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
         // Popover/dropdown trigger pill — icon + label chip sitting in a
-        // toolbar (model picker, effort picker, permission mode).
-        chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200",
+        // toolbar (model picker, effort picker, permission mode). Color and
+        // shape only: use it with size="xs" for the padding/text size.
+        chip: "rounded-md bg-white/[0.04] text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200",
         // Same chip shape, tinted for a state the chip is currently *in*
         // rather than a neutral trigger — pick one per call site with a
         // ternary (see `ChatInputBar`'s send/stop, `PermissionModePopover`'s
         // ask/bypass). Colors come from the matching semantic token so they
         // stay in sync with the rest of the app's danger/warning/brand use.
         "chip-primary":
-          "rounded-md px-2 py-1 text-xs outline-none bg-primary/15 text-primary-hover hover:bg-primary/25 disabled:hover:bg-primary/15",
+          "rounded-md outline-none bg-primary/15 text-primary-hover hover:bg-primary/25 disabled:hover:bg-primary/15",
         "chip-danger":
-          "rounded-md px-2 py-1 text-xs outline-none bg-destructive/10 text-destructive hover:bg-destructive/20",
+          "rounded-md outline-none bg-destructive/10 text-destructive hover:bg-destructive/20",
         "chip-warning":
-          "rounded-md px-1.5 py-1 text-xs outline-none bg-warning/10 text-warning hover:bg-warning/20",
+          "rounded-md outline-none bg-warning/10 text-warning hover:bg-warning/20",
         // Row inside a popover/dropdown list (model picker, effort picker,
         // slash command menu). Pass `data-active` to mark the selected row.
         "menu-item":

@@ -68,9 +68,9 @@ export default function ModelPickerPopover({
       <PopoverTrigger asChild>
         <Button
           variant="chip"
-          size="none"
+          size="xs"
           disabled={disabled}
-          className="flex min-w-0 max-w-[160px] items-center gap-1"
+          className="flex min-w-0 max-w-[160px]"
         >
           <Bot size={12} className="shrink-0" />
           <span className="truncate">{triggerLabel}</span>
