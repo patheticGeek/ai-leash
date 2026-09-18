@@ -4,14 +4,26 @@ import { cn } from "@/lib/utils";
 function Card({
   className,
   size = "default",
+  interactive,
+  selected,
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> & {
+  size?: "default" | "sm";
+  /** Highlight the card on hover — for cards that are (mostly) one big click target. */
+  interactive?: boolean;
+  /** Mark the card as the current choice (primary ring + tint). */
+  selected?: boolean;
+}) {
   return (
     <div
       data-slot="card"
       data-size={size}
+      data-selected={selected || undefined}
       className={cn(
         "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl bg-card py-(--card-spacing) text-sm text-card-foreground shadow-[var(--al-shadow)] [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
+        interactive &&
+          "transition-shadow duration-150 hover:ring-1 hover:ring-primary",
+        selected && "bg-primary/10 ring-1 ring-primary",
         className,
       )}
       {...props}
