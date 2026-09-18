@@ -1,5 +1,6 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
 import { Button, revealOnHover } from "@/ui/button";
 import { Card } from "@/ui/card";
@@ -86,7 +87,10 @@ export default function SubAgentsTab() {
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
                 <Badge
-                  className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+                  className={cn(
+                    "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                    statusStyles[task.status],
+                  )}
                 >
                   {task.status === "running" ? "running…" : task.status}
                 </Badge>

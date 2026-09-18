@@ -6,6 +6,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
   Command,
@@ -243,7 +244,10 @@ function DeletableRow({
       className="cursor-pointer justify-between gap-2 flex"
     >
       <span
-        className={`min-w-0 flex-1 truncate ${active ? "text-zinc-100" : "text-zinc-300"}`}
+        className={cn(
+          "min-w-0 flex-1 truncate",
+          active ? "text-zinc-100" : "text-zinc-300",
+        )}
       >
         {label}
       </span>

@@ -1,5 +1,6 @@
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Textarea } from "@/ui/textarea";
 import type {
@@ -82,11 +83,12 @@ export default function ChatInputBar({
   return (
     <div className="px-3 py-4">
       <div
-        className={`relative flex flex-col rounded-xl bg-raised transition-shadow duration-150 ${
+        className={cn(
+          "relative flex flex-col rounded-xl bg-raised transition-shadow duration-150",
           shellMode
             ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
-            : "shadow-[var(--al-shadow),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
-        }`}
+            : "shadow-[var(--al-shadow),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]",
+        )}
       >
         {pendingPermission ? (
           <PermissionPopover
@@ -116,11 +118,12 @@ export default function ChatInputBar({
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
             rows={INPUT_MIN_ROWS}
-            className={`py-3 leading-relaxed ${
+            className={cn(
+              "py-3 leading-relaxed",
               shellMode
                 ? "pl-9 pr-3.5 font-mono text-emerald-200"
-                : "px-3.5 text-zinc-200"
-            }`}
+                : "px-3.5 text-zinc-200",
+            )}
           />
         </div>
         <div className="flex items-center justify-between gap-1.5 px-2 pb-2">

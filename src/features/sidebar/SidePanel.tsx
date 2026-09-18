@@ -1,5 +1,6 @@
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import TabPicker from "./TabPicker";
@@ -47,11 +48,12 @@ export default function SidePanel() {
           return (
             <div
               key={tab.id}
-              className={`flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out ${
+              className={cn(
+                "flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out",
                 active
                   ? "bg-white/10 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
+                  : "text-zinc-500 hover:text-zinc-300",
+              )}
             >
               <Button
                 variant="unstyled"

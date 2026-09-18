@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { messagesToEntries } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
@@ -58,9 +59,10 @@ export default function SubAgentChatTab({
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
         <Badge
-          className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide ${
-            statusStyles[task?.status ?? "done"]
-          }`}
+          className={cn(
+            "h-auto shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide",
+            statusStyles[task?.status ?? "done"],
+          )}
         >
           {task?.status === "running" ? "running…" : (task?.status ?? "done")}
         </Badge>

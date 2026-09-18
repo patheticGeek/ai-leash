@@ -12,6 +12,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { type MouseEvent, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
   Select,
@@ -71,15 +72,15 @@ function ConversationRow({
 
   return (
     <div
-      className={`group mx-1.5 mb-1.5 flex items-center rounded-md text-sm ${
+      className={cn(
+        "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm",
         active
           ? "bg-white/10 text-zinc-100"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-      } ${
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
         awaitingApproval
           ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
-          : ""
-      }`}
+          : "",
+      )}
     >
       <Button
         variant="unstyled"
@@ -163,11 +164,12 @@ function DoneConversationRow({
 }) {
   return (
     <div
-      className={`mx-1.5 flex items-stretch gap-2 rounded-md text-sm ${
+      className={cn(
+        "mx-1.5 flex items-stretch gap-2 rounded-md text-sm",
         active
           ? "bg-white/10 text-zinc-100"
-          : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
-      }`}
+          : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300",
+      )}
     >
       <Button
         variant="unstyled"
