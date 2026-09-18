@@ -15,7 +15,7 @@ const meta = {
   component: Command,
   decorators: [
     (Story) => (
-      <div className="h-72 w-80 rounded-xl shadow-[var(--al-shadow)]">
+      <div className="h-72 w-80 rounded-xl ring-1 ring-border">
         <Story />
       </div>
     ),

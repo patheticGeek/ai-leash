@@ -91,7 +91,7 @@ export default function ChatInputBar({
           "relative flex flex-col rounded-xl bg-raised transition-shadow duration-150",
           shellMode
             ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
-            : "shadow-[var(--al-shadow),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]",
+            : "shadow-[var(--al-shadow-floating),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]",
         )}
       >
         {pendingPermission ? (

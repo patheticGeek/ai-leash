@@ -20,7 +20,7 @@ export const Default: Story = {
   render: () => (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="flex h-32 w-72 items-center justify-center rounded-md bg-card text-sm text-muted-foreground shadow-[var(--al-shadow)]">
+        <div className="flex h-32 w-72 items-center justify-center rounded-md bg-card text-sm text-muted-foreground ring-1 ring-border">
           Right-click here
         </div>
       </ContextMenuTrigger>

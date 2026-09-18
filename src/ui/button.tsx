@@ -87,7 +87,7 @@ const buttonVariants = cva(
       {
         variant: "chip",
         bordered: false,
-        class: "shadow-[var(--al-shadow)]",
+        class: "shadow-[var(--al-shadow-floating)]",
       },
       {
         variant: "chip",

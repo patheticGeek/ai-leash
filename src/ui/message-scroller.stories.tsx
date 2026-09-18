@@ -22,7 +22,7 @@ function Demo({ autoAppend }: { autoAppend?: boolean }) {
   }, [autoAppend]);
   return (
     <div className="flex w-96 flex-col gap-2">
-      <div className="h-72 rounded-md bg-card shadow-[var(--al-shadow)]">
+      <div className="h-72 rounded-md bg-card ring-1 ring-border">
         <MessageScroller
           scrollKey={count}
           contentClassName="space-y-2 p-3 text-sm"
