@@ -1,6 +1,7 @@
 import { Brain, Gauge, Sparkles, Zap } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/ui/button";
+import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 interface EffortPickerPopoverProps {
@@ -15,6 +16,7 @@ export default function EffortPickerPopover({
   onSelect,
 }: EffortPickerPopoverProps) {
   const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   // Some ACP agents report the selected thought level as the sentinel
   // `"default"` even though their select options contain the concrete
   // levels. Treat the explicitly named Default option as the mapping; when
@@ -56,26 +58,34 @@ export default function EffortPickerPopover({
         side="top"
         align="start"
         sideOffset={8}
+        onOpenAutoFocus={(e) => {
+          // No search box to take focus, so give it to the list itself —
+          // that's what makes arrow keys/Enter work straight away.
+          e.preventDefault();
+          listRef.current?.focus();
+        }}
         className="w-56 gap-0 overflow-hidden p-0"
       >
-        <div className="py-1">
-          {options.map((option) => (
-            <Button
-              key={option.value}
-              variant="menu-item"
-              size="none"
-              data-active={option.value === activeValue}
-              onClick={() => {
-                onSelect(option.value);
-                setOpen(false);
-              }}
-            >
-              <div className="text-sm font-medium text-zinc-100">
-                {option.name}
-              </div>
-            </Button>
-          ))}
-        </div>
+        <Command ref={listRef} tabIndex={-1} defaultValue={activeValue}>
+          <CommandList>
+            {options.map((option) => (
+              <CommandItem
+                key={option.value}
+                value={option.value}
+                data-checked={option.value === activeValue}
+                checkIcon
+                onSelect={() => {
+                  onSelect(option.value);
+                  setOpen(false);
+                }}
+              >
+                <span className="text-sm font-medium text-zinc-100">
+                  {option.name}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

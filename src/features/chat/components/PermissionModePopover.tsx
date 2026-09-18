@@ -1,5 +1,7 @@
 import { ShieldCheck, ShieldOff } from "lucide-react";
+import { useRef } from "react";
 import { Button } from "@/ui/button";
+import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import type { PermissionMode } from "../../../store";
 
@@ -25,9 +27,8 @@ const OPTIONS: { key: PermissionMode; label: string; subtitle: string }[] = [
   },
 ];
 
-// Same look as `ModelPickerPopover` (border/bg/trigger/panel styling) — a
-// second, simpler switcher next to it with just two fixed rows, so no
-// search bar. Kept as its own component rather than a variant of
+// Same look as `ModelPickerPopover` (a cmdk list in a popover) — a second,
+// simpler switcher next to it with just two fixed rows, so no search bar. Kept as its own component rather than a variant of
 // `ModelPickerPopover` since there's no filtering/searching to share.
 export default function PermissionModePopover({
   mode,
@@ -36,6 +37,7 @@ export default function PermissionModePopover({
   onOpenChange,
 }: PermissionModePopoverProps) {
   const active = OPTIONS.find((o) => o.key === mode) ?? OPTIONS[0];
+  const listRef = useRef<HTMLDivElement>(null);
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -59,26 +61,37 @@ export default function PermissionModePopover({
         side="top"
         align="start"
         sideOffset={8}
+        onOpenAutoFocus={(e) => {
+          // No search box to take focus, so give it to the list itself —
+          // that's what makes arrow keys/Enter work straight away.
+          e.preventDefault();
+          listRef.current?.focus();
+        }}
         className="w-80 gap-0 overflow-hidden p-0"
       >
-        <div className="py-1">
-          {OPTIONS.map((o) => (
-            <Button
-              key={o.key}
-              variant="menu-item"
-              size="none"
-              data-active={o.key === mode}
-              className="whitespace-normal"
-              onClick={() => {
-                onSelect(o.key);
-                onOpenChange(false);
-              }}
-            >
-              <div className="text-sm font-medium text-zinc-100">{o.label}</div>
-              <div className="text-xs text-zinc-500">{o.subtitle}</div>
-            </Button>
-          ))}
-        </div>
+        <Command ref={listRef} tabIndex={-1} defaultValue={mode}>
+          <CommandList>
+            {OPTIONS.map((o) => (
+              <CommandItem
+                key={o.key}
+                value={o.key}
+                data-checked={o.key === mode}
+                checkIcon
+                onSelect={() => {
+                  onSelect(o.key);
+                  onOpenChange(false);
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-zinc-100">
+                    {o.label}
+                  </div>
+                  <div className="text-xs text-zinc-500">{o.subtitle}</div>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

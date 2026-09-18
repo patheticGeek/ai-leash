@@ -1,7 +1,13 @@
-import { Bot, Search } from "lucide-react";
-import { useState } from "react";
+import { Bot } from "lucide-react";
 import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 export interface PickerOption {
@@ -42,29 +48,18 @@ export default function ModelPickerPopover({
   open,
   onOpenChange,
 }: ModelPickerPopoverProps) {
-  const [query, setQuery] = useState("");
-
-  const filtered = options.filter((o) =>
-    `${o.label} ${o.subtitle}`.toLowerCase().includes(query.toLowerCase()),
-  );
   // Groups are already contiguous in `options` (built section-by-section
   // upstream in `useChatSession.ts`), so a single pass preserves the
   // original section order — no separate sort needed.
   const sections = new Map<string, PickerOption[]>();
-  for (const o of filtered) {
+  for (const o of options) {
     const rows = sections.get(o.section);
     if (rows) rows.push(o);
     else sections.set(o.section, [o]);
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) setQuery("");
-      }}
-    >
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="chip"
@@ -82,45 +77,36 @@ export default function ModelPickerPopover({
         sideOffset={8}
         className="w-72 gap-0 overflow-hidden p-0"
       >
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <Search size={14} className="shrink-0 text-zinc-500" />
-          <Input
-            variant="unstyled"
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.currentTarget.value)}
-            placeholder="Search models..."
-          />
-        </div>
-        <div className="max-h-72 overflow-auto py-1">
-          {filtered.length === 0 && (
-            <div className="px-3 py-3 text-sm text-zinc-600">No matches.</div>
-          )}
-          {[...sections.entries()].map(([section, rows]) => (
-            <div key={section}>
-              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
-                {section}
-              </div>
-              {rows.map((o) => (
-                <Button
-                  key={o.key}
-                  variant="menu-item"
-                  size="none"
-                  data-active={o.key === activeKey}
-                  onClick={() => {
-                    onSelect(o.key);
-                    onOpenChange(false);
-                  }}
-                >
-                  <div className="text-sm font-medium text-zinc-100">
-                    {o.label}
-                  </div>
-                  <div className="text-xs text-zinc-500">{o.subtitle}</div>
-                </Button>
-              ))}
-            </div>
-          ))}
-        </div>
+        <Command defaultValue={activeKey ?? undefined}>
+          <CommandInput placeholder="Search models..." autoFocus />
+          <CommandList>
+            <CommandEmpty>No matches.</CommandEmpty>
+            {[...sections.entries()].map(([section, rows]) => (
+              <CommandGroup key={section} heading={section}>
+                {rows.map((o) => (
+                  <CommandItem
+                    key={o.key}
+                    value={o.key}
+                    keywords={[o.label, o.subtitle, o.section]}
+                    data-checked={o.key === activeKey}
+                    checkIcon
+                    onSelect={() => {
+                      onSelect(o.key);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-zinc-100">
+                        {o.label}
+                      </div>
+                      <div className="text-xs text-zinc-500">{o.subtitle}</div>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );
