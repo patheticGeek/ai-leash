@@ -1,11 +1,10 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/ui/badge";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
+import SubAgentStatusBadge from "../../chat/SubAgentStatusBadge";
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -21,13 +20,6 @@ function formatDuration(ms: number): string {
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }
-
-const statusStyles: Record<string, string> = {
-  running:
-    "text-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20",
-  done: "text-emerald-400 shadow-[0_0_0_1px_rgba(6,78,59,0.5)] bg-emerald-950/20",
-  error: "text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20",
-};
 
 export default function SubAgentsTab() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
@@ -87,14 +79,7 @@ export default function SubAgentsTab() {
               className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
             >
               <div className="flex w-full items-center gap-2">
-                <Badge
-                  className={cn(
-                    "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                    statusStyles[task.status],
-                  )}
-                >
-                  {task.status === "running" ? "running…" : task.status}
-                </Badge>
+                <SubAgentStatusBadge status={task.status} />
                 <span className="min-w-0 flex-1 truncate text-zinc-300">
                   {task.description}
                 </span>

@@ -1,6 +1,5 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
@@ -93,12 +92,10 @@ export default function ActionsTab() {
           >
             <div className="flex w-full items-center gap-2">
               <Badge
-                className={cn(
-                  "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                  action.running
-                    ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
-                    : "shadow-[0_0_0_1px_var(--border)] bg-zinc-900/40 text-zinc-500",
-                )}
+                size="sm"
+                variant={action.running ? "warning" : "muted"}
+                outline
+                className="shrink-0"
               >
                 {action.running ? "running…" : "stopped"}
               </Badge>
