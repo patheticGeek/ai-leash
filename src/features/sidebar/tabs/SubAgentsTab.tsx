@@ -2,7 +2,7 @@ import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
-import { Button, revealOnHover } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
@@ -104,7 +104,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Stop sub-agent"
                   onClick={() => void api.cancelPrompt(task.subSessionId)}
-                  className={revealOnHover}
+                  className={revealOnGroupHover}
                 >
                   <Square size={12} />
                 </Button>
@@ -114,7 +114,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Delete sub-agent"
                   onClick={() => deleteSubAgentTask(task.subSessionId)}
-                  className={revealOnHover}
+                  className={revealOnGroupHover}
                 >
                   <Trash2 size={12} />
                 </Button>

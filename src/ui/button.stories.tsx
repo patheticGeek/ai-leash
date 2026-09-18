@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Check, Copy, Play, Send, Square, Trash2, X } from "lucide-react";
-import { Button, type buttonVariants, revealOnHover } from "./button";
+import { Button, type buttonVariants, revealOnGroupHover } from "./button";
 
 type Variant = NonNullable<Parameters<typeof buttonVariants>[0]>["variant"];
 type Size = NonNullable<Parameters<typeof buttonVariants>[0]>["size"];
@@ -191,14 +191,14 @@ export const Card: Story = {
 };
 
 export const RevealOnHover: Story = {
-  name: "revealOnHover (row actions)",
+  name: "revealOnGroupHover (row actions)",
   render: () => (
     <div className="group flex w-64 items-center justify-between rounded-md bg-card px-3 py-2 shadow-[var(--al-shadow)]">
       <span className="text-sm">Hover this row</span>
       <Button
         variant="danger"
         size="icon-sm"
-        className={revealOnHover}
+        className={revealOnGroupHover}
         title="Delete"
       >
         <Trash2 />

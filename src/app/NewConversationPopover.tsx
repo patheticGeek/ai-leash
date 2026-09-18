@@ -3,7 +3,7 @@ import { FolderPlus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button, revealOnHover } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAppStore } from "../store";
 
@@ -80,7 +80,7 @@ export default function NewConversationPopover({
                   }}
                   className={cn(
                     "mr-1 text-zinc-600 hover:text-red-400",
-                    revealOnHover,
+                    revealOnGroupHover,
                   )}
                 >
                   <Trash2 size={12} />

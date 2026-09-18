@@ -105,6 +105,6 @@ function Button({
 // ancestor `.group` (row actions like delete/edit). Needs a *named* group
 // (`group-hover/name:`) instead? Compose your own className — this only
 // covers the common unnamed-group case.
-const revealOnHover = "shrink-0 opacity-0 group-hover:opacity-100";
+const revealOnGroupHover = "shrink-0 opacity-0 group-hover:opacity-100";
 
-export { Button, buttonVariants, revealOnHover };
+export { Button, buttonVariants, revealOnGroupHover };
