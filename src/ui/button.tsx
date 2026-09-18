@@ -14,7 +14,7 @@ const buttonVariants = cva(
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "shadow-[var(--al-shadow)] text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+          "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200",
         ghost: "text-zinc-500 hover:bg-white/10 hover:text-zinc-200",
         // Dimmer than `ghost` and brightens on hover without a hover
         // background — for secondary icon actions (copy, retry, close tab,
@@ -47,7 +47,7 @@ const buttonVariants = cva(
         // Selectable card tile (agent type picker, tab picker) — a small
         // block of content rather than a single label, so it gets its own
         // padding/column layout instead of the horizontal chip/menu shapes.
-        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
+        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
         // popover list items) that still need the shared cursor/disabled
         // behavior above but fully own their own color/spacing classes.
