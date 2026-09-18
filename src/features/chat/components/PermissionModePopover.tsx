@@ -42,7 +42,7 @@ export default function PermissionModePopover({
       <PopoverTrigger asChild>
         <Button
           variant={mode === "bypass" ? "chip-warning" : "chip"}
-          size="xs"
+          size="sm"
           title="Tool-call permission mode"
           className="flex min-w-0"
         >

@@ -134,7 +134,7 @@ export default function ChatInputBar({
               <Button
                 variant="chip"
                 bordered
-                size="xs"
+                size="sm"
                 onClick={onQueue}
                 title="Send after the current turn finishes (Ctrl+Enter)"
               >
@@ -144,7 +144,7 @@ export default function ChatInputBar({
             )}
             <Button
               variant={sending ? "chip-danger" : "chip-primary"}
-              size="xs"
+              size="sm"
               onClick={sending ? onStop : onSend}
               disabled={!sending && sendDisabled}
               title={sending ? "Stop" : "Send"}

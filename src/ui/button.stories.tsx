@@ -158,7 +158,7 @@ export const ChipStates: Story = {
             <code className="text-xs text-muted-foreground">{variant}</code>
             {[true, false].map((bordered) => (
               <div key={String(bordered)}>
-                <Button variant={variant} bordered={bordered} size="xs">
+                <Button variant={variant} bordered={bordered} size="sm">
                   {icon} {label}
                 </Button>
               </div>

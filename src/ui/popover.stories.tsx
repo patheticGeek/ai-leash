@@ -40,7 +40,7 @@ export const OpenTop: Story = {
     <div className="pt-40">
       <Popover defaultOpen>
         <PopoverTrigger asChild>
-          <Button variant="chip" size="xs">
+          <Button variant="chip" size="sm">
             Model picker
           </Button>
         </PopoverTrigger>

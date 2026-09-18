@@ -44,7 +44,7 @@ export default function EffortPickerPopover({
       <PopoverTrigger asChild>
         <Button
           variant="chip"
-          size="xs"
+          size="sm"
           title="Thinking effort"
           className="flex min-w-0 max-w-[120px]"
         >

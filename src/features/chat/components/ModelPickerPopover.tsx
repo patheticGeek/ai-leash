@@ -68,7 +68,7 @@ export default function ModelPickerPopover({
       <PopoverTrigger asChild>
         <Button
           variant="chip"
-          size="xs"
+          size="sm"
           disabled={disabled}
           className="flex min-w-0 max-w-[160px]"
         >

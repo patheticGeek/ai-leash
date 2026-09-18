@@ -67,13 +67,13 @@ export default function TitleBarActions() {
       <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
         <Button
           variant={current.running ? "chip-warning" : "unstyled"}
-          size="xs"
+          size="sm"
           onClick={() => handleToggle(current)}
           title={
             current.running ? `Stop ${current.name}` : `Run ${current.name}`
           }
           className={cn(
-            "flex min-w-0 max-w-[160px] px-2 py-1",
+            "flex min-w-0 max-w-[160px]",
             !current.running &&
               "rounded-md text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
           )}

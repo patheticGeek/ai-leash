@@ -27,7 +27,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Popover/dropdown trigger pill — icon + label chip sitting in a
         // toolbar (model picker, effort picker, permission mode). Color and
-        // shape only: use it with size="xs" for the padding/text size.
+        // shape only: use it with size="sm" for the padding/text size.
         chip: "rounded-md bg-white/[0.04] text-zinc-400 outline-none hover:bg-white/5 hover:text-zinc-200",
         // Same chip shape, tinted for a state the chip is currently *in*
         // rather than a neutral trigger — pick one per call site with a
