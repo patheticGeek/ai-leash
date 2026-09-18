@@ -168,17 +168,6 @@ TODO
   html {
     @apply font-sans;
   }
-  /* Preflight resets buttons to the default arrow cursor — anything
-     clickable should show a pointer, including Radix/cmdk parts that render
-     as [role]s rather than <button>s. */
-  button:not(:disabled),
-  [role="button"],
-  [role="tab"],
-  [role="menuitem"],
-  [role="option"],
-  summary {
-    cursor: pointer;
-  }
 }
 
 .shine-text {
