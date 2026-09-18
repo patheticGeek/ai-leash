@@ -1,6 +1,19 @@
-import { Folder as FolderIcon, GitBranch as GitBranchIcon } from "lucide-react";
+import {
+  Check,
+  Folder as FolderIcon,
+  GitBranch as GitBranchIcon,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/ui/command";
 import { Input } from "@/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import {
@@ -89,6 +102,11 @@ export default function CheckoutBar({
     onWorktreeSelected(worktreePath);
   }
 
+  async function deleteWorktree(path: string, force: boolean) {
+    await api.deleteGitWorktree(projectRoot, path, force);
+    setWorktrees((prev) => prev.filter((w) => w.path !== path));
+  }
+
   async function selectBranch(name: string) {
     await api.checkoutGitBranch(cwd, name, null);
   }
@@ -117,14 +135,133 @@ export default function CheckoutBar({
         editable={editable}
         onSelect={selectWorktree}
         onCreate={createWorktree}
+        onDelete={deleteWorktree}
       />
       <BranchPicker
         cwd={cwd}
         branch={branch}
         onSelect={selectBranch}
         onCreate={createBranch}
+        onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
       />
     </div>
+  );
+}
+
+// A `cmdk` item — arrow-key/typeahead navigable via `Command`'s own keyboard
+// handling — that's a plain select row until its trash icon is clicked, then
+// swaps in place for a "delete this?" confirm strip, and again for an error
+// (with a force-delete retry) if the plain delete git refuses — e.g. a dirty
+// worktree or an unmerged branch. The confirm/error strips render as plain
+// (non-`CommandItem`) rows: `cmdk` still filters/positions them by DOM order,
+// but they fall out of keyboard nav and stay clickable without fighting
+// `CommandItem`'s own `disabled` styling (which sets `pointer-events-none`
+// on the whole row, including the strip's own buttons). Kept as a strip
+// *within* the row rather than a native `confirm()` dialog so the popover
+// never grows a second, heavier layer of modal-ness.
+function DeletableRow({
+  value,
+  label,
+  active,
+  deletable,
+  selectDisabled,
+  onSelect,
+  onDelete,
+}: {
+  // What `cmdk` matches the search query against — not necessarily `label`
+  // (see `WorktreePicker`, which also searches the checked-out branch name).
+  value: string;
+  label: string;
+  active: boolean;
+  deletable: boolean;
+  selectDisabled?: boolean;
+  onSelect: () => void;
+  onDelete: (force: boolean) => Promise<void>;
+}) {
+  const [phase, setPhase] = useState<"idle" | "confirm" | "deleting" | "error">(
+    "idle",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  async function runDelete(force: boolean) {
+    setPhase("deleting");
+    try {
+      await onDelete(force);
+      // Success removes this row from the parent's list; nothing left to do.
+    } catch (e) {
+      setError(String(e));
+      setPhase("error");
+    }
+  }
+
+  if (phase === "confirm" || phase === "deleting") {
+    return (
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <span className="truncate text-xs text-zinc-500">Delete {label}?</span>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            disabled={phase === "deleting"}
+            onClick={() => setPhase("idle")}
+          >
+            <X size={12} />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="danger"
+            disabled={phase === "deleting"}
+            onClick={() => runDelete(false)}
+          >
+            <Check size={12} />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <div className="flex flex-col gap-1 px-2 py-1.5">
+        <span className="text-xs text-red-400">{error}</span>
+        <div className="flex justify-end gap-1.5">
+          <Button size="sm" variant="ghost" onClick={() => setPhase("idle")}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => runDelete(true)}>
+            Force delete
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <CommandItem
+      value={value}
+      disabled={selectDisabled}
+      onSelect={onSelect}
+      className="cursor-pointer justify-between gap-2 flex"
+    >
+      <span
+        className={`min-w-0 flex-1 truncate ${active ? "text-zinc-100" : "text-zinc-300"}`}
+      >
+        {label}
+      </span>
+      {deletable && (
+        <Button
+          variant="danger"
+          size="icon-sm"
+          className="shrink-0 opacity-0 group-hover/command-item:opacity-100 group-data-selected/command-item:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPhase("confirm");
+          }}
+        >
+          <Trash2 size={12} />
+        </Button>
+      )}
+    </CommandItem>
   );
 }
 
@@ -136,6 +273,7 @@ function WorktreePicker({
   editable,
   onSelect,
   onCreate,
+  onDelete,
 }: {
   worktrees: GitWorktree[];
   activePath: string;
@@ -144,6 +282,7 @@ function WorktreePicker({
   editable: boolean;
   onSelect: (path: string, isPrimary: boolean) => void;
   onCreate: (branch: string, baseBranch: string | null) => Promise<void>;
+  onDelete: (path: string, force: boolean) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -230,110 +369,118 @@ function WorktreePicker({
         side="bottom"
         align="start"
         sideOffset={4}
-        className="w-72 gap-0 overflow-hidden p-0"
+        className="flex w-72 flex-col gap-0 overflow-hidden p-0"
       >
         {!creating ? (
-          <div className="max-h-60 overflow-y-auto py-1">
-            {worktrees.map((w) => {
-              const path = w.isPrimary ? projectRoot : w.path;
-              return (
-                <Button
-                  key={w.path}
-                  variant="unstyled"
-                  size="none"
-                  onClick={() => {
-                    onSelect(path, w.isPrimary);
-                    closePopover(false);
-                  }}
-                  className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/5 ${
-                    path === activePath ? "text-zinc-100" : "text-zinc-300"
-                  }`}
-                >
-                  {worktreeLabel(w)}
-                </Button>
-              );
-            })}
-            <Button
-              variant="unstyled"
-              size="none"
-              onClick={() => setCreating(true)}
-              className="block w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/5"
-            >
-              New worktree…
-            </Button>
-          </div>
+          <Command className="gap-0 rounded-none! bg-transparent p-0">
+            <CommandInput placeholder="Search worktrees..." autoFocus />
+            <CommandList className="max-h-80 px-1 pt-1">
+              <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
+                No matches.
+              </CommandEmpty>
+              <CommandItem
+                value="new-worktree"
+                forceMount
+                onSelect={() => setCreating(true)}
+                className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
+              >
+                New worktree…
+              </CommandItem>
+              {worktrees.map((w) => {
+                const path = w.isPrimary ? projectRoot : w.path;
+                return (
+                  <DeletableRow
+                    key={w.path}
+                    value={`${worktreeLabel(w)} ${w.branch ?? ""}`}
+                    label={worktreeLabel(w)}
+                    active={path === activePath}
+                    deletable={!w.isPrimary && path !== activePath}
+                    onSelect={() => {
+                      onSelect(path, w.isPrimary);
+                      closePopover(false);
+                    }}
+                    onDelete={(force) => onDelete(w.path, force)}
+                  />
+                );
+              })}
+            </CommandList>
+          </Command>
         ) : (
-          <div className="flex flex-col gap-2 p-3">
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant={mode === "new" ? "default" : "outline"}
-                onClick={() => setMode("new")}
-              >
-                New branch
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === "existing" ? "default" : "outline"}
-                onClick={() => setMode("existing")}
-              >
-                Existing branch
-              </Button>
+          <>
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto p-3">
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant={mode === "new" ? "default" : "outline"}
+                  onClick={() => setMode("new")}
+                >
+                  New branch
+                </Button>
+                <Button
+                  size="sm"
+                  variant={mode === "existing" ? "default" : "outline"}
+                  onClick={() => setMode("existing")}
+                >
+                  Existing branch
+                </Button>
+              </div>
+              {mode === "new" ? (
+                <>
+                  <span className="text-[11px] text-zinc-500">
+                    New branch name
+                  </span>
+                  <Input
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    placeholder="my-feature"
+                    autoFocus
+                  />
+                  <span className="text-[11px] text-zinc-500">Base branch</span>
+                  <Select
+                    value={baseBranch ?? undefined}
+                    onValueChange={setBaseBranch}
+                  >
+                    <SelectTrigger size="sm" className="w-full">
+                      <SelectValue placeholder="Select a branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.name} value={b.name}>
+                          {b.name}
+                          {b.isCurrent ? " (current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <span className="text-[11px] text-zinc-500">Branch</span>
+                  <Select
+                    value={branchName || undefined}
+                    onValueChange={setBranchName}
+                  >
+                    <SelectTrigger size="sm" className="w-full">
+                      <SelectValue placeholder="Select a branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableBranches.map((b) => (
+                        <SelectItem key={b.name} value={b.name}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {availableBranches.length === 0 && (
+                    <span className="text-zinc-600">
+                      No unattached branches
+                    </span>
+                  )}
+                </>
+              )}
+              {error && <span className="text-red-400">{error}</span>}
             </div>
-            {mode === "new" ? (
-              <>
-                <span className="text-[11px] text-zinc-500">
-                  New branch name
-                </span>
-                <Input
-                  value={branchName}
-                  onChange={(e) => setBranchName(e.target.value)}
-                  placeholder="my-feature"
-                  autoFocus
-                />
-                <span className="text-[11px] text-zinc-500">Base branch</span>
-                <Select
-                  value={baseBranch ?? undefined}
-                  onValueChange={setBaseBranch}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder="Select a branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((b) => (
-                      <SelectItem key={b.name} value={b.name}>
-                        {b.name}
-                        {b.isCurrent ? " (current)" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            ) : (
-              <>
-                <span className="text-[11px] text-zinc-500">Branch</span>
-                <Select
-                  value={branchName || undefined}
-                  onValueChange={setBranchName}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder="Select a branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableBranches.map((b) => (
-                      <SelectItem key={b.name} value={b.name}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {availableBranches.length === 0 && (
-                  <span className="text-zinc-600">No unattached branches</span>
-                )}
-              </>
-            )}
-            {error && <span className="text-red-400">{error}</span>}
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex justify-end gap-2 border-t border-white/5 p-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -354,7 +501,7 @@ function WorktreePicker({
                 {submitting ? "Creating…" : "Create"}
               </Button>
             </div>
-          </div>
+          </>
         )}
       </PopoverContent>
     </Popover>
@@ -366,11 +513,13 @@ function BranchPicker({
   branch,
   onSelect,
   onCreate,
+  onDelete,
 }: {
   cwd: string;
   branch: string | null;
   onSelect: (name: string) => Promise<void>;
   onCreate: (name: string, base: string) => Promise<void>;
+  onDelete: (name: string, force: boolean) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -418,6 +567,11 @@ function BranchPicker({
     }
   }
 
+  async function deleteBranch(name: string, force: boolean) {
+    await onDelete(name, force);
+    setBranches((prev) => prev.filter((b) => b.name !== name));
+  }
+
   async function submitNew() {
     if (!newBranch.trim() || !baseBranch) return;
     setSubmitting(true);
@@ -448,64 +602,72 @@ function BranchPicker({
         side="bottom"
         align="end"
         sideOffset={4}
-        className="w-64 gap-0 overflow-hidden p-0"
+        className="flex w-64 flex-col gap-0 overflow-hidden p-0"
       >
         {!creating ? (
-          <div className="max-h-60 overflow-y-auto py-1">
-            {branches.map((b) => (
-              <Button
-                key={b.name}
-                variant="unstyled"
-                size="none"
-                disabled={submitting}
-                onClick={() => pick(b.name)}
-                className={`block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/5 ${
-                  b.name === branch ? "text-zinc-100" : "text-zinc-300"
-                }`}
+          <Command className="gap-0 rounded-none! bg-transparent p-0">
+            <CommandInput placeholder="Search branches..." autoFocus />
+            <CommandList className="max-h-80 px-1 pt-1">
+              <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
+                No matches.
+              </CommandEmpty>
+              <CommandItem
+                value="new-branch"
+                forceMount
+                onSelect={() => setCreating(true)}
+                className="h-9 cursor-pointer border-t border-white/5 bg-popover text-zinc-200"
               >
-                {b.name}
-              </Button>
-            ))}
-            <Button
-              variant="unstyled"
-              size="none"
-              onClick={() => setCreating(true)}
-              className="block w-full px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/5"
-            >
-              New branch…
-            </Button>
-            {error && (
-              <span className="block px-3 py-1 text-red-400">{error}</span>
-            )}
-          </div>
+                New branch…
+              </CommandItem>
+              {branches.map((b) => (
+                <DeletableRow
+                  key={b.name}
+                  value={b.name}
+                  label={b.name}
+                  active={b.name === branch}
+                  deletable={!b.isCurrent}
+                  selectDisabled={submitting}
+                  onSelect={() => pick(b.name)}
+                  onDelete={(force) => deleteBranch(b.name, force)}
+                />
+              ))}
+              {error && (
+                <span className="block px-2 py-1 text-xs text-red-400">
+                  {error}
+                </span>
+              )}
+            </CommandList>
+          </Command>
         ) : (
-          <div className="flex flex-col gap-2 p-3">
-            <span className="text-[11px] text-zinc-500">New branch name</span>
-            <Input
-              value={newBranch}
-              onChange={(e) => setNewBranch(e.target.value)}
-              placeholder="my-feature"
-              autoFocus
-            />
-            <span className="text-[11px] text-zinc-500">Base branch</span>
-            <Select
-              value={baseBranch ?? undefined}
-              onValueChange={setBaseBranch}
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue placeholder="Select a branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.name} value={b.name}>
-                    {b.name}
-                    {b.isCurrent ? " (current)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {error && <span className="text-red-400">{error}</span>}
-            <div className="flex justify-end gap-2 pt-1">
+          <>
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto p-3">
+              <span className="text-[11px] text-zinc-500">New branch name</span>
+              <Input
+                value={newBranch}
+                onChange={(e) => setNewBranch(e.target.value)}
+                placeholder="my-feature"
+                autoFocus
+              />
+              <span className="text-[11px] text-zinc-500">Base branch</span>
+              <Select
+                value={baseBranch ?? undefined}
+                onValueChange={setBaseBranch}
+              >
+                <SelectTrigger size="sm" className="w-full">
+                  <SelectValue placeholder="Select a branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.name} value={b.name}>
+                      {b.name}
+                      {b.isCurrent ? " (current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {error && <span className="text-red-400">{error}</span>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-white/5 p-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -521,7 +683,7 @@ function BranchPicker({
                 {submitting ? "Creating…" : "Create"}
               </Button>
             </div>
-          </div>
+          </>
         )}
       </PopoverContent>
     </Popover>
