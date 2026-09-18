@@ -16,7 +16,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded-md bg-background px-1 py-0.5 text-[0.85em] text-zinc-300"
+          className="rounded-md bg-background px-1 py-0.5 text-zinc-300"
           {...props}
         >
           {children}
