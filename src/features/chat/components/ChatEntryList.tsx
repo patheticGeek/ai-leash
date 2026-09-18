@@ -3,10 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import type { PanelEntry } from "../hooks/useChatStream";
-import ChatEntryRenderer, {
-  Chevron,
-  formatDuration,
-} from "./ChatEntryRenderer";
+import ChatEntryRenderer, { Chevron } from "./ChatEntryRenderer";
+import WorkingForIndicator from "./WorkingForIndicator";
 
 export interface ChatEntryListProps {
   className?: string;
@@ -29,7 +27,6 @@ export interface ChatEntryListProps {
   isAcp: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
-  nowTick: number;
   onRetry?: () => void;
   // Whether the last reply's footer may show a Retry button — see
   // `ChatEntryRenderer`'s doc comment on the same prop. Defaults to `true`
@@ -86,7 +83,6 @@ export default function ChatEntryList({
   isAcp,
   turnDurations,
   replyStartedAt,
-  nowTick,
   onRetry = () => {},
   allowRetry = true,
   className,
@@ -312,15 +308,10 @@ export default function ChatEntryList({
           return renderEntry(item.index);
         })}
         {sending && (
-          <div className="text-sm">
-            {hasActivity && replyStartedAt ? (
-              <span className="shine-text">
-                {`Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`}
-              </span>
-            ) : (
-              <span className="shine-text">Waiting</span>
-            )}
-          </div>
+          <WorkingForIndicator
+            hasActivity={hasActivity}
+            replyStartedAt={replyStartedAt}
+          />
         )}
       </div>
     </div>

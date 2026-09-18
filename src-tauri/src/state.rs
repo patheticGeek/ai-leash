@@ -12,11 +12,24 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::Notify;
 
 #[derive(Clone)]
 pub struct AcpSession {
     pub launch_command: String,
     pub sender: mpsc::UnboundedSender<AcpCommand>,
+    /// Set only while a `Prompt` is actually in flight on this connection —
+    /// lets `cancel_prompt` interrupt it immediately instead of queuing a
+    /// `Cancel` behind it in `sender`'s channel, which `drive_acp_connection`
+    /// (`acp/process.rs`) can't drain until the in-flight prompt resolves on
+    /// its own (an ACP `PromptRequest` typically spans the agent's *entire*
+    /// turn, so that queued `Cancel` would arrive only once there's nothing
+    /// left to cancel). `None` when idle, so a cancel signalled with nothing
+    /// running stays the documented no-op. A fresh `Notify` per turn, rather
+    /// than one long-lived instance, so a stray already-fired permit from a
+    /// turn that just finished can't immediately fire again at the start of
+    /// the next, unrelated one.
+    pub current_prompt_cancel: Arc<Mutex<Option<Arc<Notify>>>>,
     /// The native provider/model this conversation is currently configured
     /// with — refreshed on every `send_prompt_acp` call, same as
     /// `launch_command`. Needed so a `spawn_sub_agent` call relayed through

@@ -26,7 +26,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Notify};
 
 /// Sent from Tauri-command call sites into a running ACP connection actor
 /// (`run_acp_session`) over its per-session channel.
@@ -141,6 +141,7 @@ pub(super) fn ensure_acp_session(
             model_options: None,
             effort_options: None,
             available_commands: None,
+            current_prompt_cancel: Arc::new(StdMutex::new(None)),
         },
     );
     drop(sessions);
@@ -175,6 +176,23 @@ pub(super) fn cache_acp_config(
         .get_mut(session_id)
     {
         update(session);
+    }
+}
+
+/// Registers or clears this session's current-turn cancel notifier — see
+/// `AcpSession::current_prompt_cancel`'s doc comment. Only ever called from
+/// within the `Prompt` arm below, around the request it guards, so the
+/// lookup can't fail in practice; a no-op if the session's already gone for
+/// some other reason, same reasoning as `cache_acp_config`.
+fn set_prompt_cancel(app: &AppHandle, session_id: &str, notify: Option<Arc<Notify>>) {
+    if let Some(session) = app
+        .state::<AppState>()
+        .acp_sessions
+        .lock()
+        .unwrap()
+        .get(session_id)
+    {
+        *session.current_prompt_cancel.lock().unwrap() = notify;
     }
 }
 
@@ -547,13 +565,34 @@ async fn drive_acp_connection(
                             json!({ "sessionId": session_id, "active": true, "autonomous": false }),
                         );
 
-                        let result = connection
+                        // Registered for the duration of this one request so
+                        // `signal_cancel` (`chat/mod.rs`) can wake the
+                        // `select!` below immediately, even while the
+                        // request itself is still in flight — see
+                        // `AcpSession::current_prompt_cancel`'s doc comment
+                        // on why that can't go through `commands` (this same
+                        // channel) instead.
+                        let cancel_notify = Arc::new(Notify::new());
+                        set_prompt_cancel(&app, &session_id, Some(cancel_notify.clone()));
+
+                        let prompt_fut = connection
                             .send_request(PromptRequest::new(
                                 acp_session_id.clone(),
                                 vec![ContentBlock::Text(TextContent::new(text))],
                             ))
-                            .block_task()
-                            .await;
+                            .block_task();
+                        tokio::pin!(prompt_fut);
+                        let result = loop {
+                            tokio::select! {
+                                res = &mut prompt_fut => break res,
+                                _ = cancel_notify.notified() => {
+                                    let _ = connection.send_notification(
+                                        CancelNotification::new(acp_session_id.clone()),
+                                    );
+                                }
+                            }
+                        };
+                        set_prompt_cancel(&app, &session_id, None);
 
                         let _ = app.emit(
                             "chat://generating",
