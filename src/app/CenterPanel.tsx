@@ -93,7 +93,7 @@ export default function CenterPanel() {
             <div
               key={tab.id}
               className={cn(
-                "flex shrink-0 items-center rounded-md text-xs cursor-default transition-colors duration-150 ease-out",
+                "flex shrink-0 items-center rounded-md text-xs cursor-pointer transition-colors duration-150 ease-out",
                 isActive
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-300",
