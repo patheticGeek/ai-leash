@@ -172,7 +172,7 @@ export default function TitleBar({
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-background"
       >
-        {project && !debugModeEnabled && (
+        {project && !debugShowIds && (
           <span className="min-w-0 truncate">
             {project.name}
             {isNewThread ? (
