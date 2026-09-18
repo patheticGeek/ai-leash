@@ -48,7 +48,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {
-  args: { variant: "secondary", size: "sm" },
+  args: { variant: "secondary", size: "md" },
 };
 
 export const Variants: Story = {

@@ -183,6 +183,7 @@ function DoneConversationRow({
       </Button>
       <Button
         variant="ghost"
+        size="sm"
         title="Mark as not done"
         onClick={(event) => {
           event.stopPropagation();
