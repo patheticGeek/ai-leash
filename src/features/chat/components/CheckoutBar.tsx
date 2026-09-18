@@ -374,7 +374,7 @@ function WorktreePicker({
         {!creating ? (
           <Command className="gap-0 rounded-none! bg-transparent p-0">
             <CommandInput placeholder="Search worktrees..." autoFocus />
-            <CommandList className="max-h-60 p-1">
+            <CommandList className="max-h-80 px-1 pt-1">
               <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
                 No matches.
               </CommandEmpty>
@@ -607,7 +607,7 @@ function BranchPicker({
         {!creating ? (
           <Command className="gap-0 rounded-none! bg-transparent p-0">
             <CommandInput placeholder="Search branches..." autoFocus />
-            <CommandList className="max-h-60 p-1">
+            <CommandList className="max-h-80 px-1 pt-1">
               <CommandEmpty className="px-2 py-3 text-sm text-zinc-600">
                 No matches.
               </CommandEmpty>
