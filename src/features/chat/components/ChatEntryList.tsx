@@ -5,7 +5,8 @@ import { Button } from "@/ui/button";
 import { Marker } from "@/ui/marker";
 import { MessageScroller } from "@/ui/message-scroller";
 import type { PanelEntry } from "../hooks/useChatStream";
-import ChatEntryRenderer, { formatDuration } from "./ChatEntryRenderer";
+import ChatEntryRenderer from "./ChatEntryRenderer";
+import WorkingForIndicator from "./WorkingForIndicator";
 
 export interface ChatEntryListProps {
   className?: string;
@@ -17,12 +18,17 @@ export interface ChatEntryListProps {
   ollamaError?: string | null;
   acpRestoreFailed?: string | null;
   onRetryAcpSession?: () => void;
+  // True when the connected ACP agent has no way to pick up this
+  // conversation's prior history (no `session/load` resume available) —
+  // distinct from `acpRestoreFailed` (a resume was *attempted* and failed);
+  // this is "never even had one to try." See `chat://{sessionId}/acp_history_truncated`.
+  acpHistoryTruncated?: boolean;
+  acpAgentLabel?: string | null;
   systemPrompt?: string | null;
   sending: boolean;
   isAcp: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
-  nowTick: number;
   onRetry?: () => void;
   // Whether the last reply's footer may show a Retry button — see
   // `ChatEntryRenderer`'s doc comment on the same prop. Defaults to `true`
@@ -72,12 +78,13 @@ export default function ChatEntryList({
   ollamaError = null,
   acpRestoreFailed = null,
   onRetryAcpSession = () => {},
+  acpHistoryTruncated = false,
+  acpAgentLabel = null,
   systemPrompt = null,
   sending,
   isAcp,
   turnDurations,
   replyStartedAt,
-  nowTick,
   onRetry = () => {},
   allowRetry = true,
   className,
@@ -176,6 +183,34 @@ export default function ChatEntryList({
       className={className}
       contentClassName="p-3 space-y-3 text-sm w-full max-w-4xl mx-auto"
     >
+      {ollamaError && (
+        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+          {ollamaError}
+        </div>
+      )}
+      {acpRestoreFailed && (
+        <div className="sticky top-1 flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+          <span>
+            This agent couldn't restore its previous session ({acpRestoreFailed}
+            ). It no longer remembers this conversation.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={onRetryAcpSession}
+          >
+            Start new session
+          </Button>
+        </div>
+      )}
+      {acpHistoryTruncated && (
+        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/30 px-3 py-2 text-amber-300 text-xs">
+          {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
+          session, so this conversation's earlier history won't be visible to
+          it.
+        </div>
+      )}
       {systemPrompt && (
         <Marker
           italic
@@ -206,27 +241,6 @@ export default function ChatEntryList({
               project with you.
             </p>
           </div>
-        </div>
-      )}
-      {ollamaError && (
-        <div className="rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          {ollamaError}
-        </div>
-      )}
-      {acpRestoreFailed && (
-        <div className="flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          <span>
-            This agent couldn't restore its previous session ({acpRestoreFailed}
-            ). It no longer remembers this conversation.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            onClick={onRetryAcpSession}
-          >
-            Start new session
-          </Button>
         </div>
       )}
       {renderItems.map((item) => {
@@ -275,15 +289,10 @@ export default function ChatEntryList({
         return renderEntry(item.index);
       })}
       {sending && (
-        <div className="text-sm">
-          {hasActivity && replyStartedAt ? (
-            <span className="shine-text">
-              {`Working for ${formatDuration(Math.max(0, Math.round((nowTick - replyStartedAt) / 1000)))}`}
-            </span>
-          ) : (
-            <span className="shine-text">Waiting</span>
-          )}
-        </div>
+        <WorkingForIndicator
+          hasActivity={hasActivity}
+          replyStartedAt={replyStartedAt}
+        />
       )}
     </MessageScroller>
   );

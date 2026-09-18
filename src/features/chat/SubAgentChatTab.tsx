@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { messagesToEntries } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
@@ -38,15 +38,6 @@ export default function SubAgentChatTab({
   }, [subSessionId, rawEntries, setSubAgentEntries]);
 
   const running = task?.status === "running";
-  // Ticks once a second while running, so `ChatEntryList`'s "Working for…"
-  // footer keeps advancing — same pattern as `SubAgentsTab.tsx`'s own timer.
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [running]);
-
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
@@ -76,7 +67,6 @@ export default function SubAgentChatTab({
             allowRetry={false}
             turnDurations={{}}
             replyStartedAt={task?.startedAt ?? null}
-            nowTick={now}
           />
         </div>
       )}

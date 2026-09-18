@@ -46,6 +46,16 @@ fn signal_cancel(state: &AppState, session_id: &str) {
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
     }
     if let Some(session) = state.acp_sessions.lock().unwrap().get(session_id) {
+        // The direct route: wakes `drive_acp_connection`'s
+        // `tokio::select!` (`acp/process.rs`) immediately even while a
+        // `Prompt` is in flight, unlike `sender` below — that channel is
+        // only drained between commands, and a `Prompt` typically occupies
+        // it for the agent's entire turn. `current_prompt_cancel` is `None`
+        // whenever nothing's running, so this stays a no-op then, same as
+        // this whole function's contract.
+        if let Some(notify) = session.current_prompt_cancel.lock().unwrap().as_ref() {
+            notify.notify_one();
+        }
         let _ = session.sender.send(crate::acp::AcpCommand::Cancel);
     }
 }
