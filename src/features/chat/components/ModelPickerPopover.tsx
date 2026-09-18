@@ -1,4 +1,4 @@
-import { Bot, Search } from "lucide-react";
+import { Bot, Loader, Search } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
@@ -21,6 +21,12 @@ interface ModelPickerPopoverProps {
   onSelect: (key: string) => void;
   triggerLabel: string;
   disabled?: boolean;
+  // Shows a spinner in place of the agent icon — currently only meaningful
+  // while `useChatSession`'s `pendingCrossAgentModelRef` is waiting for a
+  // freshly-switched-to agent's connection to come up and report its own
+  // options, so the trigger doesn't sit there silently showing the *old*
+  // agent's icon/label for that window.
+  loading?: boolean;
   // Controlled from outside (rather than the plain internal toggle this
   // started with) so the "/model" local command can pop it open without a
   // real click — see `ChatPanel.tsx`'s `runLocalCommand`.
@@ -39,6 +45,7 @@ export default function ModelPickerPopover({
   onSelect,
   triggerLabel,
   disabled,
+  loading,
   open,
   onOpenChange,
 }: ModelPickerPopoverProps) {
@@ -72,7 +79,11 @@ export default function ModelPickerPopover({
           disabled={disabled}
           className="flex min-w-0 max-w-[160px]"
         >
-          <Bot size={12} className="shrink-0" />
+          {loading ? (
+            <Loader size={12} className="shrink-0 animate-spin" />
+          ) : (
+            <Bot size={12} className="shrink-0" />
+          )}
           <span className="truncate">{triggerLabel}</span>
         </Button>
       </PopoverTrigger>

@@ -26,7 +26,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Notify};
 
 /// Sent from Tauri-command call sites into a running ACP connection actor
 /// (`run_acp_session`) over its per-session channel.
@@ -141,6 +141,7 @@ pub(super) fn ensure_acp_session(
             model_options: None,
             effort_options: None,
             available_commands: None,
+            current_prompt_cancel: Arc::new(StdMutex::new(None)),
         },
     );
     drop(sessions);
@@ -178,6 +179,23 @@ pub(super) fn cache_acp_config(
     }
 }
 
+/// Registers or clears this session's current-turn cancel notifier — see
+/// `AcpSession::current_prompt_cancel`'s doc comment. Only ever called from
+/// within the `Prompt` arm below, around the request it guards, so the
+/// lookup can't fail in practice; a no-op if the session's already gone for
+/// some other reason, same reasoning as `cache_acp_config`.
+fn set_prompt_cancel(app: &AppHandle, session_id: &str, notify: Option<Arc<Notify>>) {
+    if let Some(session) = app
+        .state::<AppState>()
+        .acp_sessions
+        .lock()
+        .unwrap()
+        .get(session_id)
+    {
+        *session.current_prompt_cancel.lock().unwrap() = notify;
+    }
+}
+
 /// Removes this session_id's map entry only if it's still the one *this*
 /// task spawned (matched by `launch_command`) — a slow-to-exit subprocess
 /// finishing its cleanup after `ensure_acp_session` has already replaced it
@@ -193,6 +211,17 @@ fn remove_if_still_current(app: &AppHandle, session_id: &str, launch_command: &s
     {
         sessions.remove(session_id);
     }
+}
+
+/// Whether this conversation already has transcript worth telling the user
+/// they're about to lose — see `is_fresh_session`'s doc comment for why a
+/// freshly-connected agent can't just pick this history up itself. `false`
+/// for a genuinely brand-new conversation (nothing to lose) or a transcript
+/// that's only empty/tool-call rows.
+fn has_replayable_history(messages: &[db::PersistedMessage]) -> bool {
+    messages
+        .iter()
+        .any(|m| matches!(m.role.as_str(), "user" | "assistant") && !m.content.trim().is_empty())
 }
 
 async fn run_acp_session(
@@ -375,6 +404,16 @@ async fn drive_acp_connection(
             } else {
                 None
             };
+            // No `session/load` to fall back on for this connection (either
+            // this agent never advertised the capability, or it's simply
+            // never handled this conversation before) — ACP has no
+            // cross-agent "import history" primitive (`session/load` only
+            // lets an agent resume *its own* prior session), so rather than
+            // silently starting this agent blank, or synthesizing a fake
+            // context block it never actually saw, we tell the user their
+            // earlier messages won't be visible to it (see
+            // `chat://{session_id}/acp_history_truncated` below).
+            let is_fresh_session = stored_agent_session_id.is_none();
 
             let (acp_session_id, config_options): (SessionId, Option<Vec<SessionConfigOption>>) =
                 if let Some(stored_id) = stored_agent_session_id {
@@ -469,6 +508,18 @@ async fn drive_acp_connection(
                     (new_session.session_id, new_session.config_options)
                 };
 
+            // Emitted on every connect, true or false, so switching back to
+            // an agent that *can* resume natively clears a stale banner left
+            // over from an earlier switch to one that couldn't.
+            let history_truncated = is_fresh_session && {
+                let state = app.state::<AppState>();
+                has_replayable_history(&db::load_messages(&state.db, &session_id))
+            };
+            let _ = app.emit(
+                &format!("chat://{session_id}/acp_history_truncated"),
+                history_truncated,
+            );
+
             // If this agent exposes a Model config option, tell the
             // frontend what's selectable; most agents won't have one, in
             // which case no event fires and the chat bar shows nothing for
@@ -514,13 +565,34 @@ async fn drive_acp_connection(
                             json!({ "sessionId": session_id, "active": true, "autonomous": false }),
                         );
 
-                        let result = connection
+                        // Registered for the duration of this one request so
+                        // `signal_cancel` (`chat/mod.rs`) can wake the
+                        // `select!` below immediately, even while the
+                        // request itself is still in flight — see
+                        // `AcpSession::current_prompt_cancel`'s doc comment
+                        // on why that can't go through `commands` (this same
+                        // channel) instead.
+                        let cancel_notify = Arc::new(Notify::new());
+                        set_prompt_cancel(&app, &session_id, Some(cancel_notify.clone()));
+
+                        let prompt_fut = connection
                             .send_request(PromptRequest::new(
                                 acp_session_id.clone(),
                                 vec![ContentBlock::Text(TextContent::new(text))],
                             ))
-                            .block_task()
-                            .await;
+                            .block_task();
+                        tokio::pin!(prompt_fut);
+                        let result = loop {
+                            tokio::select! {
+                                res = &mut prompt_fut => break res,
+                                _ = cancel_notify.notified() => {
+                                    let _ = connection.send_notification(
+                                        CancelNotification::new(acp_session_id.clone()),
+                                    );
+                                }
+                            }
+                        };
+                        set_prompt_cancel(&app, &session_id, None);
 
                         let _ = app.emit(
                             "chat://generating",
