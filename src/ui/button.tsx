@@ -62,7 +62,12 @@ const buttonVariants = cva(
         icon: "size-7 [&_svg:not([class*='size-'])]:size-4",
         "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
         "icon-lg": "size-9",
-        none: "h-auto w-auto p-0 gap-0",
+        // No `p-0` here: cva appends `size` classes after `variant` ones,
+        // so `p-0` would beat (via tailwind-merge's last-write-wins) any
+        // padding a variant bakes into itself (chip/menu-item/card/etc).
+        // Preflight already zeroes <button> padding, so it was a no-op for
+        // truly unstyled buttons anyway — just a landmine for styled ones.
+        none: "h-auto w-auto gap-0",
       },
     },
     defaultVariants: {
