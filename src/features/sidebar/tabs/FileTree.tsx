@@ -37,7 +37,7 @@ function Node({
         variant="menu-item"
         size="none"
         data-active={entry.path === activePath}
-        className="flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm rounded-md cursor-default select-none text-zinc-300 data-[active=true]:text-zinc-100"
+        className="flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm rounded-md select-none text-zinc-300 data-[active=true]:text-zinc-100"
         style={{ paddingLeft: depth * 14 + 8 }}
         onClick={toggle}
       >
