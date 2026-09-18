@@ -191,10 +191,10 @@ export default function ChatEntryRenderer({
     return (
       <div className="text-xs">
         <Button
-          variant="unstyled"
-          size="none"
+          variant="quiet"
+          size="xs"
           onClick={onToggleExpand}
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:text-zinc-400"
+          className="rounded-md"
         >
           <Chevron expanded={expanded} />
           {entry.done || !isLast ? (
@@ -217,10 +217,10 @@ export default function ChatEntryRenderer({
   return (
     <div className="text-xs">
       <Button
-        variant="unstyled"
-        size="none"
+        variant="quiet"
+        size="xs"
         onClick={onToggleExpand}
-        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-zinc-500 hover:text-zinc-300"
+        className="w-full min-w-0 rounded-md text-left"
       >
         <Chevron expanded={expanded} />
         {entry.name === "spawn_sub_agent" ||

@@ -34,13 +34,10 @@ function Node({
   return (
     <div>
       <Button
-        variant="unstyled"
+        variant="menu-item"
         size="none"
-        className={`flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm hover:bg-white/5 rounded-md cursor-default select-none text-left ${
-          entry.path === activePath
-            ? "bg-white/10 text-zinc-100"
-            : "text-zinc-300"
-        }`}
+        data-active={entry.path === activePath}
+        className="flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm rounded-md cursor-default select-none text-zinc-300 data-[active=true]:text-zinc-100"
         style={{ paddingLeft: depth * 14 + 8 }}
         onClick={toggle}
       >

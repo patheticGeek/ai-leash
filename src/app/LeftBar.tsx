@@ -393,7 +393,7 @@ export default function LeftBar() {
       <div className="shrink-0 border-t border-white/[0.06] p-2">
         <Button
           variant="ghost"
-          size="default"
+          size="md"
           title="Settings"
           onClick={() => setSettingsModalOpen(true)}
           className="w-full justify-start gap-2 text-zinc-500 hover:text-zinc-200"

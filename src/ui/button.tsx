@@ -28,20 +28,37 @@ const buttonVariants = cva(
         // Popover/dropdown trigger pill — icon + label chip sitting in a
         // toolbar (model picker, effort picker, permission mode).
         chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200",
+        // Same chip shape, tinted for a state the chip is currently *in*
+        // rather than a neutral trigger — pick one per call site with a
+        // ternary (see `ChatInputBar`'s send/stop, `PermissionModePopover`'s
+        // ask/bypass). Colors come from the matching semantic token so they
+        // stay in sync with the rest of the app's danger/warning/brand use.
+        "chip-primary":
+          "rounded-md px-2 py-1 text-xs outline-none bg-primary/15 text-primary-hover shadow-[0_0_0_1px_var(--primary)] hover:bg-primary/25 disabled:hover:bg-primary/15",
+        "chip-danger":
+          "rounded-md px-2 py-1 text-xs outline-none bg-destructive/10 text-destructive shadow-[0_0_0_1px_var(--destructive)] hover:bg-destructive/20",
+        "chip-warning":
+          "rounded-md px-1.5 py-1 text-xs outline-none bg-warning/10 text-warning shadow-[0_0_0_1px_var(--warning)] hover:bg-warning/20",
         // Row inside a popover/dropdown list (model picker, effort picker,
         // slash command menu). Pass `data-active` to mark the selected row.
         "menu-item":
           "block w-full px-3 py-2 text-left hover:bg-white/5 data-[active=true]:bg-white/10 data-[active=true]:hover:bg-white/10",
+        // Selectable card tile (agent type picker, tab picker) — a small
+        // block of content rather than a single label, so it gets its own
+        // padding/column layout instead of the horizontal chip/menu shapes.
+        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
         // popover list items) that still need the shared cursor/disabled
         // behavior above but fully own their own color/spacing classes.
         unstyled: "",
       },
       size: {
-        default: "h-8 gap-1.5 px-2.5 text-sm",
         md: "h-8 gap-1.5 px-3 text-sm",
         sm: "h-7 gap-1 px-2.5 text-xs",
-        lg: "h-9 gap-1.5 px-2.5 text-sm",
+        // Inline row action (copy/retry/expand toggles under a chat
+        // message) — content-sized rather than a fixed height, tighter
+        // padding than `none` bothers to specify on its own.
+        xs: "h-auto gap-1.5 px-1 py-0.5 text-xs",
         icon: "size-7 [&_svg:not([class*='size-'])]:size-4",
         "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
         "icon-lg": "size-9",

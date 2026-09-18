@@ -41,14 +41,10 @@ export default function PermissionModePopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant={mode === "bypass" ? "unstyled" : "chip"}
+          variant={mode === "bypass" ? "chip-warning" : "chip"}
           size="none"
           title="Tool-call permission mode"
-          className={`flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs outline-none ${
-            mode === "bypass"
-              ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400 hover:bg-amber-950/30"
-              : ""
-          }`}
+          className="flex min-w-0 items-center gap-1"
         >
           {mode === "bypass" ? (
             <ShieldOff size={12} />

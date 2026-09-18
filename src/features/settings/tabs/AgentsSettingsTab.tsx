@@ -214,10 +214,9 @@ export default function AgentsSettingsTab() {
             return (
               <Button
                 key={type}
-                variant="unstyled"
+                variant="card"
                 size="none"
                 onClick={() => startAdd(type)}
-                className="flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5"
               >
                 <div className="flex w-full items-center gap-2">
                   <meta.icon size={16} className="text-zinc-500" />

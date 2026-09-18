@@ -197,10 +197,10 @@ export default function ChatEntryList({
         {systemPrompt && (
           <div className="text-xs">
             <Button
-              variant="unstyled"
-              size="none"
+              variant="quiet"
+              size="xs"
               onClick={() => setSystemPromptExpanded((v) => !v)}
-              className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:bg-white/5 hover:text-zinc-400"
+              className="rounded-md"
             >
               <Chevron expanded={systemPromptExpanded} />
               <span className="italic">system prompt</span>
@@ -279,10 +279,10 @@ export default function ChatEntryList({
                 {visible.map((idx) => renderEntry(idx))}
                 {showToggle && (
                   <Button
-                    variant="unstyled"
-                    size="none"
+                    variant="quiet"
+                    size="xs"
                     onClick={() => toggleGroup(groupKey)}
-                    className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-xs text-zinc-600 hover:text-zinc-400"
+                    className="rounded-md"
                   >
                     <ChevronDown
                       size={11}

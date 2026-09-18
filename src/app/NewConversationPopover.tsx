@@ -2,7 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FolderPlus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Button } from "@/ui/button";
+import { Button, revealOnHover } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAppStore } from "../store";
 
@@ -77,7 +77,7 @@ export default function NewConversationPopover({
                     e.stopPropagation();
                     removeProject(p.path);
                   }}
-                  className="mr-1 shrink-0 text-zinc-600 opacity-0 hover:text-red-400 group-hover:opacity-100"
+                  className={`mr-1 text-zinc-600 hover:text-red-400 ${revealOnHover}`}
                 >
                   <Trash2 size={12} />
                 </Button>

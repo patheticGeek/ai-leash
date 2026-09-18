@@ -129,27 +129,23 @@ export default function ChatInputBar({
             {contextUsage}
             {showQueue && (
               <Button
-                variant="unstyled"
+                variant="chip"
                 size="none"
                 onClick={onQueue}
                 title="Send after the current turn finishes (Ctrl+Enter)"
-                className="flex items-center gap-1.5 rounded-md bg-zinc-800/60 px-2 py-1 text-xs text-zinc-300 shadow-[0_0_0_1px_rgba(82,82,91,0.6)] outline-none transition-all duration-150 hover:bg-zinc-800 hover:text-zinc-100"
+                className="flex items-center gap-1.5"
               >
                 <Clock size={12} />
                 <span>Queue</span>
               </Button>
             )}
             <Button
-              variant="unstyled"
+              variant={sending ? "chip-danger" : "chip-primary"}
               size="none"
               onClick={sending ? onStop : onSend}
               disabled={!sending && sendDisabled}
               title={sending ? "Stop" : "Send"}
-              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none transition-all duration-150 ${
-                sending
-                  ? "bg-red-950/30 text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.6)] hover:bg-red-950/50 hover:text-red-300"
-                  : "bg-blue-950/40 text-blue-400 shadow-[0_0_0_1px_rgba(30,64,175,0.6)] hover:bg-blue-950/60 hover:text-blue-300 disabled:hover:bg-blue-950/40 disabled:hover:text-blue-400"
-              }`}
+              className="flex items-center gap-1.5"
             >
               {sending ? (
                 <Square size={12} fill="currentColor" />
