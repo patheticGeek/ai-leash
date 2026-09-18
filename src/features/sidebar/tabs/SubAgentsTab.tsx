@@ -77,15 +77,16 @@ export default function SubAgentsTab() {
         return (
           <Card
             key={task.subSessionId}
-            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--primary)]"
+            interactive
+            className="group flex-row items-stretch gap-0 rounded-md py-0 text-xs"
           >
-            <div className="flex items-center gap-2">
-              <Button
-                variant="unstyled"
-                size="none"
-                onClick={() => openChatTab(task.subSessionId, task.description)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-              >
+            <Button
+              variant="unstyled"
+              size="none"
+              onClick={() => openChatTab(task.subSessionId, task.description)}
+              className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
+            >
+              <div className="flex w-full items-center gap-2">
                 <Badge
                   className={cn(
                     "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
@@ -97,7 +98,14 @@ export default function SubAgentsTab() {
                 <span className="min-w-0 flex-1 truncate text-zinc-300">
                   {task.description}
                 </span>
-              </Button>
+              </div>
+              <div className="mt-1 w-full truncate text-[10px] text-zinc-600">
+                started {formatTime(task.startedAt)} ·{" "}
+                {running ? "running" : "ran"} for {duration} · {task.model}
+                {task.effort ? ` (${task.effort})` : ""}
+              </div>
+            </Button>
+            <div className="flex shrink-0 items-center pr-2">
               {running ? (
                 <Button
                   variant="danger"
@@ -119,11 +127,6 @@ export default function SubAgentsTab() {
                   <Trash2 size={12} />
                 </Button>
               )}
-            </div>
-            <div className="mt-1 truncate text-[10px] text-zinc-600">
-              started {formatTime(task.startedAt)} ·{" "}
-              {running ? "running" : "ran"} for {duration} · {task.model}
-              {task.effort ? ` (${task.effort})` : ""}
             </div>
           </Card>
         );
