@@ -279,7 +279,7 @@ export default function LeftBar() {
     : doneConversations.slice(0, DEFAULT_VISIBLE_DONE);
 
   return (
-    <div className="relative flex h-full flex-col bg-[#0b0c0e]">
+    <div className="relative flex h-full flex-col bg-sunken">
       <div className="flex shrink-0 items-center gap-1 border-b border-white/5 px-1.5 h-12">
         <Select
           value={projectFilter ?? ALL_PROJECTS}
@@ -404,7 +404,7 @@ export default function LeftBar() {
       </div>
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-36 rounded-md bg-[#17181c] p-1 shadow-[var(--al-shadow)]"
+          className="fixed z-50 min-w-36 rounded-md bg-raised p-1 shadow-[var(--al-shadow)]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onPointerDown={(event) => event.stopPropagation()}
         >

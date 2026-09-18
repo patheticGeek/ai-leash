@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../../../lib/tauriApi";
+import { terminalTheme } from "../../../lib/terminalTheme";
 import { useAppStore } from "../../../store";
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -26,11 +27,7 @@ export default function TerminalPanel() {
       fontSize: 13,
       fontFamily:
         '"JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-      theme: {
-        background: "#0b0c0e",
-        foreground: "#d4d4d8",
-        cursor: "#d4d4d8",
-      },
+      theme: terminalTheme,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -87,5 +84,5 @@ export default function TerminalPanel() {
     };
   }, []);
 
-  return <div ref={containerRef} className="h-full bg-[#0b0c0e] px-2 py-1" />;
+  return <div ref={containerRef} className="h-full bg-sunken px-2 py-1" />;
 }

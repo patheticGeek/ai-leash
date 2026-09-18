@@ -76,7 +76,7 @@ export default function SubAgentsTab() {
         return (
           <Card
             key={task.subSessionId}
-            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
+            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--primary)]"
           >
             <div className="flex items-center gap-2">
               <Button

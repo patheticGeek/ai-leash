@@ -766,7 +766,7 @@ export default function ChatPanel({
       <div className="flex h-full items-center justify-center px-6">
         <div className="w-full max-w-2xl">
           <div className="mb-6 text-center">
-            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.16),0_10px_26px_rgba(0,0,0,0.2)]">
+            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-raised text-primary-hover shadow-[0_0_0_1px_rgba(58,95,143,0.3),0_10px_26px_rgba(0,0,0,0.2)]">
               <MessageCircle size={25} strokeWidth={1.6} />
               <Sparkles
                 size={13}

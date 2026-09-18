@@ -81,7 +81,7 @@ export default function ActionsTab() {
       {actions.map((action) => (
         <Card
           key={action.id}
-          className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
+          className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--primary)]"
         >
           <div className="flex items-center gap-2">
             <Button
@@ -95,7 +95,7 @@ export default function ActionsTab() {
                   className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
                     action.running
                       ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
-                      : "shadow-[0_0_0_1px_#27272a] bg-zinc-900/40 text-zinc-500"
+                      : "shadow-[0_0_0_1px_var(--border)] bg-zinc-900/40 text-zinc-500"
                   }`}
                 >
                   {action.running ? "running…" : "stopped"}
@@ -140,7 +140,7 @@ export default function ActionsTab() {
         </Card>
       ))}
       {showForm ? (
-        <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
+        <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
           <Input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}

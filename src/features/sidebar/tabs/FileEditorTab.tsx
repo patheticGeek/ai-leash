@@ -63,7 +63,7 @@ export default function FileEditorTab() {
             }
           }),
           EditorView.theme({
-            "&": { height: "100%", backgroundColor: "#101114" },
+            "&": { height: "100%", backgroundColor: "var(--background)" },
             ".cm-scroller": { overflow: "auto" },
           }),
         ],
@@ -89,7 +89,7 @@ export default function FileEditorTab() {
   return (
     <div
       ref={containerRef}
-      className="h-full min-h-0 overflow-hidden bg-[#101114]"
+      className="h-full min-h-0 overflow-hidden bg-background"
     />
   );
 }

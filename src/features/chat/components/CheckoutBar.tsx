@@ -50,10 +50,9 @@ function worktreeLabel(w: GitWorktree): string {
 
 // Sits directly below `ChatInputBar`, mirroring `ClaudeRateLimitBanner`'s
 // placement above it — same `-m*-4`-into-the-input-padding trick, just
-// pointed the other direction. Background sits between the input's
-// `bg-[#17181c]` and the panel's `bg-[#111215]`; `#141518` is also already
-// the app's established "recessed surface" tone (see `Input`'s default
-// variant), so this reads as consistent rather than a one-off color.
+// pointed the other direction. Uses `bg-card`, the app's established
+// "recessed surface" tone (see `Input`'s default variant), so this reads
+// as consistent rather than a one-off color.
 //
 // Two independent pickers share the bar: which worktree (left) and which
 // branch is checked out there (right, pinned to the far edge). They're
@@ -126,7 +125,7 @@ export default function CheckoutBar({
   );
 
   return (
-    <div className="z-10 mx-7 -mt-3.5 mb-3 flex items-center justify-between rounded-b-md bg-[#141518] px-3 py-2 text-xs text-zinc-400">
+    <div className="z-10 mx-7 -mt-3.5 mb-3 flex items-center justify-between rounded-b-md bg-card px-3 py-2 text-xs text-zinc-400">
       <WorktreePicker
         worktrees={worktrees}
         activePath={cwd}

@@ -217,7 +217,7 @@ export default function AgentsSettingsTab() {
                 variant="unstyled"
                 size="none"
                 onClick={() => startAdd(type)}
-                className="flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-[#141518] px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_#3a5f8f] hover:bg-white/5"
+                className="flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5"
               >
                 <div className="flex w-full items-center gap-2">
                   <meta.icon size={16} className="text-zinc-500" />
@@ -244,7 +244,7 @@ export default function AgentsSettingsTab() {
           {id ? "Edit" : "Add"} {TYPE_META[type].label}
         </div>
         {type === "ollama" && (
-          <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
+          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
             <Input
               value={ollamaForm.label}
               onChange={(e) =>
@@ -276,7 +276,7 @@ export default function AgentsSettingsTab() {
           </div>
         )}
         {type === "openAiCompatible" && (
-          <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
+          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
             <Input
               value={openAiForm.label}
               onChange={(e) =>
@@ -326,7 +326,7 @@ export default function AgentsSettingsTab() {
           </div>
         )}
         {type === "acp" && (
-          <div className="space-y-2 rounded-md bg-[#17181c] p-2.5 shadow-[0_0_0_1px_#3a5f8f]">
+          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
             <Input
               value={acpForm.label}
               onChange={(e) =>
@@ -383,8 +383,8 @@ export default function AgentsSettingsTab() {
               key={`${c.type}:${c.id}`}
               className={`flex min-w-0 flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm ${
                 active
-                  ? "shadow-[0_0_0_1px_#3a5f8f] bg-[#3a5f8f]/10"
-                  : "shadow-[var(--al-shadow)] bg-[#141518]"
+                  ? "shadow-[0_0_0_1px_var(--primary)] bg-primary/10"
+                  : "shadow-[var(--al-shadow)] bg-card"
               }`}
             >
               <div className="flex items-center gap-1">
@@ -403,7 +403,7 @@ export default function AgentsSettingsTab() {
                   <span className="min-w-0 flex-1 truncate text-zinc-200">
                     {c.label}
                     {active && (
-                      <span className="ml-1.5 text-xs text-[#6a9fd8]">
+                      <span className="ml-1.5 text-xs text-primary-hover">
                         default
                       </span>
                     )}

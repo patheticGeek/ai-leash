@@ -33,7 +33,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-[#0e0f12] text-zinc-300">
+        <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-sunken text-zinc-300">
           <div className="text-sm font-medium text-zinc-100">
             Something went wrong.
           </div>
@@ -41,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             The error has been logged — open Settings → Crash log to see it, or
             reload to keep working.
           </div>
-          <pre className="max-w-lg select-text overflow-auto rounded-md bg-[#141518] p-2 text-[10px] text-zinc-600 shadow-[var(--al-shadow)]">
+          <pre className="max-w-lg select-text overflow-auto rounded-md bg-card p-2 text-[10px] text-zinc-600 shadow-[var(--al-shadow)]">
             {this.state.error.message}
           </pre>
           <Button

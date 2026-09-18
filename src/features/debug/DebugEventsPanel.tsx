@@ -54,7 +54,7 @@ export default function DebugEventsPanel({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#0b0c0e] shadow-2xl">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-sunken shadow-2xl">
       <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-3 py-2">
         {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
             drag affordance — the panel is still fully usable (open/close/
@@ -147,7 +147,7 @@ function DebugEventsList({ events }: { events: AcpDebugEvent[] }) {
         {events.map((item) => (
           <div
             key={item.id}
-            className="rounded-md bg-[#141518] px-2.5 py-2 shadow-[var(--al-shadow)]"
+            className="rounded-md bg-card px-2.5 py-2 shadow-[var(--al-shadow)]"
           >
             <div className="mb-1 flex items-center gap-2 text-[11px]">
               <span

@@ -93,7 +93,7 @@ export default function TitleBarActions() {
         )}
       </div>
       {open && rest.length > 0 && (
-        <div className="absolute top-full right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
+        <div className="absolute top-full right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-card shadow-2xl shadow-black/60 ring-1 ring-white/5">
           <div className="max-h-72 overflow-auto py-1">
             {rest.map((action) => (
               <Button

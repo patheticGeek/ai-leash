@@ -13,7 +13,7 @@ function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-md bg-[#141518] px-3 py-2.5 shadow-[var(--al-shadow)]">
+    <label className="flex cursor-pointer items-start gap-3 rounded-md bg-card px-3 py-2.5 shadow-[var(--al-shadow)]">
       <input
         type="checkbox"
         checked={checked}
