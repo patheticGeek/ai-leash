@@ -276,6 +276,38 @@ pub fn checkout_git_branch(
     }
 }
 
+/// Removes a linked worktree and, unless still referenced elsewhere, the
+/// directory `git worktree add` created for it. `force` maps straight to
+/// `git worktree remove --force`, needed when the worktree has uncommitted
+/// changes or untracked files — the plain form refuses in that case so a
+/// caller can warn before retrying with `force: true`. Never called on the
+/// primary checkout; the frontend excludes it from the delete affordance.
+#[tauri::command]
+pub fn delete_git_worktree(
+    root_path: String,
+    worktree_path: String,
+    force: bool,
+) -> Result<(), String> {
+    let root = PathBuf::from(root_path);
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(&worktree_path);
+    run_git(&root, &args).map(|_| ())
+}
+
+/// Deletes a local branch. `force` maps to `-D` instead of `-d`, needed when
+/// the branch has unmerged commits — the safe form refuses in that case so a
+/// caller can warn before retrying with `force: true`. `git` itself refuses
+/// to delete the currently checked-out branch or one attached to another
+/// worktree, so no extra guard is needed here.
+#[tauri::command]
+pub fn delete_git_branch(root_path: String, branch: String, force: bool) -> Result<(), String> {
+    let root = PathBuf::from(root_path);
+    run_git(&root, &["branch", if force { "-D" } else { "-d" }, &branch]).map(|_| ())
+}
+
 /// Starts watching `root_path`'s current-branch file (see `head_file`) and
 /// emits `git://branch_changed` (payload: `root_path`, verbatim) on every
 /// change, debounced the same way `commands::start_fs_watcher` is — a

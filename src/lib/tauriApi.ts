@@ -176,6 +176,12 @@ export const api = {
     branch: string,
     baseBranch: string | null,
   ) => invoke<string>("create_git_worktree", { rootPath, branch, baseBranch }),
+  // `force: true` retries past "uncommitted changes" the plain form refuses.
+  deleteGitWorktree: (rootPath: string, worktreePath: string, force: boolean) =>
+    invoke<void>("delete_git_worktree", { rootPath, worktreePath, force }),
+  // `force: true` retries past "not fully merged" the plain form refuses.
+  deleteGitBranch: (rootPath: string, branch: string, force: boolean) =>
+    invoke<void>("delete_git_branch", { rootPath, branch, force }),
   // Switches what's checked out at `worktreePath` — an existing `branch`
   // (`baseBranch: null`), or `branch` created fresh off `baseBranch`. Safe
   // at any point in a conversation's life, not just before its first

@@ -108,6 +108,8 @@ pub fn run() {
             git::list_git_worktrees,
             git::get_current_git_branch,
             git::create_git_worktree,
+            git::delete_git_worktree,
+            git::delete_git_branch,
             git::checkout_git_branch,
             git::watch_git_branch,
             pty::pty_spawn,
