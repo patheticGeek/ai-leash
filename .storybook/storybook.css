@@ -6,3 +6,13 @@ body {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* Storybook paints its own backdrop over body — use the app's instead. */
+html,
+body,
+.sb-show-main,
+.sb-main-centered,
+.sb-main-padded,
+.sb-main-fullscreen {
+  background-color: var(--background);
+}
