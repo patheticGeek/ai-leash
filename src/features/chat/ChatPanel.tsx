@@ -162,6 +162,7 @@ export default function ChatPanel({
     backendOptions,
     activeBackendKey,
     activeBackendLabel,
+    acpModelSwitchPending,
     selectBackendOption,
     selectAcpEffort,
     resetAcpConnectionState,
@@ -180,6 +181,7 @@ export default function ChatPanel({
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed,
+    acpHistoryTruncated,
     claudeRateLimit,
     claudeAutoResumeArmed,
     armClaudeAutoResume,
@@ -236,16 +238,18 @@ export default function ChatPanel({
     acpRetryNonce,
   ]);
 
-  // Drives the "Working for <time>" indicator below the transcript — a
-  // ticking clock rather than a static label, since a turn can run for
-  // minutes (tool calls, sub-agents) and a frozen "generating…" gives no
-  // sense of how long that's actually been going on.
-  // The moment the agent's first visible output (text/thinking/tool) shows
-  // up after a send — "Worked for <time>" measures from here rather than
-  // from when the user hit send, so queueing/network latency before the
-  // agent starts doing anything isn't counted as work.
-  const [replyStartedAt, setReplyStartedAt] = useState<number | null>(null);
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  // Drives the "Working for <time>" indicator below the transcript.
+  // Anchored to `generatingState.startedAtMs` (`useGenerating`, backed by a
+  // cache entry that outlives this component) rather than component-local
+  // state, so switching away from this conversation and back — a full
+  // remount, since `App.tsx` keys `ChatPanel` on `activeSessionId` —
+  // doesn't reset the clock back to zero. The actual per-second tick lives
+  // in `WorkingForIndicator` (`ChatEntryList.tsx`'s leaf, not here), so a
+  // turn in flight doesn't re-render this whole component every second.
+  // Duration persistence (`api.setMessageDuration`) likewise lives in the
+  // always-mounted `useGeneratingListener` (`generatingQuery.ts`) now, not
+  // here, so it still happens even for a turn that finishes while a
+  // different conversation is open.
   // Once a turn finishes, its elapsed time is frozen here (keyed by the
   // finished assistant reply's own index in `entries`) so the reply's
   // footer can keep showing "Worked for <time>" instead of reverting to a
@@ -255,10 +259,17 @@ export default function ChatPanel({
   const [turnDurations, setTurnDurations] = useState<Record<number, number>>(
     {},
   );
-  const replyStartedAtRef = useRef<number | null>(null);
+  // Mirrors the last non-null `generatingState.startedAtMs` — the query
+  // entry itself flips to `null` the same render `active` goes false, one
+  // render before the `sending` mirror effect below actually observes
+  // `sending === false`, so the freeze effect needs this ref to still see
+  // the real start time by the time it runs.
+  const startedAtMsRef = useRef<number | null>(null);
   useEffect(() => {
-    replyStartedAtRef.current = replyStartedAt;
-  }, [replyStartedAt]);
+    if (generatingState.startedAtMs != null) {
+      startedAtMsRef.current = generatingState.startedAtMs;
+    }
+  }, [generatingState.startedAtMs]);
   const entriesRef = useRef(entries);
   useEffect(() => {
     entriesRef.current = entries;
@@ -287,41 +298,22 @@ export default function ChatPanel({
     });
   }, [entries]);
   useEffect(() => {
-    if (!sending || replyStartedAt !== null) return;
-    const last = entries[entries.length - 1];
-    const hasActivity = !!(
-      last &&
-      ((last.kind === "text" && last.role === "assistant") ||
-        last.kind === "thinking" ||
-        last.kind === "tool")
-    );
-    if (hasActivity) setReplyStartedAt(Date.now());
-  }, [entries, sending, replyStartedAt]);
-  useEffect(() => {
-    if (!sending) {
-      const startedAt = replyStartedAtRef.current;
-      if (startedAt) {
-        const seconds = Math.max(
-          0,
-          Math.round((Date.now() - startedAt) / 1000),
-        );
-        const list = entriesRef.current;
-        for (let i = list.length - 1; i >= 0; i--) {
-          const e = list[i];
-          if (e.kind === "text" && e.role === "assistant") {
-            setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
-            api.setMessageDuration(sessionId, seconds).catch(() => {});
-            break;
-          }
-          if (e.kind === "text" && e.role === "user") break;
-        }
+    if (sending) return;
+    const startedAt = startedAtMsRef.current;
+    if (!startedAt) return;
+    const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    const list = entriesRef.current;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const e = list[i];
+      if (e.kind === "text" && e.role === "assistant") {
+        setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
+        break;
       }
-      setReplyStartedAt(null);
-      return;
+      if (e.kind === "text" && e.role === "user") break;
     }
-    const interval = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [sending, sessionId]);
+    startedAtMsRef.current = null;
+  }, [sending]);
+  const replyStartedAt = sending ? generatingState.startedAtMs : null;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -699,6 +691,7 @@ export default function ChatPanel({
                 activeKey={activeBackendKey}
                 onSelect={selectBackendOption}
                 triggerLabel={activeBackendLabel}
+                loading={acpModelSwitchPending}
                 open={modelPickerOpen}
                 onOpenChange={setModelPickerOpen}
               />
@@ -808,12 +801,13 @@ export default function ChatPanel({
           ollamaError={ollamaError}
           acpRestoreFailed={acpRestoreFailed}
           onRetryAcpSession={retryAcpSession}
+          acpHistoryTruncated={acpHistoryTruncated}
+          acpAgentLabel={activeAcpAgent?.label}
           systemPrompt={systemPrompt}
           sending={sending}
           isAcp={isAcp}
           turnDurations={turnDurations}
           replyStartedAt={replyStartedAt}
-          nowTick={nowTick}
           onRetry={retry}
           className="pb-44 justify-end"
         />

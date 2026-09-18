@@ -125,23 +125,49 @@ export function useChatSession(
   const [model, setModel] = useState(
     () => useAppStore.getState().conversationBackend[sessionId]?.model ?? "",
   );
-  // Suppresses exactly one *real* run of the reset effect below, for the
-  // "switch agent and pick one of its models in the same click" case (set
-  // by `selectBackendOption`). Deliberately *not* relied on to protect the
-  // effect's very first run at mount — see `lastResetAcpActiveIdRef` for
-  // why a consume-once flag alone isn't safe there.
-  const skipNextAcpResetRef = useRef(false);
+  // Set by `selectBackendOption` when picking a model that belongs to a
+  // *different* agent than the one currently connected — there's no live
+  // connection for that agent yet, so the choice can't go straight into
+  // `acpModelChoice`: the apply-effect below would then fire in the very
+  // same render as the reset effect, using that render's already-captured
+  // (stale, OLD agent's) `acpModelOptions` — a `setState` from an earlier
+  // effect in the same commit doesn't retroactively update a later effect's
+  // closure, only a *subsequent* render does — sending a "set model"
+  // request to the wrong, about-to-be-replaced connection. Stashed here
+  // instead, and promoted into `acpModelChoice` once the new connection's
+  // own `acp_model_options` event actually arrives (see the listener
+  // below), by which point applying it is genuinely safe. Tagged with the
+  // agent it's meant for so a stale event from an abandoned, still-tearing-
+  // down connection (a rapid second switch before the first one's handshake
+  // finished) can't misapply it — checked against `lastResetAcpActiveIdRef`,
+  // which the reset effect keeps in sync with `acpActiveId` synchronously,
+  // well before any async connection handshake could resolve.
+  const pendingCrossAgentModelRef = useRef<{
+    agentId: string;
+    model: string;
+  } | null>(null);
+  // Reactive mirror of "is `pendingCrossAgentModelRef` set" — the ref itself
+  // doesn't trigger a re-render, but the model picker's trigger button wants
+  // to show a spinner in place of the agent icon for this window (see
+  // `ModelPickerPopover`'s `loading` prop). Cleared either when the pending
+  // choice is actually applied (the listener below) or, as a safety net, on
+  // any ACP error for this session — a spawn failure or crashed subprocess
+  // means whatever this was waiting for is never coming.
+  const [acpModelSwitchPending, setAcpModelSwitchPending] = useState(false);
   // The reset effect only does its work when `acpActiveId` has actually
-  // changed since the last time it ran — tracked here instead of relying
-  // solely on `skipNextAcpResetRef`, because React StrictMode deliberately
-  // double-invokes every effect on mount (setup → cleanup → setup again) to
-  // catch non-idempotent effects, and a "run once, consume a flag" guard is
-  // exactly that: the first of the two mount-time invocations consumes the
-  // flag, so the *second* one runs for real and wipes the `acpModelChoice`
-  // this conversation just restored from persisted state, on every fresh
-  // mount. Comparing against the last value this effect actually processed
-  // is idempotent no matter how many times it's invoked with the same
-  // `acpActiveId`, which a plain boolean flag can't guarantee.
+  // changed since the last time it ran — tracked here rather than a plain
+  // "has this effect ever run" boolean, because React StrictMode
+  // deliberately double-invokes every effect on mount (setup → cleanup →
+  // setup again) to catch non-idempotent effects, and a "run once, consume a
+  // flag" guard is exactly that: the first of the two mount-time invocations
+  // consumes the flag, so the *second* one runs for real and wipes the
+  // `acpModelChoice` this conversation just restored from persisted state,
+  // on every fresh mount. Comparing against the last value this effect
+  // actually processed is idempotent no matter how many times it's invoked
+  // with the same `acpActiveId`, which a plain boolean flag can't guarantee.
+  // Also read live by the `acp_model_options` listener below to validate
+  // `pendingCrossAgentModelRef` against whichever agent is *actually*
+  // current, since it stays in sync synchronously (no `setState` delay).
   const lastResetAcpActiveIdRef = useRef(acpActiveId);
   // Tracks the last `acpModelChoice` actually sent to the *current*
   // connection, so the apply-effect doesn't resend it every time some
@@ -177,18 +203,15 @@ export function useChatSession(
 
   // Model options are per-connection (they only exist once a session's ACP
   // subprocess replies to session/new) — clear the stale ones, and the
-  // previously-chosen model, whenever which ACP agent is active changes.
-  // Suppressed once by `selectBackendOption` when it's switching agent AND
-  // setting a model choice in the same click — otherwise this would wipe
-  // that choice right back out before it ever got a chance to apply.
+  // previously-chosen model, whenever which ACP agent is active changes. A
+  // model chosen for the *new* agent in the same click as the switch
+  // (`selectBackendOption`) isn't lost by this: it goes through
+  // `pendingCrossAgentModelRef` instead of `acpModelChoice` until the new
+  // connection is actually live (see that ref's doc comment).
   // biome-ignore lint/correctness/useExhaustiveDependencies: onAcpAgentReset is a fresh function reference every render (not memoized) and would make this effect re-run every render for no reason — it's only meant to fire alongside a real `acpActiveId` change, guarded above
   useEffect(() => {
     if (lastResetAcpActiveIdRef.current === acpActiveId) return;
     lastResetAcpActiveIdRef.current = acpActiveId;
-    if (skipNextAcpResetRef.current) {
-      skipNextAcpResetRef.current = false;
-      return;
-    }
     setAcpModelOptions(null);
     setAcpModelChoice(null);
     appliedAcpModelRef.current = null;
@@ -321,6 +344,21 @@ export function useChatSession(
     unlistens.push(
       listen<AcpModelOptions>(`chat://${sessionId}/acp_model_options`, (e) => {
         setAcpModelOptions(e.payload);
+        const pending = pendingCrossAgentModelRef.current;
+        if (pending && pending.agentId === lastResetAcpActiveIdRef.current) {
+          pendingCrossAgentModelRef.current = null;
+          setAcpModelChoice(pending.model);
+          setAcpModelSwitchPending(false);
+        }
+      }),
+    );
+    // Safety net for `acpModelSwitchPending`: a spawn failure or crashed
+    // subprocess means the connection this was waiting on is never coming,
+    // so there's nothing left to spin on.
+    unlistens.push(
+      listen(`chat://${sessionId}/error`, () => {
+        pendingCrossAgentModelRef.current = null;
+        setAcpModelSwitchPending(false);
       }),
     );
     unlistens.push(
@@ -476,17 +514,16 @@ export function useChatSession(
       const agentId = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
       const modelValue = sepIdx === -1 ? null : rest.slice(sepIdx + 1);
       if (modelValue && agentId !== acpActiveId) {
-        // The agent-change reset effect (keyed on `acpActiveId`) would
-        // otherwise immediately null back out the `acpModelChoice` we're
-        // about to set in this same click. Only needed when we're setting
-        // a real choice — picking the bare fallback row (no model known
-        // yet) for a genuinely different agent should still let the reset
-        // effect clear out the previous agent's stale `acpModelOptions`.
-        skipNextAcpResetRef.current = true;
+        // See `pendingCrossAgentModelRef`'s doc comment — the new agent
+        // isn't connected yet, so this can't go into `acpModelChoice` until
+        // its own `acp_model_options` event proves the connection is live.
+        pendingCrossAgentModelRef.current = { agentId, model: modelValue };
+        setAcpModelSwitchPending(true);
+      } else if (modelValue) {
+        setAcpModelChoice(modelValue);
       }
       setKind("acp");
       setAcpActiveId(agentId);
-      setAcpModelChoice(modelValue);
       // Also nudges the shared default, so a brand-new conversation opened
       // later starts from whatever was most recently picked anywhere.
       setDefaultBackend({ kind: "acp", acpId: agentId });
@@ -526,6 +563,7 @@ export function useChatSession(
     backendOptions,
     activeBackendKey,
     activeBackendLabel,
+    acpModelSwitchPending,
     selectBackendOption,
     selectAcpEffort,
     resetAcpConnectionState,

@@ -132,6 +132,14 @@ export function useChatStream(
   // immediately rather than lingering until a second failure would
   // overwrite it.
   const [acpRestoreFailed, setAcpRestoreFailed] = useState<string | null>(null);
+  // True when the currently-connected ACP agent has no way to pick up this
+  // conversation's prior history — either it doesn't advertise `loadSession`
+  // at all, or it's simply never handled this specific conversation before
+  // (e.g. just switched to it from a different agent). Backend emits this on
+  // every connect, true or false, so it self-corrects the moment a
+  // reconnect (agent switch back, `/clear`, retry) lands on a connection
+  // that *can* resume — see `chat://{sessionId}/acp_history_truncated`.
+  const [acpHistoryTruncated, setAcpHistoryTruncated] = useState(false);
   // Set when the `/error` stream carries a recognized Claude session-limit
   // message — distinct from `error` (plain banner) since this one offers an
   // "auto-resume" choice instead of just reporting failure, mirroring
@@ -245,6 +253,11 @@ export function useChatStream(
     unlistens.push(
       listen<string>(`chat://${sessionId}/acp_session_restore_failed`, (e) => {
         setAcpRestoreFailed(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<boolean>(`chat://${sessionId}/acp_history_truncated`, (e) => {
+        setAcpHistoryTruncated(e.payload);
       }),
     );
 
@@ -397,6 +410,7 @@ export function useChatStream(
     systemPrompt,
     acpRestoreFailed,
     clearAcpRestoreFailed: () => setAcpRestoreFailed(null),
+    acpHistoryTruncated,
     claudeRateLimit,
     claudeAutoResumeArmed,
     armClaudeAutoResume: () => setClaudeAutoResumeArmed(true),
