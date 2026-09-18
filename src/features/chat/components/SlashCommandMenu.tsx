@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
 import type { AcpCommandInfo } from "../../../lib/tauriApi";
@@ -28,6 +28,17 @@ export default function SlashCommandMenu({
   onActiveIndexChange,
   anchorRef,
 }: SlashCommandMenuProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  // The highlight is driven from outside (the textarea's arrow keys, not
+  // cmdk's own), and cmdk only scrolls to a selection it changed itself —
+  // so keep the active row in view here (by index: cmdk's own
+  // `data-selected` lags a render behind).
+  useEffect(() => {
+    listRef.current
+      ?.querySelectorAll("[cmdk-item]")
+      [activeIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
   return (
     <Popover open>
       <PopoverAnchor virtualRef={anchorRef} />
@@ -44,7 +55,7 @@ export default function SlashCommandMenu({
           onValueChange={(v) => onActiveIndexChange(Number(v))}
           onMouseDown={(e) => e.preventDefault()}
         >
-          <CommandList className="max-h-56">
+          <CommandList ref={listRef} className="max-h-56">
             {matches.map((c, i) => (
               <CommandItem
                 key={c.name}
