@@ -5,6 +5,9 @@ const content = `# Heading 1
 ## Heading 2
 ### Heading 3
 
+A single newline
+stays on its own line.
+
 Paragraph with **bold**, \`inline code\` and a [link](https://example.com).
 
 - one

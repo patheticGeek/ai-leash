@@ -1,4 +1,5 @@
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
 const components: Components = {
@@ -114,7 +115,10 @@ const components: Components = {
 export default function Markdown({ content }: { content: string }) {
   return (
     <div className="text-sm leading-relaxed wrap-break-word [&>*:last-child]:mb-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>
