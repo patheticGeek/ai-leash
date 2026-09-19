@@ -5,6 +5,7 @@ use crate::db::Db;
 use crate::mcp_bridge::McpBridgeInfo;
 use crate::provider::ProviderConfig;
 use crate::pty::PtyHandle;
+use agent_client_protocol::schema::v1::ElicitationAction;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -13,6 +14,13 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::Notify;
+
+/// One open elicitation form: who asked (`session_id`) and where the user's
+/// answer goes.
+pub struct PendingElicitation {
+    pub session_id: String,
+    pub tx: oneshot::Sender<ElicitationAction>,
+}
 
 #[derive(Clone)]
 pub struct AcpSession {
@@ -102,6 +110,10 @@ pub struct AppState {
     pub ptys: Mutex<HashMap<String, PtyHandle>>,
     pub chat_sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,
     pub pending_permissions: Mutex<HashMap<String, oneshot::Sender<bool>>>,
+    /// Open ACP `elicitation/create` forms, keyed by request id — see
+    /// `acp::elicitation`. Carries the owning session so a cancelled turn or
+    /// a closed connection can dismiss just its own forms.
+    pub pending_elicitations: Mutex<HashMap<String, PendingElicitation>>,
     pub cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
     /// Directories each session's agent has touched via its tools (read_file,
     /// edit_file, write_file, list_dir, grep), used to scope AGENTS.md/skills

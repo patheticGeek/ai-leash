@@ -3,6 +3,7 @@ import { type AcpSlice, acpSlice } from "./acpSlice";
 import { type BackendSlice, backendSlice } from "./backendSlice";
 import { type ConversationSlice, conversationSlice } from "./conversationSlice";
 import { type DebugSlice, debugSlice } from "./debugSlice";
+import { type ElicitationSlice, elicitationSlice } from "./elicitationSlice";
 import { type PanelSlice, panelSlice } from "./panelSlice";
 import { type PermissionSlice, permissionSlice } from "./permissionSlice";
 import { type ProjectSlice, projectSlice } from "./projectSlice";
@@ -14,6 +15,7 @@ export type AppStore = ProjectSlice &
   AcpSlice &
   BackendSlice &
   PermissionSlice &
+  ElicitationSlice &
   SubAgentSlice &
   PanelSlice &
   ConversationSlice &
@@ -25,6 +27,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...acpSlice(...a),
   ...backendSlice(...a),
   ...permissionSlice(...a),
+  ...elicitationSlice(...a),
   ...subAgentSlice(...a),
   ...panelSlice(...a),
   ...conversationSlice(...a),
@@ -39,6 +42,7 @@ export type {
 export type { DefaultBackendRef } from "./backendSlice";
 export type { ConversationSummary } from "./conversationSlice";
 export type { AcpDebugEvent } from "./debugSlice";
+export { elicitationForSession } from "./elicitationSlice";
 export type {
   ChatTab,
   ChatTabKind,

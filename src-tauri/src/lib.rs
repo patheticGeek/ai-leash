@@ -136,6 +136,7 @@ pub fn run() {
             chat::history::delete_conversation,
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
+            acp::elicitation::respond_elicitation,
             tools::shell_tools::run_shell_command,
             acp::warm_acp_session,
             acp::send_prompt_acp,

@@ -1,4 +1,5 @@
 mod discovery;
+pub mod elicitation;
 mod events;
 mod permissions;
 mod process;

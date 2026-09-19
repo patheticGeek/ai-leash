@@ -2,6 +2,7 @@ use super::discovery::{
     find_model_config_option, find_thought_level_config_option, format_acp_error, mcp_servers_for,
     model_options_payload, thought_level_options_payload,
 };
+use super::elicitation::{bridge_acp_elicitation, cancel_pending_elicitations};
 use super::events::{
     close_segment, debug_json, emit_acp_debug, handle_session_notification, CurrentSegment,
     PendingToolCallContent, SuppressReplay,
@@ -13,10 +14,11 @@ use crate::mcp_bridge;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ClientCapabilities, ContentBlock, InitializeRequest, LoadSessionRequest,
-    McpServer, NewSessionRequest, PromptRequest, RequestPermissionRequest,
-    RequestPermissionResponse, SessionConfigId, SessionConfigOption, SessionId,
-    SessionNotification, SetSessionConfigOptionRequest, TextContent,
+    CancelNotification, ClientCapabilities, ContentBlock, CreateElicitationRequest,
+    CreateElicitationResponse, ElicitationCapabilities, ElicitationFormCapabilities,
+    InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest,
+    RequestPermissionRequest, RequestPermissionResponse, SessionConfigId, SessionConfigOption,
+    SessionId, SessionNotification, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
@@ -304,6 +306,7 @@ async fn run_acp_session(
         "connection/closed",
         json!({}),
     );
+    cancel_pending_elicitations(&app, &session_id);
     remove_if_still_current(&app, &session_id, &launch_command);
 }
 
@@ -338,6 +341,8 @@ async fn drive_acp_connection(
     let notif_suppress_replay = suppress_replay.clone();
     let perm_app = app.clone();
     let perm_session_id = session_id.clone();
+    let elicit_app = app.clone();
+    let elicit_session_id = session_id.clone();
 
     Client
         .builder()
@@ -376,12 +381,37 @@ async fn drive_acp_connection(
             },
             agent_client_protocol::on_receive_request!(),
         )
+        .on_receive_request(
+            async move |request: CreateElicitationRequest, responder, _cx| {
+                emit_acp_debug(
+                    &elicit_app,
+                    &elicit_session_id,
+                    "received",
+                    "elicitation/create",
+                    debug_json(&request),
+                );
+                let action =
+                    bridge_acp_elicitation(&elicit_app, &elicit_session_id, &request).await;
+                emit_acp_debug(
+                    &elicit_app,
+                    &elicit_session_id,
+                    "sent",
+                    "elicitation/create_response",
+                    debug_json(&action),
+                );
+                responder.respond(CreateElicitationResponse::new(action))
+            },
+            agent_client_protocol::on_receive_request!(),
+        )
         .connect_with(agent, async move |connection: ConnectionTo<Agent>| {
             emit_acp_debug(&app, &session_id, "sent", "initialize", json!({}));
             let init_response = connection
                 .send_request(
-                    InitializeRequest::new(ProtocolVersion::V1)
-                        .client_capabilities(ClientCapabilities::new()),
+                    InitializeRequest::new(ProtocolVersion::V1).client_capabilities(
+                        ClientCapabilities::new().elicitation(
+                            ElicitationCapabilities::new().form(ElicitationFormCapabilities::new()),
+                        ),
+                    ),
                 )
                 .block_task()
                 .await?;
@@ -586,6 +616,7 @@ async fn drive_acp_connection(
                             tokio::select! {
                                 res = &mut prompt_fut => break res,
                                 _ = cancel_notify.notified() => {
+                                    cancel_pending_elicitations(&app, &session_id);
                                     let _ = connection.send_notification(
                                         CancelNotification::new(acp_session_id.clone()),
                                     );
@@ -593,6 +624,7 @@ async fn drive_acp_connection(
                             }
                         };
                         set_prompt_cancel(&app, &session_id, None);
+                        cancel_pending_elicitations(&app, &session_id);
 
                         let _ = app.emit(
                             "chat://generating",
@@ -643,6 +675,7 @@ async fn drive_acp_connection(
                             "session/cancel",
                             json!({}),
                         );
+                        cancel_pending_elicitations(&app, &session_id);
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
                     }
