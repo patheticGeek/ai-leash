@@ -2,7 +2,7 @@ import { Check, FilePenLine, ShieldAlert, Terminal, X } from "lucide-react";
 import type { RefObject } from "react";
 import { Button } from "@/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
-import type { PermissionRequestPayload } from "../../../lib/tauriApi";
+import type { PermissionRequestPayload } from "../../../../lib/tauriApi";
 
 interface PermissionPopoverProps {
   request: PermissionRequestPayload;

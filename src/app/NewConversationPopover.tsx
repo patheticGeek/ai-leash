@@ -10,7 +10,7 @@ import { useAppStore } from "../store";
 // The project switcher — lists known projects, and picking one starts a new
 // conversation for it (`startNewConversation`). Used from the "new thread"
 // empty state's "What are we working on in {project}?" heading
-// (`ChatPanel.tsx`), where `{project}` is this popover's trigger — starting
+// (`NewThreadHero.tsx`), where `{project}` is this popover's trigger — starting
 // a *fresh* project (rather than "current project") lives on the title
 // bar's plain "New Thread" button instead, which doesn't need a picker.
 // "Add project" (the footer button) is the native-folder-picker flow, also

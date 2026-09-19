@@ -1,11 +1,12 @@
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { Button } from "@/ui/button";
 import { api } from "../../../lib/tauriApi";
 
 export default function CrashLogTab() {
   const [log, setLog] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const { copy, copied } = useCopyToClipboard();
 
   useEffect(() => {
     api.getCrashLog().then(setLog);
@@ -20,13 +21,6 @@ export default function CrashLogTab() {
     setLog("");
   }
 
-  async function copy() {
-    if (!log) return;
-    await navigator.clipboard.writeText(log);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  }
-
   return (
     <div className="flex h-full flex-col space-y-3">
       <div className="flex items-center justify-between">
@@ -38,7 +32,12 @@ export default function CrashLogTab() {
             <RefreshCw size={13} />
             Refresh
           </Button>
-          <Button variant="secondary" size="sm" onClick={copy} disabled={!log}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => log && copy(log)}
+            disabled={!log}
+          >
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "Copied" : "Copy"}
           </Button>

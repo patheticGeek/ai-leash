@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
-import type { AcpCommandInfo } from "../../../lib/tauriApi";
+import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 
 export interface SlashCommandMenuProps {
   matches: AcpCommandInfo[];
@@ -14,8 +14,8 @@ export interface SlashCommandMenuProps {
 
 // The "/" autocomplete list anchored above the chat input. Presentational —
 // which commands match what's typed, the highlighted index, and the
-// dismissed-until-query-changes bookkeeping all live in `ChatPanel.tsx`
-// (`slashQuery`/`slashMatches`/`slashDismissed`/`slashIndex`), since the same
+// dismissed-until-query-changes bookkeeping all live in `useSlashCommands.ts`
+// (driven from `ChatComposer.tsx`), since the same
 // keydown handler that drives this list's arrow-key/Tab/Escape navigation
 // also has to fall through to "send the message" on a plain Enter — splitting
 // that one handler across a component boundary risked subtly changing which
