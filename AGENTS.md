@@ -80,4 +80,19 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   are documented in `docs/features/agent-chat.md` — check there before
   changing anything in `tools.rs`'s sub-agent handling or `chat.rs`'s
   `run_sub_agent`/`resume_after_background_subtask`.
+- **`src/ui` components come from shadcn, then get themed.** Add a
+  component with `npx shadcn@latest add <name>` (or, for a third-party
+  registry such as AI Elements, `npx shadcn@latest view
+  https://registry.ai-sdk.dev/<name>.json` and copy it in), then adapt
+  it to our theme: colour tokens (`bg-raised`/`bg-sunken`, `--primary`),
+  our `Button` variants, no `dark:` variants (the app is dark-only and
+  has no `.dark` class), no elevation shadows outside floating layers.
+  Don't write a component from scratch when the shadcn registry has one
+  — `Marker` (Collapsible), `Questionnaire` (Field/RadioGroup/Checkbox)
+  and `Conversation` (AI Elements) are compositions of registry parts
+  for this reason. The only hand-written ones are those with no
+  registry equivalent: `Logo`, `ResizeHandle`, `json-viewer`, `Markdown`,
+  `ErrorBoundary`. CLI gotchas: it emits `import { cn } from "cn"` (point
+  it at `@/lib/utils`) and hangs on the overwrite prompt if a dependency
+  such as `label` already exists — add the missing files individually.
 - Don't commit or push unless explicitly asked, even mid-task.
