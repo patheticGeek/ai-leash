@@ -38,16 +38,16 @@ pub struct ConversationSummary {
 /// currently "open" (`state.project_root` is a single global value — see
 /// `commands::set_project_root` — but the sidebar must show every
 /// project's conversations regardless of which one is currently active).
-/// Excludes sub-agent conversations (id contains `::spawn_sub_agent::` —
-/// see `tools::sub_agent_tools`), which have their own dedicated Sub
-/// Agents sidebar (`list_sub_agents_for_parent`, scoped to the active
-/// conversation) instead.
+/// Excludes sub-agent conversations (any id with a `sub_agents` row — see
+/// `tools::sub_agent_tools`), which have their own dedicated Sub Agents
+/// sidebar (`list_sub_agents_for_parent`, scoped to the active conversation)
+/// instead.
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
         "SELECT id, project_id, project_root, title, updated_at, worktree_path, done \
          FROM conversations \
-         WHERE id NOT LIKE '%::spawn_sub_agent::%' ORDER BY updated_at DESC",
+         WHERE id NOT IN (SELECT id FROM sub_agents) ORDER BY updated_at DESC",
     ) else {
         return vec![];
     };
@@ -229,23 +229,8 @@ fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
         })
         .unwrap_or_default();
     for sub_agent_id in &sub_agent_ids {
-        let _ = conn.execute(
-            "DELETE FROM messages WHERE conversation_id = ?1",
-            params![sub_agent_id],
-        );
-        let _ = conn.execute(
-            "DELETE FROM conversations WHERE id = ?1",
-            params![sub_agent_id],
-        );
-        let _ = conn.execute(
-            "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
-            params![sub_agent_id],
-        );
+        super::sub_agents::wipe_sub_agent(conn, sub_agent_id);
     }
-    let _ = conn.execute(
-        "DELETE FROM sub_agents WHERE parent_session_id = ?1",
-        params![conversation_id],
-    );
     let _ = conn.execute(
         "DELETE FROM messages WHERE conversation_id = ?1",
         params![conversation_id],
@@ -340,7 +325,7 @@ mod tests {
         let db = temp_db();
         record_sub_agent_started(
             &db,
-            "/proj::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj",
             "count files",
             "count the files",
@@ -349,7 +334,7 @@ mod tests {
         );
         save_message(
             &db,
-            "/proj::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj",
             &ChatMessage {
                 role: "user".into(),
@@ -359,7 +344,7 @@ mod tests {
         );
         record_sub_agent_started(
             &db,
-            "/other::spawn_sub_agent::xyz",
+            "sub-xyz",
             "/other",
             "unrelated task",
             "do something else",
@@ -370,7 +355,7 @@ mod tests {
         clear_conversation(&db, "/proj");
 
         assert!(crate::db::list_sub_agents_for_parent(&db, "/proj", 50).is_empty());
-        assert!(load_messages(&db, "/proj::spawn_sub_agent::abc").is_empty());
+        assert!(load_messages(&db, "sub-abc").is_empty());
         assert_eq!(
             crate::db::list_sub_agents_for_parent(&db, "/other", 50).len(),
             1
@@ -379,18 +364,28 @@ mod tests {
 
     #[test]
     fn clear_conversation_drops_the_stored_acp_session_so_it_cannot_be_resumed() {
-        use crate::db::{get_acp_agent_session_id, set_acp_agent_session_id};
+        use crate::db::{get_acp_agent_session_id, set_acp_agent_session_id, AgentSessionId};
 
         let db = temp_db();
-        set_acp_agent_session_id(&db, "/proj", "claude-code", "agent-sess-1");
-        set_acp_agent_session_id(&db, "/other", "claude-code", "agent-sess-2");
+        set_acp_agent_session_id(
+            &db,
+            "/proj",
+            "claude-code",
+            &AgentSessionId::new("agent-sess-1"),
+        );
+        set_acp_agent_session_id(
+            &db,
+            "/other",
+            "claude-code",
+            &AgentSessionId::new("agent-sess-2"),
+        );
 
         clear_conversation(&db, "/proj");
 
         assert_eq!(get_acp_agent_session_id(&db, "/proj", "claude-code"), None);
         assert_eq!(
             get_acp_agent_session_id(&db, "/other", "claude-code"),
-            Some("agent-sess-2".to_string())
+            Some(AgentSessionId::new("agent-sess-2"))
         );
     }
 
@@ -435,7 +430,7 @@ mod tests {
         }
         record_sub_agent_started(
             &db,
-            "/proj-a::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj-a",
             "count files",
             "count the files",
@@ -444,7 +439,7 @@ mod tests {
         );
         save_message(
             &db,
-            "/proj-a::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj-a",
             &ChatMessage {
                 role: "user".into(),
@@ -456,7 +451,7 @@ mod tests {
         let all = list_all_conversations(&db);
 
         assert_eq!(all.len(), 2);
-        assert!(all.iter().all(|c| !c.id.contains("spawn_sub_agent")));
+        assert!(all.iter().all(|c| c.id != "sub-abc"));
         assert_eq!(all[0].id, "/proj-b");
         assert_eq!(all[1].id, "/proj-a");
     }
@@ -503,7 +498,7 @@ mod tests {
         let db = temp_db();
         record_sub_agent_started(
             &db,
-            "/proj::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj",
             "count files",
             "count the files",
@@ -512,7 +507,7 @@ mod tests {
         );
         save_message(
             &db,
-            "/proj::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj",
             &ChatMessage {
                 role: "user".into(),
@@ -522,7 +517,7 @@ mod tests {
         );
         record_sub_agent_started(
             &db,
-            "/other::spawn_sub_agent::xyz",
+            "sub-xyz",
             "/other",
             "unrelated task",
             "do something else",
@@ -533,7 +528,7 @@ mod tests {
         delete_conversation(&db, "/proj");
 
         assert!(crate::db::list_sub_agents_for_parent(&db, "/proj", 50).is_empty());
-        assert!(load_messages(&db, "/proj::spawn_sub_agent::abc").is_empty());
+        assert!(load_messages(&db, "sub-abc").is_empty());
         assert_eq!(
             crate::db::list_sub_agents_for_parent(&db, "/other", 50).len(),
             1

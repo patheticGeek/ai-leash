@@ -27,20 +27,18 @@ function savePermissionModeMap(map: Record<string, PermissionMode>) {
 
 // Resolves "does this project have a permission request waiting" — an
 // exact match (a top-level conversation's own tool call), or a sub-agent
-// spawned from it (`{sessionId}::spawn_sub_agent::{uuid}`, see
-// `spawn_sub_agent` in tools.rs), since a sub-agent has no textarea of its
-// own to show a popover above. Used by both `ChatPanel.tsx` (to render the
-// popover) and `LeftBar.tsx` (to glow the row) so the two never disagree
+// spawned from it (the backend stamps `parentSessionId` on the request — see
+// `PermissionRequest` in permissions.rs), since a sub-agent has no textarea
+// of its own to show a popover above. Used by both `ChatPanel.tsx` (to render
+// the popover) and `LeftBar.tsx` (to glow the row) so the two never disagree
 // about which project a given request belongs to.
 export function permissionForSession(
   pending: Record<string, PermissionRequestPayload>,
   sessionId: string,
 ): PermissionRequestPayload | null {
   if (pending[sessionId]) return pending[sessionId];
-  const childPrefix = `${sessionId}::spawn_sub_agent::`;
   return (
-    Object.values(pending).find((p) => p.sessionId.startsWith(childPrefix)) ??
-    null
+    Object.values(pending).find((p) => p.parentSessionId === sessionId) ?? null
   );
 }
 
@@ -49,12 +47,11 @@ export interface PermissionSlice {
   // doc comment. Missing entry means "ask" (the default).
   permissionMode: Record<string, PermissionMode>;
   // Keyed by the *exact* session id the request came from — for a sub-agent
-  // that's its own synthetic `{parentSessionId}::spawn_sub_agent::{uuid}`
-  // id, not its parent's. `permissionForSession` (above) is what resolves
-  // "does this project have anything pending", checking both an exact match
-  // and any child sub-agent id, since a sub-agent's tool calls have nowhere
-  // of their own to surface a popover — they're shown above the *parent*
-  // project's textarea instead. One global `permission://request`/
+  // that's its own id, not its parent's. `permissionForSession` (above) is
+  // what resolves "does this project have anything pending", checking both an
+  // exact match and any request whose `parentSessionId` is it, since a
+  // sub-agent's tool calls have nowhere of their own to surface a popover —
+  // they're shown above the *parent* project's textarea instead. One global `permission://request`/
   // `permission://resolved` listener pair maintains this (see
   // `LeftBar.tsx`), same shape as `chat://generating` — one listener total,
   // not one per project, since the backend event itself carries `sessionId`.

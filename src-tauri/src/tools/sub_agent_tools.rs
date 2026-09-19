@@ -41,7 +41,7 @@ pub(crate) fn spawn_sub_agent_def() -> Value {
 pub(crate) fn list_sub_agents_def() -> Value {
     json!({
         "name": "list_sub_agents",
-        "description": "List the sub-agents you've spawned via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find a sub_session_id for read_sub_agent.",
+        "description": "List the sub-agents you've spawned via spawn_sub_agent (running and finished), most recent first. Use this to check progress, or to find the id to pass to read_sub_agent.",
         "parameters": { "type": "object", "properties": {}, "required": [] }
     })
 }
@@ -53,7 +53,7 @@ pub(crate) fn read_sub_agent_def() -> Value {
         "parameters": {
             "type": "object",
             "properties": {
-                "sub_session_id": { "type": "string", "description": "The sub-agent's session id, from list_sub_agents" },
+                "sub_session_id": { "type": "string", "description": "The sub-agent's id, copied exactly from list_sub_agents" },
                 "offset": { "type": "integer", "description": "1-based line number to start reading from. Omit to start at line 1." },
                 "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to 2000." }
             },
@@ -177,43 +177,6 @@ fn resolve_acp_target(
     }))
 }
 
-/// Resolves whatever a model passed as `sub_session_id` (`read_sub_agent`)
-/// to one of this session's actual sub-agent ids — full ids look like
-/// `{parent_session_id}::spawn_sub_agent::{uuid}`, and `parent_session_id`
-/// is often a whole project path, so the full id can run 60-100+ chars.
-/// Models asked to reproduce that exactly are prone to paraphrasing it —
-/// dropping the prefix, or truncating the middle with `...`/`??`/`…` — so
-/// this tries progressively looser matches, scoped to this session's own
-/// sub-agents only (never another session's):
-///   1. The exact id as given.
-///   2. Just the trailing UUID, missing the `{parent}::spawn_sub_agent::` prefix.
-///   3. A truncated/elided fragment (trailing `.`/`?`/`…` stripped), matched
-///      by substring against this session's sub-agent ids — only if that
-///      leaves exactly one candidate and the fragment is long enough
-///      (>= 6 chars) to not match by coincidence.
-fn resolve_sub_agent_id(db: &db::Db, session_id: &str, given: &str) -> Option<String> {
-    let expected_prefix = format!("{session_id}::spawn_sub_agent::");
-    if given.starts_with(&expected_prefix) && db::get_sub_agent(db, given).is_some() {
-        return Some(given.to_string());
-    }
-    let reconstructed = format!("{expected_prefix}{given}");
-    if db::get_sub_agent(db, &reconstructed).is_some() {
-        return Some(reconstructed);
-    }
-    let cleaned = given.trim_end_matches(['.', '?', '…', ' ']);
-    if cleaned.len() < 6 {
-        return None;
-    }
-    let mut candidates = db::list_sub_agents_for_parent(db, session_id, 500)
-        .into_iter()
-        .filter(|s| s.id.contains(cleaned));
-    let first = candidates.next()?;
-    if candidates.next().is_some() {
-        return None; // ambiguous — let the caller ask for `list_sub_agents`
-    }
-    Some(first.id)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn spawn_sub_agent(
     app: &AppHandle,
@@ -303,7 +266,7 @@ pub(super) fn spawn_sub_agent(
                 label
             }
         });
-        let sub_session_id = format!("{session_id}::spawn_sub_agent::{}", Uuid::new_v4());
+        let sub_session_id = Uuid::new_v4().to_string();
         // Inherit the parent's bypass setting — same reasoning as
         // sharing its cancellation flag (see `run_sub_agent`'s doc
         // comment in chat.rs): a sub-agent has no textarea of its
@@ -315,6 +278,10 @@ pub(super) fn spawn_sub_agent(
             }
         }
 
+        // Registered before anything else can look this id up (its first
+        // message write, its first tool call's root resolution) and moved
+        // into the task below so it's dropped when the sub-agent ends.
+        let link = crate::commands::SubAgentLink::new(app, session_id, &sub_session_id);
         db::record_sub_agent_started(
             &state.db,
             &sub_session_id,
@@ -334,7 +301,7 @@ pub(super) fn spawn_sub_agent(
                 "effort": display_effort,
             }),
         );
-        specs.push((description, prompt, sub_session_id));
+        specs.push((description, prompt, sub_session_id, link));
     }
 
     // Every sub-agent always runs fully detached — this call never
@@ -345,9 +312,9 @@ pub(super) fn spawn_sub_agent(
     // its own fresh cancel flag rather than sharing the parent's,
     // since nothing here awaits them together anymore.
     let count = specs.len();
-    let labels: Vec<String> = specs.iter().map(|(d, _, _)| d.clone()).collect();
+    let labels: Vec<String> = specs.iter().map(|(d, _, _, _)| d.clone()).collect();
 
-    for (description, prompt, sub_session_id) in specs {
+    for (description, prompt, sub_session_id, link) in specs {
         let app_owned = app.clone();
         let session_id_owned = session_id.to_string();
         let provider_owned = provider.clone();
@@ -405,6 +372,9 @@ pub(super) fn spawn_sub_agent(
                 Err(e) => ("error", format!("Error: {e}")),
             };
             db::record_sub_agent_finished(&state.db, &sub_session_id, status, &result);
+            // Nothing below resolves this sub-agent's root anymore — only the
+            // parent's, which resumes or is notified next.
+            drop(link);
 
             // If the parent session is currently an external ACP
             // agent's conversation (not AI Leash's own native
@@ -577,12 +547,12 @@ pub(super) fn read_sub_agent(
         .get("sub_session_id")
         .and_then(|v| v.as_str())
         .ok_or("missing `sub_session_id`")?;
-    let target = resolve_sub_agent_id(&state.db, session_id, given).ok_or_else(|| {
-        format!("no sub-agent found matching {given:?}. Use list_sub_agents to see valid ids.")
+    let meta = db::get_sub_agent_for_parent(&state.db, session_id, given).ok_or_else(|| {
+        format!(
+            "no sub-agent with id {given:?} in this conversation. Use list_sub_agents and copy the id exactly."
+        )
     })?;
-    // resolve_sub_agent_id only returns ids it already confirmed exist.
-    let meta = db::get_sub_agent(&state.db, &target).expect("resolved sub-agent id exists");
-    let messages = db::load_messages(&state.db, &target);
+    let messages = db::load_messages(&state.db, given);
     let mut transcript = format!("Status: {}\n\nPrompt:\n{}\n", meta.status, meta.prompt);
     for (i, m) in messages.iter().enumerate() {
         if i == 0 && m.role == "user" {
@@ -601,7 +571,7 @@ pub(super) fn read_sub_agent(
         &transcript,
         offset,
         limit,
-        &target,
+        given,
         "read_sub_agent again",
     )))
 }
@@ -609,61 +579,6 @@ pub(super) fn read_sub_agent(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn temp_db() -> db::Db {
-        let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", Uuid::new_v4()));
-        db::Db::open(path)
-    }
-
-    fn start(db: &db::Db, parent: &str, uuid_suffix: &str) -> String {
-        let id = format!("{parent}::spawn_sub_agent::{uuid_suffix}");
-        db::record_sub_agent_started(db, &id, parent, "a task", "do it", "llama3", None);
-        id
-    }
-
-    #[test]
-    fn resolves_the_exact_full_id() {
-        let db = temp_db();
-        let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", &id), Some(id));
-    }
-
-    #[test]
-    fn resolves_just_the_trailing_uuid() {
-        let db = temp_db();
-        let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(
-            resolve_sub_agent_id(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000"),
-            Some(id)
-        );
-    }
-
-    #[test]
-    fn resolves_a_truncated_id_with_an_ellipsis() {
-        let db = temp_db();
-        let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(
-            resolve_sub_agent_id(&db, "/proj", "/proj::spawn_sub_agent::550e8400..."),
-            Some(id)
-        );
-    }
-
-    #[test]
-    fn resolves_a_truncated_id_with_double_question_marks() {
-        let db = temp_db();
-        let id = start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(
-            resolve_sub_agent_id(&db, "/proj", "550e8400-e29b??"),
-            Some(id)
-        );
-    }
-
-    #[test]
-    fn refuses_to_guess_when_the_fragment_is_too_short() {
-        let db = temp_db();
-        start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", "550e?"), None);
-    }
 
     #[test]
     fn accepts_supported_effort_levels() {
@@ -761,24 +676,5 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("Claude Code"));
-    }
-
-    #[test]
-    fn refuses_to_guess_when_the_fragment_is_ambiguous() {
-        let db = temp_db();
-        start(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000");
-        start(&db, "/proj", "550e8400-aaaa-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", "550e8400..."), None);
-    }
-
-    #[test]
-    fn never_resolves_another_sessions_sub_agent() {
-        let db = temp_db();
-        let id = start(&db, "/other", "550e8400-e29b-41d4-a716-446655440000");
-        assert_eq!(resolve_sub_agent_id(&db, "/proj", &id), None);
-        assert_eq!(
-            resolve_sub_agent_id(&db, "/proj", "550e8400-e29b-41d4-a716-446655440000"),
-            None
-        );
     }
 }

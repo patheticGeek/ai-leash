@@ -82,11 +82,13 @@ export interface AcpCommandInfo {
 // Payload of the global `permission://request` event — one listener for the
 // whole app (see `LeftBar.tsx`), not per-session, since `sessionId` here is
 // what routes it to the right project (see `permissionForSession` in
-// `store.ts`). `sessionId` is a sub-agent's own synthetic id when the
-// request came from one of its tool calls, not its parent's.
+// `store.ts`). `sessionId` is the sub-agent's own id when the request came
+// from one of its tool calls; `parentSessionId` is then the conversation that
+// spawned it (null for a top-level conversation's own request).
 export interface PermissionRequestPayload {
   id: string;
   sessionId: string;
+  parentSessionId: string | null;
   kind: "shell" | "edit" | "acp";
   title: string;
   detail: string;

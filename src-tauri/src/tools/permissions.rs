@@ -13,6 +13,13 @@ struct PermissionRequest {
     /// the right `ChatPanel` and glow the right sidebar row instead of
     /// showing one global modal for every project at once.
     session_id: String,
+    /// The top-level conversation `session_id` was spawned by, when it's a
+    /// sub-agent — a sub-agent has no textarea of its own, so its request is
+    /// shown above (and glows the sidebar row of) this conversation instead.
+    /// Resolved here, backend-side, because the frontend can't reliably: it
+    /// only hears a conversation's `subtask_start` while that conversation
+    /// is the one mounted.
+    parent_session_id: Option<String>,
     kind: String,
     title: String,
     detail: String,
@@ -30,6 +37,12 @@ pub(crate) async fn request_permission(
         return true;
     }
     let id = Uuid::new_v4().to_string();
+    let parent_session_id = state
+        .sub_agent_parents
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .cloned();
     let (tx, rx) = tokio::sync::oneshot::channel();
     state
         .pending_permissions
@@ -41,6 +54,7 @@ pub(crate) async fn request_permission(
         PermissionRequest {
             id,
             session_id: session_id.to_string(),
+            parent_session_id,
             kind: kind.into(),
             title,
             detail,

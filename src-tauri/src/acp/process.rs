@@ -453,14 +453,14 @@ async fn drive_acp_connection(
                         "sent",
                         "session/load",
                         json!({
-                            "sessionId": stored_id,
+                            "sessionId": stored_id.as_str(),
                             "mcpServers": mcp_servers_debug(&mcp_servers),
                         }),
                     );
                     suppress_replay.store(true, Ordering::Release);
                     let load_result = connection
                         .send_request(
-                            LoadSessionRequest::new(SessionId::new(stored_id.clone()), cwd)
+                            LoadSessionRequest::new(SessionId::new(stored_id.as_str()), cwd)
                                 .mcp_servers(mcp_servers),
                         )
                         .block_task()
@@ -476,7 +476,7 @@ async fn drive_acp_connection(
                                 "session/load/response",
                                 debug_json(&resp),
                             );
-                            (SessionId::new(stored_id), resp.config_options)
+                            (SessionId::new(stored_id.as_str()), resp.config_options)
                         }
                         Err(e) => {
                             emit_acp_debug(
@@ -533,7 +533,7 @@ async fn drive_acp_connection(
                         &state.db,
                         &session_id,
                         &launch_command,
-                        &new_session.session_id.to_string(),
+                        &db::AgentSessionId::new(new_session.session_id.to_string()),
                     );
                     (new_session.session_id, new_session.config_options)
                 };

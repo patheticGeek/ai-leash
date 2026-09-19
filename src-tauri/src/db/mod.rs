@@ -17,7 +17,7 @@ mod rate_limit;
 mod sub_agents;
 
 pub use acp_sessions::{
-    delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id,
+    delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id, AgentSessionId,
 };
 pub use conversations::{
     clear_conversation, conversation_exists, delete_conversation, get_conversation_title,
@@ -33,8 +33,8 @@ pub use rate_limit::{
     armed_rate_limit_conversations, get_rate_limit_choice, last_message, set_rate_limit_choice,
 };
 pub use sub_agents::{
-    delete_sub_agent, get_sub_agent, list_sub_agents_for_parent, record_sub_agent_finished,
-    record_sub_agent_started, SubAgentSummary,
+    delete_sub_agent, get_sub_agent_for_parent, list_sub_agents_for_parent,
+    record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
 };
 
 pub struct Db(Mutex<Connection>);
