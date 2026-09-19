@@ -163,6 +163,8 @@ export default function ChatEntryList({
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton
+          variant="outline"
+          size="md"
           // 1rem clear of the inset, matching the button's default `bottom-4`.
           style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
         />
