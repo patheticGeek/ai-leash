@@ -109,6 +109,16 @@ controls, chat, editors, and terminals. There is currently no light theme or
 appearance switch. The adjustable panel widths are the available workspace
 layout preference.
 
+## Open in IDE
+
+The title bar has an **Open** button (code icon, tooltip "Open in IDE") that opens the active
+conversation's checkout (the project root, or its worktree) in an external
+editor. Settings > **IDE** sets the command it runs — `code` by default; any
+launcher on your shell's `PATH` works (`zed`, `cursor`, `idea`, `code -n`).
+The checkout path is appended as the last argument. The command is split
+shell-style but never run through a shell. If it fails to launch, the button
+turns amber and its tooltip shows the error.
+
 ## Debug mode
 
 Settings has a **Debug** section for inspecting the app's own behavior; see

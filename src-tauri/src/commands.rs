@@ -317,3 +317,65 @@ pub fn write_file_text(
     let resolved = resolve_within_root(&root, &path)?;
     std::fs::write(resolved, contents).map_err(|e| e.to_string())
 }
+
+/// Launches the user's configured IDE command (`code`, `zed`, `code -n`, ...)
+/// on a project/worktree directory. The command string is shell-split so
+/// flags work, but never run through a shell — the path is appended as one
+/// literal argument. IDE launcher CLIs normally hand off to the running (or
+/// a freshly started) GUI and exit within moments, so this waits briefly to
+/// surface a failed launch (missing binary, non-zero exit + stderr); one
+/// that's still running after the grace period is assumed to *be* the IDE
+/// and is left running, reaped by a background thread.
+#[tauri::command]
+pub async fn open_in_ide(command: String, path: String) -> Result<(), String> {
+    let mut parts = shlex::split(&command)
+        .ok_or_else(|| "IDE command has unbalanced quotes".to_string())?
+        .into_iter();
+    let program = parts
+        .next()
+        .ok_or_else(|| "no IDE command configured".to_string())?;
+    let mut child = std::process::Command::new(&program)
+        .args(parts)
+        .arg(&path)
+        .current_dir(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to run `{program}`: {e}"))?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) if status.success() => return Ok(()),
+                Ok(Some(status)) => {
+                    let mut stderr = String::new();
+                    if let Some(mut pipe) = child.stderr.take() {
+                        use std::io::Read;
+                        let _ = pipe.read_to_string(&mut stderr);
+                    }
+                    let stderr = stderr.trim();
+                    return Err(if stderr.is_empty() {
+                        format!("`{program}` exited with {status}")
+                    } else {
+                        format!("`{program}` exited with {status}: {stderr}")
+                    });
+                }
+                Ok(None) if Instant::now() >= deadline => {
+                    // Drop the pipe so a chatty long-running IDE can't block
+                    // on a full stderr buffer nobody reads.
+                    drop(child.stderr.take());
+                    std::thread::spawn(move || {
+                        let _ = child.wait();
+                    });
+                    return Ok(());
+                }
+                Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

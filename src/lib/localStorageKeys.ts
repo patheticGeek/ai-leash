@@ -34,4 +34,6 @@ export const LS_KEYS = {
   debugPanelHeight: "ai-leash:debugPanelHeight",
   debugPanelX: "ai-leash:debugPanelX",
   debugPanelY: "ai-leash:debugPanelY",
+  // Settings > IDE — see `ideSlice.ts`.
+  ideCommand: "ai-leash:ideCommand",
 } as const;
