@@ -25,8 +25,12 @@ import WorkingForIndicator from "./WorkingForIndicator";
 export interface ChatEntryListProps {
   /** Classes for the transcript column (padding, alignment). */
   className?: string;
-  /** Classes for the "Latest" jump button's wrapper — e.g. to lift it above an overlaid input. */
-  scrollButtonClassName?: string;
+  /**
+   * Height in px of something overlaid on the bottom of the list (the
+   * message box): the transcript gets that much bottom padding so its last
+   * line clears it, and the "Latest" button sits above it.
+   */
+  bottomInset?: number;
   entries: PanelEntry[];
   // These four are top-level-conversation-only concerns (Ollama/ACP-restore
   // banners, the collapsible system prompt block) — optional so a caller
@@ -75,7 +79,7 @@ export default function ChatEntryList({
   onRetry = () => {},
   allowRetry = true,
   className,
-  scrollButtonClassName,
+  bottomInset = 0,
 }: ChatEntryListProps) {
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
@@ -119,6 +123,7 @@ export default function ChatEntryList({
               "mx-auto w-full max-w-4xl gap-3 p-3 text-sm",
               className,
             )}
+            style={bottomInset ? { paddingBottom: bottomInset } : undefined}
           >
             <TranscriptNotices
               ollamaError={ollamaError}
@@ -157,7 +162,10 @@ export default function ChatEntryList({
             )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
-        <MessageScrollerButton className={scrollButtonClassName} />
+        <MessageScrollerButton
+          // 1rem clear of the inset, matching the button's default `bottom-4`.
+          style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
+        />
       </MessageScroller>
     </MessageScrollerProvider>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useElementHeight } from "@/hooks/useElementHeight";
 import { cn } from "@/lib/utils";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 import { useChatInput } from "../../hooks/useChatInput";
@@ -43,6 +44,10 @@ interface ChatComposerProps {
   onCommand: (name: string) => Promise<void>;
   onStop: () => Promise<void>;
   onError: (message: string | null) => void;
+  // Called with the dock's rendered height (and again whenever it changes —
+  // the box growing, a banner appearing) so the transcript above can leave
+  // exactly that much room at its bottom instead of guessing.
+  onHeightChange: (height: number) => void;
 }
 
 // The whole bottom dock of a conversation: the strips above the message box,
@@ -64,7 +69,9 @@ export default function ChatComposer({
   onCommand,
   onStop,
   onError,
+  onHeightChange,
 }: ChatComposerProps) {
+  const dockRef = useElementHeight<HTMLDivElement>(onHeightChange);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
   const permissions = useSessionPermissions(sessionId, onError);
@@ -210,7 +217,10 @@ export default function ChatComposer({
   const usedTokens = usage ? usage.prompt + usage.completion : null;
 
   return (
-    <div className={cn("w-full", floating && "absolute bottom-0")}>
+    <div
+      ref={dockRef}
+      className={cn("w-full", floating && "absolute bottom-0")}
+    >
       <div className="mx-auto max-w-4xl my-3">
         <ChatBanners
           helpOpen={helpOpen}

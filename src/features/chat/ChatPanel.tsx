@@ -60,6 +60,9 @@ export default function ChatPanel({
   const generating = generatingState.active && !generatingState.autonomous;
 
   const [ollamaError, setOllamaError] = useState<string | null>(null);
+  // The composer floats over the bottom of the transcript; this is how much
+  // room the transcript leaves for it (see `ChatComposer`'s `onHeightChange`).
+  const [composerHeight, setComposerHeight] = useState(0);
   // Initialized from the global (backend-driven) state so a session that's
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `submitPrompt`/`retry`/`stop` still set this
@@ -303,8 +306,8 @@ export default function ChatPanel({
               turnDurations={turnDurations}
               replyStartedAt={replyStartedAt}
               onRetry={retry}
-              className="pb-44 justify-end"
-              scrollButtonClassName="bottom-48"
+              className="justify-end"
+              bottomInset={composerHeight}
             />
           </div>
         )}
@@ -348,6 +351,7 @@ export default function ChatPanel({
           onCommand={runCommand}
           onStop={stop}
           onError={setOllamaError}
+          onHeightChange={setComposerHeight}
         />
       </div>
     </div>
