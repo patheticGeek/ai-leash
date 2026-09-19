@@ -49,6 +49,13 @@
   --success-foreground: #052e1e;
   --warning: #fbbf24;
   --warning-foreground: #451a03;
+  /* Solid tinted backgrounds for banners/alerts: each tone's 950 shade mixed
+     30% into the page background — the colour the old translucent tints
+     landed on over --al-bg — so content scrolling behind never shows through
+     and the text stays readable. */
+  --alert-info: color-mix(in srgb, #172554 30%, var(--al-bg));
+  --alert-warning: color-mix(in srgb, #451a03 30%, var(--al-bg));
+  --alert-danger: color-mix(in srgb, #450a0a 30%, var(--al-bg));
   --border: var(--al-border);
   --input: var(--al-border);
   --ring: var(--al-accent);
@@ -144,6 +151,9 @@ TODO
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-alert-info: var(--alert-info);
+  --color-alert-warning: var(--alert-warning);
+  --color-alert-danger: var(--alert-danger);
   --color-raised: var(--raised);
   --color-sunken: var(--sunken);
   --color-popover-foreground: var(--popover-foreground);

@@ -1,5 +1,7 @@
 import { formatClockTime } from "@/lib/format";
+import { AlertAction, AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
+import DockedBanner from "./DockedBanner";
 
 export interface ClaudeRateLimit {
   message: string;
@@ -20,13 +22,13 @@ export default function ClaudeRateLimitBanner({
   onDismiss,
 }: ClaudeRateLimitBannerProps) {
   return (
-    <div className="z-10 mx-7 -mb-4 flex items-center justify-between gap-3 rounded-t-md bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
-      <span>
+    <DockedBanner variant="warning">
+      <AlertDescription>
         {autoResumeArmed
           ? `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
           : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
-      </span>
-      <div className="flex shrink-0 gap-2">
+      </AlertDescription>
+      <AlertAction>
         {autoResumeArmed ? (
           <Button size="sm" variant="outline" onClick={onDismiss}>
             Cancel
@@ -41,7 +43,7 @@ export default function ClaudeRateLimitBanner({
             </Button>
           </>
         )}
-      </div>
-    </div>
+      </AlertAction>
+    </DockedBanner>
   );
 }

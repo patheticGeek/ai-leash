@@ -1,3 +1,4 @@
+import { Alert, AlertAction, AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
 
 interface TranscriptNoticesProps {
@@ -26,32 +27,31 @@ export default function TranscriptNotices({
   return (
     <>
       {ollamaError && (
-        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          {ollamaError}
-        </div>
+        <Alert variant="danger" outline className="sticky top-1">
+          <AlertDescription>{ollamaError}</AlertDescription>
+        </Alert>
       )}
       {acpRestoreFailed && (
-        <div className="sticky top-1 flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          <span>
+        <Alert variant="danger" outline className="sticky top-1">
+          <AlertDescription>
             This agent couldn't restore its previous session ({acpRestoreFailed}
             ). It no longer remembers this conversation.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            onClick={onRetryAcpSession}
-          >
-            Start new session
-          </Button>
-        </div>
+          </AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={onRetryAcpSession}>
+              Start new session
+            </Button>
+          </AlertAction>
+        </Alert>
       )}
       {acpHistoryTruncated && (
-        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/30 px-3 py-2 text-amber-300 text-xs">
-          {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
-          session, so this conversation's earlier history won't be visible to
-          it.
-        </div>
+        <Alert variant="warning" outline className="sticky top-1">
+          <AlertDescription>
+            {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
+            session, so this conversation's earlier history won't be visible to
+            it.
+          </AlertDescription>
+        </Alert>
       )}
     </>
   );
