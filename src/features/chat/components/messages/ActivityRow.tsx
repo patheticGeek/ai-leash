@@ -108,7 +108,7 @@ function ActivityRow({
             variant="quiet"
             size="xs"
             className={cn(
-              "rounded-md",
+              "justify-start rounded-md",
               fullWidth && "w-full min-w-0 text-left",
             )}
           >
