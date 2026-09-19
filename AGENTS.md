@@ -88,11 +88,12 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   our `Button` variants, no `dark:` variants (the app is dark-only and
   has no `.dark` class), no elevation shadows outside floating layers.
   Don't write a component from scratch when the shadcn registry has one
-  — `Marker` (Collapsible), `Questionnaire` (Field/RadioGroup/Checkbox)
-  and `Conversation` (AI Elements) are compositions of registry parts
-  for this reason. The only hand-written ones are those with no
-  registry equivalent: `Logo`, `ResizeHandle`, `json-viewer`, `Markdown`,
-  `ErrorBoundary`. CLI gotchas: it emits `import { cn } from "cn"` (point
+  — check `npx shadcn@latest search @shadcn -q <name>` first (it has
+  `message-scroller`, `questionnaire`, `marker`, `alert`, `empty`, …).
+  The only hand-written ones are those with no
+  registry equivalent: `Logo`, `json-viewer`, `Markdown`, `ErrorBoundary`
+  (`ResizeHandle` predates this rule; the registry's `resizable` is the
+  replacement). CLI gotchas: it emits `import { cn } from "cn"` (point
   it at `@/lib/utils`) and hangs on the overwrite prompt if a dependency
   such as `label` already exists — add the missing files individually.
 - Don't commit or push unless explicitly asked, even mid-task.
