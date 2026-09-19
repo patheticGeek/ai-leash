@@ -2,14 +2,21 @@ import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/ui/conversation";
 import { Marker } from "@/ui/marker";
-import { MessageScroller } from "@/ui/message-scroller";
 import type { PanelEntry } from "../hooks/useChatStream";
 import ChatEntryRenderer from "./ChatEntryRenderer";
 import WorkingForIndicator from "./WorkingForIndicator";
 
 export interface ChatEntryListProps {
+  /** Classes for the transcript column (padding, alignment). */
   className?: string;
+  /** Classes for the "Latest" jump button's wrapper — e.g. to lift it above an overlaid input. */
+  scrollButtonClassName?: string;
   entries: PanelEntry[];
   // These four are top-level-conversation-only concerns (Ollama/ACP-restore
   // banners, the collapsible system prompt block) — optional so a caller
@@ -88,6 +95,7 @@ export default function ChatEntryList({
   onRetry = () => {},
   allowRetry = true,
   className,
+  scrollButtonClassName,
 }: ChatEntryListProps) {
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
@@ -178,122 +186,124 @@ export default function ChatEntryList({
   }
 
   return (
-    <MessageScroller
-      scrollKey={entries}
-      className={className}
-      contentClassName="p-3 space-y-3 text-sm w-full max-w-4xl mx-auto"
-    >
-      {ollamaError && (
-        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          {ollamaError}
-        </div>
-      )}
-      {acpRestoreFailed && (
-        <div className="sticky top-1 flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
-          <span>
-            This agent couldn't restore its previous session ({acpRestoreFailed}
-            ). It no longer remembers this conversation.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            onClick={onRetryAcpSession}
-          >
-            Start new session
-          </Button>
-        </div>
-      )}
-      {acpHistoryTruncated && (
-        <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/30 px-3 py-2 text-amber-300 text-xs">
-          {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
-          session, so this conversation's earlier history won't be visible to
-          it.
-        </div>
-      )}
-      {systemPrompt && (
-        <Marker
-          italic
-          label="system prompt"
-          expanded={systemPromptExpanded}
-          onToggle={() => setSystemPromptExpanded((v) => !v)}
-        >
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
-            {systemPrompt}
-          </pre>
-        </Marker>
-      )}
-      {entries.length === 0 && !ollamaError && (
-        <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
-          <div className="w-full max-w-md text-center">
-            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-raised text-primary-hover shadow-[0_0_0_1px_rgba(58,95,143,0.3),0_10px_26px_rgba(0,0,0,0.2)]">
-              <MessageCircle size={25} strokeWidth={1.6} />
-              <Sparkles
-                size={13}
-                className="absolute -right-1 -top-1 text-amber-300"
-              />
-            </div>
-            <h2 className="text-lg font-medium text-zinc-100">
-              What are we working on?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Ask about your code, plan a change, or let the agent explore the
-              project with you.
-            </p>
+    <Conversation>
+      <ConversationContent
+        className={cn("mx-auto w-full max-w-4xl p-3 text-sm", className)}
+      >
+        {ollamaError && (
+          <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+            {ollamaError}
           </div>
-        </div>
-      )}
-      {renderItems.map((item) => {
-        if (item.kind === "activitygroup") {
-          const { indices } = item;
-          const groupKey = String(indices[0]);
-          const expanded = groupExpanded[groupKey] ?? false;
-          const showToggle = indices.length > 1;
-          const visible =
-            showToggle && !expanded ? [indices[indices.length - 1]] : indices;
-          const thoughtCount = indices.filter(
-            (idx) => entries[idx].kind === "thinking",
-          ).length;
-          const toolCount = indices.filter(
-            (idx) => entries[idx].kind === "tool",
-          ).length;
-          const activitySummary = [
-            thoughtCount > 0 && `${thoughtCount} thoughts`,
-            toolCount > 0 && `${toolCount} tools used`,
-          ]
-            .filter(Boolean)
-            .join(", ");
-          return (
-            <div key={`activity-${groupKey}`} className="space-y-1.5">
-              {visible.map((idx) => renderEntry(idx))}
-              {showToggle && (
-                <Button
-                  variant="quiet"
-                  size="xs"
-                  onClick={() => toggleGroup(groupKey)}
-                  className="rounded-md"
-                >
-                  <ChevronDown
-                    size={11}
-                    className={cn(
-                      "transition-transform duration-200 ease-out",
-                      expanded ? "rotate-180" : "",
-                    )}
-                  />
-                  {expanded ? "Hide" : `Show all (${activitySummary})`}
-                </Button>
-              )}
+        )}
+        {acpRestoreFailed && (
+          <div className="sticky top-1 flex items-center justify-between gap-3 rounded-md shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/30 px-3 py-2 text-red-300 text-xs">
+            <span>
+              This agent couldn't restore its previous session (
+              {acpRestoreFailed}
+              ). It no longer remembers this conversation.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={onRetryAcpSession}
+            >
+              Start new session
+            </Button>
+          </div>
+        )}
+        {acpHistoryTruncated && (
+          <div className="sticky top-1 rounded-md shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/30 px-3 py-2 text-amber-300 text-xs">
+            {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
+            session, so this conversation's earlier history won't be visible to
+            it.
+          </div>
+        )}
+        {systemPrompt && (
+          <Marker
+            italic
+            label="system prompt"
+            expanded={systemPromptExpanded}
+            onToggle={() => setSystemPromptExpanded((v) => !v)}
+          >
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
+              {systemPrompt}
+            </pre>
+          </Marker>
+        )}
+        {entries.length === 0 && !ollamaError && (
+          <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
+            <div className="w-full max-w-md text-center">
+              <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-raised text-primary-hover shadow-[0_0_0_1px_rgba(58,95,143,0.3),0_10px_26px_rgba(0,0,0,0.2)]">
+                <MessageCircle size={25} strokeWidth={1.6} />
+                <Sparkles
+                  size={13}
+                  className="absolute -right-1 -top-1 text-amber-300"
+                />
+              </div>
+              <h2 className="text-lg font-medium text-zinc-100">
+                What are we working on?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">
+                Ask about your code, plan a change, or let the agent explore the
+                project with you.
+              </p>
             </div>
-          );
-        }
-        return renderEntry(item.index);
-      })}
-      {sending && (
-        <WorkingForIndicator
-          hasActivity={hasActivity}
-          replyStartedAt={replyStartedAt}
-        />
-      )}
-    </MessageScroller>
+          </div>
+        )}
+        {renderItems.map((item) => {
+          if (item.kind === "activitygroup") {
+            const { indices } = item;
+            const groupKey = String(indices[0]);
+            const expanded = groupExpanded[groupKey] ?? false;
+            const showToggle = indices.length > 1;
+            const visible =
+              showToggle && !expanded ? [indices[indices.length - 1]] : indices;
+            const thoughtCount = indices.filter(
+              (idx) => entries[idx].kind === "thinking",
+            ).length;
+            const toolCount = indices.filter(
+              (idx) => entries[idx].kind === "tool",
+            ).length;
+            const activitySummary = [
+              thoughtCount > 0 && `${thoughtCount} thoughts`,
+              toolCount > 0 && `${toolCount} tools used`,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            return (
+              <div key={`activity-${groupKey}`} className="space-y-1.5">
+                {visible.map((idx) => renderEntry(idx))}
+                {showToggle && (
+                  <Button
+                    variant="quiet"
+                    size="xs"
+                    onClick={() => toggleGroup(groupKey)}
+                    className="rounded-md"
+                  >
+                    <ChevronDown
+                      size={11}
+                      className={cn(
+                        "transition-transform duration-200 ease-out",
+                        expanded ? "rotate-180" : "",
+                      )}
+                    />
+                    {expanded ? "Hide" : `Show all (${activitySummary})`}
+                  </Button>
+                )}
+              </div>
+            );
+          }
+          return renderEntry(item.index);
+        })}
+        {sending && (
+          <WorkingForIndicator
+            hasActivity={hasActivity}
+            replyStartedAt={replyStartedAt}
+          />
+        )}
+      </ConversationContent>
+      <ConversationScrollButton className={scrollButtonClassName} />
+    </Conversation>
   );
 }

@@ -811,6 +811,7 @@ export default function ChatPanel({
           replyStartedAt={replyStartedAt}
           onRetry={retry}
           className="pb-44 justify-end"
+          scrollButtonClassName="bottom-48"
         />
       </div>
       {inputBar}
