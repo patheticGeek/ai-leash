@@ -303,6 +303,7 @@ mod tests {
             ptys: Mutex::new(HashMap::new()),
             chat_sessions: Mutex::new(HashMap::new()),
             pending_permissions: Mutex::new(HashMap::new()),
+            pending_elicitations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
             touched_dirs: Mutex::new(HashMap::new()),
             session_locks: Mutex::new(HashMap::new()),

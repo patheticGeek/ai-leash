@@ -92,6 +92,87 @@ export interface PermissionRequestPayload {
   detail: string;
 }
 
+// One selectable value of an enum-like property (`oneOf`/`anyOf` entry).
+export interface ElicitationEnumOption {
+  const: string;
+  title: string;
+  description?: string;
+}
+
+// The subset of JSON Schema an ACP `elicitation/create` form may request —
+// mirrors `ElicitationPropertySchema` in the protocol schema. Anything whose
+// `type` isn't one of these arrives as the last, open-ended variant.
+export type ElicitationPropertySchema =
+  | {
+      type: "string";
+      title?: string;
+      description?: string;
+      minLength?: number;
+      maxLength?: number;
+      pattern?: string;
+      format?: "email" | "uri" | "date" | "date-time";
+      default?: string;
+      enum?: string[];
+      oneOf?: ElicitationEnumOption[];
+    }
+  | {
+      type: "number" | "integer";
+      title?: string;
+      description?: string;
+      minimum?: number;
+      maximum?: number;
+      default?: number;
+    }
+  | {
+      type: "boolean";
+      title?: string;
+      description?: string;
+      default?: boolean;
+    }
+  | {
+      type: "array";
+      title?: string;
+      description?: string;
+      minItems?: number;
+      maxItems?: number;
+      items:
+        | { type: "string"; enum: string[] }
+        | { anyOf: ElicitationEnumOption[] };
+      default?: string[];
+    }
+  | {
+      type: string;
+      title?: string;
+      description?: string;
+      [key: string]: unknown;
+    };
+
+export interface ElicitationSchema {
+  type: "object";
+  title?: string;
+  description?: string;
+  properties: Record<string, ElicitationPropertySchema>;
+  required?: string[];
+}
+
+// Payload of the global `elicitation://request` event — the agent asking the
+// user a structured question mid-turn (ACP `elicitation/create`, form mode).
+// Same routing as `PermissionRequestPayload`: one app-wide listener, and
+// `sessionId` picks the project whose composer shows it.
+export interface ElicitationRequestPayload {
+  id: string;
+  sessionId: string;
+  message: string;
+  schema: ElicitationSchema;
+}
+
+export type ElicitationContentValue = string | number | boolean | string[];
+
+export type ElicitationAnswer =
+  | { action: "accept"; content: Record<string, ElicitationContentValue> }
+  | { action: "decline" }
+  | { action: "cancel" };
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -304,6 +385,8 @@ export const api = {
     invoke<void>("respond_permission", { id, approved }),
   setPermissionMode: (sessionId: string, bypass: boolean) =>
     invoke<void>("set_permission_mode", { sessionId, bypass }),
+  respondElicitation: (id: string, answer: ElicitationAnswer) =>
+    invoke<void>("respond_elicitation", { id, answer }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>
     invoke<void>("report_frontend_crash", { kind, message, stack }),
   getCrashLog: () => invoke<string>("get_crash_log"),

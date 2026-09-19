@@ -121,6 +121,23 @@ An external agent uses the same approval prompt when it asks AI Leash for
 permission. Stopping a turn sends a cancellation request to the external
 agent as well.
 
+## Answer an agent's questions
+
+An external agent can stop mid-turn to ask you for structured input, such as a
+choice between approaches or a value it needs. When it does, the chat input is
+replaced by a short form, one question at a time, with the agent's message
+above it. The conversation's row in the sidebar highlights so you can find it
+if you're in another conversation.
+
+- Pick an option, enter a value, or select several, depending on the question.
+  Use **Skip** on optional questions, and **Previous**/**Next** to move around.
+- **Submit** sends your answers to the agent.
+- **Decline** tells the agent you don't want to answer. The close button (or
+  `Esc`) dismisses the form without answering, and so does stopping the turn.
+
+Bypass permission mode doesn't apply here — the agent is asking you, not
+requesting approval, so a form always waits for you.
+
 To run a command yourself rather than asking the agent to use a tool, use
 shell mode from the chat input when it is available. The input is visibly
 marked as shell mode, and the command's output is shown in the conversation.

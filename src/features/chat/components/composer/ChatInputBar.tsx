@@ -5,8 +5,11 @@ import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
 import type {
   AcpCommandInfo,
+  ElicitationAnswer,
+  ElicitationRequestPayload,
   PermissionRequestPayload,
 } from "../../../../lib/tauriApi";
+import ElicitationPopover from "../popovers/ElicitationPopover";
 import PermissionPopover from "../popovers/PermissionPopover";
 import SlashCommandMenu from "../popovers/SlashCommandMenu";
 
@@ -21,6 +24,8 @@ export interface ChatInputBarProps {
   shellMode: boolean;
   pendingPermission: PermissionRequestPayload | null;
   onRespondPermission: (approved: boolean) => void;
+  pendingElicitation: ElicitationRequestPayload | null;
+  onRespondElicitation: (answer: ElicitationAnswer) => void;
   showSlashPopover: boolean;
   slashMatches: AcpCommandInfo[];
   slashActiveIndex: number;
@@ -44,7 +49,7 @@ export interface ChatInputBarProps {
 }
 
 // The textarea + send/stop button + its anchored popovers (permission ask,
-// slash-command autocomplete) — the bottom third of `ChatComposer.tsx`.
+// the agent's questions, slash-command autocomplete) — the bottom third of `ChatComposer.tsx`.
 export default function ChatInputBar({
   input,
   onChange,
@@ -53,6 +58,8 @@ export default function ChatInputBar({
   shellMode,
   pendingPermission,
   onRespondPermission,
+  pendingElicitation,
+  onRespondElicitation,
   showSlashPopover,
   slashMatches,
   slashActiveIndex,
@@ -83,6 +90,13 @@ export default function ChatInputBar({
         <PermissionPopover
           request={pendingPermission}
           onRespond={onRespondPermission}
+          anchorRef={boxRef}
+        />
+      ) : pendingElicitation ? (
+        <ElicitationPopover
+          key={pendingElicitation.id}
+          request={pendingElicitation}
+          onRespond={onRespondElicitation}
           anchorRef={boxRef}
         />
       ) : (

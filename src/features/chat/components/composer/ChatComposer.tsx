@@ -9,6 +9,7 @@ import {
   LOCAL_COMMANDS,
 } from "../../hooks/useChatSession";
 import { useMessageQueue } from "../../hooks/useMessageQueue";
+import { useSessionElicitation } from "../../hooks/useSessionElicitation";
 import { useSessionPermissions } from "../../hooks/useSessionPermissions";
 import { useSlashCommands } from "../../hooks/useSlashCommands";
 import ChatBanners from "../banners/ChatBanners";
@@ -75,6 +76,7 @@ export default function ChatComposer({
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
   const permissions = useSessionPermissions(sessionId, onError);
+  const elicitation = useSessionElicitation(sessionId, onError);
   const queue = useMessageQueue(sending, onSubmit);
   // "/help" shows an overlay over the messages area rather than adding an
   // entry to the transcript — closed by its own X button or, more usually,
@@ -241,6 +243,8 @@ export default function ChatComposer({
           shellMode={shellMode}
           pendingPermission={permissions.pendingPermission}
           onRespondPermission={permissions.respondPermission}
+          pendingElicitation={elicitation.pendingElicitation}
+          onRespondElicitation={elicitation.respondElicitation}
           showSlashPopover={slash.showPopover}
           slashMatches={slash.matches}
           slashActiveIndex={slash.activeIndex}

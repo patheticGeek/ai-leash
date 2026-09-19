@@ -6,6 +6,7 @@ import {
   FolderPlus,
   GitBranch,
   Loader,
+  MessageCircleQuestion,
   SettingsIcon,
   ShieldAlert,
   Trash2,
@@ -28,10 +29,14 @@ import {
   SelectValue,
 } from "@/ui/select";
 import { useGenerating } from "../lib/generatingQuery";
-import type { PermissionRequestPayload } from "../lib/tauriApi";
+import type {
+  ElicitationRequestPayload,
+  PermissionRequestPayload,
+} from "../lib/tauriApi";
 import { useCurrentGitBranch } from "../lib/useCurrentGitBranch";
 import {
   type ConversationSummary,
+  elicitationForSession,
   permissionForSession,
   useAppStore,
 } from "../store";
@@ -82,6 +87,12 @@ function ConversationRow({
     pendingPermissions,
     conversation.id,
   );
+  const pendingElicitations = useAppStore((s) => s.pendingElicitations);
+  const awaitingAnswer = !!elicitationForSession(
+    pendingElicitations,
+    conversation.id,
+  );
+  const needsAttention = awaitingApproval || awaitingAnswer;
 
   // Live — same watcher-backed hook `CheckoutBar` uses, so a branch switch
   // made from there (or from outside the app entirely) shows up here too,
@@ -105,7 +116,7 @@ function ConversationRow({
           active
             ? "bg-white/10 text-zinc-100"
             : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
-          awaitingApproval
+          needsAttention
             ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
             : "",
         )}
@@ -117,7 +128,9 @@ function ConversationRow({
           title={
             awaitingApproval
               ? `${projectName} — needs your approval`
-              : projectName
+              : awaitingAnswer
+                ? `${projectName} — has a question for you`
+                : projectName
           }
           className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
         >
@@ -131,6 +144,13 @@ function ConversationRow({
                 className="shrink-0 text-amber-400"
               >
                 <ShieldAlert size={12} />
+              </span>
+            ) : awaitingAnswer ? (
+              <span
+                title="Waiting for your answer"
+                className="shrink-0 text-amber-400"
+              >
+                <MessageCircleQuestion size={12} />
               </span>
             ) : (
               generating && (
@@ -247,6 +267,10 @@ export default function LeftBar() {
   const resolvePendingPermission = useAppStore(
     (s) => s.resolvePendingPermission,
   );
+  const addPendingElicitation = useAppStore((s) => s.addPendingElicitation);
+  const resolvePendingElicitation = useAppStore(
+    (s) => s.resolvePendingElicitation,
+  );
   // Which project's conversations to show — `null` (the default) means "all
   // projects, all conversations," matching the flat list this sidebar
   // already showed before this filter existed.
@@ -278,13 +302,24 @@ export default function LeftBar() {
       listen<{ id: string }>("permission://resolved", (e) => {
         resolvePendingPermission(e.payload.id);
       }),
+      listen<ElicitationRequestPayload>("elicitation://request", (e) => {
+        addPendingElicitation(e.payload);
+      }),
+      listen<{ id: string }>("elicitation://resolved", (e) => {
+        resolvePendingElicitation(e.payload.id);
+      }),
     ];
     return () => {
       unlistens.forEach((u) => {
         u.then((f) => f());
       });
     };
-  }, [addPendingPermission, resolvePendingPermission]);
+  }, [
+    addPendingPermission,
+    resolvePendingPermission,
+    addPendingElicitation,
+    resolvePendingElicitation,
+  ]);
 
   const filteredConversations = conversations.filter(
     (c) => !projectFilter || c.projectRoot === projectFilter,
