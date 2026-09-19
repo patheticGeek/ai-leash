@@ -13,6 +13,7 @@ mod acp_sessions;
 mod conversations;
 mod messages;
 mod projects;
+mod rate_limit;
 mod sub_agents;
 
 pub use acp_sessions::{
@@ -28,6 +29,9 @@ pub use messages::{
     start_streaming_message, update_streaming_message, update_tool_call_args, PersistedMessage,
 };
 pub use projects::{ensure_project, list_projects, touch_project, ProjectSummary};
+pub use rate_limit::{
+    armed_rate_limit_conversations, get_rate_limit_choice, last_message, set_rate_limit_choice,
+};
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent, list_sub_agents_for_parent, record_sub_agent_finished,
     record_sub_agent_started, SubAgentSummary,
@@ -98,6 +102,11 @@ impl Db {
                 agent_session_id TEXT NOT NULL,
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (conversation_id, launch_command)
+            );
+            CREATE TABLE IF NOT EXISTS rate_limit_resumes (
+                conversation_id TEXT PRIMARY KEY,
+                message_id INTEGER NOT NULL,
+                armed INTEGER NOT NULL
             );
             ",
         )

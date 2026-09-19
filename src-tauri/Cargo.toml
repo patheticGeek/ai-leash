@@ -36,10 +36,12 @@ uuid = { version = "1", features = ["v4", "serde"] }
 toml = "0.8"
 anyhow = "1"
 regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 similar = "2"
 notify = "8.2.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
+chrono-tz = "0.10"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

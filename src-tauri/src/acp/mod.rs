@@ -2,6 +2,7 @@ mod discovery;
 mod events;
 mod permissions;
 mod process;
+pub mod rate_limit;
 
 use crate::chat::{self, ChatMessage};
 use crate::commands;
@@ -51,6 +52,7 @@ pub async fn warm_acp_session(
     model: String,
 ) -> Result<(), String> {
     ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
+    rate_limit::try_fire(&app, &session_id);
     Ok(())
 }
 
@@ -82,6 +84,7 @@ pub async fn send_prompt_acp(
             tool_calls: None,
         },
     );
+    rate_limit::clear(&app, &session_id);
     Ok(())
 }
 

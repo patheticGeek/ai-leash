@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { formatClockTime } from "@/lib/format";
 import { AlertAction, AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
@@ -21,12 +22,27 @@ export default function ClaudeRateLimitBanner({
   onArmAutoResume,
   onDismiss,
 }: ClaudeRateLimitBannerProps) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const delay = rateLimit.resetAt - Date.now();
+    if (delay <= 0) return;
+    const timer = setTimeout(
+      () => setNow(Date.now()),
+      Math.min(delay, 2 ** 31 - 1),
+    );
+    return () => clearTimeout(timer);
+  }, [rateLimit.resetAt]);
+  const alreadyReset = rateLimit.resetAt <= now;
   return (
     <DockedBanner variant="warning">
       <AlertDescription>
         {autoResumeArmed
-          ? `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
-          : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
+          ? alreadyReset
+            ? `Claude's session limit reset at ${formatClockTime(rateLimit.resetAt)}. Resuming now.`
+            : `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
+          : alreadyReset
+            ? `Claude's session limit has reset (${formatClockTime(rateLimit.resetAt)}). Continue now?`
+            : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
       </AlertDescription>
       <AlertAction>
         {autoResumeArmed ? (
@@ -39,7 +55,7 @@ export default function ClaudeRateLimitBanner({
               No
             </Button>
             <Button size="sm" onClick={onArmAutoResume}>
-              Yes, resume automatically
+              {alreadyReset ? "Yes, continue" : "Yes, resume automatically"}
             </Button>
           </>
         )}

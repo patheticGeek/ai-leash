@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   appendChunk,
   appendThinking,
@@ -12,7 +12,6 @@ import {
   type ToolResultPayload,
   updateToolArgs,
 } from "../../../lib/chatEntries";
-import { parseClaudeRateLimit } from "../../../lib/claudeRateLimit";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 
@@ -102,14 +101,6 @@ function updateSubtaskThread(
 export function useChatStream(
   sessionId: string,
   setError: (message: string) => void,
-  // Whether the currently connected backend is Claude Code over ACP — gates
-  // the session-limit detection below (see `parseClaudeRateLimit`) so a
-  // Copilot or builtin-provider error is never misread as one. Called again
-  // with the literal text "continue working" once the user has armed
-  // auto-resume and its reset time arrives; owned by `ChatPanel.tsx` since
-  // that's what already knows how to submit a prompt to this session.
-  isClaudeAcp: boolean,
-  autoResume: () => void,
 ) {
   const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
   const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
@@ -140,26 +131,26 @@ export function useChatStream(
   // reconnect (agent switch back, `/clear`, retry) lands on a connection
   // that *can* resume — see `chat://{sessionId}/acp_history_truncated`.
   const [acpHistoryTruncated, setAcpHistoryTruncated] = useState(false);
-  // Set when the `/error` stream carries a recognized Claude session-limit
-  // message — distinct from `error` (plain banner) since this one offers an
-  // "auto-resume" choice instead of just reporting failure, mirroring
-  // `acpRestoreFailed` above.
-  const [claudeRateLimit, setClaudeRateLimit] = useState<{
+  // A pending Claude session limit, pushed by the backend on
+  // `chat://{sessionId}/rate_limit` (null when there's none) and read once on
+  // mount — the backend derives it from the transcript and owns the
+  // auto-resume timer, so it survives tab switches and app restarts. Distinct
+  // from `error` (plain banner) since it offers an auto-resume choice.
+  const [rateLimit, setRateLimit] = useState<{
     message: string;
     resetAt: number;
+    armed: boolean;
   } | null>(null);
-  // True once the user has clicked "auto-resume" on the banner above — kept
-  // separate from `claudeRateLimit` itself so the banner can switch from
-  // "ask permission" to "will resume at HH:MM" without losing the parsed
-  // reset time it still needs for the timer effect below.
-  const [claudeAutoResumeArmed, setClaudeAutoResumeArmed] = useState(false);
-  // Always holds the latest `autoResume` without making the timer effect
-  // below re-arm itself on every one of `ChatPanel`'s re-renders — that
-  // callback is a fresh closure each render (it's not wrapped in
-  // `useCallback` there), so depending on it directly would restart the
-  // `setTimeout` constantly instead of just letting it count down.
-  const autoResumeRef = useRef(autoResume);
-  autoResumeRef.current = autoResume;
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getRateLimitResume(sessionId).then((pending) => {
+      if (!cancelled) setRateLimit((prev) => prev ?? pending);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     api.loadConversationHistory(sessionId).then((messages) => {
@@ -242,12 +233,22 @@ export function useChatStream(
     // which is cleared right alongside `done`/`error` in `run_with_cancellation`.
     unlistens.push(
       listen<string>(`chat://${sessionId}/error`, (e) => {
-        const resetAt = isClaudeAcp ? parseClaudeRateLimit(e.payload) : null;
-        if (resetAt !== null) {
-          setClaudeRateLimit({ message: e.payload, resetAt });
-          return;
-        }
         setError(e.payload);
+      }),
+    );
+    unlistens.push(
+      listen<typeof rateLimit>(`chat://${sessionId}/rate_limit`, (e) => {
+        setRateLimit(e.payload);
+      }),
+    );
+    // A prompt the backend sent on the user's behalf (the rate-limit
+    // auto-resume) — typed messages are added optimistically by `ChatPanel`.
+    unlistens.push(
+      listen<string>(`chat://${sessionId}/user_message`, (e) => {
+        setEntries((prev) => [
+          ...prev,
+          { kind: "text", role: "user", content: e.payload, time: Date.now() },
+        ]);
       }),
     );
     unlistens.push(
@@ -381,25 +382,7 @@ export function useChatStream(
     openPanelTab,
     setSubAgentEntries,
     setError,
-    isClaudeAcp,
   ]);
-
-  // Counts down to `claudeRateLimit.resetAt` once the user has armed
-  // auto-resume, then fires exactly once — re-armed from scratch (a fresh
-  // `claudeRateLimit` object) rather than reused if a later turn hits
-  // another session limit. Recomputes the delay from `Date.now()` rather
-  // than storing a fixed duration, so it stays correct even if this effect
-  // happens to re-run before it fires.
-  useEffect(() => {
-    if (!claudeAutoResumeArmed || !claudeRateLimit) return;
-    const delay = Math.max(0, claudeRateLimit.resetAt - Date.now());
-    const timer = setTimeout(() => {
-      setClaudeRateLimit(null);
-      setClaudeAutoResumeArmed(false);
-      autoResumeRef.current();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [claudeAutoResumeArmed, claudeRateLimit]);
 
   return {
     entries,
@@ -411,12 +394,9 @@ export function useChatStream(
     acpRestoreFailed,
     clearAcpRestoreFailed: () => setAcpRestoreFailed(null),
     acpHistoryTruncated,
-    claudeRateLimit,
-    claudeAutoResumeArmed,
-    armClaudeAutoResume: () => setClaudeAutoResumeArmed(true),
-    dismissClaudeRateLimit: () => {
-      setClaudeRateLimit(null);
-      setClaudeAutoResumeArmed(false);
-    },
+    claudeRateLimit: rateLimit,
+    claudeAutoResumeArmed: rateLimit?.armed ?? false,
+    armClaudeAutoResume: () => api.armRateLimitResume(sessionId),
+    dismissClaudeRateLimit: () => api.dismissRateLimitResume(sessionId),
   };
 }
