@@ -2,6 +2,7 @@ import { Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Entry, isToolError } from "../../../../lib/chatEntries";
 import Markdown from "../../../../ui/Markdown";
+import SectionLabel from "./SectionLabel";
 
 // Nested rendering for a sub-agent's own transcript, shown inside its
 // parent `spawn_sub_agent` tool-call entry once expanded — deliberately
@@ -17,9 +18,9 @@ export default function SubEntryLine({ entry }: { entry: Entry }) {
           entry.role === "user" ? "text-zinc-400" : "text-zinc-500",
         )}
       >
-        <div className="text-[9px] uppercase tracking-wide text-zinc-700">
+        <SectionLabel>
           {entry.role === "user" ? "task" : "sub-agent"}
-        </div>
+        </SectionLabel>
         {entry.role === "user" ? (
           <div className="whitespace-pre-wrap">{entry.content}</div>
         ) : (

@@ -1,11 +1,9 @@
-import { Bot, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { isToolError } from "../../../../lib/chatEntries";
 import Markdown from "../../../../ui/Markdown";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { ActivityRow } from "./ActivityRow";
 import MessageFooter from "./MessageFooter";
-import SubEntryLine from "./SubEntryLine";
+import ToolEntry from "./ToolEntry";
 
 export interface ChatEntryRendererProps {
   entry: PanelEntry;
@@ -30,10 +28,11 @@ export interface ChatEntryRendererProps {
 
 // Renders one transcript entry ("info"/"text"/"thinking"/"tool") — the
 // counterpart to `ChatEntryList.tsx`'s iteration over the whole array
-// (grouping lives in `entryGrouping.ts`). Also reused as-is by `SubAgentChatTab.tsx` (via `ChatEntryList`) so
-// a sub-agent's own transcript shows tool calls/thinking identically to a
-// top-level conversation's, just with `allowRetry`/`isAcp` forced off and no
-// system-prompt/Ollama/ACP-restore banners.
+// (grouping lives in `entryGrouping.ts`). Also reused as-is by
+// `SubAgentChatTab.tsx` (via `ChatEntryList`) so a sub-agent's own transcript
+// shows tool calls/thinking identically to a top-level conversation's, just
+// with `allowRetry`/`isAcp` forced off and no system-prompt/Ollama/ACP-restore
+// banners.
 export default function ChatEntryRenderer({
   entry,
   isLast,
@@ -106,72 +105,11 @@ export default function ChatEntryRenderer({
     );
   }
 
-  // entry.kind === "tool"
-  const failed = isToolError(entry.result);
-  const Icon =
-    entry.name === "spawn_sub_agent" || entry.name === "sub_agent_result"
-      ? Bot
-      : Wrench;
   return (
-    <ActivityRow
-      fullWidth
-      icon={<Icon />}
-      label={entry.name}
-      summary={JSON.stringify(entry.args)}
-      status={
-        failed ? "failed" : entry.result === undefined ? "running" : undefined
-      }
+    <ToolEntry
+      entry={entry}
       expanded={expanded}
-      onToggle={onToggleExpand}
-    >
-      <div>
-        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
-          input
-        </div>
-        <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap">
-          {JSON.stringify(entry.args, null, 2)}
-        </pre>
-      </div>
-      {entry.subtasks && entry.subtasks.length > 0 && (
-        <div className="space-y-2">
-          {entry.subtasks.map((t) => (
-            <div
-              key={t.subSessionId}
-              className="shadow-[inset_2px_0_0_0_var(--border)] pl-2"
-            >
-              <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
-                {t.description}
-              </div>
-              <div className="space-y-1.5">
-                {t.entries.map((sub, j) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: entries are append-only, never reordered/filtered, and carry no stable id
-                  <SubEntryLine key={j} entry={sub} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {entry.result !== undefined && (
-        <div>
-          <div
-            className={cn(
-              "mb-0.5 text-[9px] uppercase tracking-wide",
-              failed ? "text-red-400" : "text-zinc-700",
-            )}
-          >
-            output
-          </div>
-          <pre
-            className={cn(
-              "select-text max-h-40 overflow-auto whitespace-pre-wrap",
-              failed ? "text-red-300" : "text-zinc-500",
-            )}
-          >
-            {entry.result}
-          </pre>
-        </div>
-      )}
-    </ActivityRow>
+      onToggleExpand={onToggleExpand}
+    />
   );
 }
