@@ -306,10 +306,7 @@ mod tests {
     fn reset_later_the_same_day() {
         let sent = local_secs(2026, 9, 19, 20, 0);
         assert_eq!(
-            parse_reset_at_ms(
-                "You've hit your session limit · resets 11:20pm (Asia/Kolkata)",
-                sent
-            ),
+            parse_reset_at_ms("You've hit your session limit · resets 11:20pm", sent),
             Some(local_ms(2026, 9, 19, 23, 20))
         );
     }
