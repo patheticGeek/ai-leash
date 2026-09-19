@@ -8,7 +8,7 @@ const meta = {
   argTypes: { disabled: { control: "boolean" } },
   decorators: [
     (Story) => (
-      <div className="w-72 rounded-md bg-card p-2 shadow-[var(--al-shadow)]">
+      <div className="w-72 rounded-md bg-card p-2 ring-1 ring-border">
         <Story />
       </div>
     ),

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
 
 const meta = {
@@ -65,4 +66,33 @@ export const VerticalSizes: Story = {
       ))}
     </div>
   ),
+};
+
+export const ClosableStrip: Story = {
+  render: () => {
+    function Strip() {
+      const [tabs, setTabs] = useState(["Chat", "Refactor auth", "main.rs"]);
+      const [active, setActive] = useState("Chat");
+      return (
+        <Tabs value={active} onValueChange={setActive} className="w-96 gap-0">
+          <TabsList variant="strip">
+            {tabs.map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                onClose={
+                  tab === "Chat"
+                    ? undefined
+                    : () => setTabs((prev) => prev.filter((t) => t !== tab))
+                }
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      );
+    }
+    return <Strip />;
+  },
 };

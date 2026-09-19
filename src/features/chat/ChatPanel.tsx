@@ -677,6 +677,7 @@ export default function ChatPanel({
           slashMatches={slashMatches}
           slashActiveIndex={slashActiveIndex}
           onAcceptSlash={acceptSlashCommand}
+          onSlashActiveIndexChange={setSlashIndex}
           sending={sending}
           onSend={send}
           onStop={stop}

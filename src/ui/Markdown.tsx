@@ -1,4 +1,5 @@
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
 const components: Components = {
@@ -16,7 +17,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded-md bg-background px-1 py-0.5 text-zinc-300"
+          className="rounded-md bg-sunken px-1 py-0.5 text-zinc-300"
           {...props}
         >
           {children}
@@ -31,7 +32,7 @@ const components: Components = {
   },
   pre: ({ children, ...props }) => (
     <pre
-      className="my-2 overflow-x-auto rounded-md bg-background p-2.5 text-xs shadow-[var(--al-shadow)]"
+      className="my-2 overflow-x-auto rounded-md bg-sunken p-2.5 text-xs"
       {...props}
     >
       {children}
@@ -114,7 +115,10 @@ const components: Components = {
 export default function Markdown({ content }: { content: string }) {
   return (
     <div className="text-sm leading-relaxed wrap-break-word [&>*:last-child]:mb-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={components}
+      >
         {content}
       </ReactMarkdown>
     </div>

@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
@@ -146,9 +147,14 @@ export default function TitleBar({
         <div className="flex min-w-0 items-center gap-1.5 ml-1.5">
           <Logo className="h-3.5 w-auto shrink-0" />
           {BUILD_LABEL && (
-            <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-wide text-amber-400">
+            <Badge
+              size="sm"
+              variant="warning"
+              outline
+              className="font-semibold"
+            >
               {BUILD_LABEL}
-            </span>
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -166,7 +172,7 @@ export default function TitleBar({
         data-tauri-drag-region
         className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-background"
       >
-        {project && !debugModeEnabled && (
+        {project && !debugShowIds && (
           <span className="min-w-0 truncate">
             {project.name}
             {isNewThread ? (

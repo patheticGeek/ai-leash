@@ -11,9 +11,15 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { type MouseEvent, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/ui/context-menu";
 import {
   Select,
   SelectContent,
@@ -34,19 +40,40 @@ import {
 // string item value (that's reserved to mean "no selection").
 const ALL_PROJECTS = "all";
 
+// Right-click menu shared by both conversation row kinds.
+function ConversationContextMenu({
+  onDelete,
+  children,
+}: {
+  onDelete: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem variant="danger" onSelect={onDelete}>
+          <Trash2 />
+          Delete conversation
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 function ConversationRow({
   conversation,
   projectName,
   active,
   onClick,
-  onContextMenu,
+  onDelete,
   onMarkDone,
 }: {
   conversation: ConversationSummary;
   projectName: string;
   active: boolean;
   onClick: () => void;
-  onContextMenu: (event: MouseEvent) => void;
+  onDelete: () => void;
   onMarkDone: () => void;
 }) {
   const generating = useGenerating(conversation.id).active;
@@ -71,79 +98,88 @@ function ConversationRow({
       : "primary");
 
   return (
-    <div
-      className={cn(
-        "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm",
-        active
-          ? "bg-white/10 text-zinc-100"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
-        awaitingApproval
-          ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
-          : "",
-      )}
-    >
-      <Button
-        variant="unstyled"
-        size="none"
-        onClick={onClick}
-        onContextMenu={onContextMenu}
-        title={
+    <ConversationContextMenu onDelete={onDelete}>
+      <div
+        className={cn(
+          "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm",
+          active
+            ? "bg-white/10 text-zinc-100"
+            : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
           awaitingApproval
-            ? `${projectName} — needs your approval`
-            : projectName
-        }
-        className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
+            ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
+            : "",
+        )}
       >
-        <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
-          <span className="min-w-0 flex-1 truncate text-zinc-200">
-            {conversation.title || "New conversation"}
-          </span>
-          {awaitingApproval ? (
-            <span
-              title="Permission required"
-              className="shrink-0 text-amber-400"
-            >
-              <ShieldAlert size={12} />
+        <Button
+          variant="unstyled"
+          size="none"
+          onClick={onClick}
+          title={
+            awaitingApproval
+              ? `${projectName} — needs your approval`
+              : projectName
+          }
+          className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
+        >
+          <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
+            <span className="min-w-0 flex-1 truncate text-zinc-200">
+              {conversation.title || "New conversation"}
             </span>
-          ) : (
-            generating && (
-              <span title="Working" className="shrink-0 text-blue-400">
-                <Loader size={12} className="animate-spin" />
+            {awaitingApproval ? (
+              <span
+                title="Permission required"
+                className="shrink-0 text-amber-400"
+              >
+                <ShieldAlert size={12} />
               </span>
-            )
-          )}
+            ) : (
+              generating && (
+                <span title="Working" className="shrink-0 text-blue-400">
+                  <Loader size={12} className="animate-spin" />
+                </span>
+              )
+            )}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            title="Mark as done"
-            onClick={(event) => {
-              event.stopPropagation();
-              onMarkDone();
-            }}
-            className="absolute right-0 z-10 gap-1 -mr-2 px-1.5 text-xs bg-zinc-700 hover:bg-zinc-800 opacity-0 text-zinc-400 hover:text-emerald-400 group-hover:opacity-100"
-          >
-            <Check size={12} />
-            done
-          </Button>
-        </span>
-
-        <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
-          <Folder className="size-2.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate" title={projectAndWorkspace}>
-            {projectAndWorkspace}
+            <Button
+              variant="chip"
+              size="sm"
+              title="Mark as done"
+              onClick={(event) => {
+                event.stopPropagation();
+                onMarkDone();
+              }}
+              // Overlays the title text, so it needs an opaque background
+              // (chip's own is translucent).
+              className={cn(
+                "absolute right-0 z-10 -mr-2 bg-raised hover:bg-raised hover:text-emerald-400",
+                revealOnGroupHover,
+              )}
+            >
+              <Check size={12} />
+              done
+            </Button>
           </span>
-          {branchName && (
-            <>
-              <GitBranch className="size-2.5 shrink-0" />
-              <span className="max-w-28 shrink-0 truncate" title={branchName}>
-                {branchName}
-              </span>
-            </>
-          )}
-        </span>
-      </Button>
-    </div>
+
+          <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
+            <Folder className="size-2.5 shrink-0" />
+            <span
+              className="min-w-0 flex-1 truncate"
+              title={projectAndWorkspace}
+            >
+              {projectAndWorkspace}
+            </span>
+            {branchName && (
+              <>
+                <GitBranch className="size-2.5 shrink-0" />
+                <span className="max-w-28 shrink-0 truncate" title={branchName}>
+                  {branchName}
+                </span>
+              </>
+            )}
+          </span>
+        </Button>
+      </div>
+    </ConversationContextMenu>
   );
 }
 
@@ -153,47 +189,48 @@ function DoneConversationRow({
   conversation,
   active,
   onClick,
-  onContextMenu,
+  onDelete,
   onUndo,
 }: {
   conversation: ConversationSummary;
   active: boolean;
   onClick: () => void;
-  onContextMenu: (event: MouseEvent) => void;
+  onDelete: () => void;
   onUndo: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        "mx-1.5 flex items-stretch gap-2 rounded-md text-sm",
-        active
-          ? "bg-white/10 text-zinc-100"
-          : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300",
-      )}
-    >
-      <Button
-        variant="unstyled"
-        size="none"
-        onClick={onClick}
-        onContextMenu={onContextMenu}
-        title={conversation.title || "New conversation"}
-        className="min-w-0 flex-1 justify-start truncate text-left px-3 py-1.5"
+    <ConversationContextMenu onDelete={onDelete}>
+      <div
+        className={cn(
+          "mx-1.5 flex items-stretch gap-2 rounded-md text-sm",
+          active
+            ? "bg-white/10 text-zinc-100"
+            : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300",
+        )}
       >
-        {conversation.title || "New conversation"}
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        title="Mark as not done"
-        onClick={(event) => {
-          event.stopPropagation();
-          onUndo();
-        }}
-        className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3 py-4"
-      >
-        <Undo2 size={14} />
-      </Button>
-    </div>
+        <Button
+          variant="unstyled"
+          size="none"
+          onClick={onClick}
+          title={conversation.title || "New conversation"}
+          className="min-w-0 flex-1 justify-start truncate text-left px-3 py-1.5"
+        >
+          {conversation.title || "New conversation"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          title="Mark as not done"
+          onClick={(event) => {
+            event.stopPropagation();
+            onUndo();
+          }}
+          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3 py-4"
+        >
+          <Undo2 size={14} />
+        </Button>
+      </div>
+    </ConversationContextMenu>
   );
 }
 
@@ -210,11 +247,6 @@ export default function LeftBar() {
   const resolvePendingPermission = useAppStore(
     (s) => s.resolvePendingPermission,
   );
-  const [contextMenu, setContextMenu] = useState<{
-    conversation: ConversationSummary;
-    x: number;
-    y: number;
-  } | null>(null);
   // Which project's conversations to show — `null` (the default) means "all
   // projects, all conversations," matching the flat list this sidebar
   // already showed before this filter existed.
@@ -231,20 +263,6 @@ export default function LeftBar() {
       await addProject(dir);
     }
   }
-
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [contextMenu]);
 
   // One global event carrying its own `sessionId` (see
   // `tools::request_permission`), same shape as `chat://generating` — so
@@ -340,15 +358,7 @@ export default function LeftBar() {
                 }
                 active={c.id === activeSessionId}
                 onClick={() => openConversation(c.id)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setContextMenu({
-                    conversation: c,
-                    x: event.clientX,
-                    y: event.clientY,
-                  });
-                }}
+                onDelete={() => deleteConversation(c.id)}
                 onMarkDone={() => setConversationDone(c.id, true)}
               />
             ))}
@@ -364,15 +374,7 @@ export default function LeftBar() {
                     conversation={c}
                     active={c.id === activeSessionId}
                     onClick={() => openConversation(c.id)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setContextMenu({
-                        conversation: c,
-                        x: event.clientX,
-                        y: event.clientY,
-                      });
-                    }}
+                    onDelete={() => deleteConversation(c.id)}
                     onUndo={() => setConversationDone(c.id, false)}
                   />
                 ))}
@@ -405,26 +407,6 @@ export default function LeftBar() {
           Settings
         </Button>
       </div>
-      {contextMenu && (
-        <div
-          className="fixed z-50 min-w-36 rounded-md bg-raised p-1 shadow-[var(--al-shadow)]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Button
-            variant="danger"
-            size="sm"
-            className="w-full justify-start gap-2"
-            onClick={() => {
-              deleteConversation(contextMenu.conversation.id);
-              setContextMenu(null);
-            }}
-          >
-            <Trash2 size={14} />
-            Delete conversation
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,17 +1,9 @@
 import { useEffect } from "react";
-import { cn } from "@/lib/utils";
 import { messagesToEntries } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
-import { Badge } from "../../ui/badge";
 import ChatEntryList from "./components/ChatEntryList";
-
-const statusStyles: Record<string, string> = {
-  running:
-    "text-amber-400 shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20",
-  done: "text-emerald-400 shadow-[0_0_0_1px_rgba(6,78,59,0.5)] bg-emerald-950/20",
-  error: "text-red-400 shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20",
-};
+import SubAgentStatusBadge from "./SubAgentStatusBadge";
 
 // Shows a sub-agent's own transcript through the same `ChatEntryList`/
 // `ChatEntryRenderer` a top-level conversation uses — tool calls and
@@ -46,18 +38,10 @@ export default function SubAgentChatTab({
   }, [subSessionId, rawEntries, setSubAgentEntries]);
 
   const running = task?.status === "running";
-
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        <Badge
-          className={cn(
-            "h-auto shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide",
-            statusStyles[task?.status ?? "done"],
-          )}
-        >
-          {task?.status === "running" ? "running…" : (task?.status ?? "done")}
-        </Badge>
+        <SubAgentStatusBadge status={task?.status ?? "done"} />
         <span className="min-w-0 flex-1 truncate text-zinc-300">
           {task?.description}
         </span>

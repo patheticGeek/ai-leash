@@ -173,7 +173,7 @@ export const ChipStates: Story = {
 export const MenuItems: Story = {
   name: "Menu items (data-active marks the selected row)",
   render: () => (
-    <div className="w-56 rounded-md bg-popover py-1 shadow-[var(--al-shadow)]">
+    <div className="w-56 rounded-md bg-popover py-1 shadow-[var(--al-shadow-floating)]">
       {["Sonnet", "Opus", "Haiku"].map((label, i) => (
         <Button
           key={label}
@@ -200,7 +200,7 @@ export const Card: Story = {
 export const RevealOnHover: Story = {
   name: "revealOnGroupHover (row actions)",
   render: () => (
-    <div className="group flex w-64 items-center justify-between rounded-md bg-card px-3 py-2 shadow-[var(--al-shadow)]">
+    <div className="group flex w-64 items-center justify-between rounded-md bg-card px-3 py-2 ring-1 ring-border">
       <span className="text-sm">Hover this row</span>
       <Button
         variant="danger"

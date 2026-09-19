@@ -1,7 +1,8 @@
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { type PanelTabKind, useAppStore } from "../../store";
 import TabPicker from "./TabPicker";
 import { PANEL_TAB_KINDS } from "./tabKinds";
@@ -39,58 +40,47 @@ export default function SidePanel() {
 
   return (
     <div className="flex h-full flex-col bg-sunken">
-      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
-        {panelTabs.map((tab) => {
-          const dirty =
-            tab.kind === "file" &&
-            !!openFiles.find((f) => f.path === tab.path)?.dirty;
-          const active = tab.id === activePanelTabId && !showPicker;
-          return (
-            <div
-              key={tab.id}
-              className={cn(
-                "flex shrink-0 items-center rounded-md text-xs cursor-pointer transition-colors duration-150 ease-out",
-                active
-                  ? "bg-white/10 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300",
-              )}
-            >
-              <Button
-                variant="unstyled"
-                size="none"
-                onClick={() => {
-                  setActivePanelTab(tab.id);
-                  setPickerOpen(false);
-                }}
-                className="flex items-center pl-2 pr-1.5 py-1.5 gap-1.5"
-              >
-                <span className="max-w-[10rem] truncate">{tab.label}</span>
-                {tab.kind === "subagents" && runningSubAgents > 0 && (
-                  <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                    {runningSubAgents}
-                  </span>
-                )}
-                {dirty && (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
-                )}
-              </Button>
-              <Button
-                variant="quiet"
-                size="icon-sm"
-                title="Close tab"
-                onClick={() => closePanelTab(tab.id)}
-              >
-                <X size={12} />
-              </Button>
-            </div>
-          );
-        })}
+      <div className="flex shrink-0 items-center pr-1.5">
+        <Tabs
+          value={showPicker ? "" : (activePanelTabId ?? "")}
+          onValueChange={(id) => {
+            setActivePanelTab(id);
+            setPickerOpen(false);
+          }}
+          className="min-w-0 flex-1 gap-0"
+        >
+          <TabsList variant="strip">
+            {panelTabs.map((tab) => {
+              const dirty =
+                tab.kind === "file" &&
+                !!openFiles.find((f) => f.path === tab.path)?.dirty;
+              return (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  onClose={() => closePanelTab(tab.id)}
+                  className="gap-1.5"
+                >
+                  <span className="max-w-[10rem] truncate">{tab.label}</span>
+                  {tab.kind === "subagents" && runningSubAgents > 0 && (
+                    <Badge size="count" className="h-4 min-w-4 px-1.5">
+                      {runningSubAgents}
+                    </Badge>
+                  )}
+                  {dirty && (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+                  )}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setPickerOpen(true)}
           title="Open tab"
-          className="ml-auto shrink-0"
+          className="shrink-0"
         >
           <Plus size={14} />
         </Button>

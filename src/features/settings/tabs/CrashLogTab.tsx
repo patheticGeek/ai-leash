@@ -54,7 +54,7 @@ export default function CrashLogTab() {
         including ones from a previous run, so you can find out what happened
         after restarting the app.
       </div>
-      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded-md bg-sunken p-2.5 text-xs text-zinc-400 shadow-[var(--al-shadow)]">
+      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded-md bg-sunken p-2.5 text-xs text-zinc-400">
         {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
       </pre>
     </div>

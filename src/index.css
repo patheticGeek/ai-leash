@@ -18,7 +18,10 @@
   --al-accent: #3a5f8f;
   --al-accent-hover: #4a6f9f;
 
-  --al-shadow:
+  /* Outline + drop shadow for layers that float over other content
+     (popovers, menus, the chat input). In-flow surfaces should step
+     between --background/--raised/--sunken instead. */
+  --al-shadow-floating:
     0 1px 4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
 
   /* ai-leash is dark-only (see `color-scheme: dark` above) — shadcn's
@@ -171,9 +174,14 @@ TODO
 }
 
 .shine-text {
-  background: linear-gradient(100deg, #52525b 30%, #d4d4d8 50%, #52525b 70%);
-  background-size: 250% 100%;
-  background-position: -100% 0;
+  /* The highlight sits mid-image and the image is 3x the text's width, so at
+     both ends of the sweep the text only sees flat grey — the loop restarts
+     seamlessly instead of jumping. No-repeat keeps a second tile from
+     showing the highlight again at the end. */
+  background: linear-gradient(100deg, #52525b 40%, #d4d4d8 50%, #52525b 60%);
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  background-position: 100% 0;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -185,7 +193,7 @@ TODO
     background-position: 100% 0;
   }
   to {
-    background-position: -100% 0;
+    background-position: 0% 0;
   }
 }
 

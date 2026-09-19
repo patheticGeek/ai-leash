@@ -35,7 +35,7 @@ export const FullWindow: Story = {
 export const InsidePanel: Story = {
   decorators: [
     (Story) => (
-      <div className="h-80 w-[28rem] overflow-hidden rounded-xl shadow-[var(--al-shadow)]">
+      <div className="h-80 w-[28rem] overflow-hidden rounded-xl ring-1 ring-border">
         <Story />
       </div>
     ),

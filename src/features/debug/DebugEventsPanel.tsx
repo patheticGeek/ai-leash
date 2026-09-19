@@ -143,10 +143,7 @@ function DebugEventsList({ events }: { events: AcpDebugEvent[] }) {
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
       <div className="space-y-2">
         {events.map((item) => (
-          <div
-            key={item.id}
-            className="rounded-md bg-card px-2.5 py-2 shadow-[var(--al-shadow)]"
-          >
+          <div key={item.id} className="rounded-md bg-raised px-2.5 py-2">
             <div className="mb-1 flex items-center gap-2 text-[11px]">
               <span
                 className={

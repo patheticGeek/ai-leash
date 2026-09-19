@@ -1,7 +1,8 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, X } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
 import { useGenerating } from "../lib/generatingQuery";
@@ -75,56 +76,47 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-background">
-        {chatTabs.map((tab) => {
-          const isActive = tab.id === activeChatTabId;
-          const running =
-            tab.kind === "primary"
-              ? primaryGenerating
-              : subAgentTasks.find((t) => t.subSessionId === tab.subSessionId)
-                  ?.status === "running";
-          // Only shine while this tab isn't the one you're already looking
-          // at — the active tab's own content already shows its running
-          // state (the "Working for…"/"Waiting" indicator), so shining the
-          // tab title too would just be redundant right where it matters
-          // least.
-          const shine = running && !isActive;
-          return (
-            <div
-              key={tab.id}
-              className={cn(
-                "flex shrink-0 items-center rounded-md text-xs cursor-pointer transition-colors duration-150 ease-out",
-                isActive
-                  ? "bg-white/10 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300",
-              )}
-            >
-              <Button
-                variant="unstyled"
-                size="none"
-                onClick={() => setActiveChatTab(tab.id)}
-                className={cn(
-                  "max-w-[12rem] truncate text-left pl-2 py-1.5",
-                  tab.kind !== "subagent" ? "pr-2" : "pr-1.5",
-                  shine && "shine-text",
-                )}
+      <Tabs
+        value={activeChatTabId}
+        onValueChange={setActiveChatTab}
+        className="shrink-0 gap-0 bg-background"
+      >
+        <TabsList variant="strip">
+          {chatTabs.map((tab) => {
+            const running =
+              tab.kind === "primary"
+                ? primaryGenerating
+                : subAgentTasks.find((t) => t.subSessionId === tab.subSessionId)
+                    ?.status === "running";
+            // Only shine while this tab isn't the one you're already looking
+            // at — the active tab's own content already shows its running
+            // state (the "Working for…"/"Waiting" indicator), so shining the
+            // tab title too would just be redundant right where it matters
+            // least.
+            const shine = running && tab.id !== activeChatTabId;
+            return (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                onClose={
+                  tab.kind === "subagent"
+                    ? () => closeChatTab(tab.id)
+                    : undefined
+                }
               >
-                {tab.label}
-              </Button>
-              {tab.kind === "subagent" && (
-                <Button
-                  variant="quiet"
-                  size="icon-sm"
-                  title="Close tab"
-                  onClick={() => closeChatTab(tab.id)}
+                <span
+                  className={cn(
+                    "max-w-[12rem] truncate",
+                    shine && "shine-text",
+                  )}
                 >
-                  <X size={12} />
-                </Button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  {tab.label}
+                </span>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
       <div className="relative flex-1 min-h-0">
         <div
           className={

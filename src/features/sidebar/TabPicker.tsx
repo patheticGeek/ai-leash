@@ -1,3 +1,4 @@
+import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { PICKER_TAB_KINDS } from "./tabKinds";
@@ -36,9 +37,9 @@ export default function TabPicker({
             className="relative"
           >
             {tile.kind === "subagents" && runningSubAgents > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+              <Badge size="count" className="absolute -right-1.5 -top-1.5">
                 {runningSubAgents}
-              </span>
+              </Badge>
             )}
             <div className="flex w-full items-center gap-2">
               {tile.icon && <tile.icon size={16} className="text-zinc-500" />}

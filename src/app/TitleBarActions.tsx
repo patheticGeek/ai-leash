@@ -1,7 +1,9 @@
 import { ChevronDown, Play, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { Command, CommandItem, CommandList } from "@/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
@@ -26,25 +28,6 @@ export default function TitleBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, refresh, checkoutPath } = useActions();
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
 
   const current = pickCurrent(actions);
   if (!current) return null;
@@ -63,10 +46,11 @@ export default function TitleBarActions() {
   }
 
   return (
-    <div ref={rootRef} className="relative flex shrink-0 items-center">
-      <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="flex shrink-0 items-center gap-px">
         <Button
-          variant={current.running ? "chip-warning" : "unstyled"}
+          variant={current.running ? "chip-warning" : "chip"}
+          bordered={false}
           size="sm"
           onClick={() => handleToggle(current)}
           title={
@@ -74,57 +58,53 @@ export default function TitleBarActions() {
           }
           className={cn(
             "flex min-w-0 max-w-[160px]",
-            !current.running &&
-              "rounded-md text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+            rest.length > 0 && "rounded-r-none",
           )}
         >
           {current.running ? <Square size={11} /> : <Play size={11} />}
           <span className="truncate">{current.name}</span>
         </Button>
         {rest.length > 0 && (
-          <Button
-            variant="ghost"
-            size="none"
-            onClick={() => setOpen((o) => !o)}
-            title="Other actions"
-            className="flex items-center rounded-r-md px-1 py-1 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]"
-          >
-            <ChevronDown size={12} />
-          </Button>
+          <PopoverTrigger asChild>
+            <Button
+              variant="chip"
+              size="sm"
+              title="Other actions"
+              className="rounded-l-none px-1.5"
+            >
+              <ChevronDown size={12} />
+            </Button>
+          </PopoverTrigger>
         )}
       </div>
-      {open && rest.length > 0 && (
-        <div className="absolute top-full right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-card shadow-2xl shadow-black/60 ring-1 ring-white/5">
-          <div className="max-h-72 overflow-auto py-1">
+      <PopoverContent align="end" className="w-56 gap-0 p-0">
+        <Command>
+          <CommandList>
             {rest.map((action) => (
-              <Button
+              <CommandItem
                 key={action.id}
-                variant="menu-item"
-                size="none"
-                onClick={() => {
+                value={action.id}
+                onSelect={() => {
                   handleToggle(action);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2"
               >
                 {action.running ? (
-                  <Square size={11} className="shrink-0 text-amber-400" />
+                  <Square size={11} className="shrink-0 text-warning" />
                 ) : (
                   <Play size={11} className="shrink-0 text-zinc-500" />
                 )}
-                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">
-                  {action.name}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{action.name}</span>
                 {action.running && (
-                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-amber-400">
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-warning">
                     running
                   </span>
                 )}
-              </Button>
+              </CommandItem>
             ))}
-          </div>
-        </div>
-      )}
-    </div>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -1,6 +1,5 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
@@ -82,35 +81,33 @@ export default function ActionsTab() {
       {actions.map((action) => (
         <Card
           key={action.id}
-          className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--primary)]"
+          interactive
+          className="group flex-row items-stretch gap-0 rounded-md py-0 text-xs"
         >
-          <div className="flex items-center gap-2">
-            <Button
-              variant="unstyled"
-              size="none"
-              onClick={() => openTerminal(action)}
-              className="min-w-0 flex-1 text-left flex-col items-start"
-            >
-              <div className="flex items-center gap-2">
-                <Badge
-                  className={cn(
-                    "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                    action.running
-                      ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
-                      : "shadow-[0_0_0_1px_var(--border)] bg-zinc-900/40 text-zinc-500",
-                  )}
-                >
-                  {action.running ? "running…" : "stopped"}
-                </Badge>
-                <span className="min-w-0 flex-1 truncate text-zinc-300">
-                  {action.name}
-                </span>
-              </div>
-
-              <div className="mt-1 truncate text-xs text-zinc-600">
-                {action.command}
-              </div>
-            </Button>
+          <Button
+            variant="unstyled"
+            size="none"
+            onClick={() => openTerminal(action)}
+            className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
+          >
+            <div className="flex w-full items-center gap-2">
+              <Badge
+                size="sm"
+                variant={action.running ? "warning" : "muted"}
+                outline
+                className="shrink-0"
+              >
+                {action.running ? "running…" : "stopped"}
+              </Badge>
+              <span className="min-w-0 flex-1 truncate text-zinc-300">
+                {action.name}
+              </span>
+            </div>
+            <div className="mt-1 w-full truncate text-xs text-zinc-600">
+              {action.command}
+            </div>
+          </Button>
+          <div className="flex shrink-0 items-center gap-1 pr-2">
             <Button
               variant="danger"
               size="icon-sm"
@@ -167,12 +164,7 @@ export default function ActionsTab() {
           </div>
         </div>
       ) : (
-        <Button
-          variant="secondary"
-          size="md"
-          onClick={startAdd}
-          className="justify-center"
-        >
+        <Button variant="ghost" size="md" onClick={startAdd}>
           <Plus size={14} />
           Add action
         </Button>
