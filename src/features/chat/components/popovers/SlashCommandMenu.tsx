@@ -15,7 +15,7 @@ export interface SlashCommandMenuProps {
 // The "/" autocomplete list anchored above the chat input. Presentational —
 // which commands match what's typed, the highlighted index, and the
 // dismissed-until-query-changes bookkeeping all live in `useSlashCommands.ts`
-// (driven from `ChatPanel.tsx`), since the same
+// (driven from `ChatComposer.tsx`), since the same
 // keydown handler that drives this list's arrow-key/Tab/Escape navigation
 // also has to fall through to "send the message" on a plain Enter — splitting
 // that one handler across a component boundary risked subtly changing which

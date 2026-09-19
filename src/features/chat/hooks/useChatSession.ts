@@ -50,11 +50,6 @@ export const COMPACT_COMMAND: AcpCommandInfo = {
 export function useChatSession(
   sessionId: string,
   setError: (message: string | null) => void,
-  // Runs whenever the connected ACP agent changes and this hook resets its
-  // own ACP-related state — lets the caller reset state it owns that also
-  // needs to go stale at the same time (currently just the slash-command
-  // popover's dismissed-query bookkeeping from `useSlashCommands`).
-  onAcpAgentReset: () => void,
 ) {
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);
   const providerSettings = useAppStore((s) => s.providerSettings);
@@ -208,7 +203,6 @@ export function useChatSession(
   // (`selectBackendOption`) isn't lost by this: it goes through
   // `pendingCrossAgentModelRef` instead of `acpModelChoice` until the new
   // connection is actually live (see that ref's doc comment).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: onAcpAgentReset is a fresh function reference every render (not memoized) and would make this effect re-run every render for no reason — it's only meant to fire alongside a real `acpActiveId` change, guarded above
   useEffect(() => {
     if (lastResetAcpActiveIdRef.current === acpActiveId) return;
     lastResetAcpActiveIdRef.current = acpActiveId;
@@ -219,7 +213,6 @@ export function useChatSession(
     setAcpEffortChoice(null);
     appliedAcpEffortRef.current = null;
     setAcpCommands([]);
-    onAcpAgentReset();
   }, [acpActiveId]);
 
   // Drops the live-discovered model/effort/commands options (and the
@@ -227,7 +220,7 @@ export function useChatSession(
   // touching the persisted `acpModelChoice`/`acpEffortChoice` preference or
   // which agent is active — unlike the agent-switch reset effect above,
   // which agent this conversation talks to hasn't changed here. For "/clear"
-  // (`ChatPanel.tsx`'s `runLocalCommand`): the backend drops its connection
+  // (`ChatPanel.tsx`'s `runCommand`): the backend drops its connection
   // to the same agent and reconnects fresh, which re-announces these same
   // options and re-applies the still-remembered choice once it arrives — in
   // the meantime the old, now-stale options shouldn't keep showing as if
@@ -569,3 +562,5 @@ export function useChatSession(
     resetAcpConnectionState,
   };
 }
+
+export type ChatSession = ReturnType<typeof useChatSession>;

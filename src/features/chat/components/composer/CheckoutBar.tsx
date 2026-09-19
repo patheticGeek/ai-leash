@@ -31,7 +31,7 @@ import {
 } from "../../../../lib/tauriApi";
 import { useCurrentGitBranch } from "../../../../lib/useCurrentGitBranch";
 
-interface CheckoutBarProps {
+export interface CheckoutBarProps {
   sessionId: string;
   projectRoot: string;
   // The conversation's currently-active checkout — the primary root, or a

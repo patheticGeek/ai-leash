@@ -35,7 +35,7 @@ interface ModelPickerPopoverProps {
   loading?: boolean;
   // Controlled from outside (rather than the plain internal toggle this
   // started with) so the "/model" local command can pop it open without a
-  // real click — see `ChatPanel.tsx`'s `runLocalCommand`.
+  // real click — see `ChatComposer.tsx`'s `runLocalCommand`.
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

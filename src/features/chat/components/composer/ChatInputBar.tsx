@@ -30,7 +30,7 @@ export interface ChatInputBarProps {
   onSend: () => void;
   onStop: () => void;
   // Only reachable while `sending` and the box has text — see
-  // `ChatPanel.tsx`'s `queueMessage`. Sits alongside `onStop`, which stays
+  // `ChatComposer.tsx`'s `queueMessage`. Sits alongside `onStop`, which stays
   // available throughout.
   onQueue: () => void;
   sendDisabled: boolean;
@@ -44,7 +44,7 @@ export interface ChatInputBarProps {
 }
 
 // The textarea + send/stop button + its anchored popovers (permission ask,
-// slash-command autocomplete) — the bottom third of `ChatPanel.tsx`.
+// slash-command autocomplete) — the bottom third of `ChatComposer.tsx`.
 export default function ChatInputBar({
   input,
   onChange,
