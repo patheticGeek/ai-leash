@@ -148,7 +148,11 @@ function Questionnaire({
                     onValueChange={(value) => toggleOption(q, value)}
                   >
                     {q.options.map((o) => (
-                      <FieldLabel key={o.value} htmlFor={`${q.id}-${o.value}`}>
+                      <FieldLabel
+                        key={o.value}
+                        htmlFor={`${q.id}-${o.value}`}
+                        className="cursor-pointer"
+                      >
                         <Field orientation="horizontal">
                           <RadioGroupItem
                             id={`${q.id}-${o.value}`}
@@ -169,7 +173,11 @@ function Questionnaire({
                 ) : (
                   <FieldGroup data-slot="checkbox-group" className="gap-2">
                     {q.options.map((o) => (
-                      <FieldLabel key={o.value} htmlFor={`${q.id}-${o.value}`}>
+                      <FieldLabel
+                        key={o.value}
+                        htmlFor={`${q.id}-${o.value}`}
+                        className="cursor-pointer"
+                      >
                         <Field orientation="horizontal">
                           <Checkbox
                             id={`${q.id}-${o.value}`}
