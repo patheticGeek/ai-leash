@@ -1,7 +1,7 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/ui/badge";
-import { Button } from "@/ui/button";
+import { Button, revealOnHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
@@ -76,7 +76,7 @@ export default function SubAgentsTab() {
         return (
           <Card
             key={task.subSessionId}
-            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_#3a5f8f]"
+            className="group cursor-default gap-0 rounded-md px-2.5 py-1.5 text-xs shadow-[var(--al-shadow)] transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--primary)]"
           >
             <div className="flex items-center gap-2">
               <Button
@@ -100,7 +100,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Stop sub-agent"
                   onClick={() => void api.cancelPrompt(task.subSessionId)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                  className={revealOnHover}
                 >
                   <Square size={12} />
                 </Button>
@@ -110,7 +110,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Delete sub-agent"
                   onClick={() => deleteSubAgentTask(task.subSessionId)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100"
+                  className={revealOnHover}
                 >
                   <Trash2 size={12} />
                 </Button>

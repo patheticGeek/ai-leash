@@ -8,8 +8,8 @@ const inputVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-[#141518] px-2 py-1.5 text-sm text-zinc-300 shadow-[var(--al-shadow)] focus:shadow-[0_0_0_1px_#3a5f8f]",
-        chip: "w-auto bg-[#17181c] px-1 py-0.5 text-xs text-zinc-400 shadow-[var(--al-shadow)] focus:shadow-[0_0_0_1px_#3a5f8f]",
+          "bg-card px-2 py-1.5 text-sm text-foreground shadow-[var(--al-shadow)] focus:shadow-[0_0_0_1px_var(--primary)]",
+        chip: "w-auto bg-raised px-1 py-0.5 text-xs text-muted-foreground shadow-[var(--al-shadow)] focus:shadow-[0_0_0_1px_var(--primary)]",
         unstyled: "bg-transparent text-sm text-zinc-200",
       },
     },

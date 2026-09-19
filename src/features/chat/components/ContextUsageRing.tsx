@@ -44,11 +44,11 @@ export default function ContextUsageRing({
             style={{
               background:
                 usagePct !== null
-                  ? `conic-gradient(#3a5f8f ${usagePct}%, #26272c ${usagePct}% 100%)`
-                  : "#26272c",
+                  ? `conic-gradient(var(--primary) ${usagePct}%, var(--border) ${usagePct}% 100%)`
+                  : "var(--border)",
             }}
           >
-            <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#17181c] text-[7px] text-zinc-400">
+            <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-raised text-[7px] text-muted-foreground">
               {usagePct !== null ? Math.round(usagePct) : "–"}
             </div>
           </div>
@@ -61,9 +61,9 @@ export default function ContextUsageRing({
             {usagePct !== null ? `${usagePct.toFixed(0)}%` : "–"}
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1c1d21]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-raised">
           <div
-            className="h-full bg-[#3a5f8f]"
+            className="h-full bg-primary"
             style={{ width: `${usagePct ?? 0}%` }}
           />
         </div>

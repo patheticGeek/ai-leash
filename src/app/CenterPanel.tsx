@@ -20,29 +20,29 @@ function NoProjectState() {
   return (
     <div className="flex h-full items-center justify-center px-6">
       <div className="w-full max-w-lg text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#17181c] text-blue-300 shadow-[0_0_0_1px_rgba(110,168,254,0.2),0_12px_30px_rgba(0,0,0,0.25)]">
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-raised text-primary-hover shadow-[0_0_0_1px_rgba(58,95,143,0.35),0_12px_30px_rgba(0,0,0,0.25)]">
           <FolderOpen size={28} strokeWidth={1.6} />
         </div>
-        <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-blue-300/80">
+        <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-primary-hover/80">
           Welcome to ai-leash
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Start with a project
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-500">
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">
           Open a local folder to give your agent context, tools, and a
           conversation that stays with the project.
         </p>
         <Button
           onClick={pickProject}
-          className="mt-7 gap-2 bg-[#3a5f8f] text-white shadow-[0_2px_10px_rgba(58,95,143,0.3)] hover:bg-[#4a6f9f]"
+          className="mt-7 gap-2 bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(58,95,143,0.3)] hover:bg-primary-hover"
         >
           <FolderOpen size={15} />
           Open a project folder
         </Button>
-        <p className="mt-4 text-xs text-zinc-600">
-          You can also use the <span className="text-zinc-500">+</span> button
-          in the sidebar header.
+        <p className="mt-4 text-xs text-muted-foreground">
+          You can also use the <span className="text-muted-foreground">+</span>{" "}
+          button in the sidebar header.
         </p>
       </div>
     </div>
@@ -67,7 +67,7 @@ export default function CenterPanel() {
 
   if (!projectRoot || !activeSessionId) {
     return (
-      <div className="flex h-full flex-col bg-[#111215]">
+      <div className="flex h-full flex-col bg-background">
         <NoProjectState />
       </div>
     );
@@ -75,7 +75,7 @@ export default function CenterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-[#111215]">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto bg-background">
         {chatTabs.map((tab) => {
           const isActive = tab.id === activeChatTabId;
           const running =
@@ -112,11 +112,10 @@ export default function CenterPanel() {
               </Button>
               {tab.kind === "subagent" && (
                 <Button
-                  variant="ghost"
+                  variant="quiet"
                   size="icon-sm"
                   title="Close tab"
                   onClick={() => closeChatTab(tab.id)}
-                  className="text-zinc-600 hover:text-zinc-300"
                 >
                   <X size={12} />
                 </Button>
@@ -128,7 +127,7 @@ export default function CenterPanel() {
       <div className="relative flex-1 min-h-0">
         <div
           className={
-            activeChatTabId === "primary" ? "h-full bg-[#111215]" : "hidden"
+            activeChatTabId === "primary" ? "h-full bg-background" : "hidden"
           }
         >
           <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
@@ -139,7 +138,7 @@ export default function CenterPanel() {
             <div
               key={tab.id}
               className={
-                tab.id === activeChatTabId ? "h-full bg-[#111215]" : "hidden"
+                tab.id === activeChatTabId ? "h-full bg-background" : "hidden"
               }
             >
               <SubAgentChatTab subSessionId={tab.subSessionId} />

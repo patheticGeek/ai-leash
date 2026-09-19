@@ -25,15 +25,14 @@ export default function SlashCommandMenu({
       {matches.map((c, i) => (
         <Button
           key={c.name}
-          variant="unstyled"
+          variant="menu-item"
           size="none"
+          data-active={i === activeIndex}
+          className="py-1.5"
           onMouseDown={(e) => {
             e.preventDefault();
             onSelect(c);
           }}
-          className={`block w-full px-3 py-1.5 text-left ${
-            i === activeIndex ? "bg-white/10" : "hover:bg-white/5"
-          }`}
         >
           <div className="text-sm font-medium text-zinc-100 flex">
             <span>/{c.name}</span>

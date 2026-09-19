@@ -47,7 +47,7 @@ export default function SubAgentChatTab({
   const running = task?.status === "running";
 
   return (
-    <div className="flex h-full flex-col bg-[#111215]">
+    <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 px-3 py-2 text-xs">
         <Badge
           className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 uppercase tracking-wide ${

@@ -30,13 +30,13 @@ export default function TabPicker({
         {PICKER_TAB_KINDS.map((tile) => (
           <Button
             key={tile.kind}
-            variant="unstyled"
+            variant="card"
             size="none"
             onClick={() => onPick(tile.kind)}
-            className="relative flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-[#141518] px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_#3a5f8f] hover:bg-white/5"
+            className="relative"
           >
             {tile.kind === "subagents" && runningSubAgents > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#3a5f8f] px-1 text-[10px] font-medium text-white">
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
                 {runningSubAgents}
               </span>
             )}

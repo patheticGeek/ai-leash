@@ -135,7 +135,7 @@ export default function TitleBar({
   return (
     <div
       data-tauri-drag-region
-      className="absolute top-0 left-0 right-0 z-20 flex bg-[#0b0c0e]"
+      className="absolute top-0 left-0 right-0 z-20 flex bg-sunken"
       style={{ height: TITLEBAR_HEIGHT }}
     >
       <div
@@ -164,7 +164,7 @@ export default function TitleBar({
       </div>
       <div
         data-tauri-drag-region
-        className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-[#111215]"
+        className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-background"
       >
         {project && !debugModeEnabled && (
           <span className="min-w-0 truncate">

@@ -65,46 +65,46 @@ export default function TitleBarActions() {
     <div ref={rootRef} className="relative flex shrink-0 items-center">
       <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
         <Button
-          variant="unstyled"
+          variant={current.running ? "chip-warning" : "unstyled"}
           size="none"
           onClick={() => handleToggle(current)}
           title={
             current.running ? `Stop ${current.name}` : `Run ${current.name}`
           }
-          className={`flex min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 py-1 text-xs ${
+          className={
             current.running
-              ? "text-amber-400 hover:bg-amber-950/20"
-              : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-          }`}
+              ? "flex min-w-0 max-w-[160px] items-center gap-1.5"
+              : "flex min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+          }
         >
           {current.running ? <Square size={11} /> : <Play size={11} />}
           <span className="truncate">{current.name}</span>
         </Button>
         {rest.length > 0 && (
           <Button
-            variant="unstyled"
+            variant="ghost"
             size="none"
             onClick={() => setOpen((o) => !o)}
             title="Other actions"
-            className="flex items-center rounded-r-md px-1 py-1 text-zinc-500 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] hover:bg-white/5 hover:text-zinc-200"
+            className="flex items-center rounded-r-md px-1 py-1 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]"
           >
             <ChevronDown size={12} />
           </Button>
         )}
       </div>
       {open && rest.length > 0 && (
-        <div className="absolute top-full right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-[#141518] shadow-2xl shadow-black/60 ring-1 ring-white/5">
+        <div className="absolute top-full right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl bg-card shadow-2xl shadow-black/60 ring-1 ring-white/5">
           <div className="max-h-72 overflow-auto py-1">
             {rest.map((action) => (
               <Button
                 key={action.id}
-                variant="unstyled"
+                variant="menu-item"
                 size="none"
                 onClick={() => {
                   handleToggle(action);
                   setOpen(false);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/5"
+                className="flex w-full items-center gap-2"
               >
                 {action.running ? (
                   <Square size={11} className="shrink-0 text-amber-400" />

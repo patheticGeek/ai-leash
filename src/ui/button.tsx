@@ -10,30 +10,64 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         primary:
-          "bg-[#3a5f8f] text-white shadow-sm shadow-black/30 hover:bg-[#4a6f9f]",
+          "bg-primary text-primary-foreground shadow-sm shadow-black/30 hover:bg-primary-hover",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
           "shadow-[var(--al-shadow)] text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
         ghost: "text-zinc-500 hover:bg-white/10 hover:text-zinc-200",
+        // Dimmer than `ghost` and brightens on hover without a hover
+        // background — for secondary icon actions (copy, retry, close tab,
+        // clear) that shouldn't compete with the primary controls around
+        // them.
+        quiet: "text-zinc-600 hover:text-zinc-300",
         danger: "text-zinc-500 hover:bg-red-500/10 hover:text-red-400",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
+        // Popover/dropdown trigger pill — icon + label chip sitting in a
+        // toolbar (model picker, effort picker, permission mode).
+        chip: "rounded-md bg-white/[0.04] px-1.5 py-1 text-xs text-zinc-400 outline-none shadow-[var(--al-shadow)] hover:bg-white/5 hover:text-zinc-200",
+        // Same chip shape, tinted for a state the chip is currently *in*
+        // rather than a neutral trigger — pick one per call site with a
+        // ternary (see `ChatInputBar`'s send/stop, `PermissionModePopover`'s
+        // ask/bypass). Colors come from the matching semantic token so they
+        // stay in sync with the rest of the app's danger/warning/brand use.
+        "chip-primary":
+          "rounded-md px-2 py-1 text-xs outline-none bg-primary/15 text-primary-hover shadow-[0_0_0_1px_var(--primary)] hover:bg-primary/25 disabled:hover:bg-primary/15",
+        "chip-danger":
+          "rounded-md px-2 py-1 text-xs outline-none bg-destructive/10 text-destructive shadow-[0_0_0_1px_var(--destructive)] hover:bg-destructive/20",
+        "chip-warning":
+          "rounded-md px-1.5 py-1 text-xs outline-none bg-warning/10 text-warning shadow-[0_0_0_1px_var(--warning)] hover:bg-warning/20",
+        // Row inside a popover/dropdown list (model picker, effort picker,
+        // slash command menu). Pass `data-active` to mark the selected row.
+        "menu-item":
+          "block w-full px-3 py-2 text-left hover:bg-white/5 data-[active=true]:bg-white/10 data-[active=true]:hover:bg-white/10",
+        // Selectable card tile (agent type picker, tab picker) — a small
+        // block of content rather than a single label, so it gets its own
+        // padding/column layout instead of the horizontal chip/menu shapes.
+        card: "flex min-w-0 flex-col items-start gap-1.5 rounded-md bg-card px-3 py-2.5 text-left shadow-[var(--al-shadow)] hover:shadow-[0_0_0_1px_var(--primary)] hover:bg-white/5",
         // Escape hatch for buttons with bespoke layouts (menu rows, cards,
         // popover list items) that still need the shared cursor/disabled
         // behavior above but fully own their own color/spacing classes.
         unstyled: "",
       },
       size: {
-        default: "h-8 gap-1.5 px-2.5 text-sm",
         md: "h-8 gap-1.5 px-3 text-sm",
         sm: "h-7 gap-1 px-2.5 text-xs",
-        lg: "h-9 gap-1.5 px-2.5 text-sm",
+        // Inline row action (copy/retry/expand toggles under a chat
+        // message) — content-sized rather than a fixed height, tighter
+        // padding than `none` bothers to specify on its own.
+        xs: "h-auto gap-1.5 px-1 py-0.5 text-xs",
         icon: "size-7 [&_svg:not([class*='size-'])]:size-4",
         "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
         "icon-lg": "size-9",
-        none: "h-auto w-auto p-0 gap-0",
+        // No `p-0` here: cva appends `size` classes after `variant` ones,
+        // so `p-0` would beat (via tailwind-merge's last-write-wins) any
+        // padding a variant bakes into itself (chip/menu-item/card/etc).
+        // Preflight already zeroes <button> padding, so it was a no-op for
+        // truly unstyled buttons anyway — just a landmine for styled ones.
+        none: "h-auto w-auto gap-0",
       },
     },
     defaultVariants: {
@@ -66,4 +100,10 @@ function Button({
   );
 }
 
-export { Button, buttonVariants };
+// Shared by icon buttons that only appear on hover of their nearest
+// ancestor `.group` (row actions like delete/edit). Needs a *named* group
+// (`group-hover/name:`) instead? Compose your own className — this only
+// covers the common unnamed-group case.
+const revealOnHover = "shrink-0 opacity-0 group-hover:opacity-100";
+
+export { Button, buttonVariants, revealOnHover };

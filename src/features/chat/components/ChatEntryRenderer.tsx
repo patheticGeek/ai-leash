@@ -65,7 +65,7 @@ function SubEntryLine({ entry }: { entry: Entry }) {
       className={`rounded-md px-2 py-1 ${
         failed
           ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20 text-red-300"
-          : "shadow-[var(--al-shadow)] bg-[#101114] text-zinc-500"
+          : "shadow-[var(--al-shadow)] bg-background text-zinc-500"
       }`}
     >
       <Wrench
@@ -128,7 +128,7 @@ export default function ChatEntryRenderer({
 }: ChatEntryRendererProps) {
   if (entry.kind === "info") {
     return (
-      <div className="select-text rounded-md shadow-[var(--al-shadow)] bg-[#17181c] px-3 py-2 text-xs text-zinc-400">
+      <div className="select-text rounded-md shadow-[var(--al-shadow)] bg-raised px-3 py-2 text-xs text-zinc-400">
         <Markdown content={entry.content} />
       </div>
     );
@@ -142,7 +142,7 @@ export default function ChatEntryRenderer({
       >
         <div
           className={`select-text ${
-            isUser ? "rounded-2xl px-3 py-2 bg-zinc-900 max-w-4/5" : undefined
+            isUser ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5" : undefined
           }`}
         >
           <Markdown content={entry.content} />
@@ -153,21 +153,19 @@ export default function ChatEntryRenderer({
             className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
           >
             <Button
-              variant="ghost"
+              variant="quiet"
               size="icon-sm"
               onClick={onCopy}
               title="Copy"
-              className="text-zinc-600 hover:text-zinc-300"
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
             </Button>
             {!sending && isLast && !isAcp && allowRetry && (
               <Button
-                variant="ghost"
+                variant="quiet"
                 size="icon-sm"
                 onClick={onRetry}
                 title="Retry"
-                className="text-zinc-600 hover:text-zinc-300"
               >
                 <RotateCcw size={13} />
               </Button>
@@ -193,10 +191,10 @@ export default function ChatEntryRenderer({
     return (
       <div className="text-xs">
         <Button
-          variant="unstyled"
-          size="none"
+          variant="quiet"
+          size="xs"
           onClick={onToggleExpand}
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-zinc-600 hover:text-zinc-400"
+          className="rounded-md"
         >
           <Chevron expanded={expanded} />
           {entry.done || !isLast ? (
@@ -206,7 +204,7 @@ export default function ChatEntryRenderer({
           )}
         </Button>
         {expanded && (
-          <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_#26272c] pl-2 italic text-zinc-600">
+          <div className="mt-1 ml-4 whitespace-pre-wrap shadow-[inset_2px_0_0_0_var(--border)] pl-2 italic text-zinc-600">
             {entry.content}
           </div>
         )}
@@ -219,10 +217,10 @@ export default function ChatEntryRenderer({
   return (
     <div className="text-xs">
       <Button
-        variant="unstyled"
-        size="none"
+        variant="quiet"
+        size="xs"
         onClick={onToggleExpand}
-        className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-zinc-500 hover:text-zinc-300"
+        className="w-full min-w-0 rounded-md text-left"
       >
         <Chevron expanded={expanded} />
         {entry.name === "spawn_sub_agent" ||
@@ -247,7 +245,7 @@ export default function ChatEntryRenderer({
         {failed && <span className="shrink-0 text-red-400">failed</span>}
       </Button>
       {expanded && (
-        <div className="mt-1 ml-4 space-y-2 border-l-2 border-zinc-800 pl-3 text-zinc-600">
+        <div className="mt-1 ml-4 space-y-2 border-l-2 border-border pl-3 text-zinc-600">
           <div>
             <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
               input
@@ -261,7 +259,7 @@ export default function ChatEntryRenderer({
               {entry.subtasks.map((t) => (
                 <div
                   key={t.subSessionId}
-                  className="shadow-[inset_2px_0_0_0_#26272c] pl-2"
+                  className="shadow-[inset_2px_0_0_0_var(--border)] pl-2"
                 >
                   <div className="mb-0.5 text-[9px] uppercase tracking-wide text-zinc-700">
                     {t.description}

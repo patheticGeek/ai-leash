@@ -5,6 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
+import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { actionsQueryKey } from "../../actions/useActions";
 
@@ -59,11 +60,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
       fontSize: 13,
       fontFamily:
         '"JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
-      theme: {
-        background: "#0b0c0e",
-        foreground: "#d4d4d8",
-        cursor: "#d4d4d8",
-      },
+      theme: terminalTheme,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -138,5 +135,5 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     syncRef.current?.();
   }, [actionsData]);
 
-  return <div ref={containerRef} className="h-full bg-[#0b0c0e] px-2 py-1" />;
+  return <div ref={containerRef} className="h-full bg-sunken px-2 py-1" />;
 }

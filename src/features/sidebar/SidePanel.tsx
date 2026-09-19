@@ -37,7 +37,7 @@ export default function SidePanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0c0e]">
+    <div className="flex h-full flex-col bg-sunken">
       <div className="flex h-12 shrink-0 items-center gap-1 px-1.5 overflow-x-auto">
         {panelTabs.map((tab) => {
           const dirty =
@@ -64,7 +64,7 @@ export default function SidePanel() {
               >
                 <span className="max-w-[10rem] truncate">{tab.label}</span>
                 {tab.kind === "subagents" && runningSubAgents > 0 && (
-                  <span className="rounded-full bg-[#3a5f8f] px-1.5 text-[10px] text-white">
+                  <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
                     {runningSubAgents}
                   </span>
                 )}
@@ -73,11 +73,10 @@ export default function SidePanel() {
                 )}
               </Button>
               <Button
-                variant="ghost"
+                variant="quiet"
                 size="icon-sm"
                 title="Close tab"
                 onClick={() => closePanelTab(tab.id)}
-                className="text-zinc-600 hover:text-zinc-300"
               >
                 <X size={12} />
               </Button>
