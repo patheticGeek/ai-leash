@@ -1,83 +1,107 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Questionnaire } from "./questionnaire";
+import { useState } from "react";
+import {
+  Questionnaire,
+  QuestionnaireActions,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireError,
+  QuestionnaireInput,
+  QuestionnaireItem,
+  QuestionnaireNext,
+  QuestionnairePrevious,
+  QuestionnaireProgress,
+  QuestionnaireSkip,
+  QuestionnaireSubmit,
+  QuestionnaireTitle,
+} from "./questionnaire";
 
 const meta = {
   title: "UI/Questionnaire",
   component: Questionnaire,
-  args: {
-    title: "A few questions",
-    description: "The agent needs some details before it continues.",
-    onSubmit: (answers) => console.log("submit", answers),
-    onCancel: () => console.log("cancel"),
-    questions: [
-      {
-        id: "name",
-        kind: "text",
-        prompt: "What should the branch be called?",
-        placeholder: "feature/…",
-        required: true,
-      },
-      {
-        id: "scope",
-        kind: "single",
-        prompt: "How much should it change?",
-        required: true,
-        options: [
-          {
-            value: "minimal",
-            label: "Minimal",
-            description: "Only what's needed",
-          },
-          {
-            value: "thorough",
-            label: "Thorough",
-            description: "Refactor nearby code too",
-          },
-        ],
-      },
-      {
-        id: "checks",
-        kind: "multi",
-        prompt: "Which checks should run?",
-        options: [
-          { value: "lint", label: "Lint" },
-          { value: "types", label: "Typecheck" },
-          { value: "tests", label: "Tests" },
-        ],
-      },
-    ],
-  },
-  decorators: [
-    (Story) => (
-      <div className="w-96">
-        <Story />
-      </div>
-    ),
-  ],
+  parameters: { layout: "centered" },
 } satisfies Meta<typeof Questionnaire>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+function Demo({ shortcuts }: { shortcuts?: "letters" | "numbers" }) {
+  const [answers, setAnswers] = useState<Record<string, unknown> | null>(null);
+  return (
+    <div className="flex w-96 flex-col gap-3">
+      <Questionnaire
+        shortcuts={shortcuts}
+        onSubmit={(e) => {
+          e.preventDefault();
+          const data = new FormData(e.currentTarget);
+          setAnswers({
+            scope: data.get("scope"),
+            checks: data.getAll("checks"),
+            notes: data.get("notes"),
+          });
+        }}
+      >
+        <QuestionnaireProgress />
+        <QuestionnaireItem name="scope" required>
+          <QuestionnaireTitle>
+            Where should this change land?
+          </QuestionnaireTitle>
+          <QuestionnaireDescription>
+            Pick the place the agent should make the edit.
+          </QuestionnaireDescription>
+          <QuestionnaireChoices>
+            <QuestionnaireChoice value="frontend">
+              Frontend
+              <QuestionnaireChoiceDescription>
+                React components under src/
+              </QuestionnaireChoiceDescription>
+            </QuestionnaireChoice>
+            <QuestionnaireChoice value="backend">
+              Backend
+              <QuestionnaireChoiceDescription>
+                Rust, src-tauri/
+              </QuestionnaireChoiceDescription>
+            </QuestionnaireChoice>
+            <QuestionnaireChoice value="both">Both</QuestionnaireChoice>
+          </QuestionnaireChoices>
+          <QuestionnaireError>Choose one to continue.</QuestionnaireError>
+        </QuestionnaireItem>
+        <QuestionnaireItem name="checks" multiple>
+          <QuestionnaireTitle>
+            What should it run afterwards?
+          </QuestionnaireTitle>
+          <QuestionnaireChoices>
+            <QuestionnaireChoice value="tsc">Typecheck</QuestionnaireChoice>
+            <QuestionnaireChoice value="biome">Lint</QuestionnaireChoice>
+            <QuestionnaireChoice value="tests">Tests</QuestionnaireChoice>
+          </QuestionnaireChoices>
+        </QuestionnaireItem>
+        <QuestionnaireItem name="notes">
+          <QuestionnaireTitle>Anything else?</QuestionnaireTitle>
+          <QuestionnaireInput placeholder="Optional notes" />
+        </QuestionnaireItem>
+        <QuestionnaireActions>
+          <QuestionnairePrevious />
+          <QuestionnaireSkip />
+          <QuestionnaireNext />
+          <QuestionnaireSubmit />
+        </QuestionnaireActions>
+      </Questionnaire>
+      {answers && (
+        <pre className="select-text rounded-md bg-sunken p-2 text-xs text-zinc-400">
+          {JSON.stringify(answers, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
 
-export const SingleQuestion: Story = {
-  args: {
-    title: undefined,
-    description: undefined,
-    onCancel: undefined,
-    submitLabel: "Continue",
-    questions: [
-      {
-        id: "ok",
-        kind: "single",
-        prompt: "Overwrite the existing file?",
-        required: true,
-        options: [
-          { value: "yes", label: "Yes" },
-          { value: "no", label: "No" },
-        ],
-      },
-    ],
-  },
+export const Default: Story = { render: () => <Demo /> };
+export const NumberShortcuts: Story = {
+  render: () => <Demo shortcuts="numbers" />,
+};
+export const LetterShortcuts: Story = {
+  render: () => <Demo shortcuts="letters" />,
 };

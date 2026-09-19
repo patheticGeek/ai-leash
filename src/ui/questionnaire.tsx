@@ -1,226 +1,333 @@
-import { useState } from "react";
-import { Button } from "./button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "./card";
-import { Checkbox } from "./checkbox";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
-} from "./field";
-import { Input } from "./input";
-import { RadioGroup, RadioGroupItem } from "./radio-group";
+// Adapted from the shadcn registry `questionnaire` (radix-nova), built on
+// `@shadcn/react/questionnaire`: a one-question-at-a-time form (native
+// `<form>`, radio/checkbox inputs, Previous / Skip / Next / Submit, optional
+// letter/number shortcuts). Themed for this app: lucide check icon, our
+// `Button` variants/sizes on the navigation buttons, choices and the text
+// input styled like `Card`/`Checkbox`/`Input` (input-tinted fill, 1px ring,
+// primary when checked), no `dark:` variants or mobile-height rules.
 
-export interface QuestionOption {
-  value: string;
-  label: string;
-  description?: string;
-}
+import { Questionnaire as QuestionnairePrimitive } from "@shadcn/react/questionnaire";
+import { CheckIcon } from "lucide-react";
+import type * as React from "react";
+import { cn } from "@/lib/utils";
 
-interface QuestionBase {
-  id: string;
-  prompt: string;
-  description?: string;
-  required?: boolean;
-}
+import { type Button, buttonVariants } from "./button";
 
-export type Question =
-  | (QuestionBase & { kind: "text"; placeholder?: string })
-  | (QuestionBase & {
-      kind: "single" | "multi";
-      options: QuestionOption[];
-    });
-
-/** `text`/`single` answers are a string, `multi` answers a string[]. */
-export type Answers = Record<string, string | string[]>;
-
-interface QuestionnaireProps {
-  title?: string;
-  description?: string;
-  questions: Question[];
-  onSubmit: (answers: Answers) => void;
-  onCancel?: () => void;
-  submitLabel?: string;
-  cancelLabel?: string;
-  className?: string;
-}
-
-function isAnswered(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value.length > 0;
-  return (value ?? "").trim().length > 0;
-}
-
-// A short form an agent can put in front of the user mid-session to gather
-// structured input (an elicitation): free text, pick-one, or pick-many.
-// Purely presentational — the caller owns what happens with the answers.
-// Composed from shadcn's `Field` / `RadioGroup` / `Checkbox` / `Card`
-// primitives (upstream's selectable-card `FieldLabel` pattern); only the
-// answer bookkeeping and required-field gating are ours.
 function Questionnaire({
-  title,
-  description,
-  questions,
-  onSubmit,
-  onCancel,
-  submitLabel = "Submit",
-  cancelLabel = "Skip",
   className,
-}: QuestionnaireProps) {
-  const [answers, setAnswers] = useState<Answers>({});
-
-  const complete = questions.every(
-    (q) => !q.required || isAnswered(answers[q.id]),
-  );
-
-  function toggleOption(q: Question, value: string) {
-    setAnswers((prev) => {
-      if (q.kind === "multi") {
-        const current = (prev[q.id] as string[] | undefined) ?? [];
-        return {
-          ...prev,
-          [q.id]: current.includes(value)
-            ? current.filter((v) => v !== value)
-            : [...current, value],
-        };
-      }
-      return { ...prev, [q.id]: value };
-    });
-  }
-
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Root>) {
   return (
-    <Card data-slot="questionnaire" className={className}>
-      {(title || description) && (
-        <CardHeader>
-          {title && <CardTitle>{title}</CardTitle>}
-          {description && <CardDescription>{description}</CardDescription>}
-        </CardHeader>
-      )}
-      <CardContent>
-        <FieldGroup>
-          {questions.map((q) => {
-            const prompt = (
-              <>
-                {q.prompt}
-                {q.required && <span className="text-destructive">*</span>}
-              </>
-            );
-            if (q.kind === "text") {
-              return (
-                <Field key={q.id}>
-                  <FieldLabel htmlFor={q.id}>{prompt}</FieldLabel>
-                  {q.description && (
-                    <FieldDescription>{q.description}</FieldDescription>
-                  )}
-                  <Input
-                    id={q.id}
-                    placeholder={q.placeholder}
-                    value={(answers[q.id] as string | undefined) ?? ""}
-                    onChange={(e) =>
-                      setAnswers((prev) => ({
-                        ...prev,
-                        [q.id]: e.currentTarget.value,
-                      }))
-                    }
-                  />
-                </Field>
-              );
-            }
-            return (
-              <FieldSet key={q.id}>
-                <FieldLegend variant="label">{prompt}</FieldLegend>
-                {q.description && (
-                  <FieldDescription>{q.description}</FieldDescription>
-                )}
-                {q.kind === "single" ? (
-                  <RadioGroup
-                    value={(answers[q.id] as string | undefined) ?? ""}
-                    onValueChange={(value) => toggleOption(q, value)}
-                  >
-                    {q.options.map((o) => (
-                      <FieldLabel
-                        key={o.value}
-                        htmlFor={`${q.id}-${o.value}`}
-                        className="cursor-pointer"
-                      >
-                        <Field orientation="horizontal">
-                          <RadioGroupItem
-                            id={`${q.id}-${o.value}`}
-                            value={o.value}
-                          />
-                          <FieldContent>
-                            <FieldTitle>{o.label}</FieldTitle>
-                            {o.description && (
-                              <FieldDescription>
-                                {o.description}
-                              </FieldDescription>
-                            )}
-                          </FieldContent>
-                        </Field>
-                      </FieldLabel>
-                    ))}
-                  </RadioGroup>
-                ) : (
-                  <FieldGroup data-slot="checkbox-group" className="gap-2">
-                    {q.options.map((o) => (
-                      <FieldLabel
-                        key={o.value}
-                        htmlFor={`${q.id}-${o.value}`}
-                        className="cursor-pointer"
-                      >
-                        <Field orientation="horizontal">
-                          <Checkbox
-                            id={`${q.id}-${o.value}`}
-                            checked={(
-                              (answers[q.id] as string[] | undefined) ?? []
-                            ).includes(o.value)}
-                            onCheckedChange={() => toggleOption(q, o.value)}
-                          />
-                          <FieldContent>
-                            <FieldTitle>{o.label}</FieldTitle>
-                            {o.description && (
-                              <FieldDescription>
-                                {o.description}
-                              </FieldDescription>
-                            )}
-                          </FieldContent>
-                        </Field>
-                      </FieldLabel>
-                    ))}
-                  </FieldGroup>
-                )}
-              </FieldSet>
-            );
-          })}
-        </FieldGroup>
-      </CardContent>
-      <CardFooter className="justify-end gap-1.5">
-        {onCancel && (
-          <Button variant="ghost" size="md" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          size="md"
-          disabled={!complete}
-          onClick={() => onSubmit(answers)}
-        >
-          {submitLabel}
-        </Button>
-      </CardFooter>
-    </Card>
+    <QuestionnairePrimitive.Root
+      data-slot="questionnaire"
+      className={cn("flex w-full min-w-0 flex-col gap-4", className)}
+      {...props}
+    />
   );
 }
 
-export { Questionnaire };
+function QuestionnaireProgress({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Progress>) {
+  return (
+    <QuestionnairePrimitive.Progress
+      data-slot="questionnaire-progress"
+      className={cn(
+        "min-h-[1lh] w-fit min-w-[14ch] text-xs font-medium text-muted-foreground tabular-nums",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Item>) {
+  return (
+    <QuestionnairePrimitive.Item
+      data-slot="questionnaire-item"
+      className={cn(
+        "flex min-w-0 flex-col gap-4 border-0 p-0 outline-none",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Title>) {
+  return (
+    <QuestionnairePrimitive.Title
+      data-slot="questionnaire-title"
+      className={cn(
+        "text-sm leading-snug font-medium text-pretty text-foreground [&:not(:has(~[data-slot=questionnaire-description]))]:mb-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Description>) {
+  return (
+    <QuestionnairePrimitive.Description
+      data-slot="questionnaire-description"
+      className={cn("text-xs text-pretty text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireChoices({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Choices>) {
+  return (
+    <QuestionnairePrimitive.Choices
+      data-slot="questionnaire-choices"
+      className={cn(
+        "group/questionnaire-choices grid min-w-0 gap-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireChoice({
+  children,
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Choice>) {
+  return (
+    <QuestionnairePrimitive.Choice
+      data-slot="questionnaire-choice"
+      className={cn(
+        "group/questionnaire-choice relative flex cursor-pointer items-start gap-2.5 rounded-md bg-raised px-3 py-2.5 text-start text-sm transition-colors outline-none select-none hover:bg-white/5 has-[>input:focus-visible]:ring-3 has-[>input:focus-visible]:ring-ring/50 data-invalid:ring-1 data-invalid:ring-destructive data-checked:bg-primary/10 data-checked:ring-1 data-checked:ring-primary",
+        "data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    >
+      <QuestionnairePrimitive.ChoiceInput
+        data-slot="questionnaire-choice-input"
+        className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+      />
+      <span
+        aria-hidden="true"
+        data-slot="questionnaire-choice-indicator"
+        className="pointer-events-none relative flex size-4 shrink-0 translate-y-[--spacing(0.45)] items-center justify-center rounded-[4px] bg-input/30 shadow-[0_0_0_1px_var(--input)] group-has-data-[slot=questionnaire-choice-description]/questionnaire-choice:translate-y-0.5 group-data-[type=radio]/questionnaire-choice:rounded-full group-data-checked/questionnaire-choice:bg-primary group-data-checked/questionnaire-choice:text-primary-foreground group-data-checked/questionnaire-choice:shadow-[0_0_0_1px_var(--primary)]"
+      >
+        <span
+          data-slot="questionnaire-choice-indicator-dot"
+          className="hidden size-2 rounded-full bg-primary-foreground group-data-[type=checkbox]/questionnaire-choice:hidden group-data-checked/questionnaire-choice:block"
+        />
+        <CheckIcon
+          data-slot="questionnaire-choice-indicator-check"
+          className="hidden size-3.5 group-data-[type=radio]/questionnaire-choice:hidden group-data-checked/questionnaire-choice:block"
+        />
+      </span>
+      <QuestionnairePrimitive.ChoiceLabel
+        data-slot="questionnaire-choice-label"
+        className="flex min-w-0 flex-1 flex-col gap-0.5 leading-snug"
+      >
+        {children}
+      </QuestionnairePrimitive.ChoiceLabel>
+      <QuestionnairePrimitive.ChoiceShortcut
+        data-slot="questionnaire-choice-shortcut"
+        className="pointer-events-none ms-auto hidden size-5 shrink-0 translate-y-[--spacing(0.45)] items-center justify-center rounded-md bg-background font-mono shadow-[0_0_0_1px_var(--border)] text-[0.625rem] leading-none font-medium text-muted-foreground group-has-data-[slot=questionnaire-choice-description]/questionnaire-choice:translate-y-0.5 group-data-[shortcut]/questionnaire-choice:inline-flex"
+      />
+    </QuestionnairePrimitive.Choice>
+  );
+}
+
+function QuestionnaireChoiceDescription({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="questionnaire-choice-description"
+      className={cn("text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Input>) {
+  return (
+    <div
+      data-slot="questionnaire-input-wrapper"
+      className="group/questionnaire-input relative w-full min-w-0"
+    >
+      <QuestionnairePrimitive.Input
+        data-slot="questionnaire-input"
+        className={cn(
+          "w-full min-w-0 rounded-md bg-card px-2 py-1.5 text-sm text-foreground shadow-[0_0_0_1px_var(--border)] transition-shadow outline-none focus-visible:shadow-[0_0_0_1px_var(--primary)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-40 aria-invalid:shadow-[0_0_0_1px_var(--destructive)]",
+          "placeholder:text-zinc-600",
+          className,
+        )}
+        {...props}
+      />
+    </div>
+  );
+}
+
+function QuestionnaireError({
+  className,
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Error>) {
+  return (
+    <QuestionnairePrimitive.Error
+      data-slot="questionnaire-error"
+      className={cn("mt-2 text-sm text-destructive", className)}
+      {...props}
+    />
+  );
+}
+
+function QuestionnaireActions({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="questionnaire-actions"
+      className={cn(
+        "grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function QuestionnairePrevious({
+  children,
+  className,
+  size = "md",
+  variant = "ghost",
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Previous> &
+  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
+  return (
+    <QuestionnairePrimitive.Previous
+      data-slot="questionnaire-previous"
+      data-size={size}
+      data-variant={variant}
+      className={cn(
+        buttonVariants({ size, variant }),
+        "col-start-1 row-start-1 justify-self-start",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? "Previous"}
+    </QuestionnairePrimitive.Previous>
+  );
+}
+
+function QuestionnaireSkip({
+  children,
+  className,
+  size = "md",
+  variant = "ghost",
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Skip> &
+  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
+  return (
+    <QuestionnairePrimitive.Skip
+      data-slot="questionnaire-skip"
+      data-size={size}
+      data-variant={variant}
+      className={cn(
+        buttonVariants({ size, variant }),
+        "col-start-2 row-start-1 justify-self-end",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? "Skip"}
+    </QuestionnairePrimitive.Skip>
+  );
+}
+
+function QuestionnaireNext({
+  children,
+  className,
+  size = "md",
+  variant = "primary",
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Next> &
+  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
+  return (
+    <QuestionnairePrimitive.Next
+      data-slot="questionnaire-next"
+      data-size={size}
+      data-variant={variant}
+      className={cn(
+        buttonVariants({ size, variant }),
+        "col-start-3 row-start-1 justify-self-end",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? "Next"}
+    </QuestionnairePrimitive.Next>
+  );
+}
+
+function QuestionnaireSubmit({
+  children,
+  className,
+  size = "md",
+  variant = "primary",
+  ...props
+}: React.ComponentProps<typeof QuestionnairePrimitive.Submit> &
+  Pick<React.ComponentProps<typeof Button>, "size" | "variant">) {
+  return (
+    <QuestionnairePrimitive.Submit
+      data-slot="questionnaire-submit"
+      data-size={size}
+      data-variant={variant}
+      className={cn(
+        buttonVariants({ size, variant }),
+        "col-start-3 row-start-1 justify-self-end",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? "Submit"}
+    </QuestionnairePrimitive.Submit>
+  );
+}
+
+export {
+  Questionnaire,
+  QuestionnaireActions,
+  QuestionnaireChoice,
+  QuestionnaireChoiceDescription,
+  QuestionnaireChoices,
+  QuestionnaireDescription,
+  QuestionnaireError,
+  QuestionnaireInput,
+  QuestionnaireItem,
+  QuestionnaireNext,
+  QuestionnairePrevious,
+  QuestionnaireProgress,
+  QuestionnaireSkip,
+  QuestionnaireSubmit,
+  QuestionnaireTitle,
+};
