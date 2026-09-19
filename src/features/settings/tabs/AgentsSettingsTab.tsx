@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
 import { useAppStore } from "../../../store";
@@ -380,11 +381,12 @@ export default function AgentsSettingsTab() {
           return (
             <div
               key={`${c.type}:${c.id}`}
-              className={`flex min-w-0 flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm ${
+              className={cn(
+                "flex min-w-0 flex-col gap-1.5 rounded-md px-3 py-2.5 text-sm",
                 active
                   ? "shadow-[0_0_0_1px_var(--primary)] bg-primary/10"
-                  : "shadow-[var(--al-shadow)] bg-card"
-              }`}
+                  : "shadow-[var(--al-shadow)] bg-card",
+              )}
             >
               <div className="flex items-center gap-1">
                 <Button

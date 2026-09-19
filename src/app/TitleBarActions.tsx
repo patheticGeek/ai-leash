@@ -1,5 +1,6 @@
 import { ChevronDown, Play, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
@@ -66,16 +67,16 @@ export default function TitleBarActions() {
       <div className="flex items-center rounded-md bg-white/[0.04] shadow-[var(--al-shadow)]">
         <Button
           variant={current.running ? "chip-warning" : "unstyled"}
-          size="none"
+          size="sm"
           onClick={() => handleToggle(current)}
           title={
             current.running ? `Stop ${current.name}` : `Run ${current.name}`
           }
-          className={
-            current.running
-              ? "flex min-w-0 max-w-[160px] items-center gap-1.5"
-              : "flex min-w-0 max-w-[160px] items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-          }
+          className={cn(
+            "flex min-w-0 max-w-[160px]",
+            !current.running &&
+              "rounded-md text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+          )}
         >
           {current.running ? <Square size={11} /> : <Play size={11} />}
           <span className="truncate">{current.name}</span>

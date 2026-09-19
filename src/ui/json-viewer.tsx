@@ -70,7 +70,7 @@ function JsonNode({
         disabled={empty}
         className={cn(
           "-ml-4 flex w-[calc(100%+1rem)] items-center gap-1 rounded pl-4 text-left leading-relaxed",
-          !empty && "hover:bg-white/5",
+          !empty && "cursor-pointer hover:bg-white/5",
         )}
       >
         <span className="w-3 shrink-0 text-zinc-600">

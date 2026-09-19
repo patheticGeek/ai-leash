@@ -1,7 +1,8 @@
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
-import { Button, revealOnHover } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { Input } from "@/ui/input";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
@@ -92,11 +93,12 @@ export default function ActionsTab() {
             >
               <div className="flex items-center gap-2">
                 <Badge
-                  className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                  className={cn(
+                    "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
                     action.running
                       ? "shadow-[0_0_0_1px_rgba(120,53,15,0.5)] bg-amber-950/20 text-amber-400"
-                      : "shadow-[0_0_0_1px_var(--border)] bg-zinc-900/40 text-zinc-500"
-                  }`}
+                      : "shadow-[0_0_0_1px_var(--border)] bg-zinc-900/40 text-zinc-500",
+                  )}
                 >
                   {action.running ? "running…" : "stopped"}
                 </Badge>
@@ -114,7 +116,7 @@ export default function ActionsTab() {
               size="icon-sm"
               title="Delete"
               onClick={() => remove(action.id)}
-              className={revealOnHover}
+              className={revealOnGroupHover}
             >
               <Trash2 size={12} />
             </Button>
@@ -123,7 +125,7 @@ export default function ActionsTab() {
               size="icon-sm"
               title="Edit"
               onClick={() => startEdit(action)}
-              className={revealOnHover}
+              className={revealOnGroupHover}
             >
               <Pencil size={12} />
             </Button>

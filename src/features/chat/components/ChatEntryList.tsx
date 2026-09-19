@@ -297,7 +297,10 @@ export default function ChatEntryList({
                   >
                     <ChevronDown
                       size={11}
-                      className={`transition-transform duration-200 ease-out ${expanded ? "rotate-180" : ""}`}
+                      className={cn(
+                        "transition-transform duration-200 ease-out",
+                        expanded ? "rotate-180" : "",
+                      )}
                     />
                     {expanded ? "Hide" : `Show all (${activitySummary})`}
                   </Button>

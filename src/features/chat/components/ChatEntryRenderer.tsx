@@ -6,6 +6,7 @@ import {
   RotateCcw,
   Wrench,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { type Entry, isToolError } from "../../../lib/chatEntries";
 import Markdown from "../../../ui/Markdown";
@@ -15,7 +16,10 @@ export function Chevron({ expanded }: { expanded: boolean }) {
   return (
     <ChevronRight
       size={12}
-      className={`shrink-0 text-current transition-transform duration-200 ease-out ${expanded ? "rotate-90" : ""}`}
+      className={cn(
+        "shrink-0 text-current transition-transform duration-200 ease-out",
+        expanded ? "rotate-90" : "",
+      )}
     />
   );
 }
@@ -39,7 +43,10 @@ function SubEntryLine({ entry }: { entry: Entry }) {
   if (entry.kind === "text") {
     return (
       <div
-        className={`select-text ${entry.role === "user" ? "text-zinc-400" : "text-zinc-500"}`}
+        className={cn(
+          "select-text",
+          entry.role === "user" ? "text-zinc-400" : "text-zinc-500",
+        )}
       >
         <div className="text-[9px] uppercase tracking-wide text-zinc-700">
           {entry.role === "user" ? "task" : "sub-agent"}
@@ -62,15 +69,19 @@ function SubEntryLine({ entry }: { entry: Entry }) {
   const failed = isToolError(entry.result);
   return (
     <div
-      className={`rounded-md px-2 py-1 ${
+      className={cn(
+        "rounded-md px-2 py-1",
         failed
           ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20 text-red-300"
-          : "shadow-[var(--al-shadow)] bg-background text-zinc-500"
-      }`}
+          : "shadow-[var(--al-shadow)] bg-background text-zinc-500",
+      )}
     >
       <Wrench
         size={11}
-        className={`inline-block -mt-0.5 mr-1 ${failed ? "text-red-400" : "text-zinc-700"}`}
+        className={cn(
+          "inline-block -mt-0.5 mr-1",
+          failed ? "text-red-400" : "text-zinc-700",
+        )}
       />
       {entry.name}
       {failed && <span className="text-red-400"> · failed</span>}
@@ -138,19 +149,28 @@ export default function ChatEntryRenderer({
     const isUser = entry.role === "user";
     return (
       <div
-        className={`group flex flex-col ${isUser ? "items-end text-zinc-200" : "items-start text-zinc-300"}`}
+        className={cn(
+          "group flex flex-col",
+          isUser ? "items-end text-zinc-200" : "items-start text-zinc-300",
+        )}
       >
         <div
-          className={`select-text ${
-            isUser ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5" : undefined
-          }`}
+          className={cn(
+            "select-text",
+            isUser
+              ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5"
+              : "min-w-0 max-w-full",
+          )}
         >
           <Markdown content={entry.content} />
         </div>
 
         {showFooter && (
           <div
-            className={`mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600 ${isUser ? "flex-row-reverse" : ""}`}
+            className={cn(
+              "mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600",
+              isUser ? "flex-row-reverse" : "",
+            )}
           >
             <Button
               variant="quiet"
@@ -227,12 +247,12 @@ export default function ChatEntryRenderer({
         entry.name === "sub_agent_result" ? (
           <Bot
             size={12}
-            className={`shrink-0 ${failed ? "text-red-400" : ""}`}
+            className={cn("shrink-0", failed ? "text-red-400" : "")}
           />
         ) : (
           <Wrench
             size={12}
-            className={`shrink-0 ${failed ? "text-red-400" : ""}`}
+            className={cn("shrink-0", failed ? "text-red-400" : "")}
           />
         )}
         <span className="shrink-0 truncate max-w-4/5">{entry.name}</span>
@@ -277,16 +297,18 @@ export default function ChatEntryRenderer({
           {entry.result !== undefined && (
             <div>
               <div
-                className={`mb-0.5 text-[9px] uppercase tracking-wide ${
-                  failed ? "text-red-400" : "text-zinc-700"
-                }`}
+                className={cn(
+                  "mb-0.5 text-[9px] uppercase tracking-wide",
+                  failed ? "text-red-400" : "text-zinc-700",
+                )}
               >
                 output
               </div>
               <pre
-                className={`select-text max-h-40 overflow-auto whitespace-pre-wrap ${
-                  failed ? "text-red-300" : "text-zinc-500"
-                }`}
+                className={cn(
+                  "select-text max-h-40 overflow-auto whitespace-pre-wrap",
+                  failed ? "text-red-300" : "text-zinc-500",
+                )}
               >
                 {entry.result}
               </pre>

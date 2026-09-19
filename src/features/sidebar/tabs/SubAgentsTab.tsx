@@ -1,7 +1,8 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/ui/badge";
-import { Button, revealOnHover } from "@/ui/button";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
@@ -86,7 +87,10 @@ export default function SubAgentsTab() {
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
                 <Badge
-                  className={`h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${statusStyles[task.status]}`}
+                  className={cn(
+                    "h-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                    statusStyles[task.status],
+                  )}
                 >
                   {task.status === "running" ? "running…" : task.status}
                 </Badge>
@@ -100,7 +104,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Stop sub-agent"
                   onClick={() => void api.cancelPrompt(task.subSessionId)}
-                  className={revealOnHover}
+                  className={revealOnGroupHover}
                 >
                   <Square size={12} />
                 </Button>
@@ -110,7 +114,7 @@ export default function SubAgentsTab() {
                   size="icon-sm"
                   title="Delete sub-agent"
                   onClick={() => deleteSubAgentTask(task.subSessionId)}
-                  className={revealOnHover}
+                  className={revealOnGroupHover}
                 >
                   <Trash2 size={12} />
                 </Button>

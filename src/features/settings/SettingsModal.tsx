@@ -37,12 +37,15 @@ export default function SettingsModal() {
           orientation="vertical"
           className="flex-1 min-h-0"
         >
-          <TabsList className="h-fit w-48 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-2">
+          <TabsList
+            size="md"
+            className="h-fit w-48 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-2"
+          >
             {SECTIONS.map((section) => (
               <TabsTrigger
                 key={section.id}
                 value={section.id}
-                className="justify-start px-2 py-2 text-left cursor-pointer"
+                className="justify-start text-left"
               >
                 {section.label}
               </TabsTrigger>
