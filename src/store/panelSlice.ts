@@ -17,6 +17,8 @@ export interface PanelTab {
   /** Also doubles as the Action id when kind is "action", same as it
    * already doubles as a filesystem path when kind is "file". */
   path?: string;
+  /** Terminal tabs only: text typed (not executed) at the prompt on open. */
+  command?: string;
   label: string;
 }
 
@@ -104,7 +106,7 @@ export interface PanelSlice {
   autonomousGeneratingSessions: Record<string, boolean>;
   openPanelTab: (
     kind: PanelTabKind,
-    opts?: { path?: string; label?: string },
+    opts?: { path?: string; label?: string; command?: string },
   ) => void;
   closePanelTab: (id: string) => void;
   setActivePanelTab: (id: string) => void;
@@ -194,6 +196,7 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
       id,
       kind,
       path: opts?.path,
+      command: opts?.command,
       label: opts?.label ?? defaultLabels[kind],
     };
     set((s) => ({

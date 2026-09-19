@@ -1,6 +1,74 @@
+import { Check, Copy, Play } from "lucide-react";
+import {
+  createContext,
+  isValidElement,
+  type ReactNode,
+  useContext,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
+import { Button } from "./button";
+
+// Flattens a rendered node back to the source text it came from.
+function nodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return nodeText(node.props.children);
+  }
+  return "";
+}
+
+// What the run button on a shell code block does with its command. Provided by
+// whoever hosts the transcript (this file doesn't know about terminals); with
+// no provider, shell blocks just don't get a run button.
+export const RunCommandContext = createContext<
+  ((command: string) => void) | null
+>(null);
+
+const SHELL_LANGUAGES = new Set(["bash", "sh", "shell", "zsh"]);
+
+// A fenced code block: a header with the language and a copy button above the
+// scrollable code.
+function CodeBlock({ children }: { children?: ReactNode }) {
+  const { copy, copied } = useCopyToClipboard();
+  const className = isValidElement<{ className?: string }>(children)
+    ? children.props.className
+    : undefined;
+  const language = /language-(\S+)/.exec(className ?? "")?.[1];
+  const runCommand = useContext(RunCommandContext);
+  const text = nodeText(children).replace(/\n$/, "");
+  return (
+    <div className="my-2 overflow-hidden rounded-md bg-sunken">
+      <div className="flex items-center justify-between border-b border-border py-0.5 pr-1 pl-2.5 text-xs text-zinc-500">
+        <span>{language ?? "text"}</span>
+        <div className="flex items-center">
+          {runCommand && language && SHELL_LANGUAGES.has(language) && (
+            <Button
+              variant="quiet"
+              size="icon-sm"
+              title="Open in a new terminal"
+              onClick={() => runCommand(text)}
+            >
+              <Play size={13} />
+            </Button>
+          )}
+          <Button
+            variant="quiet"
+            size="icon-sm"
+            title="Copy"
+            onClick={() => copy(text)}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+          </Button>
+        </div>
+      </div>
+      <pre className="overflow-x-auto p-2.5 text-xs">{children}</pre>
+    </div>
+  );
+}
 
 const components: Components = {
   a: ({ children, ...props }) => (
@@ -30,14 +98,7 @@ const components: Components = {
       </code>
     );
   },
-  pre: ({ children, ...props }) => (
-    <pre
-      className="my-2 overflow-x-auto rounded-md bg-sunken p-2.5 text-xs"
-      {...props}
-    >
-      {children}
-    </pre>
-  ),
+  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   p: ({ children, ...props }) => (
     <p className="mb-2 last:mb-0" {...props}>
       {children}

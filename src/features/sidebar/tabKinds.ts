@@ -53,7 +53,8 @@ export const PANEL_TAB_KINDS: Record<PanelTabKind, PanelTabKindDef> = {
   },
   terminal: {
     kind: "terminal",
-    render: () => createElement(TerminalPanel),
+    render: (tab) =>
+      createElement(TerminalPanel, { initialCommand: tab.command }),
     mountMode: "keep-mounted-per-tab",
     openableFromPicker: true,
     label: "Terminal",

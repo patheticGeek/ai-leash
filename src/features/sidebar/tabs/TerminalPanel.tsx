@@ -14,7 +14,19 @@ function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-export default function TerminalPanel() {
+// Typed at the prompt without a trailing newline, so it waits for the user to
+// press Enter. Multi-line text goes in as a bracketed paste so its inner
+// newlines don't submit line by line.
+function typeAhead(command: string): string {
+  return command.includes("\n") ? `\x1b[200~${command}\x1b[201~` : command;
+}
+
+export default function TerminalPanel({
+  initialCommand,
+}: {
+  /** Put at the prompt once the shell starts, without running it. */
+  initialCommand?: string;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionId = useAppStore((s) => s.activeSessionId);
 
@@ -51,6 +63,7 @@ export default function TerminalPanel() {
         return;
       }
       ptyId = id;
+      if (initialCommand) api.ptyWrite(id, typeAhead(initialCommand));
       unlistenData = await listen<string>(`pty://${id}/data`, (e) => {
         term.write(base64ToBytes(e.payload));
       });

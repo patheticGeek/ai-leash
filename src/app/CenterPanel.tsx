@@ -1,7 +1,9 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
+import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import { RunCommandContext } from "@/ui/Markdown";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
@@ -65,6 +67,13 @@ export default function CenterPanel() {
   // an empty-string fallback session id is harmless (never actually shown).
   const primaryGenerating = useGenerating(activeSessionId ?? "").active;
   const subAgentTasks = useAppStore((s) => s.subAgentTasks);
+  const openPanelTab = useAppStore((s) => s.openPanelTab);
+  // The run button on a transcript's shell code blocks: a new terminal tab
+  // with the command typed at the prompt, waiting for Enter.
+  const openInTerminal = useCallback(
+    (command: string) => openPanelTab("terminal", { command }),
+    [openPanelTab],
+  );
 
   if (!projectRoot || !activeSessionId) {
     return (
@@ -117,27 +126,29 @@ export default function CenterPanel() {
           })}
         </TabsList>
       </Tabs>
-      <div className="relative flex-1 min-h-0">
-        <div
-          className={
-            activeChatTabId === "primary" ? "h-full bg-background" : "hidden"
-          }
-        >
-          <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
+      <RunCommandContext.Provider value={openInTerminal}>
+        <div className="relative flex-1 min-h-0">
+          <div
+            className={
+              activeChatTabId === "primary" ? "h-full bg-background" : "hidden"
+            }
+          >
+            <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
+          </div>
+          {chatTabs
+            .filter((tab) => tab.kind === "subagent")
+            .map((tab) => (
+              <div
+                key={tab.id}
+                className={
+                  tab.id === activeChatTabId ? "h-full bg-background" : "hidden"
+                }
+              >
+                <SubAgentChatTab subSessionId={tab.subSessionId} />
+              </div>
+            ))}
         </div>
-        {chatTabs
-          .filter((tab) => tab.kind === "subagent")
-          .map((tab) => (
-            <div
-              key={tab.id}
-              className={
-                tab.id === activeChatTabId ? "h-full bg-background" : "hidden"
-              }
-            >
-              <SubAgentChatTab subSessionId={tab.subSessionId} />
-            </div>
-          ))}
-      </div>
+      </RunCommandContext.Provider>
     </div>
   );
 }
