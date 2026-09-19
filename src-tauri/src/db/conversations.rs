@@ -258,6 +258,10 @@ fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
         "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
         params![conversation_id],
     );
+    let _ = conn.execute(
+        "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
+        params![conversation_id],
+    );
 }
 
 #[cfg(test)]

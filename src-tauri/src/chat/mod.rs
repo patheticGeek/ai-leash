@@ -102,6 +102,7 @@ pub(crate) fn forget_session_runtime_state(
     state.chat_sessions.lock().unwrap().remove(session_id);
     state.touched_dirs.lock().unwrap().remove(session_id);
     state.acp_sessions.lock().unwrap().remove(session_id);
+    crate::acp::rate_limit::cancel_timer(state, session_id);
     if forget_permission_mode {
         state.permission_bypass.lock().unwrap().remove(session_id);
     }
@@ -310,6 +311,7 @@ mod tests {
             git_watchers: Mutex::new(HashMap::new()),
             db: temp_db(),
             acp_sessions: Mutex::new(HashMap::new()),
+            rate_limit_timers: Mutex::new(HashMap::new()),
             acp_agent_catalog: Mutex::new(Vec::new()),
             acp_catalog_refresh_started: AtomicBool::new(false),
             mcp_bridge: Mutex::new(None),

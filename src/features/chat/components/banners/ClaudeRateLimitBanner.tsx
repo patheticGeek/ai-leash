@@ -21,12 +21,17 @@ export default function ClaudeRateLimitBanner({
   onArmAutoResume,
   onDismiss,
 }: ClaudeRateLimitBannerProps) {
+  const alreadyReset = rateLimit.resetAt <= Date.now();
   return (
     <DockedBanner variant="warning">
       <AlertDescription>
         {autoResumeArmed
-          ? `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
-          : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
+          ? alreadyReset
+            ? "Claude's session limit has reset. Resuming now."
+            : `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
+          : alreadyReset
+            ? `Claude hit its session limit, which reset at ${formatClockTime(rateLimit.resetAt)}. Continue now?`
+            : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
       </AlertDescription>
       <AlertAction>
         {autoResumeArmed ? (
@@ -39,7 +44,7 @@ export default function ClaudeRateLimitBanner({
               No
             </Button>
             <Button size="sm" onClick={onArmAutoResume}>
-              Yes, resume automatically
+              {alreadyReset ? "Yes, continue" : "Yes, resume automatically"}
             </Button>
           </>
         )}

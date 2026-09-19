@@ -129,6 +129,9 @@ pub struct AppState {
     /// instead of silently reusing the old agent's process) and the channel
     /// used to send it prompts/cancellations. See `acp.rs::ensure_acp_session`.
     pub acp_sessions: Mutex<HashMap<String, AcpSession>>,
+    /// One pending auto-resume timer per conversation with an armed Claude
+    /// session-limit resume — see `acp::rate_limit`.
+    pub rate_limit_timers: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
     /// See `AcpAgentCatalogEntry`'s doc comment.
     pub acp_agent_catalog: Mutex<Vec<AcpAgentCatalogEntry>>,
     /// Guards `acp::refresh_acp_catalog_in_background` so it only ever runs

@@ -74,11 +74,6 @@ export default function ChatPanel({
 
   const session = useChatSession(sessionId, setOllamaError);
   const { isAcp, providerActiveId, activeAcpAgent, model } = session;
-  // Gates the Claude session-limit auto-resume banner (see `useChatStream`)
-  // — Copilot's ACP wrapper reports errors in its own format, so this stays
-  // Claude-only until that's known and worth matching too.
-  const isClaudeAcp =
-    isAcp && !!activeAcpAgent?.launchCommand.toLowerCase().includes("claude");
   const {
     entries,
     setEntries,
@@ -93,12 +88,7 @@ export default function ChatPanel({
     claudeAutoResumeArmed,
     armClaudeAutoResume,
     dismissClaudeRateLimit,
-  } = useChatStream(
-    sessionId,
-    setOllamaError,
-    isClaudeAcp,
-    autoResumeFromRateLimit,
-  );
+  } = useChatStream(sessionId, setOllamaError);
   useEffect(() => {
     if (sessionTitle !== null) {
       setConversationTitle(sessionId, sessionTitle);
@@ -205,8 +195,7 @@ export default function ChatPanel({
 
   // The actual "push a user turn and hand it to whichever backend is
   // active" round trip — shared by the composer's send path and message
-  // queue and the Claude session-limit auto-resume (see `useChatStream`'s
-  // `claudeRateLimit`). The guards about whether the *user* is allowed to
+  // queue. The guards about whether the *user* is allowed to
   // send right now live in the composer, not here.
   async function submitPrompt(text: string) {
     setOllamaError(null);
@@ -239,11 +228,6 @@ export default function ChatPanel({
       setOllamaError(String(e));
       setSending(false);
     }
-  }
-
-  function autoResumeFromRateLimit() {
-    if (!isClaudeAcp || sending) return;
-    submitPrompt("continue working");
   }
 
   async function stop() {

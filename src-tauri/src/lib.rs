@@ -94,6 +94,7 @@ pub fn run() {
                 std_listener,
                 info.token,
             ));
+            acp::rate_limit::rearm_all(app.handle());
 
             Ok(())
         })
@@ -138,6 +139,9 @@ pub fn run() {
             tools::shell_tools::run_shell_command,
             acp::warm_acp_session,
             acp::send_prompt_acp,
+            acp::rate_limit::get_rate_limit_resume,
+            acp::rate_limit::arm_rate_limit_resume,
+            acp::rate_limit::dismiss_rate_limit_resume,
             acp::set_acp_model,
             acp::set_acp_effort,
             acp::fetch_acp_models,

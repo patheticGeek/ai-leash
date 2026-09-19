@@ -282,6 +282,15 @@ export const api = {
       model,
       message,
     }),
+  getRateLimitResume: (sessionId: string) =>
+    invoke<{ message: string; resetAt: number; armed: boolean } | null>(
+      "get_rate_limit_resume",
+      { sessionId },
+    ),
+  armRateLimitResume: (sessionId: string) =>
+    invoke<void>("arm_rate_limit_resume", { sessionId }),
+  dismissRateLimitResume: (sessionId: string) =>
+    invoke<void>("dismiss_rate_limit_resume", { sessionId }),
   setAcpModel: (sessionId: string, value: string) =>
     invoke<void>("set_acp_model", { sessionId, value }),
   setAcpEffort: (sessionId: string, value: string) =>
