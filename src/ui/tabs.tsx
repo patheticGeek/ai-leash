@@ -154,7 +154,7 @@ function TabsTrigger({
         title={closeLabel}
         aria-label={closeLabel}
         onClick={onClose}
-        className="absolute top-1/2 right-0.5 -translate-y-1/2"
+        className="absolute inset-y-0 right-0.5 my-auto"
       >
         <X size={12} />
       </Button>
