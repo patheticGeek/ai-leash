@@ -1,8 +1,8 @@
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
-import { Textarea } from "@/ui/textarea";
 import type {
   AcpCommandInfo,
   PermissionRequestPayload,
@@ -68,20 +68,6 @@ export default function ChatInputBar({
 }: ChatInputBarProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const showQueue = sending && input.trim().length > 0;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: input is a trigger-only dep — recompute textarea height on every keystroke, its value isn't read in the body
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const cs = getComputedStyle(el);
-    const lineHeight = parseFloat(cs.lineHeight) || 20;
-    const paddingY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-    const minHeight = lineHeight * INPUT_MIN_ROWS + paddingY;
-    const maxHeight = lineHeight * INPUT_MAX_ROWS + paddingY;
-    el.style.height = "auto";
-    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
-    el.style.height = `${next}px`;
-    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, [input]);
 
   return (
     <div className="px-3 py-4">
@@ -118,13 +104,14 @@ export default function ChatInputBar({
               className="pointer-events-none absolute left-3.5 top-[15px] text-emerald-400"
             />
           )}
-          <Textarea
+          <AutoResizeTextarea
             ref={textareaRef}
             defaultValue={input}
             onChange={(e) => onChange(e.currentTarget.value)}
             onKeyDown={onKeyDown}
             placeholder="Ask the agent...  / commands  ! shell"
-            rows={INPUT_MIN_ROWS}
+            minRows={INPUT_MIN_ROWS}
+            maxRows={INPUT_MAX_ROWS}
             className={cn(
               "py-3 leading-relaxed",
               shellMode

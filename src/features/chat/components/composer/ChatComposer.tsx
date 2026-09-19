@@ -14,8 +14,8 @@ import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
 import ChatInputBar from "./ChatInputBar";
 import ChatToolbar from "./ChatToolbar";
-import CheckoutBar, { type CheckoutBarProps } from "./CheckoutBar";
 import ContextUsageRing from "./ContextUsageRing";
+import CheckoutBar, { type CheckoutBarProps } from "./checkout/CheckoutBar";
 
 interface ChatComposerProps {
   sessionId: string;
