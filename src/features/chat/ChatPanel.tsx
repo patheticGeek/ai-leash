@@ -1,37 +1,28 @@
-import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import NewConversationPopover from "@/app/NewConversationPopover";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/ui/input";
-import { chatDraftKey as chatDraftKeyFor } from "../../lib/chatDraft";
 import { useGenerating } from "../../lib/generatingQuery";
 import type { AcpCommandInfo } from "../../lib/tauriApi";
 import { api } from "../../lib/tauriApi";
-import { permissionForSession, useAppStore } from "../../store";
-import ChatEntryList from "./components/ChatEntryList";
-import ChatInputBar from "./components/ChatInputBar";
-import CheckoutBar from "./components/CheckoutBar";
-import ClaudeRateLimitBanner from "./components/ClaudeRateLimitBanner";
-import ContextUsageRing from "./components/ContextUsageRing";
-import EffortPickerPopover from "./components/EffortPickerPopover";
-import HelpBanner from "./components/HelpBanner";
-import ModelPickerPopover from "./components/ModelPickerPopover";
-import PermissionModePopover from "./components/PermissionModePopover";
-import QueuedMessagesBanner from "./components/QueuedMessageBanner";
+import { useAppStore } from "../../store";
+import ChatBanners from "./components/banners/ChatBanners";
+import ChatInputBar from "./components/composer/ChatInputBar";
+import ChatToolbar from "./components/composer/ChatToolbar";
+import CheckoutBar from "./components/composer/CheckoutBar";
+import ContextUsageRing from "./components/composer/ContextUsageRing";
+import NewThreadView from "./components/empty-states/NewThreadView";
+import ChatEntryList from "./components/messages/ChatEntryList";
+import { useAcpWarmup } from "./hooks/useAcpWarmup";
+import { useChatInput } from "./hooks/useChatInput";
 import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
   useChatSession,
 } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
-
-function loadChatDraft(key: string): string {
-  try {
-    return localStorage.getItem(key) ?? "";
-  } catch {
-    return "";
-  }
-}
+import { useMessageQueue } from "./hooks/useMessageQueue";
+import { useSessionPermissions } from "./hooks/useSessionPermissions";
+import { useSlashCommands } from "./hooks/useSlashCommands";
+import { useTurnDurations } from "./hooks/useTurnDurations";
 
 export default function ChatPanel({
   sessionId,
@@ -40,12 +31,15 @@ export default function ChatPanel({
   sessionId: string;
   projectRoot: string;
 }) {
-  const chatDraftKey = chatDraftKeyFor(sessionId);
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
   const conversations = useAppStore((s) => s.conversations);
   const markConversationStarted = useAppStore((s) => s.markConversationStarted);
   const setConversationCheckoutPath = useAppStore(
     (s) => s.setConversationCheckoutPath,
+  );
+  const setConversationTitle = useAppStore((s) => s.setConversationTitle);
+  const clearSubAgentTasksForParent = useAppStore(
+    (s) => s.clearSubAgentTasksForParent,
   );
   // A conversation not yet in `conversations` has never had a message
   // sent — the centered "new thread" layout below, rather than the normal
@@ -62,48 +56,15 @@ export default function ChatPanel({
   const worktreeCwd = isNewThread
     ? (pendingWorktree ?? projectRoot)
     : (conversation?.worktreePath ?? projectRoot);
-  // Only read for the new-thread heading's project-switcher below — the
-  // title bar's own "New Thread" button always targets whatever project is
-  // already current, so switching *which* project a still-fresh thread
-  // targets only lives here.
   const projectName = useAppStore(
     (s) =>
       s.recentProjects.find((p) => p.path === projectRoot)?.name ?? projectRoot,
   );
 
-  // Ask/Bypass permission mode for this conversation — see
-  // `setPermissionMode`'s doc comment in store.ts. Enforcement is
-  // backend-side and in-memory only, so this pushes whatever's already
-  // stored down to it once per mount (this component remounts per
-  // conversation — see `App.tsx`'s `key={activeSessionId}`) to restore it
-  // after an app restart.
-  const permissionMode = useAppStore(
-    (s) => s.permissionMode[sessionId] ?? "ask",
-  );
-  const setPermissionMode = useAppStore((s) => s.setPermissionMode);
-  const [permissionModePickerOpen, setPermissionModePickerOpen] =
-    useState(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only re-sync (see comment above) — must not re-fire when permissionMode itself changes
-  useEffect(() => {
-    setPermissionMode(sessionId, permissionMode);
-  }, [sessionId]);
   // "/help" shows an overlay over the messages area rather than adding an
   // entry to the transcript — closed by its own X button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
   const [helpOpen, setHelpOpen] = useState(false);
-  // Resolves to a real request only while this project (or a sub-agent it
-  // spawned) has one pending — see `permissionForSession`. Global listeners
-  // that populate `pendingPermissions` live in `LeftBar.tsx`, always
-  // mounted regardless of which project is currently open, same pattern as
-  // `useGeneratingListener`.
-  const pendingPermissions = useAppStore((s) => s.pendingPermissions);
-  const resolvePendingPermission = useAppStore(
-    (s) => s.resolvePendingPermission,
-  );
-  const pendingPermission = permissionForSession(pendingPermissions, sessionId);
-  const clearSubAgentTasksForParent = useAppStore(
-    (s) => s.clearSubAgentTasksForParent,
-  );
   // Backend-driven, independent of this component's mount lifecycle (see
   // `run_with_cancellation` in chat.rs and `useGeneratingListener`'s
   // always-mounted top-level subscriber) — this is what lets `sending` come
@@ -116,18 +77,14 @@ export default function ChatPanel({
   const generating = generatingState.active && !generatingState.autonomous;
 
   const [ollamaError, setOllamaError] = useState<string | null>(null);
-  const [input, setInput] = useState(() => loadChatDraft(chatDraftKey));
-  useEffect(() => {
-    try {
-      if (input) {
-        localStorage.setItem(chatDraftKey, input);
-      } else {
-        localStorage.removeItem(chatDraftKey);
-      }
-    } catch {
-      // Draft persistence is best-effort when storage is unavailable.
-    }
-  }, [chatDraftKey, input]);
+  const { input, setInput, setInputValue, textareaRef } =
+    useChatInput(sessionId);
+  const {
+    permissionMode,
+    setPermissionMode,
+    pendingPermission,
+    respondPermission,
+  } = useSessionPermissions(sessionId, setOllamaError);
   // Initialized from the global (backend-driven) state so a session that's
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `send`/`retry`/`stop` still set this directly
@@ -136,16 +93,6 @@ export default function ChatPanel({
   useEffect(() => {
     setSending(generating);
   }, [generating]);
-
-  // Messages typed while a turn is in flight, held here (FIFO) until each
-  // gets its turn — see `queueMessage` and the flush effect below.
-  const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
-
-  // Slash-command popover bookkeeping — "/model" opening the picker without
-  // a real click lives here too (`runLocalCommand` below), which is why
-  // `modelPickerOpen` isn't just internal state of `ModelPickerPopover`.
-  const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
-  const [slashIndex, setSlashIndex] = useState(0);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   const {
@@ -166,7 +113,7 @@ export default function ChatPanel({
     selectBackendOption,
     selectAcpEffort,
     resetAcpConnectionState,
-  } = useChatSession(sessionId, setOllamaError, () => setSlashDismissed(null));
+  } = useChatSession(sessionId, setOllamaError, () => slash.resetDismissed());
   // Gates the Claude session-limit auto-resume banner (see `useChatStream`)
   // — Copilot's ACP wrapper reports errors in its own format, so this stays
   // Claude-only until that's known and worth matching too.
@@ -192,140 +139,31 @@ export default function ChatPanel({
     isClaudeAcp,
     autoResumeFromRateLimit,
   );
-  const setConversationTitle = useAppStore((s) => s.setConversationTitle);
   useEffect(() => {
     if (sessionTitle !== null) {
       setConversationTitle(sessionId, sessionTitle);
     }
   }, [sessionId, sessionTitle, setConversationTitle]);
 
-  // Connects the ACP agent's subprocess as soon as one's active for this
-  // conversation, rather than waiting for the first `send()` — see
-  // `warm_acp_session`'s doc comment. This is what lets a `session/load`
-  // resume failure surface (as `acp_session_restore_failed`, handled in
-  // `useChatStream`) before there's a typed message `send()` could strand:
-  // it clears `input` optimistically as soon as it's called.
-  //
-  // `acpRetryNonce` re-triggers this same connect after a resume failure —
-  // clicking "Start new session" in the banner (see `ChatEntryList.tsx`)
-  // bumps it. By then the backend's already dropped the stale session id
-  // (see `drive_acp_connection`), so this attempt goes straight to a fresh
-  // `session/new`.
-  const [acpRetryNonce, setAcpRetryNonce] = useState(0);
+  const { reconnect: reconnectAcp } = useAcpWarmup({
+    sessionId,
+    isAcp,
+    launchCommand: activeAcpAgent?.launchCommand,
+    providerActiveId,
+    providerConfigFor,
+    model,
+  });
   const retryAcpSession = () => {
     clearAcpRestoreFailed();
-    setAcpRetryNonce((n) => n + 1);
+    reconnectAcp();
   };
-  const launchCommand = activeAcpAgent?.launchCommand;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: acpRetryNonce isn't read in the body, it's a trigger-only dep to force a retry — see doc comment above
-  useEffect(() => {
-    if (!isAcp || !launchCommand) return;
-    api
-      .warmAcpSession(
-        sessionId,
-        launchCommand,
-        providerConfigFor(providerActiveId),
-        model,
-      )
-      .catch(() => {});
-  }, [
-    isAcp,
-    launchCommand,
-    sessionId,
-    providerActiveId,
-    model,
-    providerConfigFor,
-    acpRetryNonce,
-  ]);
 
-  // Drives the "Working for <time>" indicator below the transcript.
-  // Anchored to `generatingState.startedAtMs` (`useGenerating`, backed by a
-  // cache entry that outlives this component) rather than component-local
-  // state, so switching away from this conversation and back — a full
-  // remount, since `App.tsx` keys `ChatPanel` on `activeSessionId` —
-  // doesn't reset the clock back to zero. The actual per-second tick lives
-  // in `WorkingForIndicator` (`ChatEntryList.tsx`'s leaf, not here), so a
-  // turn in flight doesn't re-render this whole component every second.
-  // Duration persistence (`api.setMessageDuration`) likewise lives in the
-  // always-mounted `useGeneratingListener` (`generatingQuery.ts`) now, not
-  // here, so it still happens even for a turn that finishes while a
-  // different conversation is open.
-  // Once a turn finishes, its elapsed time is frozen here (keyed by the
-  // finished assistant reply's own index in `entries`) so the reply's
-  // footer can keep showing "Worked for <time>" instead of reverting to a
-  // plain timestamp — a ref because the effect below only fires on the
-  // `sending` transition and needs whatever `entries` were current *at that
-  // moment*, not whatever they were when the effect was last set up.
-  const [turnDurations, setTurnDurations] = useState<Record<number, number>>(
-    {},
+  const turnDurations = useTurnDurations(
+    entries,
+    sending,
+    generatingState.startedAtMs,
   );
-  // Mirrors the last non-null `generatingState.startedAtMs` — the query
-  // entry itself flips to `null` the same render `active` goes false, one
-  // render before the `sending` mirror effect below actually observes
-  // `sending === false`, so the freeze effect needs this ref to still see
-  // the real start time by the time it runs.
-  const startedAtMsRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (generatingState.startedAtMs != null) {
-      startedAtMsRef.current = generatingState.startedAtMs;
-    }
-  }, [generatingState.startedAtMs]);
-  const entriesRef = useRef(entries);
-  useEffect(() => {
-    entriesRef.current = entries;
-  }, [entries]);
-  // Seeds `turnDurations` from history loaded off disk (see
-  // `messagesToEntries`) so a reply's "Worked for <time>" footer survives an
-  // app restart instead of falling back to a plain timestamp — only fills in
-  // indices not already set, since a turn that just finished live already
-  // has its duration in state from the effect below.
-  useEffect(() => {
-    setTurnDurations((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      entries.forEach((e, i) => {
-        if (
-          e.kind === "text" &&
-          e.role === "assistant" &&
-          e.durationSeconds != null &&
-          next[i] === undefined
-        ) {
-          next[i] = e.durationSeconds;
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [entries]);
-  useEffect(() => {
-    if (sending) return;
-    const startedAt = startedAtMsRef.current;
-    if (!startedAt) return;
-    const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-    const list = entriesRef.current;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const e = list[i];
-      if (e.kind === "text" && e.role === "assistant") {
-        setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
-        break;
-      }
-      if (e.kind === "text" && e.role === "user") break;
-    }
-    startedAtMsRef.current = null;
-  }, [sending]);
   const replyStartedAt = sending ? generatingState.startedAtMs : null;
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // The textarea is uncontrolled (see `ChatInputBar`'s `defaultValue`) so the
-  // browser's native undo/redo (Ctrl+Z) survives — a controlled `value`
-  // reassigned on every keystroke wipes that history. Programmatic changes
-  // (clearing on send, inserting a slash-command template) have to write the
-  // DOM node directly as well as the `input` state that mirrors it.
-  function setInputValue(value: string) {
-    setInput(value);
-    if (textareaRef.current) textareaRef.current.value = value;
-  }
 
   // "/compact" only exists for the built-in provider loop — see
   // `COMPACT_COMMAND`. Local commands first, then whatever the connected
@@ -338,6 +176,10 @@ export default function ChatPanel({
     ...localCommands,
     ...acpCommands.filter((c) => !localCommands.some((l) => l.name === c.name)),
   ];
+  const slash = useSlashCommands(input, allCommands);
+  // Mirrors `send()`'s own check — a leading space ("!" escaped as " !")
+  // means "just send this as text", so it's not shell mode either.
+  const shellMode = input.startsWith("!");
 
   // Runs a local command entirely client-side — never sent to the
   // model/agent as a prompt. Blocked while `sending`, same as `retry`:
@@ -371,7 +213,7 @@ export default function ChatPanel({
           // they were still live. Reconnecting immediately (rather than
           // waiting for the next send) re-announces them fresh.
           resetAcpConnectionState();
-          setAcpRetryNonce((n) => n + 1);
+          reconnectAcp();
         }
       } catch (e) {
         setOllamaError(String(e));
@@ -461,10 +303,10 @@ export default function ChatPanel({
 
   // The actual "push a user turn and hand it to whichever backend is
   // active" round trip — factored out of `send()` so the Claude
-  // session-limit auto-resume (see `useChatStream`'s `claudeRateLimit`) can
-  // submit "continue working" the same way once its timer fires, without
-  // going through the input box or `send()`'s own guards (those are about
-  // whether the *user* is allowed to send right now, not this).
+  // session-limit auto-resume (see `useChatStream`'s `claudeRateLimit`) and
+  // the message queue can submit the same way, without going through the
+  // input box or `send()`'s own guards (those are about whether the *user*
+  // is allowed to send right now, not this).
   async function submitPrompt(text: string) {
     markConversationStarted(sessionId, projectRoot, pendingWorktree);
     setEntries((prev) => [
@@ -497,29 +339,16 @@ export default function ChatPanel({
     }
   }
 
-  // Appends the current input to the back of the queue — the flush effect
-  // below delivers each entry in order, through the normal `submitPrompt`
-  // path, as the turn ahead of it finishes. Only reachable while `sending`
-  // (see `ChatInputBar`'s `showQueue`), so there's always at least one turn
-  // ahead of it to wait on.
+  const queue = useMessageQueue(sending, submitPrompt);
+
+  // Appends the current input to the back of the queue, delivered in order
+  // through the normal `submitPrompt` path as the turn ahead of it finishes.
   function queueMessage() {
     const text = input.trim();
     if (!text) return;
-    setQueuedMessages((prev) => [...prev, text]);
+    queue.enqueue(text);
     setInputValue("");
   }
-
-  function removeQueuedMessage(index: number) {
-    setQueuedMessages((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only `sending`'s transition to false should trigger this — `queuedMessages`/`submitPrompt` are read fresh, not meant to re-run the effect on their own
-  useEffect(() => {
-    if (sending || queuedMessages.length === 0) return;
-    const [next, ...rest] = queuedMessages;
-    setQueuedMessages(rest);
-    submitPrompt(next);
-  }, [sending]);
 
   function autoResumeFromRateLimit() {
     if (!isClaudeAcp || sending) return;
@@ -527,56 +356,32 @@ export default function ChatPanel({
     submitPrompt("continue working");
   }
 
-  // Slash-command autocomplete: only triggers when the *entire* input is
-  // "/" followed by a run of non-space characters — i.e. the user is still
-  // typing the command name itself. Typing a space (moving on to args) or
-  // anything else drops out of match automatically, no explicit "close"
-  // needed for that case.
-  const slashQuery = /^\/(\S*)$/.exec(input)?.[1] ?? null;
-  const slashMatches =
-    slashQuery !== null
-      ? allCommands.filter((c) =>
-          c.name.toLowerCase().startsWith(slashQuery.toLowerCase()),
-        )
-      : [];
-  const showSlashPopover =
-    slashMatches.length > 0 && slashDismissed !== slashQuery;
-  const slashActiveIndex = Math.min(slashIndex, slashMatches.length - 1);
-  // Mirrors `send()`'s own check — a leading space ("!" escaped as " !")
-  // means "just send this as text", so it's not shell mode either.
-  const shellMode = input.startsWith("!");
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: slashQuery is a trigger-only dep — reset the highlighted index whenever the typed query changes, its value isn't read in the body
-  useEffect(() => {
-    setSlashIndex(0);
-  }, [slashQuery]);
-
   function acceptSlashCommand(cmd: AcpCommandInfo) {
     setInputValue(`/${cmd.name} `);
-    setSlashDismissed(null);
+    slash.resetDismissed();
     textareaRef.current?.focus();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (showSlashPopover) {
+    if (slash.showPopover) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSlashIndex((i) => Math.min(i + 1, slashMatches.length - 1));
+        slash.moveDown();
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSlashIndex((i) => Math.max(i - 1, 0));
+        slash.moveUp();
         return;
       }
       if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
-        acceptSlashCommand(slashMatches[slashActiveIndex]);
+        acceptSlashCommand(slash.matches[slash.activeIndex]);
         return;
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setSlashDismissed(slashQuery);
+        slash.dismiss();
         return;
       }
     }
@@ -594,24 +399,9 @@ export default function ChatPanel({
     // An explicit stop means "I don't want this to keep going" — queued
     // messages auto-firing right after would contradict that, so drop them
     // all too.
-    setQueuedMessages([]);
+    queue.clear();
     await api.cancelPrompt(sessionId);
     setSending(false);
-  }
-
-  // Clears the popover immediately (optimistic — no round-trip flicker)
-  // rather than waiting for the backend's own `permission://resolved`,
-  // which still fires regardless and is what makes this safe even when a
-  // sub-agent's request got answered from its *parent's* popover instance.
-  async function respondPermission(approved: boolean) {
-    if (!pendingPermission) return;
-    const id = pendingPermission.id;
-    resolvePendingPermission(id);
-    try {
-      await api.respondPermission(id, approved);
-    } catch (e) {
-      setOllamaError(String(e));
-    }
   }
 
   async function retry() {
@@ -645,26 +435,17 @@ export default function ChatPanel({
   const inputBar = (
     <div className={cn("w-full", !isNewThread && "absolute bottom-0")}>
       <div className="mx-auto max-w-4xl">
-        {helpOpen && (
-          <HelpBanner
-            commands={allCommands}
-            onClose={() => setHelpOpen(false)}
-          />
-        )}
-        {claudeRateLimit && (
-          <ClaudeRateLimitBanner
-            rateLimit={claudeRateLimit}
-            autoResumeArmed={claudeAutoResumeArmed}
-            onArmAutoResume={armClaudeAutoResume}
-            onDismiss={dismissClaudeRateLimit}
-          />
-        )}
-        {queuedMessages.length > 0 && (
-          <QueuedMessagesBanner
-            messages={queuedMessages}
-            onCancel={removeQueuedMessage}
-          />
-        )}
+        <ChatBanners
+          helpOpen={helpOpen}
+          commands={allCommands}
+          onCloseHelp={() => setHelpOpen(false)}
+          claudeRateLimit={claudeRateLimit}
+          claudeAutoResumeArmed={claudeAutoResumeArmed}
+          onArmAutoResume={armClaudeAutoResume}
+          onDismissRateLimit={dismissClaudeRateLimit}
+          queuedMessages={queue.queued}
+          onCancelQueued={queue.remove}
+        />
         <ChatInputBar
           input={input}
           onChange={setInput}
@@ -673,11 +454,11 @@ export default function ChatPanel({
           shellMode={shellMode}
           pendingPermission={pendingPermission}
           onRespondPermission={respondPermission}
-          showSlashPopover={showSlashPopover}
-          slashMatches={slashMatches}
-          slashActiveIndex={slashActiveIndex}
+          showSlashPopover={slash.showPopover}
+          slashMatches={slash.matches}
+          slashActiveIndex={slash.activeIndex}
           onAcceptSlash={acceptSlashCommand}
-          onSlashActiveIndexChange={setSlashIndex}
+          onSlashActiveIndexChange={slash.setActiveIndex}
           sending={sending}
           onSend={send}
           onStop={stop}
@@ -686,38 +467,24 @@ export default function ChatPanel({
             !input.trim() || (!isAcp && !model) || (isAcp && !activeAcpAgent)
           }
           toolbarLeft={
-            <>
-              <ModelPickerPopover
-                options={backendOptions}
-                activeKey={activeBackendKey}
-                onSelect={selectBackendOption}
-                triggerLabel={activeBackendLabel}
-                loading={acpModelSwitchPending}
-                open={modelPickerOpen}
-                onOpenChange={setModelPickerOpen}
-              />
-              {isAcp && acpEffortOptions && (
-                <EffortPickerPopover
-                  options={acpEffortOptions.options}
-                  value={acpEffortChoice ?? acpEffortOptions.currentValue}
-                  onSelect={selectAcpEffort}
-                />
-              )}
-              <PermissionModePopover
-                mode={permissionMode}
-                onSelect={(mode) => setPermissionMode(sessionId, mode)}
-                open={permissionModePickerOpen}
-                onOpenChange={setPermissionModePickerOpen}
-              />
-              {isOpenAiCompatible && !isAcp && (
-                <Input
-                  variant="chip"
-                  value={model}
-                  onChange={(e) => setModel(e.currentTarget.value)}
-                  placeholder="model id"
-                />
-              )}
-            </>
+            <ChatToolbar
+              backendOptions={backendOptions}
+              activeBackendKey={activeBackendKey}
+              activeBackendLabel={activeBackendLabel}
+              onSelectBackend={selectBackendOption}
+              modelSwitchPending={acpModelSwitchPending}
+              modelPickerOpen={modelPickerOpen}
+              onModelPickerOpenChange={setModelPickerOpen}
+              isAcp={isAcp}
+              effortOptions={acpEffortOptions}
+              effortChoice={acpEffortChoice}
+              onSelectEffort={selectAcpEffort}
+              permissionMode={permissionMode}
+              onSelectPermissionMode={setPermissionMode}
+              showModelIdInput={isOpenAiCompatible && !isAcp}
+              model={model}
+              onModelChange={setModel}
+            />
           }
           contextUsage={
             usedTokens !== null && (
@@ -744,54 +511,18 @@ export default function ChatPanel({
             // that `set_conversation_root` (called by `CheckoutBar` itself) has
             // updated this session's cwd, same retry path a resume failure
             // uses.
-            setAcpRetryNonce((n) => n + 1);
+            reconnectAcp();
           }}
         />
       </div>
     </div>
   );
 
+  // No message sent yet — centered input instead of the bottom-pinned
+  // layout below. Flips the instant `submitPrompt` calls
+  // `markConversationStarted`, with no remount.
   if (isNewThread) {
-    // No conversation has been started for this project yet — centered
-    // (both axes) input instead of the normal bottom-pinned layout, per
-    // the "new thread" empty state. Flips to the layout below the instant
-    // `submitPrompt` calls `markConversationStarted`, with no remount.
-    return (
-      <div className="flex h-full items-center justify-center px-6">
-        <div className="w-full max-w-2xl">
-          <div className="mb-6 text-center">
-            <div className="relative mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-raised text-primary-hover shadow-[0_0_0_1px_rgba(58,95,143,0.3),0_10px_26px_rgba(0,0,0,0.2)]">
-              <MessageCircle size={25} strokeWidth={1.6} />
-              <Sparkles
-                size={13}
-                className="absolute -right-1 -top-1 text-amber-300"
-              />
-            </div>
-            <h2 className="text-lg font-medium text-zinc-100">
-              What are we working on in{" "}
-              <NewConversationPopover
-                trigger={
-                  <button
-                    type="button"
-                    title="Switch project"
-                    className="cursor-pointer inline-flex items-center gap-0.5 underline decoration-dotted decoration-zinc-500 underline-offset-4 hover:text-blue-300 hover:decoration-blue-300"
-                  >
-                    {projectName}
-                    <ChevronDown size={14} className="text-zinc-500" />
-                  </button>
-                }
-              />
-              ?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              Ask about your code, plan a change, or let the agent explore the
-              project with you.
-            </p>
-          </div>
-          {inputBar}
-        </div>
-      </div>
-    );
+    return <NewThreadView projectName={projectName}>{inputBar}</NewThreadView>;
   }
 
   return (

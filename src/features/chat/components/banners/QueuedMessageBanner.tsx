@@ -8,7 +8,7 @@ interface QueuedMessagesBannerProps {
 
 // Sits above `ChatInputBar`, one row per message waiting to be sent once the
 // turn ahead of it finishes — see `queueMessage`/`interrupt` and the flush
-// effect in `ChatPanel.tsx`. Top row goes out next. No inline edit, just a
+// effect in `useMessageQueue.ts`. Top row goes out next. No inline edit, just a
 // preview and a way to drop it.
 export default function QueuedMessagesBanner({
   messages,

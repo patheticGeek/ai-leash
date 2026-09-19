@@ -10,7 +10,7 @@ import {
   api,
 } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
-import type { PickerOption } from "../components/ModelPickerPopover";
+import type { PickerOption } from "../components/popovers/ModelPickerPopover";
 
 // Commands we handle ourselves, client-side, rather than sending as a
 // prompt — no ACP agent implements a matching request (the protocol
@@ -53,7 +53,7 @@ export function useChatSession(
   // Runs whenever the connected ACP agent changes and this hook resets its
   // own ACP-related state — lets the caller reset state it owns that also
   // needs to go stale at the same time (currently just the slash-command
-  // popover's dismissed-query bookkeeping in `ChatPanel.tsx`).
+  // popover's dismissed-query bookkeeping from `useSlashCommands`).
   onAcpAgentReset: () => void,
 ) {
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);

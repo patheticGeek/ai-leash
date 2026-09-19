@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { messagesToEntries } from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
-import ChatEntryList from "./components/ChatEntryList";
+import ChatEntryList from "./components/messages/ChatEntryList";
 import SubAgentStatusBadge from "./SubAgentStatusBadge";
 
 // Shows a sub-agent's own transcript through the same `ChatEntryList`/

@@ -6,9 +6,9 @@ import { Textarea } from "@/ui/textarea";
 import type {
   AcpCommandInfo,
   PermissionRequestPayload,
-} from "../../../lib/tauriApi";
-import PermissionPopover from "./PermissionPopover";
-import SlashCommandMenu from "./SlashCommandMenu";
+} from "../../../../lib/tauriApi";
+import PermissionPopover from "../popovers/PermissionPopover";
+import SlashCommandMenu from "../popovers/SlashCommandMenu";
 
 const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
@@ -35,7 +35,7 @@ export interface ChatInputBarProps {
   onQueue: () => void;
   sendDisabled: boolean;
   // Model/agent + permission-mode pickers (and, for OpenAI-compatible
-  // providers, the free-text model id input) — composed by `ChatPanel.tsx`
+  // providers, the free-text model id input) — composed by `ChatToolbar.tsx`
   // and slotted in here rather than imported directly, so this component
   // stays about the input box itself, not who's picked to answer it.
   toolbarLeft: ReactNode;

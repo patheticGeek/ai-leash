@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { Button } from "@/ui/button";
-import type { AcpCommandInfo } from "../../../lib/tauriApi";
+import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 
 type HelpBannerProps = {
   commands: AcpCommandInfo[];

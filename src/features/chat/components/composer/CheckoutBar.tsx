@@ -24,8 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
-import { api, type GitBranch, type GitWorktree } from "../../../lib/tauriApi";
-import { useCurrentGitBranch } from "../../../lib/useCurrentGitBranch";
+import {
+  api,
+  type GitBranch,
+  type GitWorktree,
+} from "../../../../lib/tauriApi";
+import { useCurrentGitBranch } from "../../../../lib/useCurrentGitBranch";
 
 interface CheckoutBarProps {
   sessionId: string;

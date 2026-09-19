@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { Button } from "@/ui/button";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
-import type { PermissionMode } from "../../../store";
+import type { PermissionMode } from "../../../../store";
 
 interface PermissionModePopoverProps {
   mode: PermissionMode;

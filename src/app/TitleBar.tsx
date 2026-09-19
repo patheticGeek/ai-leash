@@ -117,7 +117,7 @@ export default function TitleBar({
     : undefined;
 
   // Starts a fresh thread directly in whatever project is currently open —
-  // no project picker here (see `ChatPanel.tsx`'s "What are we working on
+  // no project picker here (see `NewThreadView.tsx`'s "What are we working on
   // in {project}?" heading for changing *which* project a still-fresh new
   // thread targets instead). Falls back to the native folder picker only
   // when no project has ever been opened yet, since there's nothing to

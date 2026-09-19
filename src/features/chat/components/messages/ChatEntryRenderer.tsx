@@ -1,82 +1,11 @@
-import { Bot, Check, Copy, RotateCcw, Wrench } from "lucide-react";
+import { Bot, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
-import { type Entry, isToolError } from "../../../lib/chatEntries";
-import Markdown from "../../../ui/Markdown";
-import type { PanelEntry } from "../hooks/useChatStream";
+import { isToolError } from "../../../../lib/chatEntries";
+import Markdown from "../../../../ui/Markdown";
+import type { PanelEntry } from "../../hooks/useChatStream";
 import { ActivityRow } from "./ActivityRow";
-
-export function formatTime(ms: number): string {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-export function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-}
-
-// Nested rendering for a sub-agent's own transcript, shown inside its
-// parent `spawn_sub_agent` tool-call entry once expanded — deliberately
-// smaller/plainer than the top-level rendering below (no expand/collapse,
-// no copy button, no timing), since it's read-only context for the parent
-// turn rather than its own interactive conversation.
-function SubEntryLine({ entry }: { entry: Entry }) {
-  if (entry.kind === "text") {
-    return (
-      <div
-        className={cn(
-          "select-text",
-          entry.role === "user" ? "text-zinc-400" : "text-zinc-500",
-        )}
-      >
-        <div className="text-[9px] uppercase tracking-wide text-zinc-700">
-          {entry.role === "user" ? "task" : "sub-agent"}
-        </div>
-        {entry.role === "user" ? (
-          <div className="whitespace-pre-wrap">{entry.content}</div>
-        ) : (
-          <Markdown content={entry.content} />
-        )}
-      </div>
-    );
-  }
-  if (entry.kind === "thinking") {
-    return (
-      <div className="italic text-zinc-700">
-        {entry.done ? "Thought" : "Thinking…"}
-      </div>
-    );
-  }
-  const failed = isToolError(entry.result);
-  return (
-    <div
-      className={cn(
-        "rounded-md px-2 py-1",
-        failed
-          ? "shadow-[0_0_0_1px_rgba(127,29,29,0.5)] bg-red-950/20 text-red-300"
-          : "bg-raised text-zinc-500",
-      )}
-    >
-      <Wrench
-        size={11}
-        className={cn(
-          "inline-block -mt-0.5 mr-1",
-          failed ? "text-red-400" : "text-zinc-700",
-        )}
-      />
-      {entry.name}
-      {failed && <span className="text-red-400"> · failed</span>}
-      {entry.result === undefined ? (
-        <span className="text-zinc-700"> · running…</span>
-      ) : (
-        <div className="mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap opacity-90">
-          {entry.result}
-        </div>
-      )}
-    </div>
-  );
-}
+import MessageFooter from "./MessageFooter";
+import SubEntryLine from "./SubEntryLine";
 
 export interface ChatEntryRendererProps {
   entry: PanelEntry;
@@ -100,8 +29,8 @@ export interface ChatEntryRendererProps {
 }
 
 // Renders one transcript entry ("info"/"text"/"thinking"/"tool") — the
-// counterpart to `ChatEntryList.tsx`'s grouping/iteration over the whole
-// array. Also reused as-is by `SubAgentChatTab.tsx` (via `ChatEntryList`) so
+// counterpart to `ChatEntryList.tsx`'s iteration over the whole array
+// (grouping lives in `entryGrouping.ts`). Also reused as-is by `SubAgentChatTab.tsx` (via `ChatEntryList`) so
 // a sub-agent's own transcript shows tool calls/thinking identically to a
 // top-level conversation's, just with `allowRetry`/`isAcp` forced off and no
 // system-prompt/Ollama/ACP-restore banners.
@@ -148,42 +77,15 @@ export default function ChatEntryRenderer({
         </div>
 
         {showFooter && (
-          <div
-            className={cn(
-              "mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600",
-              isUser ? "flex-row-reverse" : "",
-            )}
-          >
-            <Button
-              variant="quiet"
-              size="icon-sm"
-              onClick={onCopy}
-              title="Copy"
-            >
-              {copied ? <Check size={13} /> : <Copy size={13} />}
-            </Button>
-            {!sending && isLast && !isAcp && allowRetry && (
-              <Button
-                variant="quiet"
-                size="icon-sm"
-                onClick={onRetry}
-                title="Retry"
-              >
-                <RotateCcw size={13} />
-              </Button>
-            )}
-            <div className="normal-case tracking-normal text-zinc-700 gap-2 flex items-center">
-              <span>{formatTime(entry.time)}</span>
-              {!isUser && turnDuration !== undefined && (
-                <>
-                  <span>·</span>
-                  <span className="normal-case tracking-normal text-zinc-700">
-                    Worked for {formatDuration(turnDuration)}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
+          <MessageFooter
+            isUser={isUser}
+            time={entry.time}
+            copied={copied}
+            onCopy={onCopy}
+            showRetry={!sending && isLast && !isAcp && allowRetry}
+            onRetry={onRetry}
+            turnDuration={isUser ? undefined : turnDuration}
+          />
         )}
       </div>
     );
