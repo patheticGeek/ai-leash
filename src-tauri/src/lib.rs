@@ -105,6 +105,7 @@ pub fn run() {
             commands::list_dir,
             commands::read_file_text,
             commands::write_file_text,
+            commands::open_in_ide,
             git::list_git_branches,
             git::list_git_worktrees,
             git::get_current_git_branch,

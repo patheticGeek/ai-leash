@@ -8,6 +8,7 @@ import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
 import Logo from "../ui/Logo";
+import OpenInIdeButton from "./OpenInIdeButton";
 import TitleBarActions from "./TitleBarActions";
 
 export const TITLEBAR_HEIGHT = 36;
@@ -197,7 +198,8 @@ export default function TitleBar({
             {acpSessionId ?? "—"}
           </span>
         )}
-        <div className="ml-auto flex shrink-0 items-center pl-3">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
+          <OpenInIdeButton />
           <TitleBarActions />
         </div>
       </div>

@@ -286,6 +286,8 @@ export const api = {
     invoke<string>("read_file_text", { sessionId, path }),
   writeFileText: (sessionId: string, path: string, contents: string) =>
     invoke<void>("write_file_text", { sessionId, path, contents }),
+  openInIde: (command: string, path: string) =>
+    invoke<void>("open_in_ide", { command, path }),
   // Opens in whichever checkout `sessionId`'s conversation is pinned to
   // (primary or worktree) — see `pty.rs`'s doc comment.
   ptySpawn: (sessionId: string, cols: number, rows: number) =>
