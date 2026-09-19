@@ -82,9 +82,11 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     async function attach(ptyId: string) {
       unlistenRef.current?.();
       attachedPtyIdRef.current = ptyId;
+      // A new pty means a fresh run: wipe the previous run's output now
+      // rather than after the backlog round trip.
+      term.reset();
       const backlog = await api.actionBacklog(currentCheckoutPath, actionId);
       if (disposed) return;
-      term.reset();
       term.write(base64ToBytes(backlog));
       unlistenRef.current = await listen<string>(`pty://${ptyId}/data`, (e) => {
         term.write(base64ToBytes(e.payload));
