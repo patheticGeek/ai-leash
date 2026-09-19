@@ -11,6 +11,7 @@ use crate::chat::{self, ChatMessage};
 use crate::db;
 use crate::state::AppState;
 use chrono::{Local, NaiveTime, TimeZone};
+use chrono_tz::Tz;
 use regex::Regex;
 use serde::Serialize;
 use std::sync::OnceLock;
@@ -36,14 +37,20 @@ pub(super) fn is_session_limit_notice(text: &str) -> bool {
 fn reset_time_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"(?i)resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m").unwrap()
+        Regex::new(
+            r"(?i)resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m(?:\s*\(([^)]+)\))?",
+        )
+        .unwrap()
     })
 }
 
-/// The first local instant matching the printed "resets 11:20pm" clock time
-/// after `sent_at_secs` (when the notice was written), as epoch millis. The
-/// parenthesized zone name is ignored: it's the user's own zone, and both
-/// Claude and this app run on the same machine.
+/// The first instant matching the printed "resets 11:20pm (Asia/Kolkata)"
+/// clock time strictly after `sent_at_secs` (when the notice was written), as
+/// epoch millis. "First occurrence after the notice" rather than "same date
+/// as the notice" is what keeps a notice written just before midnight (or a
+/// reset just after it) on the right day. The clock time is read in the
+/// printed zone when it names a valid IANA zone, else the machine's local
+/// one.
 fn parse_reset_at_ms(text: &str, sent_at_secs: i64) -> Option<i64> {
     let caps = reset_time_regex().captures(text)?;
     let hour12: u32 = caps[1].parse().ok()?;
@@ -57,10 +64,20 @@ fn parse_reset_at_ms(text: &str, sent_at_secs: i64) -> Option<i64> {
     let pm = caps[3].eq_ignore_ascii_case("p");
     let time = NaiveTime::from_hms_opt(hour12 % 12 + if pm { 12 } else { 0 }, minute, 0)?;
 
-    let sent = Local.timestamp_opt(sent_at_secs, 0).single()?;
+    match caps
+        .get(4)
+        .and_then(|m| m.as_str().trim().parse::<Tz>().ok())
+    {
+        Some(tz) => next_occurrence(&tz, sent_at_secs, time),
+        None => next_occurrence(&Local, sent_at_secs, time),
+    }
+}
+
+fn next_occurrence<Z: TimeZone>(zone: &Z, sent_at_secs: i64, time: NaiveTime) -> Option<i64> {
+    let sent = zone.timestamp_opt(sent_at_secs, 0).single()?;
     let mut date = sent.date_naive();
     for _ in 0..2 {
-        if let Some(candidate) = Local.from_local_datetime(&date.and_time(time)).earliest() {
+        if let Some(candidate) = zone.from_local_datetime(&date.and_time(time)).earliest() {
             if candidate > sent {
                 return Some(candidate.timestamp_millis());
             }
@@ -318,6 +335,45 @@ mod tests {
             Some(local_ms(2026, 9, 20, 0, 30))
         );
         assert_eq!(parse_reset_at_ms("session limit · resets soon", sent), None);
+    }
+
+    #[test]
+    fn a_notice_just_before_midnight_resets_on_the_next_day() {
+        let sent = local_secs(2026, 9, 19, 23, 59);
+        assert_eq!(
+            parse_reset_at_ms("session limit · resets 12:00am", sent),
+            Some(local_ms(2026, 9, 20, 0, 0))
+        );
+        assert_eq!(
+            parse_reset_at_ms("session limit · resets 12:30am", sent),
+            Some(local_ms(2026, 9, 20, 0, 30))
+        );
+    }
+
+    #[test]
+    fn reads_the_clock_time_in_the_printed_zone() {
+        // 2026-09-19 12:00 UTC is 17:30 in Kolkata, so 11:20pm is 17:50 UTC.
+        let sent = chrono::Utc
+            .with_ymd_and_hms(2026, 9, 19, 12, 0, 0)
+            .unwrap()
+            .timestamp();
+        let expected = chrono::Utc
+            .with_ymd_and_hms(2026, 9, 19, 17, 50, 0)
+            .unwrap()
+            .timestamp_millis();
+        assert_eq!(
+            parse_reset_at_ms("session limit · resets 11:20pm (Asia/Kolkata)", sent),
+            Some(expected)
+        );
+    }
+
+    #[test]
+    fn unknown_zone_falls_back_to_local() {
+        let sent = local_secs(2026, 9, 19, 20, 0);
+        assert_eq!(
+            parse_reset_at_ms("session limit · resets 11:20pm (Not/AZone)", sent),
+            Some(local_ms(2026, 9, 19, 23, 20))
+        );
     }
 
     fn temp_db() -> db::Db {
