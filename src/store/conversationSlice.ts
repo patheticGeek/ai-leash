@@ -318,35 +318,39 @@ export const conversationSlice: StateCreator<
   // actually sent (called from `ChatPanel.submitPrompt`, before the
   // backend round trip) — this is what flips a conversation from "new
   // thread" to a real, listed row in the sidebar without waiting on
-  // anything async. No-op if already present (e.g. a second message in the
-  // same still-fresh conversation).
+  // anything async. No-op if already present: this runs on every send, and
+  // callers only know the worktree picked during a still-new thread
+  // (`ChatPanel`'s `pendingWorktree`, `null` again after a remount), so
+  // re-stamping `checkoutPathBySession` here would reset an existing
+  // worktree conversation back to the primary root.
   markConversationStarted: (id, projectRoot, worktreePath = null) => {
-    set((s) => ({
-      checkoutPathBySession: {
-        ...s.checkoutPathBySession,
-        [id]: worktreePath ?? projectRoot,
-      },
-      conversations: s.conversations.some((c) => c.id === id)
-        ? s.conversations
-        : [
-            {
-              id,
-              projectRoot,
-              // Mirrors what the backend stamps this row with (see
-              // `db::upsert_conversation`'s `ensure_project_connection`) —
-              // the id of the project this thread was started in, which is
-              // the open one. Left null (until the next
-              // `loadAllConversations` reconciles it) in the unexpected case
-              // where it isn't, rather than guessing a wrong id.
-              projectId: s.projectRoot === projectRoot ? s.projectId : null,
-              title: null,
-              updatedAt: nowSeconds(),
-              done: false,
-              worktreePath,
-            },
-            ...s.conversations,
-          ],
-    }));
+    set((s) => {
+      if (s.conversations.some((c) => c.id === id)) return s;
+      return {
+        checkoutPathBySession: {
+          ...s.checkoutPathBySession,
+          [id]: worktreePath ?? projectRoot,
+        },
+        conversations: [
+          {
+            id,
+            projectRoot,
+            // Mirrors what the backend stamps this row with (see
+            // `db::upsert_conversation`'s `ensure_project_connection`) —
+            // the id of the project this thread was started in, which is
+            // the open one. Left null (until the next
+            // `loadAllConversations` reconciles it) in the unexpected case
+            // where it isn't, rather than guessing a wrong id.
+            projectId: s.projectRoot === projectRoot ? s.projectId : null,
+            title: null,
+            updatedAt: nowSeconds(),
+            done: false,
+            worktreePath,
+          },
+          ...s.conversations,
+        ],
+      };
+    });
     // Catches any tabs opened while this was still a new/unsent thread —
     // `persistActiveSessionTabState` skipped them until now, since the id
     // wasn't in `conversations` yet.
