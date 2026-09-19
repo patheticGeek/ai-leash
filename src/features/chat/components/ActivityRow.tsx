@@ -1,14 +1,14 @@
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "./button";
+import { Button } from "@/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "./collapsible";
+} from "@/ui/collapsible";
 
-interface MarkerProps {
+interface ActivityRowProps {
   /** Leading icon (tool, agent, …). Turns red when `status="failed"`. */
   icon?: React.ReactNode;
   label: React.ReactNode;
@@ -31,11 +31,12 @@ interface MarkerProps {
 // A single line in a transcript that stands for something the agent did or
 // is doing (thinking, a tool call, a sub-agent, the system prompt) — a
 // chevron + label header that expands to show its detail beside a thin rule.
-// Built on shadcn's `Collapsible` (Radix): it supplies the aria-expanded /
-// aria-controls wiring and unmounts the detail while closed; the header and
-// rule are our theme. Stays controlled (`expanded` / `onToggle`) because the
-// transcript owns which rows are open.
-function Marker({
+// Feature-level, not in `src/ui`: the registry's own `marker` is a static
+// divider, not an expandable row. Built on shadcn's `Collapsible` (Radix),
+// which supplies the aria-expanded / aria-controls wiring and unmounts the
+// detail while closed; the header and rule are our theme. Stays controlled
+// (`expanded` / `onToggle`) because the transcript owns which rows are open.
+function ActivityRow({
   icon,
   label,
   summary,
@@ -47,7 +48,7 @@ function Marker({
   onToggle,
   children,
   className,
-}: MarkerProps) {
+}: ActivityRowProps) {
   const failed = status === "failed";
   const expandable = onToggle !== undefined;
   const header = (
@@ -95,7 +96,7 @@ function Marker({
 
   return (
     <Collapsible
-      data-slot="marker"
+      data-slot="activity-row"
       open={expanded}
       onOpenChange={() => onToggle?.()}
       disabled={!expandable}
@@ -128,4 +129,4 @@ function Marker({
   );
 }
 
-export { Marker };
+export { ActivityRow };

@@ -1,10 +1,10 @@
 import { Bot, Check, Copy, RotateCcw, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
-import { Marker } from "@/ui/marker";
 import { type Entry, isToolError } from "../../../lib/chatEntries";
 import Markdown from "../../../ui/Markdown";
 import type { PanelEntry } from "../hooks/useChatStream";
+import { ActivityRow } from "./ActivityRow";
 
 export function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -192,7 +192,7 @@ export default function ChatEntryRenderer({
   if (entry.kind === "thinking") {
     const thinking = !entry.done && isLast;
     return (
-      <Marker
+      <ActivityRow
         italic
         shine={thinking}
         label={thinking ? "Thinking…" : "Thought"}
@@ -200,7 +200,7 @@ export default function ChatEntryRenderer({
         onToggle={onToggleExpand}
       >
         <div className="whitespace-pre-wrap italic">{entry.content}</div>
-      </Marker>
+      </ActivityRow>
     );
   }
 
@@ -211,7 +211,7 @@ export default function ChatEntryRenderer({
       ? Bot
       : Wrench;
   return (
-    <Marker
+    <ActivityRow
       fullWidth
       icon={<Icon />}
       label={entry.name}
@@ -270,6 +270,6 @@ export default function ChatEntryRenderer({
           </pre>
         </div>
       )}
-    </Marker>
+    </ActivityRow>
   );
 }

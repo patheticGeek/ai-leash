@@ -2,7 +2,6 @@ import { ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
-import { Marker } from "@/ui/marker";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -12,6 +11,7 @@ import {
   MessageScrollerViewport,
 } from "@/ui/message-scroller";
 import type { PanelEntry } from "../hooks/useChatStream";
+import { ActivityRow } from "./ActivityRow";
 import ChatEntryRenderer from "./ChatEntryRenderer";
 import WorkingForIndicator from "./WorkingForIndicator";
 
@@ -228,7 +228,7 @@ export default function ChatEntryList({
               </div>
             )}
             {systemPrompt && (
-              <Marker
+              <ActivityRow
                 italic
                 label="system prompt"
                 expanded={systemPromptExpanded}
@@ -237,7 +237,7 @@ export default function ChatEntryList({
                 <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
                   {systemPrompt}
                 </pre>
-              </Marker>
+              </ActivityRow>
             )}
             {entries.length === 0 && !ollamaError && (
               <div className="flex min-h-[min(28rem,60vh)] items-center justify-center px-4">
