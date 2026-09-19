@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/format";
 import { Button } from "@/ui/button";
 
 export interface ClaudeRateLimit {
@@ -10,13 +11,6 @@ interface ClaudeRateLimitBannerProps {
   autoResumeArmed: boolean;
   onArmAutoResume: () => void;
   onDismiss: () => void;
-}
-
-function formatClockTime(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 export default function ClaudeRateLimitBanner({

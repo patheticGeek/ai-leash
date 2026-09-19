@@ -1,10 +1,7 @@
 import { useState } from "react";
+import { formatTokenCount } from "@/lib/format";
 import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
-
-function formatTokenCount(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-}
 
 export interface ContextUsageRingProps {
   usedTokens: number;

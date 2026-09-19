@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 import {
   MessageScroller,
@@ -79,16 +80,10 @@ export default function ChatEntryList({
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
   );
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
 
   function toggle(i: number) {
     setExpandOverride((prev) => ({ ...prev, [i]: !prev[i] }));
-  }
-
-  async function copyText(i: number, text: string) {
-    await navigator.clipboard.writeText(text);
-    setCopiedIndex(i);
-    setTimeout(() => setCopiedIndex((cur) => (cur === i ? null : cur)), 1200);
   }
 
   function renderEntry(i: number) {
@@ -106,7 +101,7 @@ export default function ChatEntryList({
         expanded={expandOverride[i] ?? false}
         onToggleExpand={() => toggle(i)}
         copied={copiedIndex === i}
-        onCopy={() => copyText(i, entry.kind === "text" ? entry.content : "")}
+        onCopy={() => copy(entry.kind === "text" ? entry.content : "", i)}
         onRetry={onRetry}
         turnDuration={turnDurations[i]}
         showFooter={showFooter}

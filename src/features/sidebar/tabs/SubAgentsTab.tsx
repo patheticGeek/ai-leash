@@ -1,25 +1,11 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatDuration, formatTime } from "@/lib/format";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import SubAgentStatusBadge from "../../chat/SubAgentStatusBadge";
-
-function formatTime(ms: number): string {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
 
 export default function SubAgentsTab() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
@@ -64,7 +50,7 @@ export default function SubAgentsTab() {
       {sorted.map((task) => {
         const running = task.status === "running";
         const duration = formatDuration(
-          (running ? now : (task.endedAt ?? now)) - task.startedAt,
+          ((running ? now : (task.endedAt ?? now)) - task.startedAt) / 1000,
         );
         return (
           <Card

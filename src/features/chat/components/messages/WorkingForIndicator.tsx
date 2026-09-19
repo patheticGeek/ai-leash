@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { formatDuration } from "../../format";
+import { formatDuration } from "@/lib/format";
 
 interface WorkingForIndicatorProps {
   // Whether the turn has produced anything visible yet (from `entries`) —

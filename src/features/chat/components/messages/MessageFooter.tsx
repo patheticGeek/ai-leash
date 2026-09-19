@@ -1,7 +1,7 @@
 import { Check, Copy, RotateCcw } from "lucide-react";
+import { formatDuration, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
-import { formatDuration, formatTime } from "../../format";
 
 interface MessageFooterProps {
   isUser: boolean;
