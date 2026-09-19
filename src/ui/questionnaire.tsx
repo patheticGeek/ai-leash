@@ -1,6 +1,4 @@
-import { Check } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import {
   Card,
@@ -10,8 +8,19 @@ import {
   CardHeader,
   CardTitle,
 } from "./card";
+import { Checkbox } from "./checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+} from "./field";
 import { Input } from "./input";
-import { Label } from "./label";
+import { RadioGroup, RadioGroupItem } from "./radio-group";
 
 export interface QuestionOption {
   value: string;
@@ -55,6 +64,9 @@ function isAnswered(value: string | string[] | undefined) {
 // A short form an agent can put in front of the user mid-session to gather
 // structured input (an elicitation): free text, pick-one, or pick-many.
 // Purely presentational — the caller owns what happens with the answers.
+// Composed from shadcn's `Field` / `RadioGroup` / `Checkbox` / `Card`
+// primitives (upstream's selectable-card `FieldLabel` pattern); only the
+// answer bookkeeping and required-field gating are ours.
 function Questionnaire({
   title,
   description,
@@ -94,71 +106,95 @@ function Questionnaire({
           {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
       )}
-      <CardContent className="space-y-4">
-        {questions.map((q) => (
-          <div key={q.id} className="space-y-1.5">
-            <Label htmlFor={q.kind === "text" ? q.id : undefined}>
-              {q.prompt}
-              {q.required && <span className="text-destructive">*</span>}
-            </Label>
-            {q.description && (
-              <p className="text-xs text-muted-foreground">{q.description}</p>
-            )}
-            {q.kind === "text" ? (
-              <Input
-                id={q.id}
-                placeholder={q.placeholder}
-                value={(answers[q.id] as string | undefined) ?? ""}
-                onChange={(e) =>
-                  setAnswers((prev) => ({
-                    ...prev,
-                    [q.id]: e.currentTarget.value,
-                  }))
-                }
-              />
-            ) : (
-              <div className="rounded-md bg-raised py-1">
-                {q.options.map((o) => {
-                  const value = answers[q.id];
-                  const selected = Array.isArray(value)
-                    ? value.includes(o.value)
-                    : value === o.value;
-                  return (
-                    <Button
-                      key={o.value}
-                      variant="menu-item"
-                      size="none"
-                      data-active={selected}
-                      aria-pressed={selected}
-                      onClick={() => toggleOption(q, o.value)}
-                      className="flex items-start gap-2"
-                    >
-                      <span
-                        className={cn(
-                          "mt-0.5 flex size-4 shrink-0 items-center justify-center border border-zinc-600 text-primary-foreground",
-                          q.kind === "multi" ? "rounded-sm" : "rounded-full",
-                          selected && "border-primary bg-primary",
-                        )}
-                      >
-                        {selected && <Check size={11} />}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-zinc-100">
-                          {o.label}
-                        </span>
-                        {o.description && (
-                          <span className="block whitespace-normal text-xs text-zinc-500">
-                            {o.description}
-                          </span>
-                        )}
-                      </span>
-                    </Button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
+      <CardContent>
+        <FieldGroup>
+          {questions.map((q) => {
+            const prompt = (
+              <>
+                {q.prompt}
+                {q.required && <span className="text-destructive">*</span>}
+              </>
+            );
+            if (q.kind === "text") {
+              return (
+                <Field key={q.id}>
+                  <FieldLabel htmlFor={q.id}>{prompt}</FieldLabel>
+                  {q.description && (
+                    <FieldDescription>{q.description}</FieldDescription>
+                  )}
+                  <Input
+                    id={q.id}
+                    placeholder={q.placeholder}
+                    value={(answers[q.id] as string | undefined) ?? ""}
+                    onChange={(e) =>
+                      setAnswers((prev) => ({
+                        ...prev,
+                        [q.id]: e.currentTarget.value,
+                      }))
+                    }
+                  />
+                </Field>
+              );
+            }
+            return (
+              <FieldSet key={q.id}>
+                <FieldLegend variant="label">{prompt}</FieldLegend>
+                {q.description && (
+                  <FieldDescription>{q.description}</FieldDescription>
+                )}
+                {q.kind === "single" ? (
+                  <RadioGroup
+                    value={(answers[q.id] as string | undefined) ?? ""}
+                    onValueChange={(value) => toggleOption(q, value)}
+                  >
+                    {q.options.map((o) => (
+                      <FieldLabel key={o.value} htmlFor={`${q.id}-${o.value}`}>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem
+                            id={`${q.id}-${o.value}`}
+                            value={o.value}
+                          />
+                          <FieldContent>
+                            <FieldTitle>{o.label}</FieldTitle>
+                            {o.description && (
+                              <FieldDescription>
+                                {o.description}
+                              </FieldDescription>
+                            )}
+                          </FieldContent>
+                        </Field>
+                      </FieldLabel>
+                    ))}
+                  </RadioGroup>
+                ) : (
+                  <FieldGroup data-slot="checkbox-group" className="gap-2">
+                    {q.options.map((o) => (
+                      <FieldLabel key={o.value} htmlFor={`${q.id}-${o.value}`}>
+                        <Field orientation="horizontal">
+                          <Checkbox
+                            id={`${q.id}-${o.value}`}
+                            checked={(
+                              (answers[q.id] as string[] | undefined) ?? []
+                            ).includes(o.value)}
+                            onCheckedChange={() => toggleOption(q, o.value)}
+                          />
+                          <FieldContent>
+                            <FieldTitle>{o.label}</FieldTitle>
+                            {o.description && (
+                              <FieldDescription>
+                                {o.description}
+                              </FieldDescription>
+                            )}
+                          </FieldContent>
+                        </Field>
+                      </FieldLabel>
+                    ))}
+                  </FieldGroup>
+                )}
+              </FieldSet>
+            );
+          })}
+        </FieldGroup>
       </CardContent>
       <CardFooter className="justify-end gap-1.5">
         {onCancel && (
