@@ -1,6 +1,12 @@
 import { Alert, AlertAction, AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
 
+// Pinned to the top of the scroller. The `z-10` matters: each message is a
+// `MessageScrollerItem` with `content-visibility: auto`, which gives it its
+// own stacking context, so without a z-index every later message paints over
+// a sticky notice as it scrolls past.
+const STICKY = "sticky top-1 z-10";
+
 interface TranscriptNoticesProps {
   ollamaError: string | null;
   acpRestoreFailed: string | null;
@@ -27,12 +33,12 @@ export default function TranscriptNotices({
   return (
     <>
       {ollamaError && (
-        <Alert variant="danger" outline className="sticky top-1">
+        <Alert variant="danger" outline className={STICKY}>
           <AlertDescription>{ollamaError}</AlertDescription>
         </Alert>
       )}
       {acpRestoreFailed && (
-        <Alert variant="danger" outline className="sticky top-1">
+        <Alert variant="danger" outline className={STICKY}>
           <AlertDescription>
             This agent couldn't restore its previous session ({acpRestoreFailed}
             ). It no longer remembers this conversation.
@@ -45,7 +51,7 @@ export default function TranscriptNotices({
         </Alert>
       )}
       {acpHistoryTruncated && (
-        <Alert variant="warning" outline className="sticky top-1">
+        <Alert variant="warning" outline className={STICKY}>
           <AlertDescription>
             {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
             session, so this conversation's earlier history won't be visible to
