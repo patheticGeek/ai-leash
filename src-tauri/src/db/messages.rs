@@ -307,7 +307,7 @@ mod tests {
         let db = temp_db();
         save_message(
             &db,
-            "/proj::spawn_sub_agent::abc",
+            "sub-abc",
             "/proj",
             &ChatMessage {
                 role: "user".into(),
@@ -316,7 +316,7 @@ mod tests {
             },
         );
 
-        let loaded = load_messages(&db, "/proj::spawn_sub_agent::abc");
+        let loaded = load_messages(&db, "sub-abc");
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].content, "sub-agent prompt");
     }

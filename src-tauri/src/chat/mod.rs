@@ -301,6 +301,7 @@ mod tests {
         AppState {
             project_root: Mutex::new(None),
             conversation_roots: Mutex::new(HashMap::new()),
+            sub_agent_parents: Mutex::new(HashMap::new()),
             ptys: Mutex::new(HashMap::new()),
             chat_sessions: Mutex::new(HashMap::new()),
             pending_permissions: Mutex::new(HashMap::new()),
@@ -319,6 +320,30 @@ mod tests {
             permission_bypass: Mutex::new(HashSet::new()),
             action_runs: Mutex::new(HashMap::new()),
         }
+    }
+
+    #[test]
+    fn top_level_session_id_resolves_a_registered_sub_agent_to_its_parent() {
+        let state = test_state();
+        state
+            .sub_agent_parents
+            .lock()
+            .unwrap()
+            .insert("sub-1".into(), "conv-1".into());
+
+        assert_eq!(
+            crate::commands::top_level_session_id(&state, "sub-1"),
+            "conv-1"
+        );
+        assert_eq!(
+            crate::commands::top_level_session_id(&state, "conv-1"),
+            "conv-1"
+        );
+        // Ids are opaque — a lookalike that was never registered is its own root.
+        assert_eq!(
+            crate::commands::top_level_session_id(&state, "conv-1::spawn_sub_agent::x"),
+            "conv-1::spawn_sub_agent::x"
+        );
     }
 
     #[test]

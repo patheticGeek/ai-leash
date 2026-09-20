@@ -5,7 +5,7 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -47,15 +47,48 @@ pub fn get_root_path(state: &AppState) -> Result<PathBuf, String> {
         .ok_or_else(|| "no project open".to_string())
 }
 
-/// A sub-agent's session_id is `{parent_session_id}::spawn_sub_agent::{uuid}`
-/// (see `tools::sub_agent_tools`) — sub-agents are capped one level deep, so
-/// a single split recovers the owning top-level conversation id, which is
-/// what `conversation_roots` is actually keyed by.
-fn top_level_session_id(session_id: &str) -> &str {
-    session_id
-        .split("::spawn_sub_agent::")
-        .next()
-        .unwrap_or(session_id)
+/// The top-level conversation `session_id` belongs to: its parent if it's a
+/// running sub-agent (see `AppState::sub_agent_parents`), else itself.
+/// Sub-agents are capped one level deep, and `conversation_roots` is keyed by
+/// top-level id, so one hop is always enough.
+pub fn top_level_session_id(state: &AppState, session_id: &str) -> String {
+    state
+        .sub_agent_parents
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .cloned()
+        .unwrap_or_else(|| session_id.to_string())
+}
+
+/// Ties a running sub-agent to its parent in `AppState::sub_agent_parents`
+/// for as long as it lives — dropping it (normal finish, error, cancel, or a
+/// panic unwinding the task) removes the entry, so no exit path can leak one.
+pub struct SubAgentLink {
+    app: AppHandle,
+    sub_session_id: String,
+}
+
+impl SubAgentLink {
+    pub fn new(app: &AppHandle, parent_session_id: &str, sub_session_id: &str) -> Self {
+        app.state::<AppState>()
+            .sub_agent_parents
+            .lock()
+            .unwrap()
+            .insert(sub_session_id.to_string(), parent_session_id.to_string());
+        Self {
+            app: app.clone(),
+            sub_session_id: sub_session_id.to_string(),
+        }
+    }
+}
+
+impl Drop for SubAgentLink {
+    fn drop(&mut self) {
+        if let Ok(mut parents) = self.app.state::<AppState>().sub_agent_parents.lock() {
+            parents.remove(&self.sub_session_id);
+        }
+    }
 }
 
 pub struct ConversationRootInfo {
@@ -76,8 +109,8 @@ pub fn get_conversation_root(
     state: &AppState,
     session_id: &str,
 ) -> Result<ConversationRootInfo, String> {
-    let key = top_level_session_id(session_id);
-    if let Some(root) = state.conversation_roots.lock().unwrap().get(key) {
+    let key = top_level_session_id(state, session_id);
+    if let Some(root) = state.conversation_roots.lock().unwrap().get(&key) {
         return Ok(ConversationRootInfo {
             cwd: root.cwd.clone(),
             project_root: root.project_root.clone(),
