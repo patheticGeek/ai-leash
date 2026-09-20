@@ -5,18 +5,16 @@ import { useAppStore } from "../../store";
 import AboutTab from "./tabs/AboutTab";
 import AgentsSettingsTab from "./tabs/AgentsSettingsTab";
 import CrashLogTab from "./tabs/CrashLogTab";
-import DebugSettingsTab from "./tabs/DebugSettingsTab";
-import IdeSettingsTab from "./tabs/IdeSettingsTab";
+import PreferencesSettingsTab from "./tabs/PreferencesSettingsTab";
 
 // One entry per settings page — the side nav is built to hold more without
 // restructuring.
-type SettingsSection = "agents" | "ide" | "crashlog" | "debug" | "about";
+type SettingsSection = "agents" | "preferences" | "crashlog" | "about";
 
 const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: "agents", label: "Agents" },
-  { id: "ide", label: "IDE" },
+  { id: "preferences", label: "Preferences" },
   { id: "crashlog", label: "Crash log" },
-  { id: "debug", label: "Debug" },
   { id: "about", label: "About" },
 ];
 
@@ -56,14 +54,14 @@ export default function SettingsModal() {
           <TabsContent value="agents" className="overflow-auto p-4 text-base">
             <AgentsSettingsTab />
           </TabsContent>
-          <TabsContent value="ide" className="overflow-auto p-4 text-base">
-            <IdeSettingsTab />
+          <TabsContent
+            value="preferences"
+            className="overflow-auto p-4 text-base"
+          >
+            <PreferencesSettingsTab />
           </TabsContent>
           <TabsContent value="crashlog" className="overflow-auto p-4 text-base">
             <CrashLogTab />
-          </TabsContent>
-          <TabsContent value="debug" className="overflow-auto p-4 text-base">
-            <DebugSettingsTab />
           </TabsContent>
           <TabsContent value="about" className="overflow-auto p-4 text-base">
             <AboutTab />

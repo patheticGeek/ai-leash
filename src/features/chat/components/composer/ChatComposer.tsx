@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { cn } from "@/lib/utils";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
+import { useAppStore } from "../../../../store";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
   type ChatSession,
@@ -72,6 +73,7 @@ export default function ChatComposer({
   onError,
   onHeightChange,
 }: ChatComposerProps) {
+  const composeMode = useAppStore((s) => s.composeMode);
   const dockRef = useElementHeight<HTMLDivElement>(onHeightChange);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
@@ -207,8 +209,11 @@ export default function ChatComposer({
       }
     }
     if (e.key === "Enter" && !e.shiftKey) {
+      const withModifier = e.ctrlKey || e.metaKey;
+      // Compose mode: a plain Enter is just a newline.
+      if (composeMode && !withModifier) return;
       e.preventDefault();
-      if (sending && (e.ctrlKey || e.metaKey)) {
+      if (sending && withModifier) {
         queueMessage();
         return;
       }

@@ -1,6 +1,7 @@
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store";
 import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
 import type {
@@ -15,6 +16,18 @@ import SlashCommandMenu from "../popovers/SlashCommandMenu";
 
 const INPUT_MIN_ROWS = 3;
 const INPUT_MAX_ROWS = 6;
+
+const getPlaceholderText = (composeMode: boolean) => {
+  let text = "Ask the agent...  / commands  ! shell";
+
+  if (composeMode) {
+    text += "\nctrl + ↵  to send";
+  } else {
+    text += "\n↵  to send";
+  }
+
+  return text;
+};
 
 export interface ChatInputBarProps {
   input: string;
@@ -75,6 +88,7 @@ export default function ChatInputBar({
 }: ChatInputBarProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const showQueue = sending && input.trim().length > 0;
+  const composeMode = useAppStore((s) => s.composeMode);
 
   return (
     <div
@@ -122,7 +136,7 @@ export default function ChatInputBar({
           defaultValue={input}
           onChange={(e) => onChange(e.currentTarget.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask the agent...  / commands  ! shell"
+          placeholder={getPlaceholderText(composeMode)}
           minRows={INPUT_MIN_ROWS}
           maxRows={INPUT_MAX_ROWS}
           className={cn(
