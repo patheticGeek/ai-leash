@@ -38,7 +38,7 @@ export default function ToolEntry({
     >
       <div>
         <SectionLabel className="mb-0.5">input</SectionLabel>
-        <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap">
+        <pre className="select-text max-h-40 overflow-auto whitespace-pre-wrap text-code">
           {JSON.stringify(entry.args, null, 2)}
         </pre>
       </div>
@@ -67,7 +67,7 @@ export default function ToolEntry({
           </SectionLabel>
           <pre
             className={cn(
-              "select-text max-h-40 overflow-auto whitespace-pre-wrap",
+              "select-text max-h-40 overflow-auto whitespace-pre-wrap text-code",
               failed ? "text-red-300" : "text-zinc-500",
             )}
           >

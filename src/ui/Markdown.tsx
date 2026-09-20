@@ -65,7 +65,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           </Button>
         </div>
       </div>
-      <pre className="overflow-x-auto p-2.5 text-xs">{children}</pre>
+      <pre className="overflow-x-auto p-2.5 text-code">{children}</pre>
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default function SystemPromptRow({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
     >
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap">
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-code">
         {systemPrompt}
       </pre>
     </ActivityRow>

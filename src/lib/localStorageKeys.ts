@@ -36,6 +36,11 @@ export const LS_KEYS = {
   debugPanelY: "ai-leash:debugPanelY",
   // Settings > Preferences — see `preferencesSlice.ts`.
   composeMode: "ai-leash:composeMode",
+  // Settings > Preferences > Fonts — see `fontPreferences.ts`.
+  uiFontFamily: "ai-leash:uiFontFamily",
+  uiFontSize: "ai-leash:uiFontSize",
+  codeFontFamily: "ai-leash:codeFontFamily",
+  codeFontSize: "ai-leash:codeFontSize",
   // Settings > IDE — see `ideSlice.ts`.
   ideCommand: "ai-leash:ideCommand",
 } as const;

@@ -4,9 +4,15 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
+import {
+  DEFAULT_MONO_STACK,
+  fontStack,
+  watchTerminalFonts,
+} from "../../../lib/fontPreferences";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
+import { useAppStore } from "../../../store";
 import { actionsQueryKey } from "../../actions/useActions";
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -57,9 +63,11 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
 
     const term = new Terminal({
       convertEol: true,
-      fontSize: 13,
-      fontFamily:
-        '"JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+      fontSize: useAppStore.getState().codeFontSize,
+      fontFamily: fontStack(
+        useAppStore.getState().codeFontFamily,
+        DEFAULT_MONO_STACK,
+      ),
       theme: terminalTheme,
     });
     const fit = new FitAddon();
@@ -69,13 +77,15 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     termRef.current = term;
     fitRef.current = fit;
 
-    const resizeObserver = new ResizeObserver(() => {
+    const refit = () => {
       fit.fit();
       if (attachedPtyIdRef.current) {
         api.ptyResize(attachedPtyIdRef.current, term.cols, term.rows);
       }
-    });
+    };
+    const resizeObserver = new ResizeObserver(refit);
     resizeObserver.observe(containerRef.current);
+    const unwatchFonts = watchTerminalFonts(term, refit);
 
     let disposed = false;
 
@@ -124,6 +134,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
       disposed = true;
       syncRef.current = null;
       resizeObserver.disconnect();
+      unwatchFonts();
       unlistenRef.current?.();
       onData.dispose();
       term.dispose();

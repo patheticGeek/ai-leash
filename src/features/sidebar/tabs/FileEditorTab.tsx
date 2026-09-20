@@ -64,6 +64,10 @@ export default function FileEditorTab() {
           }),
           EditorView.theme({
             "&": { height: "100%", backgroundColor: "var(--background)" },
+            ".cm-content, .cm-gutters": {
+              fontFamily: "var(--al-font-mono)",
+              fontSize: "var(--al-code-size)",
+            },
             ".cm-scroller": { overflow: "auto" },
           }),
         ],

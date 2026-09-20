@@ -56,7 +56,7 @@ export default function PermissionPopover({
             {request.title}
           </div>
         </div>
-        <div className="flex-1 select-text overflow-auto px-3 py-2 font-mono text-xs">
+        <div className="flex-1 select-text overflow-auto px-3 py-2 font-mono text-code">
           {request.kind === "edit" ? (
             request.detail.split("\n").map((line, i) => (
               <div
