@@ -9,6 +9,7 @@ import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
 } from "../../../store/preferencesSlice";
+import FontFamilyPicker from "./FontFamilyPicker";
 import ToggleRow from "./ToggleRow";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -58,6 +59,7 @@ function FontRow({
   idPrefix,
   label,
   hint,
+  monospace,
   family,
   familyPlaceholder,
   onFamilyChange,
@@ -68,6 +70,7 @@ function FontRow({
   idPrefix: string;
   label: string;
   hint: string;
+  monospace: boolean;
   family: string;
   familyPlaceholder: string;
   onFamilyChange: (family: string) => void;
@@ -86,14 +89,20 @@ function FontRow({
           >
             Font family
           </Label>
-          <Input
-            id={`${idPrefix}-family`}
-            value={family}
-            placeholder={familyPlaceholder}
-            spellCheck={false}
-            autoComplete="off"
-            onChange={(e) => onFamilyChange(e.target.value)}
-          />
+          <div className="flex items-center gap-1.5">
+            <Input
+              id={`${idPrefix}-family`}
+              value={family}
+              placeholder={familyPlaceholder}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(e) => onFamilyChange(e.target.value)}
+            />
+            <FontFamilyPicker
+              monospaceFirst={monospace}
+              onPick={onFamilyChange}
+            />
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-size`} className="text-xs text-zinc-500">
@@ -149,6 +158,7 @@ export default function PreferencesSettingsTab() {
           idPrefix="ui-font"
           label="Interface text"
           hint="Used for all normal text; every text size in the app scales with it."
+          monospace={false}
           family={uiFontFamily}
           familyPlaceholder="Instrument Sans"
           onFamilyChange={setUiFontFamily}
@@ -160,6 +170,7 @@ export default function PreferencesSettingsTab() {
           idPrefix="code-font"
           label="Code text"
           hint="Used for code blocks, tool output, terminals and the file editor."
+          monospace
           family={codeFontFamily}
           familyPlaceholder="JetBrains Mono"
           onFamilyChange={setCodeFontFamily}

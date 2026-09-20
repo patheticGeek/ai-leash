@@ -6,6 +6,11 @@ export interface DirEntryInfo {
   isDir: boolean;
 }
 
+export interface FontFamilyInfo {
+  family: string;
+  monospaced: boolean;
+}
+
 export interface ModelSummary {
   name: string;
   contextLength: number | null;
@@ -290,6 +295,7 @@ export const api = {
     invoke<void>("write_file_text", { sessionId, path, contents }),
   openInIde: (command: string, path: string) =>
     invoke<void>("open_in_ide", { command, path }),
+  listSystemFonts: () => invoke<FontFamilyInfo[]>("list_system_fonts"),
   // Opens in whichever checkout `sessionId`'s conversation is pinned to
   // (primary or worktree) — see `pty.rs`'s doc comment.
   ptySpawn: (sessionId: string, cols: number, rows: number) =>
