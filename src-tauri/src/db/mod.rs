@@ -213,6 +213,21 @@ impl Db {
             )
             .expect("failed to migrate conversation done flag");
         }
+        // Some dev databases carry a `branch_name` column from an earlier
+        // schema that nothing reads or writes anymore (a branch name is
+        // deliberately never persisted — see `git.rs`'s module doc). Best
+        // effort: a failed drop must not stop the app from starting.
+        let has_branch_name = conn
+            .prepare("PRAGMA table_info(conversations)")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map(|columns| columns.iter().any(|column| column == "branch_name"))
+            .expect("failed to inspect conversations schema");
+        if has_branch_name {
+            let _ = conn.execute("ALTER TABLE conversations DROP COLUMN branch_name", []);
+        }
         // Existing databases predate recording a sub-agent's model/effort
         // override. Same existence check as `title`/`duration_seconds` above.
         let has_model = conn
@@ -236,5 +251,49 @@ impl Db {
 impl Default for Db {
     fn default() -> Self {
         Self::open(db_path())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conversation_columns(db: &Db) -> Vec<String> {
+        let conn = db.0.lock().unwrap();
+        let mut stmt = conn.prepare("PRAGMA table_info(conversations)").unwrap();
+        stmt.query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn open_drops_the_legacy_branch_name_column_and_keeps_the_data() {
+        let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4()));
+        let db = Db::open(path.clone());
+        db.0.lock()
+            .unwrap()
+            .execute_batch(
+                "ALTER TABLE conversations ADD COLUMN branch_name TEXT;
+                 INSERT INTO conversations (id, project_root, created_at, updated_at, branch_name)
+                 VALUES ('c1', '/proj', 1, 2, 'main');",
+            )
+            .unwrap();
+        assert!(conversation_columns(&db).contains(&"branch_name".to_string()));
+        drop(db);
+
+        let reopened = Db::open(path);
+        assert!(!conversation_columns(&reopened).contains(&"branch_name".to_string()));
+        let count: i64 = reopened
+            .0
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT count(*) FROM conversations WHERE id = 'c1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }
