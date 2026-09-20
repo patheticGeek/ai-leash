@@ -2,6 +2,8 @@ import type { StateCreator } from "zustand";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import type { AppStore } from "./index";
 
+export const DEFAULT_IDE_COMMAND = "code";
+
 // Sizes are px. The UI size is the root text size (`text-base`); every other
 // Tailwind text size scales proportionally with it — see `fontPreferences.ts`.
 export const DEFAULT_UI_FONT_SIZE = 16;
@@ -16,11 +18,29 @@ function readSize(key: string, fallback: number): number {
     : fallback;
 }
 
+function readBool(key: string): boolean {
+  return localStorage.getItem(key) === "1";
+}
+
 export interface PreferencesSlice {
   // Settings > Preferences. When on, the chat box sends on Ctrl+Enter and
   // a plain Enter inserts a newline — see `ChatComposer`'s `onKeyDown`.
   composeMode: boolean;
   setComposeMode: (enabled: boolean) => void;
+  // Settings > Preferences > IDE. The CLI launcher (`code`, `zed`, `code -n`,
+  // ...) the title bar's "Open in IDE" button runs with the active checkout
+  // path appended — see `commands::open_in_ide`.
+  ideCommand: string;
+  setIdeCommand: (command: string) => void;
+  // Settings > Preferences > Debug. Gates both event capture (see
+  // `useDebugEventCapture.ts`) and whether the floating devtools icon
+  // renders at all — off by default, so most users never pay for either.
+  debugModeEnabled: boolean;
+  setDebugModeEnabled: (enabled: boolean) => void;
+  // Shows "project / conversation / session" ids in the title bar's center
+  // section.
+  debugShowIds: boolean;
+  setDebugShowIds: (enabled: boolean) => void;
   // Settings > Preferences > Fonts. A family is a CSS `font-family` list put
   // ahead of the built-in stack ("" = built-in only); "UI" is interface
   // text, "code" is monospace text (code blocks, tool output, terminals,
@@ -41,7 +61,10 @@ export const preferencesSlice: StateCreator<
   [],
   PreferencesSlice
 > = (set) => ({
-  composeMode: localStorage.getItem(LS_KEYS.composeMode) === "1",
+  composeMode: readBool(LS_KEYS.composeMode),
+  ideCommand: localStorage.getItem(LS_KEYS.ideCommand) ?? DEFAULT_IDE_COMMAND,
+  debugModeEnabled: readBool(LS_KEYS.debugModeEnabled),
+  debugShowIds: readBool(LS_KEYS.debugShowIds),
   uiFontFamily: localStorage.getItem(LS_KEYS.uiFontFamily) ?? "",
   uiFontSize: readSize(LS_KEYS.uiFontSize, DEFAULT_UI_FONT_SIZE),
   codeFontFamily: localStorage.getItem(LS_KEYS.codeFontFamily) ?? "",
@@ -50,6 +73,25 @@ export const preferencesSlice: StateCreator<
   setComposeMode: (enabled) => {
     localStorage.setItem(LS_KEYS.composeMode, enabled ? "1" : "0");
     set({ composeMode: enabled });
+  },
+  setIdeCommand: (command) => {
+    localStorage.setItem(LS_KEYS.ideCommand, command);
+    set({ ideCommand: command });
+  },
+  setDebugModeEnabled: (enabled) => {
+    localStorage.setItem(LS_KEYS.debugModeEnabled, enabled ? "1" : "0");
+    // Turning debug mode off stops capture and drops whatever was
+    // collected (`debugSlice`'s panel and events) — nothing there is meant
+    // to outlive the toggle itself.
+    set(
+      enabled
+        ? { debugModeEnabled: true }
+        : { debugModeEnabled: false, debugPanelOpen: false, debugEvents: [] },
+    );
+  },
+  setDebugShowIds: (enabled) => {
+    localStorage.setItem(LS_KEYS.debugShowIds, enabled ? "1" : "0");
+    set({ debugShowIds: enabled });
   },
   setUiFontFamily: (family) => {
     localStorage.setItem(LS_KEYS.uiFontFamily, family);

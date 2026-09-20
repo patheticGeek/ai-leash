@@ -2,9 +2,9 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Input } from "@/ui/input";
 import { Label } from "@/ui/label";
 import { useAppStore } from "../../../store";
-import { DEFAULT_IDE_COMMAND } from "../../../store/ideSlice";
 import {
   DEFAULT_CODE_FONT_SIZE,
+  DEFAULT_IDE_COMMAND,
   DEFAULT_UI_FONT_SIZE,
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,

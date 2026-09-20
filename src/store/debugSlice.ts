@@ -1,5 +1,4 @@
 import type { StateCreator } from "zustand";
-import { LS_KEYS } from "../lib/localStorageKeys";
 import type { AppStore } from "./index";
 
 export interface AcpDebugEvent {
@@ -21,26 +20,14 @@ const MAX_DEBUG_EVENTS = 2000;
 
 let nextDebugEventId = 0;
 
-function readBool(key: string): boolean {
-  return localStorage.getItem(key) === "1";
-}
-
 export interface DebugSlice {
-  // Settings > Debug toggle. Gates both event capture (see
-  // `useDebugEventCapture.ts`) and whether the floating devtools icon
-  // renders at all — off by default, so most users never pay for either.
-  debugModeEnabled: boolean;
-  // Settings > Debug toggle for showing "project / conversation / session"
-  // ids in the title bar's center section.
-  debugShowIds: boolean;
   // Only the devtools icon vs. panel visibility — independent of whether
   // events are being captured, so closing the panel never drops anything
   // (per the ask: open/close shouldn't lose events, only turning debug
-  // mode off entirely does).
+  // mode off entirely does — see `setDebugModeEnabled` in
+  // `preferencesSlice.ts`, which owns that toggle).
   debugPanelOpen: boolean;
   debugEvents: AcpDebugEvent[];
-  setDebugModeEnabled: (enabled: boolean) => void;
-  setDebugShowIds: (enabled: boolean) => void;
   setDebugPanelOpen: (open: boolean) => void;
   addDebugEvent: (event: Omit<AcpDebugEvent, "id" | "receivedAt">) => void;
   clearDebugEvents: () => void;
@@ -49,25 +36,9 @@ export interface DebugSlice {
 export const debugSlice: StateCreator<AppStore, [], [], DebugSlice> = (
   set,
 ) => ({
-  debugModeEnabled: readBool(LS_KEYS.debugModeEnabled),
-  debugShowIds: readBool(LS_KEYS.debugShowIds),
   debugPanelOpen: false,
   debugEvents: [],
 
-  setDebugModeEnabled: (enabled) => {
-    localStorage.setItem(LS_KEYS.debugModeEnabled, enabled ? "1" : "0");
-    // Turning debug mode off stops capture and drops whatever was
-    // collected — nothing here is meant to outlive the toggle itself.
-    set(
-      enabled
-        ? { debugModeEnabled: true }
-        : { debugModeEnabled: false, debugPanelOpen: false, debugEvents: [] },
-    );
-  },
-  setDebugShowIds: (enabled) => {
-    localStorage.setItem(LS_KEYS.debugShowIds, enabled ? "1" : "0");
-    set({ debugShowIds: enabled });
-  },
   setDebugPanelOpen: (open) => set({ debugPanelOpen: open }),
   addDebugEvent: (event) => {
     set((s) => {
