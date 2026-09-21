@@ -1,5 +1,8 @@
 import { useEffect } from "react";
-import { messagesToEntries } from "../../lib/chatEntries";
+import {
+  messagesToEntries,
+  reconcileWithPersisted,
+} from "../../lib/chatEntries";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import ChatEntryList from "./components/messages/ChatEntryList";
@@ -16,26 +19,30 @@ export default function SubAgentChatTab({
 }: {
   subSessionId: string;
 }) {
-  const rawEntries = useAppStore((s) => s.subAgentThreads[subSessionId]);
+  const entries = useAppStore((s) => s.subAgentThreads[subSessionId]) ?? [];
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
-  const entries = rawEntries ?? [];
   const task = useAppStore((s) =>
     s.subAgentTasks.find((t) => t.subSessionId === subSessionId),
   );
 
-  // Reopening this tab after an app restart (or after a live event listener
-  // never populated it, e.g. it started before this tab was ever mounted)
-  // has nothing in the store yet — fetch its transcript from disk. Distinct
-  // from "loaded, empty" (`rawEntries` is `[]`, not `undefined`) so this
-  // only ever fetches once.
+  // The persisted transcript is the source of truth for what a sub-agent was
+  // asked to do (its opening user message is written by the backend before
+  // it runs, and never streamed as an event), so always reconcile with it on
+  // mount rather than only when nothing else has populated the store yet —
+  // a live thread built purely from stream events would otherwise lack it,
+  // and a tab reopened after an app restart has nothing else to show at all.
   useEffect(() => {
-    if (rawEntries !== undefined) return;
+    let cancelled = false;
     api.loadConversationHistory(subSessionId).then((messages) => {
+      if (cancelled) return;
       setSubAgentEntries(subSessionId, (prev) =>
-        prev.length === 0 ? messagesToEntries(messages) : prev,
+        reconcileWithPersisted(prev, messagesToEntries(messages)),
       );
     });
-  }, [subSessionId, rawEntries, setSubAgentEntries]);
+    return () => {
+      cancelled = true;
+    };
+  }, [subSessionId, setSubAgentEntries]);
 
   const running = task?.status === "running";
   return (
