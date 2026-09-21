@@ -145,7 +145,7 @@ export default function PreferencesSettingsTab() {
   const setDebugShowIds = useAppStore((s) => s.setDebugShowIds);
 
   return (
-    <div className="flex h-full flex-col space-y-6">
+    <div className="space-y-6">
       <Section title="Chat">
         <ToggleRow
           label="Compose mode"
