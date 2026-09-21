@@ -73,6 +73,9 @@ workflow, or handle a specialized technical area.
 
 When a skill is available, the agent sees its name and a short description.
 It loads the full instructions only when that skill is relevant to the task.
+External agents connected over ACP see the same list when they connect and can
+load a skill through AI Leash. Project skills are picked up for them from the
+project and general skill folders as of when the agent connected.
 This keeps everyday conversations focused while making specialized guidance
 available when needed.
 

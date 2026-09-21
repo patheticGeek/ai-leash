@@ -1,3 +1,4 @@
+use crate::actions::{self, ActionDef};
 use crate::tools::guidance;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -192,6 +193,46 @@ pub fn load_skill_body(root: &Path, touched_dirs: &[PathBuf], name: &str) -> Opt
     Some(body.to_string())
 }
 
+/// The project's defined Actions, by name, so the agent knows what already
+/// exists before it considers running the same command itself. Shared by the
+/// native system prompt (refreshed every turn) and the MCP bridge's
+/// instructions (a snapshot from connect time — the model is told to call
+/// `list_actions` for the current set).
+pub fn actions_section(actions: &[ActionDef]) -> Option<String> {
+    if actions.is_empty() {
+        return None;
+    }
+    let mut out = String::from(
+        "# Actions\n\nThis project's defined Actions — background commands the user can see in the Actions tab. Start one with `run_action` rather than running the same command yourself.\n\n",
+    );
+    for a in actions {
+        let first_line = a.command.lines().next().unwrap_or_default();
+        let command: String = first_line.chars().take(120).collect();
+        let ellipsis = if command.len() < a.command.len() {
+            "…"
+        } else {
+            ""
+        };
+        out.push_str(&format!("- **{}**: `{command}{ellipsis}`\n", a.name));
+    }
+    Some(out)
+}
+
+/// The "Available skills" list, shared by the native system prompt and the
+/// MCP bridge's instructions.
+pub fn skills_section(skills: &[SkillInfo]) -> Option<String> {
+    if skills.is_empty() {
+        return None;
+    }
+    let mut list = String::from(
+        "# Available skills\n\nCall `load_skill` with a skill's exact name to load its full instructions when it's relevant to the current task.\n\n",
+    );
+    for s in skills {
+        list.push_str(&format!("- **{}**: {}\n", s.name, s.description));
+    }
+    Some(list)
+}
+
 pub fn build_system_prompt(
     root: &Path,
     touched_dirs: &[PathBuf],
@@ -219,16 +260,46 @@ pub fn build_system_prompt(
         sections.push(format!("# Project memory\n\n{m}"));
     }
 
-    let skills = list_skills(root, touched_dirs);
-    if !skills.is_empty() {
-        let mut list = String::from(
-            "# Available skills\n\nCall `load_skill` with a skill's exact name to load its full instructions when it's relevant to the current task.\n\n",
-        );
-        for s in &skills {
-            list.push_str(&format!("- **{}**: {}\n", s.name, s.description));
-        }
-        sections.push(list);
-    }
+    sections.extend(actions_section(&actions::load_actions(root)));
+    sections.extend(skills_section(&list_skills(root, touched_dirs)));
 
     Some(sections.join("\n\n---\n\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn action(name: &str, command: &str) -> ActionDef {
+        ActionDef {
+            id: name.into(),
+            name: name.into(),
+            command: command.into(),
+        }
+    }
+
+    #[test]
+    fn actions_section_is_omitted_when_there_are_none() {
+        assert!(actions_section(&[]).is_none());
+    }
+
+    #[test]
+    fn actions_section_lists_names_and_first_line_of_command() {
+        let section =
+            actions_section(&[action("dev", "npm run dev"), action("multi", "a\nb")]).unwrap();
+        assert!(section.contains("- **dev**: `npm run dev`"));
+        assert!(section.contains("- **multi**: `a…`"));
+    }
+
+    #[test]
+    fn skills_section_lists_each_skill() {
+        assert!(skills_section(&[]).is_none());
+        let section = skills_section(&[SkillInfo {
+            name: "deploy".into(),
+            description: "Ship it".into(),
+            path: PathBuf::new(),
+        }])
+        .unwrap();
+        assert!(section.contains("- **deploy**: Ship it"));
+    }
 }

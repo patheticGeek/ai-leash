@@ -1,5 +1,5 @@
 use crate::context;
-use crate::tools::sub_agent_tools;
+use crate::tools::{action_tools, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -119,20 +119,7 @@ pub fn tool_definitions(
     let has_skills = root.is_some_and(|r| !context::list_skills(r, touched_dirs).is_empty());
     if has_skills {
         if let Value::Array(arr) = &mut tools {
-            arr.push(json!({
-                "type": "function",
-                "function": {
-                    "name": "load_skill",
-                    "description": "Load the full instructions for a skill listed under \"Available skills\" in your system prompt, by its exact name. Only use this for names listed there — tools (read_file, edit_file, write_file, list_dir, grep, shell) are called directly and are never loaded as skills.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": { "type": "string", "description": "Exact name of the skill to load" }
-                        },
-                        "required": ["name"]
-                    }
-                }
-            }));
+            arr.push(json!({ "type": "function", "function": memory_tools::load_skill_def() }));
         }
     }
 
@@ -154,71 +141,9 @@ pub fn tool_definitions(
     // one up via create_action — list_actions itself says "No actions
     // defined for this project" when there are none.
     if let Value::Array(arr) = &mut tools {
-        arr.push(json!({
-            "type": "function",
-            "function": {
-                "name": "create_action",
-                "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file. Use it when a command is long-running or recurring and no existing Action covers it (check list_actions first), instead of running it via `shell` or leaving an untracked background process.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "Short human-readable name, e.g. \"dev\"" },
-                        "command": { "type": "string", "description": "The shell command to run in the background, e.g. \"npm run dev\"" }
-                    },
-                    "required": ["name", "command"]
-                }
-            }
-        }));
-        arr.push(json!({
-            "type": "function",
-            "function": {
-                "name": "run_action",
-                "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it. Prefer this over `shell` for anything long-running or repeated (dev server, watcher, build --watch) — `shell` times out after 30 seconds. Afterwards, call read_action to confirm it started cleanly.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                    },
-                    "required": ["name"]
-                }
-            }
-        }));
-        arr.push(json!({
-            "type": "function",
-            "function": {
-                "name": "stop_action",
-                "description": "Stop a running Action by name. A no-op if it isn't running.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                    },
-                    "required": ["name"]
-                }
-            }
-        }));
-        arr.push(json!({
-            "type": "function",
-            "function": {
-                "name": "list_actions",
-                "description": "List this project's defined Actions and whether each is currently running. Call this before starting any dev server, watcher or other long-running command, in case an Action for it already exists.",
-                "parameters": { "type": "object", "properties": {}, "required": [] }
-            }
-        }));
-        arr.push(json!({
-            "type": "function",
-            "function": {
-                "name": "read_action",
-                "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error. Call this after run_action, or whenever a running Action might have failed, instead of guessing.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-                    },
-                    "required": ["name"]
-                }
-            }
-        }));
+        for definition in action_tools::action_defs() {
+            arr.push(json!({ "type": "function", "function": definition }));
+        }
     }
 
     tools

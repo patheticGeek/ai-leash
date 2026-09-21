@@ -74,12 +74,14 @@ reach for each one: look through the
 project before answering, run long-lived commands such as a development
 server as an Action instead of a one-off command, save lasting preferences to
 memory when you state them, and split independent parts of a request across
-sub-agents. Your own `AGENTS.md` instructions are added after this guidance,
-so they can refine or override it.
+sub-agents. The agent is also shown which Actions and skills already exist, so it can
+reuse them without having to look them up first. Your own `AGENTS.md`
+instructions are added after this guidance, so they can refine or override it.
 
 External agents connected over ACP get the same kind of guidance for the AI
 Leash tools they can reach (Actions, memory, and sub-agents) when they
-connect, including a preference for those over their own built-in equivalents
+connect, along with the Actions and skills that exist at that point (they can
+call `list_actions` for the current set), including a preference for those over their own built-in equivalents
 so the work shows up in the app. They keep their own tools for files and
 commands.
 
