@@ -7,6 +7,7 @@ import {
   type AcpAgentOptions,
   api,
 } from "../lib/tauriApi";
+import { isEnabled } from "./backendSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -21,6 +22,7 @@ export interface AcpAgentConfig {
   id: string; // stable local id, survives label edits
   label: string;
   launchCommand: string; // shell-style command line, e.g. "npx -y @agentclientprotocol/claude-agent-acp@latest"
+  enabled?: boolean; // absent = on — see `isEnabled` in `backendSlice.ts`
 }
 
 export interface AgentBackendSettings {
@@ -120,22 +122,27 @@ async function pushAcpCatalog(
     .getAcpAgentCatalog()
     .catch<AcpAgentCatalogEntry[]>(() => []);
   const byId = new Map(current.map((entry) => [entry.id, entry]));
-  const merged: AcpAgentCatalogEntry[] = agents.map((agent) => {
-    const options =
-      override && override.id === agent.id
-        ? override.options
-        : {
-            model: byId.get(agent.id)?.modelOptions ?? null,
-            effort: byId.get(agent.id)?.effortOptions ?? null,
-          };
-    return {
-      id: agent.id,
-      label: agent.label,
-      launchCommand: agent.launchCommand,
-      modelOptions: options.model,
-      effortOptions: options.effort,
-    };
-  });
+  // A switched-off agent stays out of the Rust catalog, so its background
+  // refresh never spawns it. Switching it back on re-seeds it through
+  // `App.tsx`'s missing-from-catalog discovery effect.
+  const merged: AcpAgentCatalogEntry[] = agents
+    .filter(isEnabled)
+    .map((agent) => {
+      const options =
+        override && override.id === agent.id
+          ? override.options
+          : {
+              model: byId.get(agent.id)?.modelOptions ?? null,
+              effort: byId.get(agent.id)?.effortOptions ?? null,
+            };
+      return {
+        id: agent.id,
+        label: agent.label,
+        launchCommand: agent.launchCommand,
+        modelOptions: options.model,
+        effortOptions: options.effort,
+      };
+    });
   await api.syncAcpAgentCatalog(merged);
   // `sync_acp_agent_catalog` doesn't emit `acp://catalog-updated` itself
   // (that event is only for Rust's own background refresh) — without this,
@@ -232,11 +239,12 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
     // one — `fetchAcpModelsFor` re-discovers and pushes fresh options for
     // just this agent. An unchanged command (a label-only edit) still needs
     // its label pushed, but has nothing to re-discover.
-    if (commandChanged) {
+    if (commandChanged && isEnabled(config)) {
       get().fetchAcpModelsFor(config.id);
     } else {
       void pushAcpCatalog(get().agentBackend.acpAgents);
     }
+    get().reconcileDefaultBackend();
   },
 
   deleteAcpAgentConfig: (id) => {
@@ -253,7 +261,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
   fetchAcpModelsFor: async (agentId) => {
     if (acpModelFetchesInFlight.has(agentId)) return;
     const agent = get().agentBackend.acpAgents.find((c) => c.id === agentId);
-    if (!agent) return;
+    if (!agent || !isEnabled(agent)) return;
     acpModelFetchesInFlight.add(agentId);
     try {
       const options = await api

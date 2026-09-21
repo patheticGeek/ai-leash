@@ -73,7 +73,8 @@ export default function ChatPanel({
   }, [generating]);
 
   const session = useChatSession(sessionId, setOllamaError);
-  const { isAcp, providerActiveId, activeAcpAgent, model } = session;
+  const { isAcp, providerActiveId, activeAcpAgent, model, backendDisabled } =
+    session;
   const {
     entries,
     setEntries,
@@ -98,7 +99,7 @@ export default function ChatPanel({
   const { reconnect: reconnectAcp } = useAcpWarmup({
     sessionId,
     isAcp,
-    launchCommand: activeAcpAgent?.launchCommand,
+    launchCommand: backendDisabled ? undefined : activeAcpAgent?.launchCommand,
     providerActiveId,
     providerConfigFor,
     model,
@@ -150,7 +151,7 @@ export default function ChatPanel({
       return;
     }
     if (name === "compact") {
-      if (isAcp || !model) return;
+      if (isAcp || !model || backendDisabled) return;
       setOllamaError(null);
       setSending(true);
       try {
@@ -198,6 +199,9 @@ export default function ChatPanel({
   // queue. The guards about whether the *user* is allowed to
   // send right now live in the composer, not here.
   async function submitPrompt(text: string) {
+    // Also covers a queued message delivered after its backend was turned
+    // off — the composer's own `backendReady` check only gates typed sends.
+    if (backendDisabled) return;
     setOllamaError(null);
     markConversationStarted(sessionId, projectRoot, pendingWorktree);
     setEntries((prev) => [
@@ -236,7 +240,7 @@ export default function ChatPanel({
   }
 
   async function retry() {
-    if (sending || !model) return;
+    if (sending || !model || backendDisabled) return;
     setOllamaError(null);
     setEntries((prev) => {
       for (let idx = prev.length - 1; idx >= 0; idx--) {

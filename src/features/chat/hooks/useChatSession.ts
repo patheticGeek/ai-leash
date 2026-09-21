@@ -10,6 +10,7 @@ import {
   api,
 } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
+import { isEnabled } from "../../../store/backendSlice";
 import type { PickerOption } from "../components/popovers/ModelPickerPopover";
 
 // Commands we handle ourselves, client-side, rather than sending as a
@@ -53,7 +54,9 @@ export function useChatSession(
 ) {
   const providerConnectivity = useAppStore((s) => s.providerConnectivity);
   const providerSettings = useAppStore((s) => s.providerSettings);
-  const ollamaModelsByConfig = useOllamaModelsByConfig(providerSettings.ollama);
+  const ollamaModelsByConfig = useOllamaModelsByConfig(
+    providerSettings.ollama.filter(isEnabled),
+  );
   const agentBackend = useAppStore((s) => s.agentBackend);
   // Rust-authoritative catalog of discovered ACP models/effort levels —
   // persisted to disk and kept fresh across restarts by its own background
@@ -106,6 +109,24 @@ export function useChatSession(
   const activeAcpAgent = agentBackend.acpAgents.find(
     (c) => c.id === acpActiveId,
   );
+  // This conversation's own backend was switched off in Settings > Agents
+  // after it was picked — it stays selected (nothing silently swaps it for
+  // another), but nothing may be sent to it until it's turned back on or
+  // another agent is picked.
+  const activeConfig = isAcp
+    ? activeAcpAgent
+    : (providerSettings.ollama.find((c) => c.id === providerActiveId) ??
+      providerSettings.openAiCompatible.find((c) => c.id === providerActiveId));
+  const backendDisabled = !!activeConfig && !isEnabled(activeConfig);
+  const backendDisabledReason = backendDisabled
+    ? `${activeConfig?.label} is turned off in Settings > Agents. Turn it back on, or pick another agent from the chat bar.`
+    : null;
+  useEffect(() => {
+    if (!backendDisabledReason) return;
+    setError(backendDisabledReason);
+    return () => setError(null);
+  }, [backendDisabledReason, setError]);
+
   // Only set if the connected ACP agent advertises a Model config option
   // (see docs/features/agent-chat.md) — most agents won't, in which case
   // this stays null and no model dropdown shows for ACP mode.
@@ -314,7 +335,7 @@ export function useChatSession(
   // "the active provider is connected" flag, since which provider counts as
   // "active" is now per-conversation.
   useEffect(() => {
-    if (isAcp) return;
+    if (isAcp || backendDisabled) return;
     const connected = providerConnectivity[providerActiveId];
     if (connected === false) {
       const ollamaConfig = providerSettings.ollama.find(
@@ -332,6 +353,7 @@ export function useChatSession(
     providerConnectivity,
     providerActiveId,
     isAcp,
+    backendDisabled,
     providerSettings.ollama,
     setError,
   ]);
@@ -397,7 +419,7 @@ export function useChatSession(
   // with just its models under it, same for "Claude Code", each Ollama
   // connection, etc., instead of one flat list.
   const backendOptions: PickerOption[] = [
-    ...providerSettings.ollama.flatMap((c) => {
+    ...providerSettings.ollama.filter(isEnabled).flatMap((c) => {
       const configModels = ollamaModelsByConfig[c.id] ?? [];
       if (configModels.length > 0) {
         return configModels.map((m) => ({
@@ -416,13 +438,13 @@ export function useChatSession(
         },
       ];
     }),
-    ...providerSettings.openAiCompatible.map((c) => ({
+    ...providerSettings.openAiCompatible.filter(isEnabled).map((c) => ({
       key: `openai:${c.id}`,
       label: c.label,
       subtitle: c.baseUrl || "OpenAI-compatible",
       section: c.label,
     })),
-    ...agentBackend.acpAgents.flatMap((c) => {
+    ...agentBackend.acpAgents.filter(isEnabled).flatMap((c) => {
       // Prefer the Rust-cached catalog (available for every saved agent,
       // not just the one this conversation has active), but fall back to
       // the *live* connection's own options for whichever agent this
@@ -564,6 +586,8 @@ export function useChatSession(
   return {
     isAcp,
     isOpenAiCompatible,
+    backendDisabled,
+    backendDisabledReason,
     providerActiveId,
     activeAcpAgent,
     acpEffortOptions: displayedAcpEffortOptions,

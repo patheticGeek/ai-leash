@@ -14,6 +14,7 @@ import { LS_KEYS } from "../lib/localStorageKeys";
 import { useOllamaModelsByConfig } from "../lib/ollamaModelsQuery";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
+import { isEnabled } from "../store/backendSlice";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
@@ -57,7 +58,7 @@ function App() {
   // Same reasoning, for Ollama's per-config model lists — keeps them warm
   // across conversation switches now that they live in React Query instead
   // of always-mounted Zustand state.
-  useOllamaModelsByConfig(providerSettings.ollama);
+  useOllamaModelsByConfig(providerSettings.ollama.filter(isEnabled));
 
   // Rust's own background refresh (`acp::refresh_acp_catalog_in_background`)
   // only re-discovers agents *already* in its catalog — nothing ever seeds
@@ -80,7 +81,7 @@ function App() {
   useEffect(() => {
     if (!acpCatalogQuery.isSuccess) return;
     const catalog = acpCatalogQuery.data;
-    for (const agent of agentBackend.acpAgents) {
+    for (const agent of agentBackend.acpAgents.filter(isEnabled)) {
       if (!catalog.some((entry) => entry.id === agent.id)) {
         fetchAcpModelsFor(agent.id);
       }
