@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 import {
@@ -8,6 +8,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/ui/message-scroller";
 import {
   groupEntries,
@@ -21,6 +22,25 @@ import ActivityGroup from "./ActivityGroup";
 import ChatEntryRenderer from "./ChatEntryRenderer";
 import SystemPromptRow from "./SystemPromptRow";
 import WorkingForIndicator from "./WorkingForIndicator";
+
+// Sending a message always jumps to the bottom, even if the transcript was
+// scrolled up (or the scroller had stopped following it) — the scroller's own
+// auto-follow only applies while you're already at the bottom. Lives inside
+// the provider because `useMessageScroller` needs its context.
+function ScrollToEndOnUserMessage({ entries }: { entries: PanelEntry[] }) {
+  const { scrollToEnd } = useMessageScroller();
+  const userMessages = entries.filter(
+    (e) => e.kind === "text" && e.role === "user",
+  ).length;
+  const previous = useRef<number | null>(null);
+  useEffect(() => {
+    if (previous.current !== null && userMessages > previous.current) {
+      scrollToEnd({ behavior: "auto" });
+    }
+    previous.current = userMessages;
+  }, [userMessages, scrollToEnd]);
+  return null;
+}
 
 export interface ChatEntryListProps {
   /** Classes for the transcript column (padding, alignment). */
@@ -116,6 +136,7 @@ export default function ChatEntryList({
 
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+      <ScrollToEndOnUserMessage entries={entries} />
       <MessageScroller>
         <MessageScrollerViewport>
           <MessageScrollerContent
