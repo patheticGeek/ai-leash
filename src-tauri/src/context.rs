@@ -1,3 +1,4 @@
+use crate::tools::guidance;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -191,8 +192,14 @@ pub fn load_skill_body(root: &Path, touched_dirs: &[PathBuf], name: &str) -> Opt
     Some(body.to_string())
 }
 
-pub fn build_system_prompt(root: &Path, touched_dirs: &[PathBuf]) -> Option<String> {
-    let mut sections = vec![];
+pub fn build_system_prompt(
+    root: &Path,
+    touched_dirs: &[PathBuf],
+    allow_subtasks: bool,
+) -> Option<String> {
+    // First, so the user's own AGENTS.md/memory read as additions to (and
+    // can override) these built-in defaults rather than the other way round.
+    let mut sections = vec![guidance::native_guidance(allow_subtasks)];
 
     if let Some(global_agents) = global_agents_md() {
         sections.push(format!(
@@ -223,9 +230,5 @@ pub fn build_system_prompt(root: &Path, touched_dirs: &[PathBuf]) -> Option<Stri
         sections.push(list);
     }
 
-    if sections.is_empty() {
-        None
-    } else {
-        Some(sections.join("\n\n---\n\n"))
-    }
+    Some(sections.join("\n\n---\n\n"))
 }

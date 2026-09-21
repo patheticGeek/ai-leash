@@ -60,7 +60,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "list_dir",
-                "description": "List files and directories at a given path in the project.",
+                "description": "List files and directories at a given path in the project. Use this to orient yourself in an unfamiliar area instead of guessing paths.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -74,7 +74,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "grep",
-                "description": "Search for a regular expression pattern across project files (respects .gitignore).",
+                "description": "Search for a regular expression pattern across project files (respects .gitignore). Use this to find where something is defined or used before reading whole files.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -89,7 +89,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "update_memory",
-                "description": "Add to or update your persistent memory notes, which are shown back to you under \"# Project memory\" / \"# Global memory\" in the system prompt at the start of every future session. Use this for durable facts worth remembering across conversations (user preferences, project conventions, ongoing context) — not scratch state for the current task. Pass the complete new contents for the given scope, not just an addition: this replaces the whole file, and you can see its current contents (if any) already in your system prompt.",
+                "description": "Add to or update your persistent memory notes, which are shown back to you under \"# Project memory\" / \"# Global memory\" in the system prompt at the start of every future session. Use this for durable facts worth remembering across conversations (user preferences, project conventions, ongoing context) — not scratch state for the current task. Call it on your own as soon as the user states a lasting preference or corrects you in a way that should apply next time; don't wait to be asked. Pass the complete new contents for the given scope, not just an addition: this replaces the whole file, and you can see its current contents (if any) already in your system prompt.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -104,7 +104,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "shell",
-                "description": "Run a shell command in the project root and return its combined stdout/stderr. Requires user approval.",
+                "description": "Run a shell command in the project root and return its combined stdout/stderr. Requires user approval. For one-off commands that finish quickly (tests, builds, git, inspecting state); it times out after 30 seconds. For a dev server, watcher or anything long-running, use run_action (call list_actions first, or create_action if none fits) instead.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -158,7 +158,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "create_action",
-                "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file.",
+                "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file. Use it when a command is long-running or recurring and no existing Action covers it (check list_actions first), instead of running it via `shell` or leaving an untracked background process.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -173,7 +173,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "run_action",
-                "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
+                "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it. Prefer this over `shell` for anything long-running or repeated (dev server, watcher, build --watch) — `shell` times out after 30 seconds. Afterwards, call read_action to confirm it started cleanly.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -201,7 +201,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "list_actions",
-                "description": "List this project's defined Actions and whether each is currently running.",
+                "description": "List this project's defined Actions and whether each is currently running. Call this before starting any dev server, watcher or other long-running command, in case an Action for it already exists.",
                 "parameters": { "type": "object", "properties": {}, "required": [] }
             }
         }));
@@ -209,7 +209,7 @@ pub fn tool_definitions(
             "type": "function",
             "function": {
                 "name": "read_action",
-                "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
+                "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error. Call this after run_action, or whenever a running Action might have failed, instead of guessing.",
                 "parameters": {
                     "type": "object",
                     "properties": {

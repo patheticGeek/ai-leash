@@ -1,5 +1,6 @@
 mod action_tools;
 mod fs_tools;
+pub(crate) mod guidance;
 mod memory_tools;
 // `pub(crate)` (not private): `lib.rs`'s `tauri::generate_handler!` list needs
 // to name `respond_permission`/`set_permission_mode`/`run_shell_command` by
