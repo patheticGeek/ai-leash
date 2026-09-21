@@ -151,7 +151,9 @@ appearance switch. You can change the fonts and text sizes under
 ## Preferences
 
 **Settings > Preferences** collects the app's personal settings in four
-sections. Changes apply immediately and are remembered.
+sections. Changes apply immediately and are remembered in the app's config
+folder (`preferences.json`, with a `.dev` suffix in development builds), so they
+survive a restart and are not tied to the window.
 
 - **Chat**: turn on **Compose mode** to make **Enter** insert a new line in
   the message box and **Ctrl+Enter** (**Command+Enter** on macOS) send the message. It is off by

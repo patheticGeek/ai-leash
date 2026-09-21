@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
+import { usePreference } from "@/data/preferences";
 import { useAppStore } from "../../store";
 
 interface AcpDebugEventPayload {
@@ -18,11 +19,17 @@ interface AcpDebugEventPayload {
  * closing the panel only hides the view, it never tears down capture.
  */
 export function useDebugEventCapture() {
-  const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
+  const debugModeEnabled = usePreference("debugModeEnabled");
   const addDebugEvent = useAppStore((s) => s.addDebugEvent);
+  const resetDebugState = useAppStore((s) => s.resetDebugState);
 
   useEffect(() => {
-    if (!debugModeEnabled) return;
+    // Turning debug mode off drops whatever was collected and closes the
+    // panel — nothing captured is meant to outlive the toggle.
+    if (!debugModeEnabled) {
+      resetDebugState();
+      return;
+    }
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
@@ -38,5 +45,5 @@ export function useDebugEventCapture() {
       disposed = true;
       unlisten?.();
     };
-  }, [debugModeEnabled, addDebugEvent]);
+  }, [debugModeEnabled, addDebugEvent, resetDebugState]);
 }

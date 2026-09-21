@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Input } from "@/ui/input";
 import { Label } from "@/ui/label";
-import { useAppStore } from "../../../store";
 import {
   COMPOSER_MIN_ROWS,
   DEFAULT_CODE_FONT_SIZE,
@@ -11,7 +10,9 @@ import {
   MAX_COMPOSER_MAX_ROWS,
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
-} from "../../../store/preferencesSlice";
+  usePreference,
+  useSetPreferences,
+} from "../../../data/preferences";
 import FontFamilyPicker from "./FontFamilyPicker";
 import ToggleRow from "./ToggleRow";
 
@@ -137,24 +138,16 @@ function FontRow({
 }
 
 export default function PreferencesSettingsTab() {
-  const composeMode = useAppStore((s) => s.composeMode);
-  const setComposeMode = useAppStore((s) => s.setComposeMode);
-  const composerMaxRows = useAppStore((s) => s.composerMaxRows);
-  const setComposerMaxRows = useAppStore((s) => s.setComposerMaxRows);
-  const uiFontFamily = useAppStore((s) => s.uiFontFamily);
-  const setUiFontFamily = useAppStore((s) => s.setUiFontFamily);
-  const uiFontSize = useAppStore((s) => s.uiFontSize);
-  const setUiFontSize = useAppStore((s) => s.setUiFontSize);
-  const codeFontFamily = useAppStore((s) => s.codeFontFamily);
-  const setCodeFontFamily = useAppStore((s) => s.setCodeFontFamily);
-  const codeFontSize = useAppStore((s) => s.codeFontSize);
-  const setCodeFontSize = useAppStore((s) => s.setCodeFontSize);
-  const ideCommand = useAppStore((s) => s.ideCommand);
-  const setIdeCommand = useAppStore((s) => s.setIdeCommand);
-  const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
-  const setDebugModeEnabled = useAppStore((s) => s.setDebugModeEnabled);
-  const debugShowIds = useAppStore((s) => s.debugShowIds);
-  const setDebugShowIds = useAppStore((s) => s.setDebugShowIds);
+  const composeMode = usePreference("composeMode");
+  const composerMaxRows = usePreference("composerMaxRows");
+  const uiFontFamily = usePreference("uiFontFamily");
+  const uiFontSize = usePreference("uiFontSize");
+  const codeFontFamily = usePreference("codeFontFamily");
+  const codeFontSize = usePreference("codeFontSize");
+  const ideCommand = usePreference("ideCommand");
+  const debugModeEnabled = usePreference("debugModeEnabled");
+  const debugShowIds = usePreference("debugShowIds");
+  const setPreferences = useSetPreferences();
 
   return (
     <div className="space-y-6">
@@ -164,7 +157,7 @@ export default function PreferencesSettingsTab() {
           hint="Enter inserts a new line in the chat box, and Ctrl+Enter sends
             the message instead."
           checked={composeMode}
-          onChange={setComposeMode}
+          onChange={(composeMode) => setPreferences({ composeMode })}
         />
         <div className="space-y-1.5 rounded-md bg-raised px-3 py-2.5">
           <Label htmlFor="composer-max-rows" className="text-sm text-zinc-200">
@@ -175,7 +168,7 @@ export default function PreferencesSettingsTab() {
             value={composerMaxRows}
             min={COMPOSER_MIN_ROWS}
             max={MAX_COMPOSER_MAX_ROWS}
-            onCommit={setComposerMaxRows}
+            onCommit={(composerMaxRows) => setPreferences({ composerMaxRows })}
           />
           <span className="block text-xs text-zinc-600">
             The chat box grows with your text up to this many lines, then
@@ -192,10 +185,10 @@ export default function PreferencesSettingsTab() {
           monospace={false}
           family={uiFontFamily}
           familyPlaceholder="Instrument Sans"
-          onFamilyChange={setUiFontFamily}
+          onFamilyChange={(uiFontFamily) => setPreferences({ uiFontFamily })}
           size={uiFontSize}
           defaultSize={DEFAULT_UI_FONT_SIZE}
-          onSizeChange={setUiFontSize}
+          onSizeChange={(uiFontSize) => setPreferences({ uiFontSize })}
         />
         <FontRow
           idPrefix="code-font"
@@ -204,10 +197,12 @@ export default function PreferencesSettingsTab() {
           monospace
           family={codeFontFamily}
           familyPlaceholder="JetBrains Mono"
-          onFamilyChange={setCodeFontFamily}
+          onFamilyChange={(codeFontFamily) =>
+            setPreferences({ codeFontFamily })
+          }
           size={codeFontSize}
           defaultSize={DEFAULT_CODE_FONT_SIZE}
-          onSizeChange={setCodeFontSize}
+          onSizeChange={(codeFontSize) => setPreferences({ codeFontSize })}
         />
       </Section>
       <Section title="IDE">
@@ -221,7 +216,7 @@ export default function PreferencesSettingsTab() {
             placeholder={DEFAULT_IDE_COMMAND}
             spellCheck={false}
             autoComplete="off"
-            onChange={(e) => setIdeCommand(e.target.value)}
+            onChange={(e) => setPreferences({ ideCommand: e.target.value })}
           />
           <span className="block text-xs text-zinc-600">
             Launched by the title bar's Open button with the current project or
@@ -243,7 +238,7 @@ export default function PreferencesSettingsTab() {
             persisted to disk; events are only kept in memory while this is on,
             and are dropped the moment it's turned off."
           checked={debugModeEnabled}
-          onChange={setDebugModeEnabled}
+          onChange={(debugModeEnabled) => setPreferences({ debugModeEnabled })}
         />
         <ToggleRow
           label="Show IDs in title bar"
@@ -251,7 +246,7 @@ export default function PreferencesSettingsTab() {
             the title bar's center section, as `project / conversation /
             session`."
           checked={debugShowIds}
-          onChange={setDebugShowIds}
+          onChange={(debugShowIds) => setPreferences({ debugShowIds })}
         />
       </Section>
     </div>

@@ -1,6 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
+import { getPreferences } from "@/data/preferences";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -41,9 +42,9 @@ export default function TerminalPanel({
 
     const term = new Terminal({
       convertEol: true,
-      fontSize: useAppStore.getState().codeFontSize,
+      fontSize: getPreferences().codeFontSize,
       fontFamily: fontStack(
-        useAppStore.getState().codeFontFamily,
+        getPreferences().codeFontFamily,
         DEFAULT_MONO_STACK,
       ),
       theme: terminalTheme,

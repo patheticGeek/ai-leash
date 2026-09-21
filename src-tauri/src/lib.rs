@@ -10,6 +10,7 @@ mod fonts;
 mod git;
 pub mod mcp_bridge;
 mod paths;
+mod preferences;
 mod provider;
 mod pty;
 mod state;
@@ -81,6 +82,7 @@ pub fn run() {
         // construction, no ordering-with-`.setup()` assumption needed.
         .manage(AppState {
             acp_agent_catalog: Mutex::new(acp::load_acp_catalog_from_disk()),
+            preferences: Mutex::new(preferences::load_preferences_from_disk()),
             ..Default::default()
         })
         .setup(|app| {
@@ -108,6 +110,8 @@ pub fn run() {
             commands::write_file_text,
             commands::open_in_ide,
             fonts::list_system_fonts,
+            preferences::get_preferences,
+            preferences::set_preferences,
             git::list_git_branches,
             git::list_git_worktrees,
             git::get_current_git_branch,

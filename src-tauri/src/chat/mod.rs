@@ -314,6 +314,7 @@ mod tests {
             db: temp_db(),
             acp_sessions: Mutex::new(HashMap::new()),
             rate_limit_timers: Mutex::new(HashMap::new()),
+            preferences: Mutex::new(Default::default()),
             acp_agent_catalog: Mutex::new(Vec::new()),
             acp_catalog_refresh_started: AtomicBool::new(false),
             mcp_bridge: Mutex::new(None),

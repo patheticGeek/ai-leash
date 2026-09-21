@@ -1,8 +1,7 @@
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useRef } from "react";
+import { COMPOSER_MIN_ROWS, usePreference } from "@/data/preferences";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "@/store";
-import { COMPOSER_MIN_ROWS } from "@/store/preferencesSlice";
 import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
 import type {
@@ -86,8 +85,8 @@ export default function ChatInputBar({
 }: ChatInputBarProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const showQueue = sending && input.trim().length > 0;
-  const composeMode = useAppStore((s) => s.composeMode);
-  const composerMaxRows = useAppStore((s) => s.composerMaxRows);
+  const composeMode = usePreference("composeMode");
+  const composerMaxRows = usePreference("composerMaxRows");
 
   return (
     <div

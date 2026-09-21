@@ -1,6 +1,10 @@
 import type { Terminal } from "@xterm/xterm";
-import { useAppStore } from "../store";
-import { DEFAULT_UI_FONT_SIZE } from "../store/preferencesSlice";
+import {
+  DEFAULT_UI_FONT_SIZE,
+  getPreferences,
+  subscribePreferences,
+} from "../data/preferences";
+import type { Preferences } from "./tauriApi";
 
 // The built-in stacks, also what `index.css` falls back to before this runs.
 export const DEFAULT_SANS_STACK =
@@ -17,8 +21,7 @@ export function fontStack(custom: string, fallback: string): string {
   return `${trimmed}, ${fallback}`;
 }
 
-function apply() {
-  const s = useAppStore.getState();
+function apply(s: Preferences) {
   const style = document.documentElement.style;
   style.setProperty(
     "--al-font-sans",
@@ -36,18 +39,18 @@ function apply() {
 }
 
 // Mirrors the font preferences onto CSS variables on <html> (consumed in
-// `index.css`), now and on every change. Called before first render so the
-// saved fonts never flash the defaults.
+// `index.css`), now and on every change. Called after `bootPreferences` and
+// before first render so the saved fonts never flash the defaults.
 export function installFontPreferences() {
-  apply();
-  useAppStore.subscribe((s, prev) => {
+  apply(getPreferences());
+  subscribePreferences((s, prev) => {
     if (
       s.uiFontFamily !== prev.uiFontFamily ||
       s.uiFontSize !== prev.uiFontSize ||
       s.codeFontFamily !== prev.codeFontFamily ||
       s.codeFontSize !== prev.codeFontSize
     ) {
-      apply();
+      apply(s);
     }
   });
 }
@@ -60,7 +63,7 @@ export function watchTerminalFonts(
   term: Terminal,
   refit: () => void,
 ): () => void {
-  return useAppStore.subscribe((s, prev) => {
+  return subscribePreferences((s, prev) => {
     if (
       s.codeFontFamily === prev.codeFontFamily &&
       s.codeFontSize === prev.codeFontSize

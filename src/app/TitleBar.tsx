@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { usePreference } from "@/data/preferences";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
@@ -91,8 +92,8 @@ export default function TitleBar({
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const startNewConversation = useAppStore((s) => s.startNewConversation);
   const addProject = useAppStore((s) => s.addProject);
-  const debugShowIds = useAppStore((s) => s.debugShowIds);
-  const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
+  const debugShowIds = usePreference("debugShowIds");
+  const debugModeEnabled = usePreference("debugModeEnabled");
   const debugEvents = useAppStore((s) => s.debugEvents);
   const debugPanelOpen = useAppStore((s) => s.debugPanelOpen);
   const setDebugPanelOpen = useAppStore((s) => s.setDebugPanelOpen);
