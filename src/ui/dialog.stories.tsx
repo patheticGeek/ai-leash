@@ -35,7 +35,7 @@ export const Default: Story = {
           <Button variant="ghost" size="md">
             Cancel
           </Button>
-          <Button variant="destructive" size="md">
+          <Button variant="danger" size="md">
             Delete
           </Button>
         </DialogFooter>
