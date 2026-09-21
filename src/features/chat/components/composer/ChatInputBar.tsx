@@ -2,6 +2,7 @@ import { Clock, Send, Square, SquareTerminal } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store";
+import { COMPOSER_MIN_ROWS } from "@/store/preferencesSlice";
 import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
 import type {
@@ -13,9 +14,6 @@ import type {
 import ElicitationPopover from "../popovers/ElicitationPopover";
 import PermissionPopover from "../popovers/PermissionPopover";
 import SlashCommandMenu from "../popovers/SlashCommandMenu";
-
-const INPUT_MIN_ROWS = 3;
-const INPUT_MAX_ROWS = 6;
 
 const getPlaceholderText = (composeMode: boolean) => {
   let text = "Ask the agent...  / commands  ! shell";
@@ -89,6 +87,7 @@ export default function ChatInputBar({
   const boxRef = useRef<HTMLDivElement>(null);
   const showQueue = sending && input.trim().length > 0;
   const composeMode = useAppStore((s) => s.composeMode);
+  const composerMaxRows = useAppStore((s) => s.composerMaxRows);
 
   return (
     <div
@@ -137,8 +136,8 @@ export default function ChatInputBar({
           onChange={(e) => onChange(e.currentTarget.value)}
           onKeyDown={onKeyDown}
           placeholder={getPlaceholderText(composeMode)}
-          minRows={INPUT_MIN_ROWS}
-          maxRows={INPUT_MAX_ROWS}
+          minRows={COMPOSER_MIN_ROWS}
+          maxRows={composerMaxRows}
           className={cn(
             "py-3 leading-relaxed",
             shellMode

@@ -3,9 +3,12 @@ import { Input } from "@/ui/input";
 import { Label } from "@/ui/label";
 import { useAppStore } from "../../../store";
 import {
+  COMPOSER_MIN_ROWS,
   DEFAULT_CODE_FONT_SIZE,
+  DEFAULT_COMPOSER_MAX_ROWS,
   DEFAULT_IDE_COMMAND,
   DEFAULT_UI_FONT_SIZE,
+  MAX_COMPOSER_MAX_ROWS,
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
 } from "../../../store/preferencesSlice";
@@ -25,15 +28,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 // Holds what's being typed so an in-between value ("1" on the way to "14")
 // isn't rejected, and only commits a number in range; the field snaps back
-// to the saved size on blur.
-function FontSizeInput({
+// to the saved value on blur.
+function NumberInput({
   id,
   value,
+  min,
+  max,
   onCommit,
 }: {
   id: string;
   value: number;
-  onCommit: (size: number) => void;
+  min: number;
+  max: number;
+  onCommit: (value: number) => void;
 }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
@@ -41,13 +48,14 @@ function FontSizeInput({
     <Input
       id={id}
       type="number"
-      min={MIN_FONT_SIZE}
-      max={MAX_FONT_SIZE}
+      min={min}
+      max={max}
       value={draft}
       onChange={(e) => {
         setDraft(e.target.value);
-        const size = Number(e.target.value);
-        if (size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE) onCommit(size);
+        const next = Number(e.target.value);
+        if (Number.isInteger(next) && next >= min && next <= max)
+          onCommit(next);
       }}
       onBlur={() => setDraft(String(value))}
       className="w-24"
@@ -108,9 +116,11 @@ function FontRow({
           <Label htmlFor={`${idPrefix}-size`} className="text-xs text-zinc-500">
             Size (px)
           </Label>
-          <FontSizeInput
+          <NumberInput
             id={`${idPrefix}-size`}
             value={size}
+            min={MIN_FONT_SIZE}
+            max={MAX_FONT_SIZE}
             onCommit={onSizeChange}
           />
         </div>
@@ -129,6 +139,8 @@ function FontRow({
 export default function PreferencesSettingsTab() {
   const composeMode = useAppStore((s) => s.composeMode);
   const setComposeMode = useAppStore((s) => s.setComposeMode);
+  const composerMaxRows = useAppStore((s) => s.composerMaxRows);
+  const setComposerMaxRows = useAppStore((s) => s.setComposerMaxRows);
   const uiFontFamily = useAppStore((s) => s.uiFontFamily);
   const setUiFontFamily = useAppStore((s) => s.setUiFontFamily);
   const uiFontSize = useAppStore((s) => s.uiFontSize);
@@ -154,6 +166,23 @@ export default function PreferencesSettingsTab() {
           checked={composeMode}
           onChange={setComposeMode}
         />
+        <div className="space-y-1.5 rounded-md bg-raised px-3 py-2.5">
+          <Label htmlFor="composer-max-rows" className="text-sm text-zinc-200">
+            Max chat box height (lines)
+          </Label>
+          <NumberInput
+            id="composer-max-rows"
+            value={composerMaxRows}
+            min={COMPOSER_MIN_ROWS}
+            max={MAX_COMPOSER_MAX_ROWS}
+            onCommit={setComposerMaxRows}
+          />
+          <span className="block text-xs text-zinc-600">
+            The chat box grows with your text up to this many lines, then
+            scrolls. Between {COMPOSER_MIN_ROWS} and {MAX_COMPOSER_MAX_ROWS},
+            default {DEFAULT_COMPOSER_MAX_ROWS}.
+          </span>
+        </div>
       </Section>
       <Section title="Fonts">
         <FontRow
