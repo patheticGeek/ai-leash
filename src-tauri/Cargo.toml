@@ -43,6 +43,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 chrono-tz = "0.10"
 shlex = "2.0.1"
+fontdb = "0.24.0"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

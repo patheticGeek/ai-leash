@@ -4,11 +4,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
 import { installCrashReporting } from "./lib/crashReporting";
+import { installFontPreferences } from "./lib/fontPreferences";
 import { queryClient } from "./lib/queryClient";
 import ErrorBoundary from "./ui/ErrorBoundary";
 import "./index.css";
 
 installCrashReporting();
+installFontPreferences();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

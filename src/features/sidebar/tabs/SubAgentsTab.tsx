@@ -37,7 +37,8 @@ export default function SubAgentsTab() {
         <div className="text-center text-sm text-zinc-600">
           No sub-agents running in this conversation. The main agent spawns
           these via the{" "}
-          <code className="mx-1 text-zinc-500">spawn_sub_agent</code> tool.
+          <code className="mx-1 text-code text-zinc-500">spawn_sub_agent</code>{" "}
+          tool.
         </div>
       </div>
     );

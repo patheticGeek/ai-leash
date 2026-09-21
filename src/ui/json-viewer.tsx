@@ -123,7 +123,7 @@ export function JsonViewer({
   className?: string;
 }) {
   return (
-    <div className={cn("font-mono text-[11px]", className)}>
+    <div className={cn("font-mono text-code", className)}>
       <JsonNode
         value={data}
         depth={0}

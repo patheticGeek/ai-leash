@@ -7,6 +7,28 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Overwritten at runtime from Settings > Preferences > Fonts (see
+     `lib/fontPreferences.ts`); these are the defaults it falls back to. */
+  --al-font-sans:
+    "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+  --al-font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono",
+    Consolas, "Liberation Mono", Menlo, monospace;
+  --al-font-scale: 1;
+  --al-code-size: 12px;
+
+  /* Tailwind's text sizes, scaled by the UI font size setting. Unlayered, so
+     these win over the defaults in Tailwind's theme layer. Only the text
+     scales — spacing stays put. */
+  --text-xs: calc(0.75rem * var(--al-font-scale));
+  --text-sm: calc(0.875rem * var(--al-font-scale));
+  --text-base: calc(1rem * var(--al-font-scale));
+  --text-lg: calc(1.125rem * var(--al-font-scale));
+  --text-xl: calc(1.25rem * var(--al-font-scale));
+  --text-2xl: calc(1.5rem * var(--al-font-scale));
+  --text-3xl: calc(1.875rem * var(--al-font-scale));
+  --text-4xl: calc(2.25rem * var(--al-font-scale));
+
   color-scheme: dark;
   --al-bg: #101114;
   --al-bg-raised: #17181c;
@@ -72,8 +94,8 @@ body,
 body {
   background-color: var(--al-bg);
   color: var(--al-text);
-  font-family:
-    "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+  font-family: var(--al-font-sans);
+  font-size: calc(1rem * var(--al-font-scale));
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -129,11 +151,8 @@ TODO
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans:
-    "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
-  --font-mono:
-    "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono",
-    Consolas, "Liberation Mono", Menlo, monospace;
+  --font-sans: var(--al-font-sans);
+  --font-mono: var(--al-font-mono);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -169,6 +188,13 @@ TODO
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Code text size (Settings > Preferences > Fonts) — for anything that shows
+   code: blocks, inline code, tool output, JSON, the shell input. The family
+   comes from `font-mono`. */
+@utility text-code {
+  font-size: var(--al-code-size);
 }
 
 @layer base {

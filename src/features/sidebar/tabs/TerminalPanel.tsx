@@ -3,6 +3,11 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { listen } from "@tauri-apps/api/event";
+import {
+  DEFAULT_MONO_STACK,
+  fontStack,
+  watchTerminalFonts,
+} from "../../../lib/fontPreferences";
 import { api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useAppStore } from "../../../store";
@@ -36,9 +41,11 @@ export default function TerminalPanel({
 
     const term = new Terminal({
       convertEol: true,
-      fontSize: 13,
-      fontFamily:
-        '"JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+      fontSize: useAppStore.getState().codeFontSize,
+      fontFamily: fontStack(
+        useAppStore.getState().codeFontFamily,
+        DEFAULT_MONO_STACK,
+      ),
       theme: terminalTheme,
     });
     const fit = new FitAddon();
@@ -81,15 +88,18 @@ export default function TerminalPanel({
       });
     })();
 
-    const resizeObserver = new ResizeObserver(() => {
+    const refit = () => {
       fit.fit();
       if (ptyId && !exited) api.ptyResize(ptyId, term.cols, term.rows);
-    });
+    };
+    const resizeObserver = new ResizeObserver(refit);
     resizeObserver.observe(containerRef.current);
+    const unwatchFonts = watchTerminalFonts(term, refit);
 
     return () => {
       disposed = true;
       resizeObserver.disconnect();
+      unwatchFonts();
       unlistenData?.();
       unlistenExit?.();
       if (ptyId) api.ptyKill(ptyId);

@@ -142,7 +142,7 @@ export default function ChatInputBar({
           className={cn(
             "py-3 leading-relaxed",
             shellMode
-              ? "pl-9 pr-3.5 font-mono text-emerald-200"
+              ? "pl-9 pr-3.5 font-mono text-code text-emerald-200"
               : "px-3.5 text-zinc-200",
           )}
         />

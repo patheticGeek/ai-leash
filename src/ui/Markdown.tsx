@@ -65,7 +65,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           </Button>
         </div>
       </div>
-      <pre className="overflow-x-auto p-2.5 text-xs">{children}</pre>
+      <pre className="overflow-x-auto p-2.5 text-code">{children}</pre>
     </div>
   );
 }
@@ -85,7 +85,7 @@ const components: Components = {
     if (!/language-/.test(className ?? "")) {
       return (
         <code
-          className="rounded-md bg-sunken px-1 py-0.5 text-zinc-300"
+          className="rounded-md bg-sunken px-1 py-0.5 text-code text-zinc-300"
           {...props}
         >
           {children}

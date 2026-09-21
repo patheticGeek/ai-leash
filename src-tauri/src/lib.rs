@@ -6,6 +6,7 @@ mod context;
 mod crashlog;
 mod db;
 mod env;
+mod fonts;
 mod git;
 pub mod mcp_bridge;
 mod paths;
@@ -106,6 +107,7 @@ pub fn run() {
             commands::read_file_text,
             commands::write_file_text,
             commands::open_in_ide,
+            fonts::list_system_fonts,
             git::list_git_branches,
             git::list_git_worktrees,
             git::get_current_git_branch,
