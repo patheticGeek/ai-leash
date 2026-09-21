@@ -190,8 +190,9 @@ TODO
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Code text size (Settings > Preferences > Fonts) — for code blocks and tool
-   output; the family comes from `font-mono`. */
+/* Code text size (Settings > Preferences > Fonts) — for anything that shows
+   code: blocks, inline code, tool output, JSON, the shell input. The family
+   comes from `font-mono`. */
 @utility text-code {
   font-size: var(--al-code-size);
 }

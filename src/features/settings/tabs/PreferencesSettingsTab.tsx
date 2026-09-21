@@ -117,7 +117,9 @@ function FontRow({
       </div>
       <span className="block text-xs text-zinc-600">
         {hint} Family is a CSS font list, such as{" "}
-        <code className="font-mono text-zinc-400">Inter, sans-serif</code>{" "}
+        <code className="font-mono text-code text-zinc-400">
+          Inter, sans-serif
+        </code>{" "}
         (empty for the default). Default size is {defaultSize}px.
       </span>
     </div>
@@ -196,10 +198,10 @@ export default function PreferencesSettingsTab() {
             Launched by the title bar's Open button with the current project or
             worktree folder added as the last argument. Use any command on your
             PATH, with optional flags, such as{" "}
-            <code className="font-mono text-zinc-400">code</code>,{" "}
-            <code className="font-mono text-zinc-400">zed</code>,{" "}
-            <code className="font-mono text-zinc-400">cursor</code> or{" "}
-            <code className="font-mono text-zinc-400">code -n</code>.
+            <code className="font-mono text-code text-zinc-400">code</code>,{" "}
+            <code className="font-mono text-code text-zinc-400">zed</code>,{" "}
+            <code className="font-mono text-code text-zinc-400">cursor</code> or{" "}
+            <code className="font-mono text-code text-zinc-400">code -n</code>.
           </span>
         </div>
       </Section>
