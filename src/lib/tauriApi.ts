@@ -237,6 +237,10 @@ export interface ActionSummary {
   running: boolean;
   startedAt: number | null;
   ptyId: string | null;
+  // The action last run in this checkout — persisted, so it outlives a stop
+  // or app restart (unlike `startedAt`). None is set if nothing has run yet
+  // or that action was deleted.
+  lastRun: boolean;
 }
 
 export const api = {

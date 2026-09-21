@@ -1,5 +1,5 @@
 import { ChevronDown, Play, Square } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Command, CommandItem, CommandList } from "@/ui/command";
@@ -8,16 +8,12 @@ import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
 
-// Whichever action was started most recently (even if it has since
-// stopped) is treated as "current" and shown on the collapsed button;
-// falls back to the first action defined when none has ever been run.
+// The action last run in this checkout (persisted by the backend, so it
+// survives a stop or app restart) is "current" and shown on the collapsed
+// button; falls back to the first action defined when none has ever been run
+// or the last-run one was deleted.
 function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
-  if (actions.length === 0) return null;
-  const withStart = actions.filter((a) => a.startedAt !== null);
-  if (withStart.length === 0) return actions[0];
-  return withStart.reduce((latest, a) =>
-    (a.startedAt as number) > (latest.startedAt as number) ? a : latest,
-  );
+  return actions.find((a) => a.lastRun) ?? actions[0] ?? null;
 }
 
 // Title-bar shortcut for the Actions tab (`ActionsTab.tsx`): a split button
@@ -28,6 +24,7 @@ export default function TitleBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, refresh, checkoutPath } = useActions();
   const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const current = pickCurrent(actions);
   if (!current) return null;
@@ -71,14 +68,31 @@ export default function TitleBarActions() {
               size="sm"
               title="Other actions"
               className="rounded-l-none px-1.5"
+              onKeyDown={(e) => {
+                // Popover triggers only open on Enter/Space; a dropdown
+                // chevron is expected to open on ArrowDown too.
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setOpen(true);
+                }
+              }}
             >
               <ChevronDown size={12} />
             </Button>
           </PopoverTrigger>
         )}
       </div>
-      <PopoverContent align="end" className="w-56 gap-0 p-0">
-        <Command>
+      <PopoverContent
+        align="end"
+        onOpenAutoFocus={(e) => {
+          // No search box to take focus, so give it to the list itself —
+          // that's what makes arrow keys/Enter work straight away.
+          e.preventDefault();
+          listRef.current?.focus();
+        }}
+        className="w-56 gap-0 p-0"
+      >
+        <Command ref={listRef} tabIndex={-1}>
           <CommandList>
             {rest.map((action) => (
               <CommandItem

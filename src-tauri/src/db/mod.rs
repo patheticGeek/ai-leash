@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 mod acp_sessions;
+mod action_last_run;
 mod conversations;
 mod messages;
 mod projects;
@@ -19,6 +20,7 @@ mod sub_agents;
 pub use acp_sessions::{
     delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id, AgentSessionId,
 };
+pub use action_last_run::{clear_last_run_action, get_last_run_action, set_last_run_action};
 pub use conversations::{
     clear_conversation, conversation_exists, delete_conversation, get_conversation_title,
     list_all_conversations, set_conversation_done, set_conversation_title,
@@ -107,6 +109,11 @@ impl Db {
                 conversation_id TEXT PRIMARY KEY,
                 message_id INTEGER NOT NULL,
                 armed INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS action_last_run (
+                checkout_path TEXT PRIMARY KEY,
+                action_id TEXT NOT NULL,
+                ran_at INTEGER NOT NULL
             );
             ",
         )
