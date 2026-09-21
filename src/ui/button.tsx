@@ -54,8 +54,8 @@ const buttonVariants = cva(
         unstyled: "",
       },
       size: {
-        md: "h-8 gap-1.5 px-3 text-sm",
-        sm: "h-7 gap-1 px-2.5 text-xs",
+        md: "min-h-8 gap-1.5 px-3 text-sm",
+        sm: "min-h-7 gap-1 px-2.5 text-xs",
         // Inline row action (copy/retry/expand toggles under a chat
         // message) — content-sized rather than a fixed height, tighter
         // padding than `none` bothers to specify on its own.

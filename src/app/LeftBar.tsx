@@ -245,7 +245,7 @@ function DoneConversationRow({
             event.stopPropagation();
             onUndo();
           }}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3 py-4"
+          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3"
         >
           <Undo2 size={14} />
         </Button>
