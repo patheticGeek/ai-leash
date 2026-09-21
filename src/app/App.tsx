@@ -12,6 +12,7 @@ import { BUILD_LABEL } from "../lib/buildChannel";
 import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useOllamaModelsByConfig } from "../lib/ollamaModelsQuery";
+import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
@@ -38,6 +39,9 @@ function App() {
   // for why a single top-level listener replaces what used to be a
   // per-session one.
   useGeneratingListener();
+  // Always on — watches every known project's git `HEAD`, not just the
+  // ones with a branch label mounted (see its comment).
+  useGitBranchWatchers();
   // Always on — invalidates `useAcpAgentCatalog()` whenever Rust's
   // background refresh (or an on-demand discovery) updates the catalog.
   useAcpCatalogInvalidator();
