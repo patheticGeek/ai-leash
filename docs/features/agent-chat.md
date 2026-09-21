@@ -94,6 +94,15 @@ configurations. Provider settings are used by the conversations that select
 that provider; the model or provider selection itself is still
 conversation-specific.
 
+Every provider and external agent card in **Settings > Agents** has a checkbox
+to turn it off. A turned-off card stays saved, but it is hidden from the chat
+bar picker, skipped by the background connection check and model discovery,
+and cannot be the default for new conversations (the default moves to the
+next enabled card). Turn it back on at any time. A conversation that already
+uses a turned-off backend keeps it selected, but sending is blocked (a notice
+explains why, and queued messages are dropped) until you turn it back on or
+pick another agent from the chat bar.
+
 ### External agents
 
 An external ACP agent is a separate agent program that manages its own model,

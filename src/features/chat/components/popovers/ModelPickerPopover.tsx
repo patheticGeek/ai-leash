@@ -26,6 +26,9 @@ interface ModelPickerPopoverProps {
   activeKey: string | null;
   onSelect: (key: string) => void;
   triggerLabel: string;
+  // Renders the trigger as a danger chip with this as its title — used when
+  // the active agent is turned off in Settings.
+  dangerMessage?: string | null;
   disabled?: boolean;
   // Shows a spinner in place of the agent icon — currently only meaningful
   // while `useChatSession`'s `pendingCrossAgentModelRef` is waiting for a
@@ -50,6 +53,7 @@ export default function ModelPickerPopover({
   activeKey,
   onSelect,
   triggerLabel,
+  dangerMessage,
   disabled,
   loading,
   open,
@@ -69,8 +73,9 @@ export default function ModelPickerPopover({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant="chip"
+          variant={dangerMessage ? "chip-danger" : "chip"}
           size="sm"
+          title={dangerMessage ?? undefined}
           disabled={disabled}
           className="flex min-w-0 max-w-[160px]"
         >

@@ -89,7 +89,8 @@ export default function ChatComposer({
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   const { isAcp, model, activeAcpAgent } = session;
-  const backendReady = isAcp ? !!activeAcpAgent : !!model;
+  const backendReady =
+    !session.backendDisabled && (isAcp ? !!activeAcpAgent : !!model);
 
   // "/compact" only exists for the built-in provider loop — see
   // `COMPACT_COMMAND`. Local commands first, then whatever the connected
@@ -265,6 +266,7 @@ export default function ChatComposer({
               backendOptions={session.backendOptions}
               activeBackendKey={session.activeBackendKey}
               activeBackendLabel={session.activeBackendLabel}
+              backendDisabledReason={session.backendDisabledReason}
               onSelectBackend={session.selectBackendOption}
               modelSwitchPending={session.acpModelSwitchPending}
               modelPickerOpen={modelPickerOpen}

@@ -3,7 +3,7 @@ import { LS_KEYS } from "../lib/localStorageKeys";
 import { ollamaModelsQueryKey } from "../lib/ollamaModelsQuery";
 import { queryClient } from "../lib/queryClient";
 import { api, type ProviderConfigPayload } from "../lib/tauriApi";
-import { DEFAULT_OLLAMA_ID } from "./backendSlice";
+import { DEFAULT_OLLAMA_ID, isEnabled } from "./backendSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -12,6 +12,7 @@ export interface OllamaProviderConfig {
   id: string; // stable local id, survives label edits
   label: string;
   host: string; // e.g. "localhost:11434"; "" is treated as the default
+  enabled?: boolean; // absent = on — see `isEnabled` in `backendSlice.ts`
 }
 
 export interface OpenAiCompatibleProviderConfig {
@@ -20,6 +21,7 @@ export interface OpenAiCompatibleProviderConfig {
   label: string;
   baseUrl: string;
   apiKey: string;
+  enabled?: boolean; // absent = on — see `isEnabled` in `backendSlice.ts`
   model: string; // free-text — see docs/features/agent-chat.md on why there's no live model list for this provider kind
 }
 
@@ -160,13 +162,12 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
   refreshProviderConnectivity: async () => {
     const { providerSettings } = get();
     const targets: [string, ProviderConfig][] = [
-      ...providerSettings.ollama.map((c): [string, ProviderConfig] => [
-        c.id,
-        c,
-      ]),
-      ...providerSettings.openAiCompatible.map(
-        (c): [string, ProviderConfig] => [c.id, c],
-      ),
+      ...providerSettings.ollama
+        .filter(isEnabled)
+        .map((c): [string, ProviderConfig] => [c.id, c]),
+      ...providerSettings.openAiCompatible
+        .filter(isEnabled)
+        .map((c): [string, ProviderConfig] => [c.id, c]),
     ];
     const results = await Promise.all(
       targets.map(async ([id, config]) => {
@@ -208,6 +209,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
     queryClient.invalidateQueries({
       queryKey: ollamaModelsQueryKey(config.id),
     });
+    get().reconcileDefaultBackend();
   },
 
   deleteOllamaConfig: (id) => {
@@ -221,7 +223,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
     get().reconcileDefaultBackend();
   },
 
-  saveOpenAiCompatibleConfig: (config) =>
+  saveOpenAiCompatibleConfig: (config) => {
     set((s) => {
       const exists = s.providerSettings.openAiCompatible.some(
         (c) => c.id === config.id,
@@ -234,7 +236,9 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       const providerSettings = { ...s.providerSettings, openAiCompatible };
       saveProviderSettings(providerSettings);
       return { providerSettings };
-    }),
+    });
+    get().reconcileDefaultBackend();
+  },
 
   deleteOpenAiCompatibleConfig: (id) => {
     set((s) => {

@@ -13,6 +13,9 @@ interface ChatToolbarProps {
   backendOptions: PickerOption[];
   activeBackendKey: string | null;
   activeBackendLabel: string;
+  // Set when the picked agent is turned off in Settings — the picker
+  // trigger turns red and shows this as its tooltip.
+  backendDisabledReason: string | null;
   onSelectBackend: (key: string) => void;
   modelSwitchPending: boolean;
   modelPickerOpen: boolean;
@@ -41,6 +44,7 @@ export default function ChatToolbar({
   backendOptions,
   activeBackendKey,
   activeBackendLabel,
+  backendDisabledReason,
   onSelectBackend,
   modelSwitchPending,
   modelPickerOpen,
@@ -64,6 +68,7 @@ export default function ChatToolbar({
         activeKey={activeBackendKey}
         onSelect={onSelectBackend}
         triggerLabel={activeBackendLabel}
+        dangerMessage={backendDisabledReason}
         loading={modelSwitchPending}
         open={modelPickerOpen}
         onOpenChange={onModelPickerOpenChange}

@@ -10,10 +10,13 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Card } from "@/ui/card";
+import { Checkbox } from "@/ui/checkbox";
 import { Input } from "@/ui/input";
 import { useAppStore } from "../../../store";
+import { isEnabled } from "../../../store/backendSlice";
 
 // One flat grid of every configured backend — Ollama connections, ACP
 // agents, then OpenAI-compatible APIs — matching what the user asked for
@@ -124,6 +127,19 @@ export default function AgentsSettingsTab() {
     setView({ step: "form", type, id });
   }
 
+  function setCardEnabled(type: CardType, id: string, enabled: boolean) {
+    if (type === "ollama") {
+      const c = providerSettings.ollama.find((x) => x.id === id);
+      if (c) saveOllamaConfig({ ...c, enabled });
+    } else if (type === "openAiCompatible") {
+      const c = providerSettings.openAiCompatible.find((x) => x.id === id);
+      if (c) saveOpenAiCompatibleConfig({ ...c, enabled });
+    } else {
+      const c = agentBackend.acpAgents.find((x) => x.id === id);
+      if (c) saveAcpAgentConfig({ ...c, enabled });
+    }
+  }
+
   function deleteCard(type: CardType, id: string) {
     if (type === "ollama") deleteOllamaConfig(id);
     else if (type === "openAiCompatible") deleteOpenAiCompatibleConfig(id);
@@ -136,6 +152,7 @@ export default function AgentsSettingsTab() {
     if (type === "ollama") {
       if (!ollamaForm.label.trim() || !ollamaForm.host.trim()) return;
       saveOllamaConfig({
+        ...providerSettings.ollama.find((c) => c.id === id),
         kind: "ollama",
         id: id ?? crypto.randomUUID(),
         label: ollamaForm.label.trim(),
@@ -144,6 +161,7 @@ export default function AgentsSettingsTab() {
     } else if (type === "openAiCompatible") {
       if (!openAiForm.label.trim() || !openAiForm.baseUrl.trim()) return;
       saveOpenAiCompatibleConfig({
+        ...providerSettings.openAiCompatible.find((c) => c.id === id),
         kind: "openAiCompatible",
         id: id ?? crypto.randomUUID(),
         label: openAiForm.label.trim(),
@@ -154,6 +172,7 @@ export default function AgentsSettingsTab() {
     } else {
       if (!acpForm.label.trim() || !acpForm.launchCommand.trim()) return;
       saveAcpAgentConfig({
+        ...agentBackend.acpAgents.find((c) => c.id === id),
         id: id ?? crypto.randomUUID(),
         label: acpForm.label.trim(),
         launchCommand: acpForm.launchCommand.trim(),
@@ -167,24 +186,28 @@ export default function AgentsSettingsTab() {
     id: string;
     label: string;
     subtitle: string;
+    enabled: boolean;
   }[] = [
     ...providerSettings.ollama.map((c) => ({
       type: "ollama" as const,
       id: c.id,
       label: c.label,
       subtitle: c.host || "localhost:11434",
+      enabled: isEnabled(c),
     })),
     ...agentBackend.acpAgents.map((c) => ({
       type: "acp" as const,
       id: c.id,
       label: c.label,
       subtitle: c.launchCommand,
+      enabled: isEnabled(c),
     })),
     ...providerSettings.openAiCompatible.map((c) => ({
       type: "openAiCompatible" as const,
       id: c.id,
       label: c.label,
       subtitle: c.baseUrl,
+      enabled: isEnabled(c),
     })),
   ];
 
@@ -370,22 +393,28 @@ export default function AgentsSettingsTab() {
       <div className="flex flex-col gap-2">
         {cards.map((c) => {
           const meta = TYPE_META[c.type];
-          const active = isDefaultCard(c.type, c.id);
+          const active = c.enabled && isDefaultCard(c.type, c.id);
           return (
             <Card
               key={`${c.type}:${c.id}`}
               interactive
               selected={active}
-              className="flex-row items-stretch gap-0 rounded-md py-0 text-sm"
+              className={cn(
+                "flex-row items-stretch gap-0 rounded-md py-0 text-sm",
+                !c.enabled && "opacity-60",
+              )}
             >
               <Button
                 variant="unstyled"
                 size="none"
                 onClick={() => makeDefault(c.type, c.id)}
+                disabled={!c.enabled}
                 title={
-                  active
-                    ? "Default for new conversations"
-                    : "Make default for new conversations"
+                  !c.enabled
+                    ? "Turned off"
+                    : active
+                      ? "Default for new conversations"
+                      : "Make default for new conversations"
                 }
                 className="min-w-0 flex-1 flex-col items-start gap-1.5 px-3 py-2.5 text-left"
               >
@@ -405,6 +434,15 @@ export default function AgentsSettingsTab() {
                 </span>
               </Button>
               <div className="flex shrink-0 items-center gap-1 pr-2">
+                <Checkbox
+                  checked={c.enabled}
+                  onCheckedChange={(next) =>
+                    setCardEnabled(c.type, c.id, next === true)
+                  }
+                  title={c.enabled ? "Turn off" : "Turn on"}
+                  aria-label={`Enable ${c.label}`}
+                  className="mr-1"
+                />
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -438,7 +476,8 @@ export default function AgentsSettingsTab() {
       <div className="text-xs text-zinc-600">
         Click a card to make it the default for new conversations. Each
         conversation remembers its own choice once you pick one from the chat
-        bar.
+        bar. Untick a card to turn it off — it stays saved but is hidden from
+        the chat bar and no longer checked in the background.
       </div>
     </div>
   );

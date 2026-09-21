@@ -26,6 +26,15 @@ export type DefaultBackendRef =
   | { kind: "builtin"; providerId: string } // id into providerSettings.ollama or .openAiCompatible
   | { kind: "acp"; acpId: string }; // id into agentBackend.acpAgents
 
+// Whether a provider/ACP card is switched on in Settings > Agents. Absent
+// (every config saved before the toggle existed) counts as on, so no
+// migration is needed. A switched-off card keeps its saved config but is
+// left out of the chat-bar picker, the default-backend fallbacks, the
+// connectivity poll, and model discovery.
+export function isEnabled(config: { enabled?: boolean }): boolean {
+  return config.enabled !== false;
+}
+
 function readOldJson(key: string): Record<string, unknown> | null {
   const parsed = localStorageJson.read<unknown>(key, null);
   return parsed && typeof parsed === "object"
@@ -82,11 +91,11 @@ function saveDefaultBackend(ref: DefaultBackendRef) {
 export interface BackendSlice {
   defaultBackend: DefaultBackendRef;
   setDefaultBackend: (ref: DefaultBackendRef) => void;
-  // Called after a provider/ACP config list changes (deletion) — if the
-  // current default now points at an id that no longer exists in either
-  // list, reassigns it to another configured card (first Ollama, then
-  // first OpenAI-compatible, then first ACP agent) instead of leaving it
-  // dangling. Mirrors the per-list delete fallbacks that used to live
+  // Called after a provider/ACP config list changes (deletion or a card
+  // being switched off) — if the current default now points at an id that
+  // no longer exists in either list, or is switched off, reassigns it to
+  // another enabled card (first Ollama, then first OpenAI-compatible, then
+  // first ACP agent) instead of leaving it dangling. Mirrors the per-list delete fallbacks that used to live
   // directly in `providerSlice.ts`/`acpSlice.ts` before there was one
   // shared default to keep in sync.
   reconcileDefaultBackend: () => void;
@@ -106,25 +115,22 @@ export const backendSlice: StateCreator<AppStore, [], [], BackendSlice> = (
 
   reconcileDefaultBackend: () => {
     const { defaultBackend, providerSettings, agentBackend } = get();
+    const ollama = providerSettings.ollama.filter(isEnabled);
+    const openAiCompatible =
+      providerSettings.openAiCompatible.filter(isEnabled);
+    const acpAgents = agentBackend.acpAgents.filter(isEnabled);
     const exists =
       defaultBackend.kind === "builtin"
-        ? providerSettings.ollama.some(
-            (c) => c.id === defaultBackend.providerId,
-          ) ||
-          providerSettings.openAiCompatible.some(
-            (c) => c.id === defaultBackend.providerId,
-          )
-        : agentBackend.acpAgents.some((c) => c.id === defaultBackend.acpId);
+        ? ollama.some((c) => c.id === defaultBackend.providerId) ||
+          openAiCompatible.some((c) => c.id === defaultBackend.providerId)
+        : acpAgents.some((c) => c.id === defaultBackend.acpId);
     if (exists) return;
-    const fallback: DefaultBackendRef = providerSettings.ollama[0]
-      ? { kind: "builtin", providerId: providerSettings.ollama[0].id }
-      : providerSettings.openAiCompatible[0]
-        ? {
-            kind: "builtin",
-            providerId: providerSettings.openAiCompatible[0].id,
-          }
-        : agentBackend.acpAgents[0]
-          ? { kind: "acp", acpId: agentBackend.acpAgents[0].id }
+    const fallback: DefaultBackendRef = ollama[0]
+      ? { kind: "builtin", providerId: ollama[0].id }
+      : openAiCompatible[0]
+        ? { kind: "builtin", providerId: openAiCompatible[0].id }
+        : acpAgents[0]
+          ? { kind: "acp", acpId: acpAgents[0].id }
           : { kind: "builtin", providerId: DEFAULT_OLLAMA_ID };
     get().setDefaultBackend(fallback);
   },
