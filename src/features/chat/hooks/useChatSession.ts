@@ -246,6 +246,10 @@ export function useChatSession(
 
   async function selectAcpEffort(value: string) {
     setAcpEffortChoice(value);
+    // Picked off the catalog's cached options before a live connection has
+    // reported in — nothing to send yet, the apply-effect below sends the
+    // remembered choice once the real `acp_effort_options` event arrives.
+    if (!acpEffortOptions) return;
     setAcpEffortOptions((prev) =>
       prev ? { ...prev, currentValue: value } : prev,
     );
@@ -542,12 +546,27 @@ export function useChatSession(
     }
   }
 
+  // What the effort picker shows: the live connection's options when it has
+  // reported in, else the catalog's cached ones for the active agent, so a
+  // brand-new thread shows the picker immediately instead of after the
+  // warmup handshake. Only the live options gate `selectAcpEffort`/the
+  // apply-effect — a choice made against the cached list is sent once the
+  // live event arrives.
+  const displayedAcpEffortOptions: AcpEffortOptions | null =
+    acpEffortOptions ??
+    (isAcp && activeAcpAgent
+      ? ((acpCatalog.find((e) => e.id === activeAcpAgent.id)?.effortOptions as
+          | AcpEffortOptions
+          | null
+          | undefined) ?? null)
+      : null);
+
   return {
     isAcp,
     isOpenAiCompatible,
     providerActiveId,
     activeAcpAgent,
-    acpEffortOptions,
+    acpEffortOptions: displayedAcpEffortOptions,
     acpEffortChoice,
     acpCommands,
     model,
