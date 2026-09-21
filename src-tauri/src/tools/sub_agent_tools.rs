@@ -297,6 +297,7 @@ pub(super) fn spawn_sub_agent(
                 "callId": call_id,
                 "subSessionId": sub_session_id,
                 "description": description,
+                "prompt": prompt,
                 "model": display_model,
                 "effort": display_effort,
             }),

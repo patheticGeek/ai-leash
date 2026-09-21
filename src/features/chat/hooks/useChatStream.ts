@@ -45,6 +45,7 @@ interface SubtaskStartPayload {
   callId: string | null;
   subSessionId: string;
   description: string;
+  prompt: string;
   model: string;
   effort: string | null;
 }
@@ -54,6 +55,7 @@ function addSubtaskThread(
   callId: string,
   subSessionId: string,
   description: string,
+  firstEntries: Entry[],
 ): PanelEntry[] {
   return prev.map((entry) =>
     entry.kind === "tool" && entry.callId === callId
@@ -61,7 +63,7 @@ function addSubtaskThread(
           ...entry,
           subtasks: [
             ...(entry.subtasks ?? []),
-            { subSessionId, description, entries: [] },
+            { subSessionId, description, entries: firstEntries },
           ],
         }
       : entry,
@@ -269,12 +271,26 @@ export function useChatStream(
     // subtask's own thread, nested under the parent tool call once expanded.
     unlistens.push(
       listen<SubtaskStartPayload>(`chat://${sessionId}/subtask_start`, (e) => {
-        const { subSessionId, description, model, effort } = e.payload;
+        const { subSessionId, description, prompt, model, effort } = e.payload;
         const callId = String(e.payload.callId);
 
+        // The backend persists the prompt as the sub-agent's first user
+        // message before it streams anything, but never emits it — seed it
+        // here so the live thread matches what a reload from disk shows.
+        // Also marks the thread as populated, so `SubAgentChatTab` doesn't
+        // fetch from disk and clobber the live entries.
+        const promptEntry: Entry = {
+          kind: "text",
+          role: "user",
+          content: prompt,
+          time: Date.now(),
+        };
         setEntries((prev) =>
-          addSubtaskThread(prev, callId, subSessionId, description),
+          addSubtaskThread(prev, callId, subSessionId, description, [
+            promptEntry,
+          ]),
         );
+        setSubAgentEntries(subSessionId, () => [promptEntry]);
         startSubAgentTask({
           subSessionId,
           parentSessionId: sessionId,

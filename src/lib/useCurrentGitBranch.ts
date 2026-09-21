@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useAppStore } from "../store";
 import { api } from "./tauriApi";
 import { useTauriEvent } from "./useTauriEvent";
 
@@ -34,4 +35,32 @@ export function useCurrentGitBranch(path: string): string | null {
   });
 
   return query.data ?? null;
+}
+
+// Starts the backend `HEAD` watcher for every checkout the app knows about —
+// each recent project, and each conversation's project root and worktree —
+// not just the ones with a branch label currently mounted. Otherwise a
+// project only starts being watched once its row/`CheckoutBar` renders, and
+// any switch made before then is missed until the next 30s-stale refetch.
+// `watchGitBranch` is a no-op for a path already watched, so re-running this
+// as the set grows is cheap. Mount once, near the app root.
+export function useGitBranchWatchers() {
+  const recentProjects = useAppStore((s) => s.recentProjects);
+  const conversations = useAppStore((s) => s.conversations);
+
+  const paths = useMemo(() => {
+    const all = new Set<string>(recentProjects.map((p) => p.path));
+    for (const c of conversations) {
+      all.add(c.projectRoot);
+      if (c.worktreePath) all.add(c.worktreePath);
+    }
+    return [...all];
+  }, [recentProjects, conversations]);
+
+  useEffect(() => {
+    for (const path of paths) {
+      // Not a git repo (yet), or gone: nothing to watch.
+      api.watchGitBranch(path).catch(() => {});
+    }
+  }, [paths]);
 }

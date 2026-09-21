@@ -9,8 +9,8 @@
 //! — only `worktree_path` is stored): whatever's checked out in a worktree
 //! can change from outside the app (a manual `git checkout`, a rebase), so a
 //! stored branch name would go stale. `watch_git_branch` instead watches the
-//! relevant `HEAD` file live so the frontend can always show the true
-//! current branch.
+//! relevant git dir for `HEAD` moving, live, so the frontend can always show
+//! the true current branch.
 
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
@@ -149,19 +149,33 @@ fn checkout_new_branch(
     run_git(worktree_path, &["checkout", "-b", new_branch, base_branch]).map(|_| ())
 }
 
-/// The file that changes every time `HEAD` moves in `root` — for the primary
-/// checkout this is `<repo>/.git/HEAD`, but for a linked worktree `git`
-/// keeps its own `HEAD` under the main repo's `.git/worktrees/<name>/`
-/// instead, which `--git-dir` resolves correctly either way.
-fn head_file(root: &Path) -> Result<PathBuf, String> {
+/// The directory holding `root`'s `HEAD` — for the primary checkout this is
+/// `<repo>/.git`, but for a linked worktree `git` keeps its own `HEAD` under
+/// the main repo's `.git/worktrees/<name>/` instead, which `--git-dir`
+/// resolves correctly either way.
+fn git_dir(root: &Path) -> Result<PathBuf, String> {
     let dir = run_git(root, &["rev-parse", "--git-dir"])?;
     let dir = PathBuf::from(dir);
-    let dir = if dir.is_absolute() {
+    Ok(if dir.is_absolute() {
         dir
     } else {
         root.join(dir)
-    };
-    Ok(dir.join("HEAD"))
+    })
+}
+
+/// Whether a watcher event on a git dir is `HEAD` actually moving. `git
+/// checkout` never edits `HEAD` in place — it writes `HEAD.lock` and renames
+/// it over `HEAD` — so the events to look for are creates/renames/writes
+/// touching either name. Reads (`Access`) are excluded: refetching the
+/// branch runs `git`, which reads `HEAD`, so counting them would loop.
+fn is_head_change(event: &notify::Event) -> bool {
+    !matches!(event.kind, notify::EventKind::Access(_))
+        && event.paths.iter().any(|p| {
+            matches!(
+                p.file_name().and_then(|n| n.to_str()),
+                Some("HEAD" | "HEAD.lock")
+            )
+        })
 }
 
 #[derive(Serialize)]
@@ -284,6 +298,7 @@ pub fn checkout_git_branch(
 /// primary checkout; the frontend excludes it from the delete affordance.
 #[tauri::command]
 pub fn delete_git_worktree(
+    state: State<AppState>,
     root_path: String,
     worktree_path: String,
     force: bool,
@@ -294,7 +309,15 @@ pub fn delete_git_worktree(
         args.push("--force");
     }
     args.push(&worktree_path);
-    run_git(&root, &args).map(|_| ())
+    run_git(&root, &args)?;
+    // Its git dir is gone, so the watcher on it is dead — drop it so a
+    // worktree later recreated at the same path gets a fresh one.
+    state
+        .git_watchers
+        .lock()
+        .unwrap()
+        .remove(&PathBuf::from(worktree_path));
+    Ok(())
 }
 
 /// Deletes a local branch. `force` maps to `-D` instead of `-d`, needed when
@@ -308,13 +331,15 @@ pub fn delete_git_branch(root_path: String, branch: String, force: bool) -> Resu
     run_git(&root, &["branch", if force { "-D" } else { "-d" }, &branch]).map(|_| ())
 }
 
-/// Starts watching `root_path`'s current-branch file (see `head_file`) and
+/// Starts watching `root_path`'s git dir (see `git_dir`) for `HEAD` moving and
 /// emits `git://branch_changed` (payload: `root_path`, verbatim) on every
 /// change, debounced the same way `commands::start_fs_watcher` is — a
 /// `git checkout`/rebase/branch switch touches `HEAD` in a quick burst of
-/// writes, not just one. A no-op if this path is already being watched: the
-/// frontend calls this on every mount of a branch picker for a given path,
-/// not just the first.
+/// writes, not just one. Watches the directory, not the `HEAD` file: git
+/// replaces the file on every switch, and a watch on the old file dies with
+/// it. A no-op if this path is already being watched, so the frontend can
+/// call it freely (every mount of a branch picker, and once per known
+/// project/worktree at startup).
 #[tauri::command]
 pub fn watch_git_branch(
     app: AppHandle,
@@ -322,21 +347,26 @@ pub fn watch_git_branch(
     root_path: String,
 ) -> Result<(), String> {
     let root = PathBuf::from(&root_path);
-    let head = head_file(&root)?;
-    let mut watchers = state.git_watchers.lock().unwrap();
-    if watchers.contains_key(&root) {
+    if state.git_watchers.lock().unwrap().contains_key(&root) {
         return Ok(());
     }
+    let dir = git_dir(&root)?;
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if res.is_ok() {
+        if res.is_ok_and(|event| is_head_change(&event)) {
             let _ = tx.send(());
         }
     })
     .map_err(|e| e.to_string())?;
     watcher
-        .watch(&head, RecursiveMode::NonRecursive)
+        .watch(&dir, RecursiveMode::NonRecursive)
         .map_err(|e| e.to_string())?;
+    let mut watchers = state.git_watchers.lock().unwrap();
+    // Another call for the same path may have won the race since the check
+    // above — keep its watcher, drop ours.
+    if watchers.contains_key(&root) {
+        return Ok(());
+    }
     watchers.insert(root, watcher);
     drop(watchers);
 
@@ -356,4 +386,79 @@ pub fn watch_git_branch(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::{Event, EventKind};
+
+    fn event(kind: EventKind, path: &str) -> Event {
+        Event::new(kind).add_path(PathBuf::from(path))
+    }
+
+    #[test]
+    fn head_and_its_lock_file_count_as_head_moving() {
+        let modify = EventKind::Modify(notify::event::ModifyKind::Any);
+        assert!(is_head_change(&event(modify, "/r/.git/HEAD")));
+        assert!(is_head_change(&event(modify, "/r/.git/HEAD.lock")));
+        assert!(!is_head_change(&event(modify, "/r/.git/index")));
+        assert!(!is_head_change(&event(modify, "/r/.git/ORIG_HEAD")));
+    }
+
+    #[test]
+    fn reads_of_head_are_ignored() {
+        let read = EventKind::Access(notify::event::AccessKind::Any);
+        assert!(!is_head_change(&event(read, "/r/.git/HEAD")));
+    }
+
+    /// The regression this module's watcher exists for: switching branches
+    /// replaces `HEAD` (lock file + rename), and every switch — not just
+    /// the first — must still be seen.
+    #[test]
+    fn repeated_branch_switches_are_each_observed() {
+        let root = std::env::temp_dir().join(format!("ai-leash-git-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        for args in [
+            &["init", "-q"][..],
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                // A developer's global signing config would otherwise pop a
+                // pinentry prompt and hang the test.
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+        ] {
+            run_git(&root, args).unwrap();
+        }
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
+            if res.is_ok_and(|e| is_head_change(&e)) {
+                let _ = tx.send(());
+            }
+        })
+        .unwrap();
+        watcher
+            .watch(&git_dir(&root).unwrap(), RecursiveMode::NonRecursive)
+            .unwrap();
+
+        for branch in ["one", "two", "three"] {
+            while rx.try_recv().is_ok() {}
+            run_git(&root, &["checkout", "-q", "-b", branch]).unwrap();
+            assert!(
+                rx.recv_timeout(Duration::from_secs(3)).is_ok(),
+                "no event for switch to `{branch}`"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

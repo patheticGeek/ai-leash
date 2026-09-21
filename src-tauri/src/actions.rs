@@ -5,6 +5,7 @@
 //! `mcp_bridge` for ACP agents). At most one live run per action — see
 //! `run_action`'s doc comment.
 
+use crate::db;
 use crate::pty;
 use crate::state::AppState;
 use crate::tools;
@@ -53,6 +54,11 @@ pub struct ActionWithStatus {
     /// same event a plain terminal tab already listens to (see
     /// `ActionTerminalTab.tsx`).
     pub pty_id: Option<String>,
+    /// True for the one action last run in this checkout — persisted (see
+    /// `db/action_last_run.rs`), unlike `started_at`, so it survives a stop
+    /// or an app restart. False for all if nothing has run yet or that
+    /// action has since been deleted.
+    pub last_run: bool,
 }
 
 fn now() -> i64 {
@@ -131,6 +137,9 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
         }),
     )?;
 
+    // Here rather than in `run_action_cmd` so runs started by an agent
+    // (native tool or MCP bridge) count as "last ran" too.
+    db::set_last_run_action(&state.db, &key.0, &key.1);
     state.action_runs.lock().unwrap().insert(
         key,
         ActionRun {
@@ -220,6 +229,7 @@ pub fn list_actions(
 ) -> Result<Vec<ActionWithStatus>, String> {
     let root = PathBuf::from(checkout_path);
     let defs = load_actions(&root);
+    let last_run_id = db::get_last_run_action(&state.db, &root.display().to_string());
     let runs = state.action_runs.lock().unwrap();
     Ok(defs
         .into_iter()
@@ -227,6 +237,7 @@ pub fn list_actions(
             let run = runs.get(&run_key(&root, &def.id));
             let running = run.is_some_and(|r| pty::is_running(&state, &r.pty_id));
             ActionWithStatus {
+                last_run: last_run_id.as_deref() == Some(def.id.as_str()),
                 id: def.id,
                 name: def.name,
                 command: def.command,
@@ -302,6 +313,7 @@ pub fn delete_action(
     let mut defs = load_actions(&root);
     defs.retain(|a| a.id != id);
     save_actions(&root, &defs)?;
+    db::clear_last_run_action(&state.db, &root.display().to_string(), &id);
     state
         .action_runs
         .lock()

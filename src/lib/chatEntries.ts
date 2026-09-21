@@ -184,3 +184,26 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
   }
   return entries;
 }
+
+// Folds a sub-agent's persisted transcript into whatever live events have
+// already built for it, treating disk as the source of truth for the part
+// it's guaranteed to have: the opening user message (the task's prompt, which
+// the backend writes before the sub-agent runs anything and never emits as an
+// event). Everything after that comes from live events when there are any, so
+// entries the stream already delivered aren't duplicated by their persisted
+// copies — matching them up entry-by-entry isn't reliable, since live tool
+// entries and persisted rows don't share ids for every path.
+export function reconcileWithPersisted(
+  live: Entry[],
+  persisted: Entry[],
+): Entry[] {
+  if (live.length === 0) return persisted;
+  const opening = persisted[0];
+  const liveOpening = live[0];
+  const hasOpeningUser =
+    liveOpening.kind === "text" && liveOpening.role === "user";
+  if (opening?.kind === "text" && opening.role === "user" && !hasOpeningUser) {
+    return [opening, ...live];
+  }
+  return live;
+}
