@@ -1,7 +1,7 @@
 use super::request_permission;
 use crate::actions;
 use crate::state::AppState;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::path::Path;
 use tauri::{AppHandle, State};
 
@@ -61,4 +61,87 @@ pub(super) fn read_action(app: &AppHandle, root: &Path, args: &Value) -> Result<
         .and_then(|v| v.as_str())
         .ok_or("missing `name`")?;
     actions::read_action_output(app, root, action_name)
+}
+
+/// The native/bridge-shared definitions of every Action tool, in
+/// `{name, description, parameters}` form (see `sub_agent_tools`'s `*_def`
+/// functions for the same convention) — `schema.rs` wraps each as an
+/// OpenAI-style function tool and `mcp_bridge::client` renames `parameters`
+/// to MCP's `inputSchema`.
+pub(crate) fn action_defs() -> Vec<Value> {
+    vec![
+        json!({
+            "name": "create_action",
+            "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file. Use it when a command is long-running or recurring and no existing Action covers it (check list_actions first), instead of running it via `shell` or leaving an untracked background process.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Short human-readable name, e.g. \"dev\"" },
+                    "command": { "type": "string", "description": "The shell command to run in the background, e.g. \"npm run dev\"" }
+                },
+                "required": ["name", "command"]
+            }
+        }),
+        json!({
+            "name": "run_action",
+            "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it. Prefer this over `shell` for anything long-running or repeated (dev server, watcher, build --watch) — `shell` times out after 30 seconds. Afterwards, call read_action to confirm it started cleanly.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                },
+                "required": ["name"]
+            }
+        }),
+        json!({
+            "name": "stop_action",
+            "description": "Stop a running Action by name. A no-op if it isn't running.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                },
+                "required": ["name"]
+            }
+        }),
+        json!({
+            "name": "list_actions",
+            "description": "List this project's defined Actions and whether each is currently running. Call this before starting any dev server, watcher or other long-running command, in case an Action for it already exists.",
+            "parameters": { "type": "object", "properties": {}, "required": [] }
+        }),
+        json!({
+            "name": "read_action",
+            "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error. Call this after run_action, or whenever a running Action might have failed, instead of guessing.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                },
+                "required": ["name"]
+            }
+        }),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::action_defs;
+
+    #[test]
+    fn action_defs_cover_every_action_tool() {
+        let names: Vec<String> = action_defs()
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "create_action",
+                "run_action",
+                "stop_action",
+                "list_actions",
+                "read_action"
+            ]
+        );
+    }
 }

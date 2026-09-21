@@ -1,7 +1,7 @@
 use super::{diff_text, fix_literal_escapes, request_permission};
 use crate::context;
 use crate::state::AppState;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
 
@@ -93,4 +93,20 @@ pub(super) fn load_skill(
             ))
         }
     }
+}
+
+/// Shared by the native tool list and the MCP bridge (see
+/// `action_tools::action_defs`), so both describe skills identically.
+pub(crate) fn load_skill_def() -> Value {
+    json!({
+        "name": "load_skill",
+        "description": "Load the full instructions for a skill listed under \"Available skills\" in your system prompt (or, for an external agent, in this server's instructions), by its exact name. Only use this for names listed there — your other tools are called directly and are never loaded as skills.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "Exact name of the skill to load" }
+            },
+            "required": ["name"]
+        }
+    })
 }

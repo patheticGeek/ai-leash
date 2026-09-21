@@ -130,7 +130,7 @@ pub(super) async fn run_agent_loop(
         // skills should apply starting with the very next model call.
         let touched = touched_dirs_for(state, scope_id);
         if let Some(r) = &root {
-            refresh_system_prompt(app, state, session_id, r, &touched);
+            refresh_system_prompt(app, state, session_id, r, &touched, allow_subtasks);
         }
 
         let history = {
@@ -298,10 +298,11 @@ fn refresh_system_prompt(
     session_id: &str,
     root: &std::path::Path,
     touched_dirs: &[std::path::PathBuf],
+    allow_subtasks: bool,
 ) {
     let mut sessions = state.chat_sessions.lock().unwrap();
     let history = sessions.entry(session_id.to_string()).or_default();
-    let system_prompt = context::build_system_prompt(root, touched_dirs);
+    let system_prompt = context::build_system_prompt(root, touched_dirs, allow_subtasks);
     let has_system_first = history.first().is_some_and(|m| m.role == "system");
 
     let _ = app.emit(

@@ -1,5 +1,5 @@
 //! Lets external ACP agent subprocesses call a handful of AI Leash's own
-//! tools (sub-agent delegation, memory notes) that they'd otherwise have no
+//! tools (sub-agent delegation, Actions, memory notes, skills) that they'd otherwise have no
 //! way to reach — see `client` (the `--mcp-bridge` subprocess entry point,
 //! spoken to by the ACP agent as a stdio MCP server) and `server` (the
 //! listener inside the main process that `client` relays sub-agent tool

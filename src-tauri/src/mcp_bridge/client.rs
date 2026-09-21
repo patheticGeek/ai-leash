@@ -1,6 +1,7 @@
 use super::{BridgeRequest, BridgeResponse};
+use crate::actions;
 use crate::context;
-use crate::tools::sub_agent_tools;
+use crate::tools::{action_tools, guidance, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -38,9 +39,9 @@ pub fn run() {
         let method = req.get("method").and_then(Value::as_str).unwrap_or("");
 
         let outcome = match method {
-            "initialize" => Some(RpcOutcome::Result(initialize_result(&req))),
+            "initialize" => Some(RpcOutcome::Result(initialize_result(&req, &root))),
             "notifications/initialized" => None,
-            "tools/list" => Some(RpcOutcome::Result(tools_list_result())),
+            "tools/list" => Some(RpcOutcome::Result(tools_list_result(&root))),
             "tools/call" => Some(tools_call_result(&req, port, &token, &session_id, &root)),
             _ => id.as_ref().map(|_| RpcOutcome::Error {
                 code: -32601,
@@ -68,7 +69,7 @@ fn env_var(name: &str) -> String {
     std::env::var(name).unwrap_or_default()
 }
 
-fn initialize_result(req: &Value) -> Value {
+fn initialize_result(req: &Value, root: &Path) -> Value {
     // Just agree to whatever protocol version the agent asked for — this
     // server only relies on the `tools/list`/`tools/call` baseline, which
     // has been stable across MCP protocol revisions.
@@ -80,11 +81,12 @@ fn initialize_result(req: &Value) -> Value {
     json!({
         "protocolVersion": protocol_version,
         "capabilities": { "tools": {} },
-        "serverInfo": { "name": "ai-leash", "version": env!("CARGO_PKG_VERSION") }
+        "serverInfo": { "name": "ai-leash", "version": env!("CARGO_PKG_VERSION") },
+        "instructions": bridge_instructions(root)
     })
 }
 
-fn tools_list_result() -> Value {
+fn tools_list_result(root: &Path) -> Value {
     let mut tools = vec![
         mcp_tool(sub_agent_tools::spawn_sub_agent_def()),
         mcp_tool(sub_agent_tools::list_sub_agents_def()),
@@ -92,7 +94,7 @@ fn tools_list_result() -> Value {
         mcp_tool(sub_agent_tools::list_agent_options_def()),
         json!({
             "name": "read_memory",
-            "description": "Read AI Leash's persistent memory notes for this project or globally. Unlike AI Leash's native-provider agent, these aren't injected into your context automatically — call this yourself if you want them.",
+            "description": "Read AI Leash's persistent memory notes for this project or globally. Unlike AI Leash's native-provider agent, these aren't injected into your context automatically — call this yourself at the start of a task in this project (and before update_memory, which replaces the whole file).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -103,7 +105,7 @@ fn tools_list_result() -> Value {
         }),
         json!({
             "name": "update_memory",
-            "description": "Add to or update AI Leash's persistent memory notes for this project or globally, shown to its native-provider agent in every future session. Pass the complete new contents, not just an addition — this replaces the whole file.",
+            "description": "Add to or update AI Leash's persistent memory notes for this project or globally, shown to its native-provider agent in every future session. Pass the complete new contents, not just an addition — this replaces the whole file, so call read_memory first and merge. Call it on your own as soon as the user states a lasting preference or corrects you in a way that should apply next time; don't wait to be asked.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -116,60 +118,28 @@ fn tools_list_result() -> Value {
     ];
 
     // Always advertised (not gated on whether the project has any Actions
-    // defined yet) — same as tools.rs::tool_definitions — so the agent
+    // defined yet) — same as `tools::tool_definitions` — so the agent
     // knows this capability exists and can offer create_action itself.
-    tools.push(json!({
-        "name": "create_action",
-        "description": "Define a new Action: a named background terminal command (e.g. \"dev\" -> \"npm run dev\"), shown in the project's Actions tab and runnable via run_action. Asks the user to approve the command first, same as write_file/edit_file.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": { "type": "string", "description": "Short human-readable name, e.g. \"dev\"" },
-                "command": { "type": "string", "description": "The shell command to run in the background, e.g. \"npm run dev\"" }
-            },
-            "required": ["name", "command"]
-        }
-    }));
-    tools.push(json!({
-        "name": "run_action",
-        "description": "Start a user-defined background Action by name (see the project's Actions tab, or call list_actions). No permission prompt — the command was already vetted by the user when they defined it. A no-op if it's already running; use stop_action first if you need to restart it.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-            },
-            "required": ["name"]
-        }
-    }));
-    tools.push(json!({
-        "name": "stop_action",
-        "description": "Stop a running Action by name. A no-op if it isn't running.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-            },
-            "required": ["name"]
-        }
-    }));
-    tools.push(json!({
-        "name": "list_actions",
-        "description": "List this project's defined Actions and whether each is currently running.",
-        "inputSchema": { "type": "object", "properties": {}, "required": [] }
-    }));
-    tools.push(json!({
-        "name": "read_action",
-        "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
-            },
-            "required": ["name"]
-        }
-    }));
+    tools.extend(action_tools::action_defs().into_iter().map(mcp_tool));
+
+    // Gated like the native list: only worth a tool slot if there's a skill
+    // to load. A snapshot from connect time, same as the instructions' list.
+    if !context::list_skills(root, &[]).is_empty() {
+        tools.push(mcp_tool(memory_tools::load_skill_def()));
+    }
 
     json!({ "tools": tools })
+}
+
+/// Bridge guidance plus what already exists in this project — the defined
+/// Actions and available skills — so the agent doesn't have to spend a call
+/// discovering them. Snapshots from connect time; the guidance points at
+/// `list_actions` for the live set.
+fn bridge_instructions(root: &Path) -> String {
+    let mut sections = vec![guidance::bridge_instructions()];
+    sections.extend(context::actions_section(&actions::load_actions(root)));
+    sections.extend(context::skills_section(&context::list_skills(root, &[])));
+    sections.join("\n\n")
 }
 
 fn mcp_tool(mut definition: Value) -> Value {
@@ -202,6 +172,7 @@ fn tools_call_result(
 
     let outcome: Result<String, String> = match name {
         "read_memory" => read_memory_tool(root, &arguments),
+        "load_skill" => load_skill_tool(root, &arguments),
         "update_memory" => update_memory_tool(root, &arguments),
         "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
         | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action" => {
@@ -250,6 +221,27 @@ fn update_memory_tool(root: &Path, args: &Value) -> Result<String, String> {
     }
     std::fs::write(&path, content).map_err(|e| e.to_string())?;
     Ok("Memory updated.".to_string())
+}
+
+fn load_skill_tool(root: &Path, args: &Value) -> Result<String, String> {
+    let name = args
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or("missing `name`")?;
+    context::load_skill_body(root, &[], name).ok_or_else(|| {
+        let available: Vec<String> = context::list_skills(root, &[])
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        if available.is_empty() {
+            format!("No skill named `{name}` found; there are no skills available in this project.")
+        } else {
+            format!(
+                "No skill named `{name}` found. Available skills: {}.",
+                available.join(", ")
+            )
+        }
+    })
 }
 
 /// Relays a tool call the subprocess can't execute itself (it needs the
