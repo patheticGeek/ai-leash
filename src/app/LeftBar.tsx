@@ -93,6 +93,7 @@ function ConversationRow({
     conversation.id,
   );
   const needsAttention = awaitingApproval || awaitingAnswer;
+  const [hovering, setHovering] = useState(false);
 
   // Live — same watcher-backed hook `CheckoutBar` uses, so a branch switch
   // made from there (or from outside the app entirely) shows up here too,
@@ -110,9 +111,15 @@ function ConversationRow({
 
   return (
     <ConversationContextMenu onDelete={onDelete}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
+          hover affordance that swaps the status icon for "Mark as done".
+          There's no keyboard equivalent yet (the context menu only has
+          delete), so keyboard users can't reach it. */}
       <div
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         className={cn(
-          "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm",
+          "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm transition-colors",
           active
             ? "bg-white/10 text-zinc-100"
             : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
@@ -134,50 +141,43 @@ function ConversationRow({
           }
           className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
         >
-          <span className="flex w-full items-center gap-1.5 mb-1.5 relative">
+          <span className="flex w-full items-center gap-1.5 mb-1.5 relative h-7">
             <span className="min-w-0 flex-1 truncate text-zinc-200">
               {conversation.title || "New conversation"}
             </span>
-            {awaitingApproval ? (
-              <span
-                title="Permission required"
-                className="shrink-0 text-amber-400"
-              >
-                <ShieldAlert size={12} />
-              </span>
-            ) : awaitingAnswer ? (
-              <span
-                title="Waiting for your answer"
-                className="shrink-0 text-amber-400"
-              >
-                <MessageCircleQuestion size={12} />
-              </span>
-            ) : (
-              generating && (
+
+            <span>
+              {awaitingApproval ? (
+                <span
+                  title="Permission required"
+                  className="shrink-0 text-amber-400"
+                >
+                  <ShieldAlert size={12} />
+                </span>
+              ) : awaitingAnswer ? (
+                <span
+                  title="Waiting for your answer"
+                  className="shrink-0 text-amber-400"
+                >
+                  <MessageCircleQuestion size={12} />
+                </span>
+              ) : generating ? (
                 <span title="Working" className="shrink-0 text-blue-400">
                   <Loader size={12} className="animate-spin" />
                 </span>
-              )
-            )}
-
-            <Button
-              variant="chip"
-              size="sm"
-              title="Mark as done"
-              onClick={(event) => {
-                event.stopPropagation();
-                onMarkDone();
-              }}
-              // Overlays the title text, so it needs an opaque background
-              // (chip's own is translucent).
-              className={cn(
-                "absolute right-0 z-10 -mr-2 bg-raised hover:bg-raised hover:text-emerald-400",
-                revealOnGroupHover,
-              )}
-            >
-              <Check size={12} />
-              done
-            </Button>
+              ) : hovering ? (
+                <Button
+                  variant="success"
+                  size="xs"
+                  title="Mark as done"
+                  onClick={onMarkDone}
+                  className={cn("m-0", revealOnGroupHover)}
+                >
+                  <Check size={12} />
+                  done
+                </Button>
+              ) : null}
+            </span>
           </span>
 
           <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
@@ -245,7 +245,7 @@ function DoneConversationRow({
             event.stopPropagation();
             onUndo();
           }}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3 py-4"
+          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3"
         >
           <Undo2 size={14} />
         </Button>
