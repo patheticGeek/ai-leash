@@ -13,5 +13,10 @@
     "id": "126e6032-2d75-4862-be8a-428b4d3dbcc2",
     "name": "storybook",
     "command": "npm run storybook"
+  },
+  {
+    "id": "a8f08478-eb8a-4f22-b396-d5f5888945d7",
+    "name": "docs",
+    "command": "npm run dev --prefix website"
   }
 ]
