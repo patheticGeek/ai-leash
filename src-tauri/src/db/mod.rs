@@ -13,6 +13,7 @@ mod acp_sessions;
 mod action_last_run;
 mod conversations;
 mod messages;
+mod migrations;
 mod projects;
 mod rate_limit;
 mod sub_agents;
@@ -118,26 +119,10 @@ impl Db {
             ",
         )
         .expect("failed to initialize history database schema");
-        // Existing databases keep their old `project_root` column for now;
-        // this lightweight backfill is intentionally not a migration manager.
-        let has_project_id = conn
-            .prepare("PRAGMA table_info(conversations)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "project_id"))
-            .expect("failed to inspect conversation project ownership");
-        if !has_project_id {
-            conn.execute("ALTER TABLE conversations ADD COLUMN project_id TEXT", [])
-                .expect("failed to add conversation project ownership");
-        }
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_conversations_project
-             ON conversations(project_id, updated_at)",
-            [],
-        )
-        .expect("failed to index conversation project ownership");
+        migrations::run(&conn);
+        // Not a migration: reconciles rows the app itself may have written
+        // without a project since (a conversation created before its project
+        // row existed), so it runs on every open.
         conn.execute(
             "INSERT OR IGNORE INTO projects
              (id, root_path, name, created_at, updated_at, last_opened_at)
@@ -155,102 +140,6 @@ impl Db {
             [],
         )
         .expect("failed to backfill conversation project ownership");
-        // Existing databases predate conversation titles. Check first so a
-        // real migration failure is not mistaken for an already-applied one.
-        let has_title = conn
-            .prepare("PRAGMA table_info(conversations)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "title"))
-            .expect("failed to inspect conversations schema");
-        if !has_title {
-            conn.execute("ALTER TABLE conversations ADD COLUMN title TEXT", [])
-                .expect("failed to migrate conversation titles");
-        }
-        // Existing databases predate turn durations. Same existence check as
-        // `title` above, for the same reason.
-        let has_duration = conn
-            .prepare("PRAGMA table_info(messages)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "duration_seconds"))
-            .expect("failed to inspect messages schema");
-        if !has_duration {
-            conn.execute(
-                "ALTER TABLE messages ADD COLUMN duration_seconds INTEGER",
-                [],
-            )
-            .expect("failed to migrate message durations");
-        }
-        // Existing databases predate per-conversation worktrees. Same
-        // existence check as `title`/`duration_seconds` above.
-        let has_worktree = conn
-            .prepare("PRAGMA table_info(conversations)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "worktree_path"))
-            .expect("failed to inspect conversations schema");
-        if !has_worktree {
-            conn.execute(
-                "ALTER TABLE conversations ADD COLUMN worktree_path TEXT",
-                [],
-            )
-            .expect("failed to migrate conversation worktree path");
-        }
-        // Existing databases predate the "done" flag. Same existence check as
-        // `title`/`duration_seconds`/`worktree_path` above.
-        let has_done = conn
-            .prepare("PRAGMA table_info(conversations)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "done"))
-            .expect("failed to inspect conversations schema");
-        if !has_done {
-            conn.execute(
-                "ALTER TABLE conversations ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
-                [],
-            )
-            .expect("failed to migrate conversation done flag");
-        }
-        // Some dev databases carry a `branch_name` column from an earlier
-        // schema that nothing reads or writes anymore (a branch name is
-        // deliberately never persisted — see `git.rs`'s module doc). Best
-        // effort: a failed drop must not stop the app from starting.
-        let has_branch_name = conn
-            .prepare("PRAGMA table_info(conversations)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "branch_name"))
-            .expect("failed to inspect conversations schema");
-        if has_branch_name {
-            let _ = conn.execute("ALTER TABLE conversations DROP COLUMN branch_name", []);
-        }
-        // Existing databases predate recording a sub-agent's model/effort
-        // override. Same existence check as `title`/`duration_seconds` above.
-        let has_model = conn
-            .prepare("PRAGMA table_info(sub_agents)")
-            .and_then(|mut stmt| {
-                stmt.query_map([], |row| row.get::<_, String>(1))?
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })
-            .map(|columns| columns.iter().any(|column| column == "model"))
-            .expect("failed to inspect sub_agents schema");
-        if !has_model {
-            conn.execute("ALTER TABLE sub_agents ADD COLUMN model TEXT", [])
-                .expect("failed to migrate sub_agent model");
-            conn.execute("ALTER TABLE sub_agents ADD COLUMN effort TEXT", [])
-                .expect("failed to migrate sub_agent effort");
-        }
         Db(Mutex::new(conn))
     }
 }
@@ -282,6 +171,7 @@ mod tests {
             .unwrap()
             .execute_batch(
                 "ALTER TABLE conversations ADD COLUMN branch_name TEXT;
+                 PRAGMA user_version = 0;
                  INSERT INTO conversations (id, project_root, created_at, updated_at, branch_name)
                  VALUES ('c1', '/proj', 1, 2, 'main');",
             )

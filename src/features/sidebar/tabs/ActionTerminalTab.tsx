@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
+import { qk } from "../../../data/keys";
 import {
   DEFAULT_MONO_STACK,
   fontStack,
@@ -13,7 +14,6 @@ import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useAppStore } from "../../../store";
-import { actionsQueryKey } from "../../actions/useActions";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();
@@ -44,13 +44,13 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   const syncRef = useRef<(() => void) | null>(null);
   const actionsRef = useRef<ActionSummary[]>([]);
 
-  // Shares the same 2s-polled `actionsQueryKey(checkoutPath)` query as
+  // Shares the same 2s-polled `qk.actions(checkoutPath)` query as
   // `useActions` (ActionsTab / TitleBarActions) instead of running its own
   // independent `listActions` poll — see PLAN.md Phase 1. Keyed on the
   // checkout path so two conversations pinned to the same checkout share
   // one cache entry/poll, matching the backend's own `run_key` granularity.
   const { data: actionsData } = useQuery({
-    queryKey: actionsQueryKey(checkoutPath),
+    queryKey: qk.actions(checkoutPath),
     queryFn: () => api.listActions(checkoutPath as string),
     enabled: checkoutPath != null,
     refetchInterval: checkoutPath != null ? 2000 : false,

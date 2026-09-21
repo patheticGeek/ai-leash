@@ -1,18 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "../../../data/keys";
 import { api } from "../../../lib/tauriApi";
 import { useTauriEvent } from "../../../lib/useTauriEvent";
 
-// The root listing's key slot is `checkoutPath` itself rather than a
-// sentinel like `null` — it really is "the listing of this directory", and
-// keeping every key's path slot a real absolute path (matching what the
-// backend's `fs://changed` payload carries, see `useFsChangeInvalidator`)
-// is what lets invalidation match on it directly instead of needing to
-// separately track which checkout owns which query.
-export function fsDirQueryKey(checkoutPath: string, path?: string) {
-  return ["fs-dir", checkoutPath, path ?? checkoutPath] as const;
-}
-
 // Lists `path` (or the checkout root when omitted) within `checkoutPath`.
+// The root listing's key slot is `checkoutPath` itself rather than a
+// sentinel like `null`: every key's path slot is a real absolute path
+// (matching what the backend's `fs://changed` payload carries, see
+// `useFsChangeInvalidator`), so invalidation can match on it directly.
 // Scoped to the checkout itself (see `commands.rs`'s `list_dir` doc
 // comment), not a session id, so conversations sharing a checkout share one
 // cache entry. Kept fresh by `useFsChangeInvalidator`, mounted once at the
@@ -23,7 +18,7 @@ export function useFsDir(
   enabled = true,
 ) {
   return useQuery({
-    queryKey: fsDirQueryKey(checkoutPath ?? "", path),
+    queryKey: qk.fsDir(checkoutPath ?? "", path),
     queryFn: () => api.listDir(checkoutPath as string, path),
     enabled: enabled && checkoutPath != null,
   });
@@ -41,7 +36,7 @@ export function useFsDir(
 // The backend batches each burst of filesystem changes into the set of
 // directories whose *listings* actually changed (see `start_fs_watcher`) and
 // sends that as the payload — real absolute paths, matching the third slot
-// of `fsDirQueryKey` exactly (root listings key on `checkoutPath` itself for
+// of `qk.fsDir` exactly (root listings key on `checkoutPath` itself for
 // this reason). So a change under one project's checkout only invalidates
 // that project's own cached directories, never another open project's.
 export function useFsChangeInvalidator() {
@@ -50,9 +45,8 @@ export function useFsChangeInvalidator() {
   useTauriEvent<string[]>("fs://changed", (changedDirs) => {
     const changed = new Set(changedDirs);
     queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === "fs-dir" &&
-        changed.has(query.queryKey[2] as string),
+      queryKey: qk.fsDirs,
+      predicate: (query) => changed.has(query.queryKey[2] as string),
     });
   });
 }

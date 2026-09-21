@@ -1,9 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "../data/keys";
 import type { AcpAgentCatalogEntry } from "./tauriApi";
 import { api } from "./tauriApi";
 import { useTauriEvent } from "./useTauriEvent";
-
-export const acpCatalogQueryKey = ["acp-agent-catalog"] as const;
 
 // Rust-authoritative ACP agent/model catalog — populated from disk at
 // startup (before the frontend even boots) and kept fresh by a background
@@ -22,7 +21,7 @@ export function useAcpAgentCatalog(): AcpAgentCatalogEntry[] {
 // first fetch hadn't resolved yet.
 export function useAcpAgentCatalogQuery() {
   return useQuery({
-    queryKey: acpCatalogQueryKey,
+    queryKey: qk.acpCatalog,
     queryFn: () => api.getAcpAgentCatalog(),
   });
 }
@@ -34,6 +33,6 @@ export function useAcpAgentCatalogQuery() {
 export function useAcpCatalogInvalidator() {
   const queryClient = useQueryClient();
   useTauriEvent("acp://catalog-updated", () => {
-    queryClient.invalidateQueries({ queryKey: acpCatalogQueryKey });
+    queryClient.invalidateQueries({ queryKey: qk.acpCatalog });
   });
 }

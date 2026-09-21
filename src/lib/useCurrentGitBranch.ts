@@ -1,12 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
+import { qk } from "../data/keys";
 import { useAppStore } from "../store";
 import { api } from "./tauriApi";
 import { useTauriEvent } from "./useTauriEvent";
-
-export function gitBranchQueryKey(path: string) {
-  return ["git-branch", path] as const;
-}
 
 // Live current branch for `path` — never trusted from a stored value (what's
 // checked out at a path can change from outside the app: a manual
@@ -25,12 +22,12 @@ export function useCurrentGitBranch(path: string): string | null {
 
   useTauriEvent<string>("git://branch_changed", (changedPath) => {
     if (changedPath === path) {
-      queryClient.invalidateQueries({ queryKey: gitBranchQueryKey(path) });
+      queryClient.invalidateQueries({ queryKey: qk.gitBranch(path) });
     }
   });
 
   const query = useQuery({
-    queryKey: gitBranchQueryKey(path),
+    queryKey: qk.gitBranch(path),
     queryFn: () => api.getCurrentGitBranch(path),
   });
 

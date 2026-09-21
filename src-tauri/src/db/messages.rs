@@ -32,6 +32,10 @@ pub(super) fn title_from_message(content: &str) -> Option<String> {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedMessage {
+    /// The row id: stable, unique across conversations, and increasing in
+    /// send order within one, so it is the message's identity for
+    /// reconciling persisted history against live stream state.
+    pub id: i64,
     pub role: String,
     pub content: String,
     pub tool_calls: Option<Vec<ToolCall>>,
@@ -168,20 +172,22 @@ pub fn update_tool_call_args(
 pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
     let conn = db.0.lock().unwrap();
     let mut stmt = match conn.prepare(
-        "SELECT role, content, tool_calls, created_at, duration_seconds FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
+        "SELECT id, role, content, tool_calls, created_at, duration_seconds FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
     ) {
         Ok(s) => s,
         Err(_) => return vec![],
     };
     let rows = stmt.query_map(params![conversation_id], |row| {
-        let role: String = row.get(0)?;
-        let content: String = row.get(1)?;
-        let tool_calls_json: Option<String> = row.get(2)?;
-        let created_at: i64 = row.get(3)?;
-        let duration_seconds: Option<i64> = row.get(4)?;
+        let id: i64 = row.get(0)?;
+        let role: String = row.get(1)?;
+        let content: String = row.get(2)?;
+        let tool_calls_json: Option<String> = row.get(3)?;
+        let created_at: i64 = row.get(4)?;
+        let duration_seconds: Option<i64> = row.get(5)?;
         let tool_calls =
             tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
         Ok(PersistedMessage {
+            id,
             role,
             content,
             tool_calls,
