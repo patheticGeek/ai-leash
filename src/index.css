@@ -15,7 +15,7 @@
     "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono",
     Consolas, "Liberation Mono", Menlo, monospace;
   --al-font-scale: 1;
-  --al-code-size: 13px;
+  --al-code-size: 12px;
 
   /* Tailwind's text sizes, scaled by the UI font size setting. Unlayered, so
      these win over the defaults in Tailwind's theme layer. Only the text

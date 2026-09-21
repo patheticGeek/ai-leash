@@ -7,7 +7,7 @@ export const DEFAULT_IDE_COMMAND = "code";
 // Sizes are px. The UI size is the root text size (`text-base`); every other
 // Tailwind text size scales proportionally with it — see `fontPreferences.ts`.
 export const DEFAULT_UI_FONT_SIZE = 16;
-export const DEFAULT_CODE_FONT_SIZE = 13;
+export const DEFAULT_CODE_FONT_SIZE = 12;
 export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;
 
