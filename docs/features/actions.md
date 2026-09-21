@@ -9,6 +9,12 @@ in a terminal, you can start it from the app whenever you need it. Your
 Actions are saved with the project, so they are available the next time you
 open that project.
 
+Actions belong to the checkout the conversation is working in. If a
+conversation uses a [worktree](./ui-shell.md#worktree-and-branch), its
+Actions are the ones in that worktree, and running or stopping an Action, from
+the sidebar or the title bar, affects that worktree rather than the main
+project folder. This stays true when you reopen the conversation later.
+
 ## Create an Action
 
 1. Open the **Actions** tab in the sidebar.
@@ -32,7 +38,8 @@ access, the most recently used Action appears in the title bar when Actions
 are available. Use the dropdown there to choose another Action.
 
 If an Action is already running, starting it again does not create a second
-copy of the command.
+copy of the command. When you start a new run, the Action's terminal clears
+the previous run's output right away.
 
 ## Stop an Action
 

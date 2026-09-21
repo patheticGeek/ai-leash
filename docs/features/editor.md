@@ -28,7 +28,8 @@ When you select a file, it opens in a tab in the side panel. You can:
 
 Common programming and data files receive helpful syntax highlighting,
 including JavaScript and TypeScript, Python, Rust, JSON, HTML, and CSS.
-Other file types open as plain text.
+Other file types open as plain text. The editor uses the code font and size
+from **Settings > Preferences > Fonts**; see [Fonts](./ui-shell.md#fonts).
 
 ## Save your changes
 
