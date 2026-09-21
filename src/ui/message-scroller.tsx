@@ -2,7 +2,12 @@
 // `@shadcn/react/message-scroller`. Changes for this app: lucide icon instead
 // of the registry's icon placeholder, and the jump button defaults to our
 // bordered chip `Button` labelled "Latest" (callers can pass another `Button`
-// variant/size, e.g. the chat transcript uses primary/md).
+// variant/size, e.g. the chat transcript uses primary/md), and items no longer
+// use the registry's `content-visibility: auto`: off-screen items were laid
+// out at a 10rem placeholder and only took their real height once scrolled
+// near, so scrolling up shifted the content above the viewport (jitter — the
+// webview has no scroll anchoring to absorb it) and made the scroller
+// measure the wrong "bottom" when an item was appended.
 
 import {
   MessageScroller as MessageScrollerPrimitive,
@@ -76,10 +81,7 @@ function MessageScrollerItem({
     <MessageScrollerPrimitive.Item
       data-slot="message-scroller-item"
       scrollAnchor={scrollAnchor}
-      className={cn(
-        "min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]",
-        className,
-      )}
+      className={cn("min-w-0 shrink-0", className)}
       {...props}
     />
   );
