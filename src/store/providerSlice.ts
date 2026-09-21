@@ -2,8 +2,8 @@ import type { StateCreator } from "zustand";
 import { qk } from "../data/keys";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { queryClient } from "../lib/queryClient";
-import { api, type ProviderConfigPayload } from "../lib/tauriApi";
-import { DEFAULT_OLLAMA_ID, isEnabled } from "./backendSlice";
+import type { ProviderConfigPayload } from "../lib/tauriApi";
+import { DEFAULT_OLLAMA_ID } from "./backendSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -91,8 +91,7 @@ function saveProviderSettings(settings: ProviderSettings) {
 
 // Narrows a `ProviderConfig` (which carries frontend-only bookkeeping like
 // `id`/`label`/`model`) down to exactly the shape the backend's
-// `ProviderConfig` enum expects. Exported for `ollamaModelsQuery.ts`, the
-// only outside caller.
+// `ProviderConfig` enum expects. Exported for `data/backends.ts`.
 export function toProviderConfigPayload(
   config: ProviderConfig,
 ): ProviderConfigPayload {
@@ -108,15 +107,8 @@ export function toProviderConfigPayload(
 
 export interface ProviderSlice {
   providerSettings: ProviderSettings;
-  // Live reachability per configured provider, keyed by an `ollama` or
-  // `openAiCompatible` config's `id`, refreshed regardless of which
-  // conversation (if any) currently has it active — each conversation looks
-  // up its own active provider's entry (see `useChatSession.ts`). `null` =
-  // not checked yet.
-  providerConnectivity: Record<string, boolean | null>;
   // Shared by the settings modal's Agents tab.
   settingsModalOpen: boolean;
-  refreshProviderConnectivity: () => Promise<void>;
   providerConfigFor: (id: string) => ProviderConfigPayload;
   setSettingsModalOpen: (open: boolean) => void;
   saveOllamaConfig: (config: OllamaProviderConfig) => void;
@@ -130,7 +122,6 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
   get,
 ) => ({
   providerSettings: loadProviderSettings(),
-  providerConnectivity: {},
   settingsModalOpen: false,
 
   // Narrows `providerSettings` (which carries frontend-only bookkeeping like
@@ -156,39 +147,6 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
     );
   },
 
-  // Checks reachability of every configured provider (not just the active
-  // one — see `providerConnectivity`'s doc comment), for the status bar's
-  // aggregate indicator.
-  refreshProviderConnectivity: async () => {
-    const { providerSettings } = get();
-    const targets: [string, ProviderConfig][] = [
-      ...providerSettings.ollama
-        .filter(isEnabled)
-        .map((c): [string, ProviderConfig] => [c.id, c]),
-      ...providerSettings.openAiCompatible
-        .filter(isEnabled)
-        .map((c): [string, ProviderConfig] => [c.id, c]),
-    ];
-    const results = await Promise.all(
-      targets.map(async ([id, config]) => {
-        try {
-          const connected = await api.checkProviderConnection(
-            toProviderConfigPayload(config),
-          );
-          return [id, connected] as const;
-        } catch {
-          return [id, false] as const;
-        }
-      }),
-    );
-    set((s) => ({
-      providerConnectivity: {
-        ...s.providerConnectivity,
-        ...Object.fromEntries(results),
-      },
-    }));
-  },
-
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
 
   saveOllamaConfig: (config) => {
@@ -206,9 +164,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
     // Covers an edited host pointing at a different server — a brand-new
     // config's id has never been queried before, so it fetches on its own
     // the moment something first reads it, without needing this.
-    queryClient.invalidateQueries({
-      queryKey: qk.ollamaModels(config.id),
-    });
+    queryClient.invalidateQueries({ queryKey: qk.backend(config.id) });
     get().reconcileDefaultBackend();
   },
 
@@ -219,7 +175,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       saveProviderSettings(providerSettings);
       return { providerSettings };
     });
-    queryClient.removeQueries({ queryKey: qk.ollamaModels(id) });
+    queryClient.removeQueries({ queryKey: qk.backend(id) });
     get().reconcileDefaultBackend();
   },
 
@@ -237,6 +193,8 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       saveProviderSettings(providerSettings);
       return { providerSettings };
     });
+    // An edited base URL or API key changes whether it is reachable.
+    queryClient.invalidateQueries({ queryKey: qk.backend(config.id) });
     get().reconcileDefaultBackend();
   },
 
@@ -249,6 +207,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       saveProviderSettings(providerSettings);
       return { providerSettings };
     });
+    queryClient.removeQueries({ queryKey: qk.backend(id) });
     get().reconcileDefaultBackend();
   },
 });
