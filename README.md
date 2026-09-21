@@ -15,15 +15,6 @@ backend, not a bundled Chromium.
 ## Table of contents
 
 - [Features](#features)
-  - [Agent chat](#agent-chat)
-  - [Sub-agents](#sub-agents)
-  - [AGENTS.md, memory & skills](#agentsmd-memory--skills)
-  - [Conversation history](#conversation-history)
-  - [Editor & file tree](#editor--file-tree)
-  - [Terminal](#terminal)
-  - [Actions](#actions)
-  - [Crash log](#crash-log)
-  - [Everything else](#everything-else)
 - [Install](#install)
   - [Linux](#linux)
   - [macOS](#macos)
@@ -33,96 +24,26 @@ backend, not a bundled Chromium.
 
 ## Features
 
-### Agent chat
-
-The center pane is a chat with a real agent loop behind it: tool calls,
-streaming responses, retry/regenerate, and per-turn token usage against
-the model's context window. Queue a follow-up while the agent works, stop a
-turn that is no longer useful, or use slash commands for common tasks such as
-clearing or compacting a conversation.
-
-Tool calls (file reads/edits, shell commands) show up inline, collapsed
-by default with the raw args one click away, and destructive ones
-(`shell`, file edits) stop and ask before doing anything.
-
-The built-in runtime supports multiple model providers, and the
-[Agent Client Protocol](https://agentclientprotocol.com) backend can
-drive external agents such as Claude Code and GitHub Copilot CLI. Each
-conversation retains its own provider, model, and compatible agent controls.
-
-### Sub-agents
-
-The agent can delegate independent chunks of a task to isolated
-sub-agents — each gets a clean context and its own tool loop, and
-several can run at once when the work actually splits that way. They
-show up as nested threads under the tool call that spawned them, or as
-their own tab if you want to watch one directly.
-
-### AGENTS.md, memory & skills
-
-Drop an `AGENTS.md` in your project root and it's folded into the
-system prompt on every turn — edit it mid-session and the next message
-picks up the change, no restart. Same for a global one that applies
-across every project. Subdirectory-scoped `AGENTS.md` files kick in
-automatically once the agent actually touches something in that folder.
-
-Skills are single markdown files the model can load on demand by name
-(only offered as a tool at all if the project actually has any), and a
-plain-text memory file gives the agent durable notes across sessions —
-both scoped the same way, project and global.
-
-### Conversation history
-
-Conversations, tool activity, and completed-turn timing are saved locally as
-you work, then restored when you reopen the app. Keep separate threads for
-different tasks or projects, mark finished work as done to tuck it away, and
-delete a thread when you no longer need its transcript. Sub-agent work stays
-with the conversation that created it, so you can review it later.
-
-### Editor & file tree
-
-CodeMirror 6 with syntax highlighting for the common languages, a lazy
-file tree that only fetches a directory's contents when you expand it,
-and every filesystem operation — editor and agent tools alike — checked
-against the project root so nothing can read or write outside it.
-
-Open several files alongside the chat, edit them directly, and save with
-`Ctrl+S` or `Command+S`. The tree refreshes after changes made by the agent,
-your terminal, or another program.
-
-### Terminal
-
-A real interactive terminal (xterm.js + a PTY on the backend), not a
-sandboxed command box. Open more than one, they persist in the
-background when you switch tabs, and use them for commands you want to run
-yourself. This is separate from the agent's own `shell` tool, which returns
-a one-shot command result in the conversation.
-
-### Actions
-
-Define named project commands such as `dev → npm run dev` in the
-project's `.ai-leash/actions.json`. Actions run in their own persistent
-terminal, can be started or stopped from the Actions panel, and expose their
-live output to you and the built-in agent. Once you approve an Action's saved
-command, the agent can reuse it without asking you to approve that same
-predefined command every time. The same action interface is available to ACP
-agents through the local MCP bridge.
-
-### Crash log
-
-When the app encounters an error, it records the details locally—even when
-the window stays open. Open **Settings → Crash log** to review, copy, refresh,
-or clear those entries before reporting a problem.
-
-### Everything else
-
-- A left-sidebar project switcher — recent projects sorted by last
-  activity, with live indicators when a conversation is generating in the
-  background or waiting for an approval.
-- Resizable panels throughout, markdown rendering for assistant
-  messages, and a debounced filesystem watcher that keeps the file tree
-  in sync with edits made by the agent, terminal commands, builds, or
-  changes made outside the app.
+- **Bring any agent** — the built-in runtime works with multiple model
+  providers, and the [Agent Client Protocol](https://agentclientprotocol.com)
+  backend drives external agents such as Claude Code and GitHub Copilot CLI.
+  Each conversation keeps its own provider, model, and agent controls.
+- **You stay in control** — tool calls show inline, and destructive ones
+  (`shell`, file edits) ask before running. All file access is checked
+  against the project root.
+- **Sub-agents** — delegate independent chunks of work to isolated,
+  concurrent agents, shown as nested threads or their own tabs.
+- **`AGENTS.md`, memory & skills** — project and global instructions, notes,
+  and on-demand skills, picked up mid-session without a restart.
+- **Actions** — named project commands (`.ai-leash/actions.json`) that run in
+  persistent terminals, visible to you, the built-in agent, and ACP agents.
+- **Real workspace** — CodeMirror editor, lazy file tree with a filesystem
+  watcher, and interactive PTY terminals beside the chat.
+- **Persistent conversations** — history, tool activity, and timing are saved
+  locally, per project, with worktree/branch switching and mark-as-done.
+- **Inspectable** — a debug-mode ACP events panel and a local crash log; no
+  telemetry.
+- **Small and native** — Tauri with a Rust backend, not a bundled Chromium.
 
 See [docs/features](./docs/features) for guides to using each feature.
 

@@ -24,7 +24,12 @@ your usual command-line tools.
 You can interact with a running command just as you would in a normal
 terminal. For example, press **Ctrl+C** to stop a process that is running in
 the foreground. The terminal adjusts to the available space as you resize the
-side panel.
+side panel. If the shell itself exits, the tab shows a dimmed
+**[process exited]** line; close the tab and open a new terminal to start
+again.
+
+Terminal text uses the code font from **Settings > Preferences > Fonts**; see
+[Fonts](./ui-shell.md#fonts).
 
 ## Use multiple terminal tabs
 
@@ -39,6 +44,13 @@ processes running at once, such as:
 Switch between terminals by selecting their tabs. Close a terminal with the
 **x** on its tab when you are finished with that shell and its running
 processes.
+
+## Run a command from the chat
+
+Shell code blocks in the conversation have an **Open in a new terminal**
+button. It opens a new terminal tab with the command already typed at the
+prompt, without running it, so you can read it, edit it if needed, and press
+**Enter** when you are ready.
 
 ## Watch an Action
 
@@ -59,7 +71,8 @@ that tab shows its live output, and you can interact with the process there
 when it accepts input. If the agent starts an Action, you can open the same
 Action tab to follow along without losing the output that has already been
 produced. When you run the Action again after stopping it, the tab follows
-the new run.
+the new run. The tab clears its previous output as soon as the new run
+starts.
 
 ## Everyday use with an agent
 

@@ -13,7 +13,10 @@ changing the other conversations.
 ## Start a conversation
 
 Open a project and type a request in the chat panel. Press **Send** or use
-the keyboard shortcut shown by the input. The conversation is saved with the
+the keyboard shortcut shown by the input: **Enter** sends and
+**Shift+Enter** inserts a new line. If you would rather write multi-line
+messages, turn on **Compose mode** in Settings > Preferences > Chat; then
+**Enter** inserts a new line and **Ctrl+Enter** sends. The conversation is saved with the
 project and can be reopened from the project history; see
 [conversation history](./conversation-history.md).
 
@@ -24,7 +27,13 @@ show:
 - **Tool activity**, such as reading a file, searching the project, editing a
   file, or running a command.
 - **The answer**, rendered with Markdown formatting, including code blocks,
-  lists, tables, links, and headings.
+  lists, tables, links, and headings. A single line break in the text is
+  shown as a line break.
+
+Each code block has a header showing its language and a copy button. Blocks
+in a shell language (such as `bash` or `sh`) also have an **Open in a new
+terminal** button, which opens a terminal tab with the command typed at the
+prompt but not run, so you can review or edit it first.
 
 Thinking and tool activity are collapsed by default so the conversation stays
 readable. Expand an activity group to inspect all of the steps, or expand an
@@ -32,7 +41,13 @@ individual tool entry to see its inputs and output. A failed tool call is
 marked as failed and its output remains available for inspection.
 
 Every message has a timestamp and a copy button. The final assistant message
-also shows how long the agent spent working once the reply is complete.
+also shows how long the agent spent working once the reply is complete. The
+timing stays accurate if you switch to another conversation while the agent
+works.
+
+The transcript follows new output while you are at the bottom. Scroll up to
+read earlier messages and it stops following; a **Latest** button appears to
+jump back down.
 
 ## Choose who answers
 
@@ -45,7 +60,11 @@ conversation:
 - **External ACP agents**, including Claude Code and GitHub Copilot when they
   are configured.
 
-Open the picker, search if needed, and select an option. The selection applies
+Open the picker, search if needed, and select an option. Options are grouped
+under a heading for each source: every Ollama connection, every saved
+OpenAI-compatible provider, and every ACP agent (for example, "GitHub
+Copilot" followed by that agent's models). The current choice is marked with
+a check. The selection applies
 to the current conversation and is used for its next message. It does not
 change conversations that already have their own selection. A new
 conversation starts with the current default, then keeps its own choice after
@@ -53,7 +72,10 @@ you use it.
 
 The picker also shows an ACP agent's model choices when that agent advertises
 them. If an agent has not advertised model choices, it still appears as an
-agent option and uses its own default model.
+agent option and uses its own default model. AI Leash remembers the last
+model list each agent reported and refreshes it in the background, so the
+list is available as soon as you open a conversation, and one agent failing
+to respond does not empty its list.
 
 ### Built-in providers
 
@@ -102,6 +124,15 @@ the current conversation. If the app has to reconnect an external agent, it
 restores the conversation's selected model and effort when the agent supports
 them.
 
+You can switch a conversation from one external agent to another, or to the
+built-in agent, at any time. While the new agent connects, the picker shows a
+spinner and applies the model you chose once the agent is ready. An external
+agent can only resume its own earlier sessions, so after switching to a
+different one, the transcript shows a notice that the agent doesn't support
+resuming a previous session and can't see the conversation's earlier history.
+The messages stay visible for you; they are just not part of what the new
+agent knows.
+
 ## Work with tools safely
 
 Agents can use project tools to inspect and modify files or run shell
@@ -119,7 +150,8 @@ The permission mode picker in the chat bar has two choices:
 
 An external agent uses the same approval prompt when it asks AI Leash for
 permission. Stopping a turn sends a cancellation request to the external
-agent as well.
+agent as well, and Stop works even while the agent is partway through a
+turn.
 
 ## Answer an agent's questions
 
@@ -171,8 +203,11 @@ automatic follow-up, not a new message you need to send. A project indicator
 in the sidebar also shows activity when work continues while you view another
 project.
 
-Sub-agent results are saved with the conversation. Clearing the parent
-conversation also clears its sub-agent history.
+A finished sub-agent's result appears in the parent conversation as its own
+entry, whether the parent is the built-in agent or an external agent, so the
+agent's follow-up reply is attached to it rather than to the previous
+message. Sub-agent results are saved with the conversation. Clearing the
+parent conversation also clears its sub-agent history.
 
 ## Send, stop, and queue messages
 
@@ -255,6 +290,19 @@ its arguments to that agent.
 
 The available list can change when an external agent connects or updates its
 session. Built-in commands take precedence when they have the same name.
+
+## Claude session limits
+
+When Claude Code reports that you have hit its session limit, the chat shows
+a banner with the time the limit resets. Choose **Yes, resume automatically**
+and AI Leash sends a "continue working" message for you once the limit has
+reset; choose **No** to handle it yourself. Once an automatic resume is
+armed, **Cancel** turns it off.
+
+An armed resume keeps waiting if you switch conversations or quit and reopen
+the app, because the limit is read from the saved conversation. If the reset
+time has already passed when you open it, the banner offers **Yes, continue**
+instead. Sending any message of your own ends the pending limit.
 
 ## Connection status and errors
 

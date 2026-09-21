@@ -45,6 +45,11 @@ Select a conversation to switch to it. Switching does not delete or merge
 anything: each conversation has its own transcript and can be continued
 independently.
 
+The tabs you had open in a conversation, in the side panel and for its
+sub-agents, are remembered with it. They come back when you reopen the
+conversation, including after restarting the app. See
+[Tabs are remembered per conversation](./ui-shell.md#tabs-are-remembered-per-conversation).
+
 To start a separate conversation, use **New Thread** and choose the project
 you want to work on. You can have multiple conversations for the same
 project—for example, one for investigating a bug and another for planning a
