@@ -22,8 +22,7 @@ const buttonVariants = cva(
         // them.
         quiet: "text-zinc-600 hover:text-zinc-300",
         danger: "text-zinc-500 hover:bg-red-500/10 hover:text-red-400",
-        destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
+        success: "text-zinc-500 hover:bg-success/10 hover:text-success",
         link: "text-primary underline-offset-4 hover:underline",
         // Popover/dropdown trigger pill — icon + label chip sitting in a
         // toolbar (model picker, effort picker, permission mode). Color and
@@ -40,6 +39,8 @@ const buttonVariants = cva(
           "rounded-md outline-none bg-destructive/10 text-destructive hover:bg-destructive/20",
         "chip-warning":
           "rounded-md outline-none bg-warning/10 text-warning hover:bg-warning/20",
+        "chip-success":
+          "rounded-md outline-none bg-success/10 text-success hover:bg-success/20",
         // Row inside a popover/dropdown list (model picker, effort picker,
         // slash command menu). Pass `data-active` to mark the selected row.
         "menu-item":
@@ -101,6 +102,11 @@ const buttonVariants = cva(
         variant: "chip-warning",
         bordered: true,
         class: "shadow-[0_0_0_1px_var(--warning)]",
+      },
+      {
+        variant: "chip-success",
+        bordered: true,
+        class: "shadow-[0_0_0_1px_var(--success)]",
       },
     ],
     defaultVariants: {

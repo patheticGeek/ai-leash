@@ -13,12 +13,13 @@ const VARIANTS: NonNullable<Variant>[] = [
   "ghost",
   "quiet",
   "danger",
-  "destructive",
+  "success",
   "link",
   "chip",
   "chip-primary",
   "chip-danger",
   "chip-warning",
+  "chip-success",
   "menu-item",
   "card",
   "unstyled",
@@ -147,6 +148,7 @@ export const ChipStates: Story = {
         label: "Bypass",
         icon: <Square size={11} />,
       },
+      { variant: "chip-success", label: "Done", icon: <Check size={12} /> },
     ] as const;
     return (
       <div className="grid grid-cols-[6rem_auto_auto] items-center gap-x-6 gap-y-3">
