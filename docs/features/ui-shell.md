@@ -155,7 +155,9 @@ sections. Changes apply immediately and are remembered.
 
 - **Chat**: turn on **Compose mode** to make **Enter** insert a new line in
   the message box and **Ctrl+Enter** (**Command+Enter** on macOS) send the message. It is off by
-  default, when **Enter** sends and **Shift+Enter** adds a new line.
+  default, when **Enter** sends and **Shift+Enter** adds a new line. **Max chat
+  box height** sets how many lines the message box grows to before it
+  scrolls (3 to 12, default 6).
 - **Fonts**: choose a font family and size for **Interface text** and for
   **Code text**. See [Fonts](#fonts).
 - **IDE**: the command behind the title bar's Open button; see

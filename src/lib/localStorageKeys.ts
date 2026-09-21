@@ -36,6 +36,7 @@ export const LS_KEYS = {
   debugPanelY: "ai-leash:debugPanelY",
   // Settings > Preferences — see `preferencesSlice.ts`.
   composeMode: "ai-leash:composeMode",
+  composerMaxRows: "ai-leash:composerMaxRows",
   // Settings > Preferences > Fonts — see `fontPreferences.ts`.
   uiFontFamily: "ai-leash:uiFontFamily",
   uiFontSize: "ai-leash:uiFontSize",

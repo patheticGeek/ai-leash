@@ -11,6 +11,21 @@ export const DEFAULT_CODE_FONT_SIZE = 12;
 export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;
 
+// The chat box starts 3 lines tall and grows with its text up to this many
+// lines before it scrolls; the preference is that upper bound.
+export const COMPOSER_MIN_ROWS = 3;
+export const DEFAULT_COMPOSER_MAX_ROWS = 6;
+export const MAX_COMPOSER_MAX_ROWS = 12;
+
+function readComposerMaxRows(): number {
+  const n = Number(localStorage.getItem(LS_KEYS.composerMaxRows));
+  return Number.isInteger(n) &&
+    n >= COMPOSER_MIN_ROWS &&
+    n <= MAX_COMPOSER_MAX_ROWS
+    ? n
+    : DEFAULT_COMPOSER_MAX_ROWS;
+}
+
 function readSize(key: string, fallback: number): number {
   const n = Number(localStorage.getItem(key));
   return Number.isFinite(n) && n >= MIN_FONT_SIZE && n <= MAX_FONT_SIZE
@@ -27,6 +42,10 @@ export interface PreferencesSlice {
   // a plain Enter inserts a newline — see `ChatComposer`'s `onKeyDown`.
   composeMode: boolean;
   setComposeMode: (enabled: boolean) => void;
+  // Settings > Preferences > Chat. Most lines the chat box grows to before
+  // it scrolls (`COMPOSER_MIN_ROWS`..`MAX_COMPOSER_MAX_ROWS`).
+  composerMaxRows: number;
+  setComposerMaxRows: (rows: number) => void;
   // Settings > Preferences > IDE. The CLI launcher (`code`, `zed`, `code -n`,
   // ...) the title bar's "Open in IDE" button runs with the active checkout
   // path appended — see `commands::open_in_ide`.
@@ -62,6 +81,7 @@ export const preferencesSlice: StateCreator<
   PreferencesSlice
 > = (set) => ({
   composeMode: readBool(LS_KEYS.composeMode),
+  composerMaxRows: readComposerMaxRows(),
   ideCommand: localStorage.getItem(LS_KEYS.ideCommand) ?? DEFAULT_IDE_COMMAND,
   debugModeEnabled: readBool(LS_KEYS.debugModeEnabled),
   debugShowIds: readBool(LS_KEYS.debugShowIds),
@@ -73,6 +93,10 @@ export const preferencesSlice: StateCreator<
   setComposeMode: (enabled) => {
     localStorage.setItem(LS_KEYS.composeMode, enabled ? "1" : "0");
     set({ composeMode: enabled });
+  },
+  setComposerMaxRows: (rows) => {
+    localStorage.setItem(LS_KEYS.composerMaxRows, String(rows));
+    set({ composerMaxRows: rows });
   },
   setIdeCommand: (command) => {
     localStorage.setItem(LS_KEYS.ideCommand, command);
