@@ -1,8 +1,9 @@
 //! `conversations` table access: the per-row upsert shared by every message
 //! write (see `messages::save_message`/`start_streaming_message`), and
-//! whole-conversation deletion, which cascades into `messages` and
-//! `sub_agents` too — deleting a conversation isn't just a `conversations`
-//! table op, so it lives here rather than being split across files.
+//! whole-conversation deletion, which cascades into everything it owns (see
+//! `wipe_conversation_and_sub_agents`) — deleting a conversation isn't just a
+//! `conversations` table op, so it lives here rather than being split across
+//! files.
 
 use super::messages::title_from_message;
 use super::projects::ensure_project_connection;
@@ -141,9 +142,9 @@ pub fn set_conversation_permission_mode(
 }
 
 /// Deletes one conversation outright — its own row, `messages`, stored ACP
-/// session id, and (since sub-agents are scoped to whichever conversation
-/// spawned them) every `sub_agents` row it spawned plus *their* own
-/// `messages`/`conversations`/`acp_agent_sessions` rows too. Distinct from
+/// session id, and (since a sub-agent is owned by whichever conversation
+/// spawned it — see `wipe_conversation_and_sub_agents`) every conversation it
+/// owns, transitively, plus *their* own rows too. Distinct from
 /// `clear_conversation`: that wipes the same set of rows but the top-level
 /// id survives to be reused by the next message (the "/clear" command);
 /// this is "remove it from the sidebar for good."
@@ -303,7 +304,6 @@ pub(super) fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_i
             "DELETE FROM conversations WHERE id = ?1",
             "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
             "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
-            "DELETE FROM sub_agents WHERE id = ?1",
         ] {
             let _ = conn.execute(sql, params![id]);
         }
@@ -312,19 +312,17 @@ pub(super) fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_i
 
 /// `conversation_id` plus everything it owns, transitively. `UNION` (not
 /// `UNION ALL`) so a cycle in `owner_conversation_id` can't loop forever.
-/// Also follows `sub_agents.parent_session_id`, for a sub-agent whose
-/// conversation row was never written.
+/// `record_sub_agent_started` writes `owner_conversation_id` directly (see
+/// `db/sub_agents.rs`), so a sub-agent is already covered by this column —
+/// no separate table to also join against.
 fn owned_tree(conn: &Connection, conversation_id: &str) -> Vec<String> {
     let mut ids = conn
         .prepare(
             "WITH RECURSIVE tree(id) AS (
                  SELECT ?1
                  UNION
-                 SELECT owned.id FROM tree JOIN (
-                     SELECT id, owner_conversation_id AS owner FROM conversations
-                     UNION ALL
-                     SELECT id, parent_session_id FROM sub_agents
-                 ) owned ON owned.owner = tree.id
+                 SELECT c.id FROM tree JOIN conversations c
+                     ON c.owner_conversation_id = tree.id
              )
              SELECT id FROM tree",
         )
@@ -413,15 +411,7 @@ mod tests {
     #[test]
     fn clear_conversation_also_wipes_its_own_sub_agents_but_not_unrelated_ones() {
         let db = temp_db();
-        record_sub_agent_started(
-            &db,
-            "sub-abc",
-            "/proj",
-            "count files",
-            "count the files",
-            "llama3",
-            None,
-        );
+        record_sub_agent_started(&db, "sub-abc", "/proj", "count files", "llama3", None);
         save_message(
             &db,
             "sub-abc",
@@ -432,15 +422,7 @@ mod tests {
                 tool_calls: None,
             },
         );
-        record_sub_agent_started(
-            &db,
-            "sub-xyz",
-            "/other",
-            "unrelated task",
-            "do something else",
-            "llama3",
-            None,
-        );
+        record_sub_agent_started(&db, "sub-xyz", "/other", "unrelated task", "llama3", None);
 
         clear_conversation(&db, "/proj");
 
@@ -518,15 +500,7 @@ mod tests {
             )
             .unwrap();
         }
-        record_sub_agent_started(
-            &db,
-            "sub-abc",
-            "/proj-a",
-            "count files",
-            "count the files",
-            "llama3",
-            None,
-        );
+        record_sub_agent_started(&db, "sub-abc", "/proj-a", "count files", "llama3", None);
         save_message(
             &db,
             "sub-abc",
@@ -586,15 +560,7 @@ mod tests {
     #[test]
     fn delete_conversation_also_wipes_its_own_sub_agents_but_not_unrelated_ones() {
         let db = temp_db();
-        record_sub_agent_started(
-            &db,
-            "sub-abc",
-            "/proj",
-            "count files",
-            "count the files",
-            "llama3",
-            None,
-        );
+        record_sub_agent_started(&db, "sub-abc", "/proj", "count files", "llama3", None);
         save_message(
             &db,
             "sub-abc",
@@ -605,15 +571,7 @@ mod tests {
                 tool_calls: None,
             },
         );
-        record_sub_agent_started(
-            &db,
-            "sub-xyz",
-            "/other",
-            "unrelated task",
-            "do something else",
-            "llama3",
-            None,
-        );
+        record_sub_agent_started(&db, "sub-xyz", "/other", "unrelated task", "llama3", None);
 
         delete_conversation(&db, "/proj");
 
@@ -699,7 +657,7 @@ mod tests {
     fn a_sub_agent_row_exists_before_its_first_message_and_stays_hidden_after() {
         let db = temp_db();
         save_message(&db, "parent", "/proj", &user_message("hi"));
-        record_sub_agent_started(&db, "sub", "parent", "d", "p", "m", None);
+        record_sub_agent_started(&db, "sub", "parent", "d", "m", None);
         assert!(conversation_exists(&db, "sub"));
         save_message(&db, "sub", "/proj", &user_message("p"));
 

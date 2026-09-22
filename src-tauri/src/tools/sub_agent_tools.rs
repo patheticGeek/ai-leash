@@ -287,7 +287,6 @@ pub(super) fn spawn_sub_agent(
             &sub_session_id,
             session_id,
             &description,
-            &prompt,
             &display_model,
             display_effort.as_deref(),
         );
@@ -372,7 +371,7 @@ pub(super) fn spawn_sub_agent(
                 Ok(text) => ("done", text),
                 Err(e) => ("error", format!("Error: {e}")),
             };
-            db::record_sub_agent_finished(&state.db, &sub_session_id, status, &result);
+            db::record_sub_agent_finished(&state.db, &sub_session_id, status);
             // Nothing below resolves this sub-agent's root anymore — only the
             // parent's, which resumes or is notified next.
             drop(link);

@@ -363,13 +363,44 @@ pub(crate) async fn run_sub_agent_acp(
     // prompt resolves, regardless of outcome.
     state.acp_sessions.lock().unwrap().remove(sub_session_id);
 
+    // `db::get_sub_agent_for_parent`/`list_sub_agents_for_parent` read a
+    // sub-agent's result as "its last message" — push one here for any
+    // outcome that wouldn't otherwise leave a real assistant message behind
+    // (an error, same text the caller in `sub_agent_tools.rs` independently
+    // formats as this call's `result`; or a turn that resolved without ever
+    // producing one), same reasoning as `chat::run_sub_agent`'s doc comment.
+    if let Err(e) = &turn_result {
+        chat::push_message(
+            state,
+            sub_session_id,
+            ChatMessage {
+                role: "assistant".into(),
+                content: format!("Error: {e}"),
+                tool_calls: None,
+            },
+        );
+    }
     turn_result?;
 
     let final_text = db::load_messages(&state.db, sub_session_id)
         .into_iter()
         .rev()
         .find(|m| m.role == "assistant" && !m.content.trim().is_empty())
-        .map(|m| m.content)
-        .unwrap_or_else(|| "Subtask finished without a final response.".to_string());
-    Ok(final_text)
+        .map(|m| m.content);
+    Ok(match final_text {
+        Some(text) => text,
+        None => {
+            let text = "Subtask finished without a final response.".to_string();
+            chat::push_message(
+                state,
+                sub_session_id,
+                ChatMessage {
+                    role: "assistant".into(),
+                    content: text.clone(),
+                    tool_calls: None,
+                },
+            );
+            text
+        }
+    })
 }
