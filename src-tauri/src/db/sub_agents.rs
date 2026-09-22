@@ -4,6 +4,7 @@
 //! any other session (keyed by its own id as `conversation_id`); this table
 //! only tracks its metadata.
 
+use super::conversations::wipe_conversation_and_sub_agents;
 use super::{now, Db};
 use rusqlite::{params, Connection};
 use serde::Serialize;
@@ -30,6 +31,11 @@ pub struct SubAgentMeta {
     pub status: String,
 }
 
+/// Records a sub-agent starting: its `sub_agents` row (prompt/result record)
+/// and its conversation row, owned by `parent_session_id` and hidden from the
+/// sidebar. The conversation row is written here rather than left to the
+/// sub-agent's first message so ownership never depends on write order
+/// (`messages::save_message`'s upsert leaves these columns alone).
 pub fn record_sub_agent_started(
     db: &Db,
     id: &str,
@@ -40,9 +46,26 @@ pub fn record_sub_agent_started(
     effort: Option<&str>,
 ) {
     let conn = db.0.lock().unwrap();
+    let ts = now();
     let _ = conn.execute(
         "INSERT INTO sub_agents (id, parent_session_id, description, prompt, status, started_at, model, effort) VALUES (?1, ?2, ?3, ?4, 'running', ?5, ?6, ?7)",
-        params![id, parent_session_id, description, prompt, now(), model, effort],
+        params![id, parent_session_id, description, prompt, ts, model, effort],
+    );
+    let (project_root, project_id): (String, Option<String>) = conn
+        .query_row(
+            "SELECT project_root, project_id FROM conversations WHERE id = ?1",
+            params![parent_session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap_or_default();
+    let _ = conn.execute(
+        "INSERT INTO conversations
+         (id, project_root, project_id, created_at, updated_at,
+          owner_conversation_id, hidden, role, lifecycle)
+         VALUES (?1, ?2, ?3, ?4, ?4, ?5, 1, 'sub-agent', 'running')
+         ON CONFLICT(id) DO UPDATE SET
+             owner_conversation_id = ?5, hidden = 1, role = 'sub-agent', lifecycle = 'running'",
+        params![id, project_root, project_id, ts, parent_session_id],
     );
 }
 
@@ -51,6 +74,17 @@ pub fn record_sub_agent_finished(db: &Db, id: &str, status: &str, result: &str) 
     let _ = conn.execute(
         "UPDATE sub_agents SET status = ?1, result = ?2, finished_at = ?3 WHERE id = ?4",
         params![status, result, now(), id],
+    );
+    let _ = conn.execute(
+        "UPDATE conversations SET lifecycle = ?1 WHERE id = ?2",
+        params![
+            if status == "error" {
+                "failed"
+            } else {
+                "stopped"
+            },
+            id
+        ],
     );
 }
 
@@ -98,31 +132,15 @@ pub fn list_sub_agents_for_parent(
     items
 }
 
-/// Removes every row a sub-agent owns: its transcript (`messages`/
-/// `conversations`), any stored agent-native session id
-/// (`acp_agent_sessions`) and its own `sub_agents` row. The one place that
-/// knows that list, shared by `delete_sub_agent` (a single finished one) and
-/// `conversations.rs`'s whole-conversation wipe (every one a parent spawned),
-/// so a new table keyed by a sub-agent's id only needs adding here.
-pub(super) fn wipe_sub_agent(conn: &Connection, id: &str) {
-    for sql in [
-        "DELETE FROM messages WHERE conversation_id = ?1",
-        "DELETE FROM conversations WHERE id = ?1",
-        "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
-        "DELETE FROM sub_agents WHERE id = ?1",
-    ] {
-        let _ = conn.execute(sql, params![id]);
-    }
-}
-
-/// Deletes one sub-agent and everything it owns (see `wipe_sub_agent`).
-/// Intended for finished (`done`/`error`) sub-agents only — the frontend's
-/// delete button only offers this once a sub-agent is no longer `running`,
-/// since a still-running one may still be writing messages for this id and
-/// would otherwise resurrect a row right after this deletes it.
+/// Deletes one sub-agent and everything it owns (see
+/// `conversations::wipe_conversation_and_sub_agents`). Intended for finished
+/// (`done`/`error`) sub-agents only — the frontend's delete button only
+/// offers this once a sub-agent is no longer `running`, since a still-running
+/// one may still be writing messages for this id and would otherwise
+/// resurrect a row right after this deletes it.
 pub fn delete_sub_agent(db: &Db, id: &str) {
     let conn = db.0.lock().unwrap();
-    wipe_sub_agent(&conn, id);
+    wipe_conversation_and_sub_agents(&conn, id);
 }
 
 /// Looks up `id` only if it was spawned by `parent_session_id` — a

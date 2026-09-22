@@ -166,19 +166,22 @@ mod tests {
     #[test]
     fn open_drops_the_legacy_branch_name_column_and_keeps_the_data() {
         let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4()));
-        let db = Db::open(path.clone());
-        db.0.lock()
+        // A pre-runner database (user_version 0) whose conversations table
+        // still has the legacy column; `Db::open` fills in the other tables.
+        Connection::open(&path)
             .unwrap()
             .execute_batch(
-                "ALTER TABLE conversations ADD COLUMN branch_name TEXT;
-                 PRAGMA user_version = 0;
+                "CREATE TABLE conversations (
+                     id TEXT PRIMARY KEY, project_root TEXT NOT NULL,
+                     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+                     branch_name TEXT);
                  INSERT INTO conversations (id, project_root, created_at, updated_at, branch_name)
                  VALUES ('c1', '/proj', 1, 2, 'main');",
             )
             .unwrap();
-        assert!(conversation_columns(&db).contains(&"branch_name".to_string()));
+        let db = Db::open(path.clone());
+        assert!(!conversation_columns(&db).contains(&"branch_name".to_string()));
         drop(db);
-
         let reopened = Db::open(path);
         assert!(!conversation_columns(&reopened).contains(&"branch_name".to_string()));
         let count: i64 = reopened

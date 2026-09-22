@@ -38,16 +38,16 @@ pub struct ConversationSummary {
 /// currently "open" (`state.project_root` is a single global value — see
 /// `commands::set_project_root` — but the sidebar must show every
 /// project's conversations regardless of which one is currently active).
-/// Excludes sub-agent conversations (any id with a `sub_agents` row — see
-/// `tools::sub_agent_tools`), which have their own dedicated Sub Agents
-/// sidebar (`list_sub_agents_for_parent`, scoped to the active conversation)
-/// instead.
+/// Excludes `hidden` conversations — sub-agents (see
+/// `tools::sub_agent_tools`) are hidden, and have their own dedicated Sub
+/// Agents sidebar (`list_sub_agents_for_parent`, scoped to the active
+/// conversation) instead.
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
         "SELECT id, project_id, project_root, title, updated_at, worktree_path, done \
          FROM conversations \
-         WHERE id NOT IN (SELECT id FROM sub_agents) ORDER BY updated_at DESC",
+         WHERE hidden = 0 ORDER BY updated_at DESC",
     ) else {
         return vec![];
     };
@@ -205,48 +205,64 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
     wipe_conversation_and_sub_agents(&conn, conversation_id);
 }
 
-/// Deletes `conversation_id`'s own `messages`/`conversations`/
-/// `acp_agent_sessions` rows, plus every `sub_agents` row it spawned and
-/// *their* own rows in those same three tables (each sub-agent's transcript
-/// is keyed by its own id as `conversation_id`, same as any other session's)
-/// — otherwise they'd be orphaned rows the Sub Agents sidebar still lists
-/// with no way back to the conversation that spawned them. Sub-agents can't
-/// themselves spawn further sub-agents (one level deep only — see
-/// `run_sub_agent` in chat.rs), so this never needs to recurse. Shared by
-/// `clear_conversation` (the "/clear" command — the id survives to be
-/// reused) and `delete_conversation` (removed from the sidebar for good).
+/// Deletes `conversation_id` and every conversation it owns, directly or
+/// through further owners (`owner_conversation_id`) — otherwise a sub-agent
+/// would be an orphaned row the Sub Agents sidebar still lists with no way
+/// back to the conversation that spawned them. Only the owner tree is
+/// followed: a branch's `parent_conversation_id` is provenance, and a
+/// branch owns its own copied rows, so deleting the conversation it was
+/// forked from leaves it intact.
+///
 /// Also drops any stored agent-native session id (see `acp_sessions.rs`) for
 /// each — otherwise the next connection's `session/load` would resume the
 /// same ACP session and the agent would still remember everything. Not
 /// scoped by `launch_command` since a conversation may have switched agents
 /// over its lifetime and all of them should be forgotten.
-fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
-    let sub_agent_ids: Vec<String> = conn
-        .prepare("SELECT id FROM sub_agents WHERE parent_session_id = ?1")
+///
+/// Shared by `clear_conversation` (the "/clear" command — the id survives to
+/// be reused), `delete_conversation` (removed from the sidebar for good) and
+/// `sub_agents::delete_sub_agent`.
+pub(super) fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
+    for id in owned_tree(conn, conversation_id) {
+        for sql in [
+            "DELETE FROM messages WHERE conversation_id = ?1",
+            "DELETE FROM conversations WHERE id = ?1",
+            "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
+            "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
+            "DELETE FROM sub_agents WHERE id = ?1",
+        ] {
+            let _ = conn.execute(sql, params![id]);
+        }
+    }
+}
+
+/// `conversation_id` plus everything it owns, transitively. `UNION` (not
+/// `UNION ALL`) so a cycle in `owner_conversation_id` can't loop forever.
+/// Also follows `sub_agents.parent_session_id`, for a sub-agent whose
+/// conversation row was never written.
+fn owned_tree(conn: &Connection, conversation_id: &str) -> Vec<String> {
+    let mut ids = conn
+        .prepare(
+            "WITH RECURSIVE tree(id) AS (
+                 SELECT ?1
+                 UNION
+                 SELECT owned.id FROM tree JOIN (
+                     SELECT id, owner_conversation_id AS owner FROM conversations
+                     UNION ALL
+                     SELECT id, parent_session_id FROM sub_agents
+                 ) owned ON owned.owner = tree.id
+             )
+             SELECT id FROM tree",
+        )
         .and_then(|mut stmt| {
             stmt.query_map(params![conversation_id], |row| row.get(0))?
-                .collect()
+                .collect::<rusqlite::Result<Vec<String>>>()
         })
         .unwrap_or_default();
-    for sub_agent_id in &sub_agent_ids {
-        super::sub_agents::wipe_sub_agent(conn, sub_agent_id);
+    if ids.is_empty() {
+        ids.push(conversation_id.to_string());
     }
-    let _ = conn.execute(
-        "DELETE FROM messages WHERE conversation_id = ?1",
-        params![conversation_id],
-    );
-    let _ = conn.execute(
-        "DELETE FROM conversations WHERE id = ?1",
-        params![conversation_id],
-    );
-    let _ = conn.execute(
-        "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
-        params![conversation_id],
-    );
-    let _ = conn.execute(
-        "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
-        params![conversation_id],
-    );
+    ids
 }
 
 #[cfg(test)]
@@ -533,5 +549,108 @@ mod tests {
             crate::db::list_sub_agents_for_parent(&db, "/other", 50).len(),
             1
         );
+    }
+    fn user_message(text: &str) -> ChatMessage {
+        ChatMessage {
+            role: "user".into(),
+            content: text.into(),
+            tool_calls: None,
+        }
+    }
+
+    fn set_owner(db: &Db, id: &str, owner: &str) {
+        db.0.lock()
+            .unwrap()
+            .execute(
+                "UPDATE conversations SET owner_conversation_id = ?2 WHERE id = ?1",
+                params![id, owner],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn delete_conversation_follows_ownership_through_any_depth() {
+        let db = temp_db();
+        for id in ["top", "child", "grandchild", "unrelated"] {
+            save_message(&db, id, "/proj", &user_message(id));
+        }
+        set_owner(&db, "child", "top");
+        set_owner(&db, "grandchild", "child");
+
+        delete_conversation(&db, "top");
+
+        for id in ["top", "child", "grandchild"] {
+            assert!(!conversation_exists(&db, id), "{id} should be gone");
+            assert!(load_messages(&db, id).is_empty());
+        }
+        assert!(conversation_exists(&db, "unrelated"));
+    }
+
+    #[test]
+    fn deleting_a_conversation_leaves_the_branches_forked_from_it() {
+        let db = temp_db();
+        save_message(&db, "original", "/proj", &user_message("hello"));
+        save_message(&db, "fork", "/proj", &user_message("hello"));
+        db.0.lock()
+            .unwrap()
+            .execute(
+                "UPDATE conversations SET parent_conversation_id = 'original',
+                 branch_point_message_id = 1 WHERE id = 'fork'",
+                [],
+            )
+            .unwrap();
+
+        delete_conversation(&db, "original");
+
+        assert!(conversation_exists(&db, "fork"));
+        assert_eq!(load_messages(&db, "fork").len(), 1);
+    }
+
+    #[test]
+    fn an_ownership_cycle_does_not_hang_delete() {
+        let db = temp_db();
+        for id in ["a", "b"] {
+            save_message(&db, id, "/proj", &user_message(id));
+        }
+        set_owner(&db, "a", "b");
+        set_owner(&db, "b", "a");
+
+        delete_conversation(&db, "a");
+
+        assert!(!conversation_exists(&db, "a"));
+        assert!(!conversation_exists(&db, "b"));
+    }
+
+    #[test]
+    fn a_sub_agent_row_exists_before_its_first_message_and_stays_hidden_after() {
+        let db = temp_db();
+        save_message(&db, "parent", "/proj", &user_message("hi"));
+        record_sub_agent_started(&db, "sub", "parent", "d", "p", "m", None);
+        assert!(conversation_exists(&db, "sub"));
+        save_message(&db, "sub", "/proj", &user_message("p"));
+
+        let visible: Vec<_> = list_all_conversations(&db)
+            .into_iter()
+            .map(|c| c.id)
+            .collect();
+        assert_eq!(visible, vec!["parent".to_string()]);
+    }
+
+    #[test]
+    fn agent_names_are_unique_per_owner_only() {
+        let db = temp_db();
+        for id in ["o1", "o2", "a", "b", "c"] {
+            save_message(&db, id, "/proj", &user_message(id));
+        }
+        let conn = db.0.lock().unwrap();
+        let name = |id: &str, owner: &str| {
+            conn.execute(
+                "UPDATE conversations SET owner_conversation_id = ?2, name = 'reviewer' WHERE id = ?1",
+                params![id, owner],
+            )
+        };
+        assert!(name("a", "o1").is_ok());
+        assert!(name("b", "o2").is_ok());
+        assert!(name("c", "o1").is_err());
     }
 }

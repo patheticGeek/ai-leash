@@ -51,6 +51,10 @@ pub fn get_acp_agent_session_id(
 /// Records the agent-native session id handed back by a fresh
 /// `session/new` call, so the next connection for this conversation/agent
 /// pair can try to resume it instead.
+///
+/// An agent session id may back only one conversation (a unique index, so two
+/// conversations can never prompt the same agent session); a write that would
+/// break that is rejected and the id simply isn't stored.
 pub fn set_acp_agent_session_id(
     db: &Db,
     conversation_id: &str,
