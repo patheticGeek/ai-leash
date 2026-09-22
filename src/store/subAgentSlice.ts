@@ -74,20 +74,29 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
     model,
     effort,
   }) =>
-    set((s) => ({
-      subAgentTasks: [
-        ...s.subAgentTasks,
-        {
-          subSessionId,
-          parentSessionId,
-          description,
-          status: "running",
-          startedAt: Date.now(),
-          model,
-          effort,
-        },
-      ],
-    })),
+    set((s) => {
+      // Idempotent — React StrictMode double-invokes `useChatStream.ts`'s
+      // effect in dev, and its async cleanup (`listen()`'s own unlisten,
+      // itself a promise) isn't guaranteed to land before a second `listen`
+      // call registers — a `subtask_start` that arrives in that gap would
+      // otherwise fire both listeners and add this sub-agent twice.
+      if (s.subAgentTasks.some((t) => t.subSessionId === subSessionId))
+        return s;
+      return {
+        subAgentTasks: [
+          ...s.subAgentTasks,
+          {
+            subSessionId,
+            parentSessionId,
+            description,
+            status: "running",
+            startedAt: Date.now(),
+            model,
+            effort,
+          },
+        ],
+      };
+    }),
 
   loadSubAgentTasks: async (parentSessionId) => {
     const epochAtStart = get().subAgentTasksEpoch;
