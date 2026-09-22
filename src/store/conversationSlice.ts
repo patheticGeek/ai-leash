@@ -23,6 +23,16 @@ export interface ConversationSummary {
   // checked out there can change outside the app, so the frontend always
   // reads it live (`api.watchGitBranch`) instead of trusting a stored value.
   worktreePath: string | null;
+  // Persisted provider/model/permission choice — read once, at load, by
+  // `acpSlice.hydrateConversationBackendFromRows`/
+  // `permissionSlice.hydratePermissionModeFromRows`, which own decoding and
+  // day-to-day access from here on (`conversationBackend`/`permissionMode`).
+  // Kept on this row too (rather than dropped after hydration) only because
+  // it's what the backend already sends; nothing else reads it off here.
+  backend: string | null;
+  model: string | null;
+  effort: string | null;
+  permissionMode: string | null;
 }
 
 // The resolved checkout a conversation runs in — a worktree, or the
@@ -116,6 +126,8 @@ export const conversationSlice: StateCreator<
         ? { conversations: [...s.conversations, ...fresh] }
         : s;
     });
+    get().hydrateConversationBackendFromRows(rows);
+    get().hydratePermissionModeFromRows(rows);
   },
 
   // Runs once at app startup in place of the old `restoreLastProject` —
@@ -345,6 +357,14 @@ export const conversationSlice: StateCreator<
             title: null,
             updatedAt: nowSeconds(),
             done: false,
+            // Not yet known — this placeholder row is only for the sidebar
+            // list; `conversationBackend`/`permissionMode` (already seeded,
+            // possibly for this very id — see `startNewConversation`'s
+            // copy-forward) are what everything else actually reads.
+            backend: null,
+            model: null,
+            effort: null,
+            permissionMode: null,
             worktreePath,
           },
           ...s.conversations,
@@ -388,13 +408,14 @@ export const conversationSlice: StateCreator<
   },
 
   // Removes a conversation for good — the backend cascades its own
-  // messages/title/ACP-session rows *and* every sub-agent it spawned (sub-
-  // agents are scoped to whichever conversation spawned them — see
-  // `db::delete_conversation`'s doc comment). This mirrors that on the
-  // frontend: drops the localStorage-backed settings (`conversationBackend`/
-  // `permissionMode`) and panel-/chat-tab state (both in-memory and its
-  // disk-persisted entry) this id will never use again, its chat draft, and
-  // any sub-agent bookkeeping (`subAgentTasks`/`subAgentThreads`/their
+  // messages/title/backend/permission-mode/ACP-session rows *and* every
+  // sub-agent it spawned (sub-agents are scoped to whichever conversation
+  // spawned them — see `db::delete_conversation`'s doc comment). This
+  // mirrors that on the frontend: drops the now-stale in-memory entries in
+  // `conversationBackend`/`permissionMode` and panel-/chat-tab state (both
+  // in-memory and its disk-persisted entry) this id will never use again,
+  // its chat draft, and any sub-agent bookkeeping (`subAgentTasks`/
+  // `subAgentThreads`/their
   // `chatTabs`) via the same `clearSubAgentTasksForParent` action `/clear`
   // already uses.
   deleteConversation: async (id) => {

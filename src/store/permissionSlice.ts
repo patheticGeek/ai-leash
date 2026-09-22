@@ -2,28 +2,25 @@ import type { StateCreator } from "zustand";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import { api } from "../lib/tauriApi";
+import type { ConversationSummary } from "./conversationSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
 export type PermissionMode = "ask" | "bypass";
 
-// Per-session Ask/Bypass choice for tool-call permission prompts (edits,
-// shell commands, ACP's own permission requests) — see the selector next to
-// the model picker in `ChatPanel.tsx`. Persisted here so it survives an app
-// restart, but the actual enforcement lives backend-side (`request_permission`
-// in tools.rs, gated by `AppState.permission_bypass`) — that's in-memory
-// only, so `ChatPanel` re-sends whatever's stored here once per mount to
-// keep the backend in sync (see `setPermissionMode`'s doc comment below).
-function loadPermissionMode(): Record<string, PermissionMode> {
-  const parsed = localStorageJson.read<unknown>(LS_KEYS.permissionMode, {});
-  return parsed && typeof parsed === "object"
-    ? (parsed as Record<string, PermissionMode>)
-    : {};
+function isPermissionMode(value: unknown): value is PermissionMode {
+  return value === "ask" || value === "bypass";
 }
 
-function savePermissionModeMap(map: Record<string, PermissionMode>) {
-  localStorageJson.write(LS_KEYS.permissionMode, map);
-}
+// Per-session Ask/Bypass choice for tool-call permission prompts (edits,
+// shell commands, ACP's own permission requests) — see the selector next to
+// the model picker in `ChatPanel.tsx`. Persisted in `conversations.
+// permission_mode` (`db::set_conversation_permission_mode`) so it survives
+// an app restart, but the actual enforcement lives backend-side
+// (`request_permission` in tools.rs, gated by `AppState.permission_bypass`)
+// — that's in-memory only, so `ChatPanel` re-sends whatever's stored here
+// once per mount to keep the backend in sync (see `setPermissionMode`'s doc
+// comment below).
 
 // Resolves "does this project have a permission request waiting" — an
 // exact match (a top-level conversation's own tool call), or a sub-agent
@@ -43,8 +40,8 @@ export function permissionForSession(
 }
 
 export interface PermissionSlice {
-  // Per-conversation Ask/Bypass permission choice — see `loadPermissionMode`'s
-  // doc comment. Missing entry means "ask" (the default).
+  // Per-conversation Ask/Bypass permission choice — see the module doc
+  // comment above. Missing entry means "ask" (the default).
   permissionMode: Record<string, PermissionMode>;
   // Keyed by the *exact* session id the request came from — for a sub-agent
   // that's its own id, not its parent's. `permissionForSession` (above) is
@@ -58,16 +55,22 @@ export interface PermissionSlice {
   pendingPermissions: Record<string, PermissionRequestPayload>;
   addPendingPermission: (payload: PermissionRequestPayload) => void;
   resolvePendingPermission: (id: string) => void;
-  // Persists the choice locally and pushes it to the backend
-  // (`set_permission_mode`) so `request_permission` actually honors it —
-  // see `loadPermissionMode`'s doc comment. `ChatPanel.tsx` also calls this
-  // once on mount with whatever's already stored, to re-sync the backend's
-  // in-memory state after an app restart.
+  // Persists the choice (in memory here, and to `conversations.
+  // permission_mode` via `set_permission_mode`, which also flips the
+  // backend's in-memory enforcement flag) — see the module doc comment.
+  // `ChatPanel.tsx` also calls this once on mount with whatever's already
+  // stored, to re-sync the backend's in-memory state after an app restart.
   setPermissionMode: (sessionId: string, mode: PermissionMode) => void;
   // Drops a deleted conversation's saved Ask/Bypass choice — called by
   // `conversationSlice.deleteConversation`, mirroring
-  // `acpSlice.forgetConversationBackend`.
+  // `acpSlice.forgetConversationBackend`. Rust already drops the row's own
+  // `permission_mode` column as part of deleting the conversation, so this
+  // only needs to clear the in-memory map.
   forgetPermissionMode: (sessionId: string) => void;
+  // Seeds `permissionMode` from freshly loaded rows, migrating the old
+  // localStorage blob for a row that doesn't have a DB value yet — mirrors
+  // `acpSlice.hydrateConversationBackendFromRows`.
+  hydratePermissionModeFromRows: (rows: ConversationSummary[]) => void;
 }
 
 export const permissionSlice: StateCreator<
@@ -75,8 +78,9 @@ export const permissionSlice: StateCreator<
   [],
   [],
   PermissionSlice
-> = (set) => ({
-  permissionMode: loadPermissionMode(),
+> = (set, get) => ({
+  // Seeded by `hydratePermissionModeFromRows` once conversations load.
+  permissionMode: {},
   pendingPermissions: {},
 
   addPendingPermission: (payload) =>
@@ -99,12 +103,16 @@ export const permissionSlice: StateCreator<
     }),
 
   setPermissionMode: (sessionId, mode) => {
-    set((s) => {
-      const permissionMode = { ...s.permissionMode, [sessionId]: mode };
-      savePermissionModeMap(permissionMode);
-      return { permissionMode };
-    });
-    void api.setPermissionMode(sessionId, mode === "bypass");
+    set((s) => ({
+      permissionMode: { ...s.permissionMode, [sessionId]: mode },
+    }));
+    // See `acpSlice.setConversationBackend`'s doc comment on the
+    // `projectRoot` fallback for a not-yet-listed conversation.
+    const projectRoot =
+      get().conversations.find((c) => c.id === sessionId)?.projectRoot ??
+      get().projectRoot;
+    if (!projectRoot) return;
+    void api.setPermissionMode(sessionId, projectRoot, mode === "bypass");
   },
 
   forgetPermissionMode: (sessionId) =>
@@ -112,7 +120,29 @@ export const permissionSlice: StateCreator<
       if (!(sessionId in s.permissionMode)) return s;
       const permissionMode = { ...s.permissionMode };
       delete permissionMode[sessionId];
-      savePermissionModeMap(permissionMode);
       return { permissionMode };
     }),
+
+  hydratePermissionModeFromRows: (rows) => {
+    const legacy = localStorageJson.read<Record<string, unknown>>(
+      LS_KEYS.permissionMode,
+      {},
+    );
+    const hasLegacy =
+      legacy && typeof legacy === "object" && Object.keys(legacy).length > 0;
+    for (const row of rows) {
+      if (get().permissionMode[row.id]) continue;
+      if (isPermissionMode(row.permissionMode)) {
+        const mode = row.permissionMode;
+        set((s) => ({
+          permissionMode: { ...s.permissionMode, [row.id]: mode },
+        }));
+        continue;
+      }
+      if (!hasLegacy) continue;
+      const migrated = legacy[row.id];
+      if (isPermissionMode(migrated)) get().setPermissionMode(row.id, migrated);
+    }
+    if (hasLegacy) localStorage.removeItem(LS_KEYS.permissionMode);
+  },
 });

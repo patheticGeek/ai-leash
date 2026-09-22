@@ -231,6 +231,14 @@ export interface ConversationSummary {
   // frontend always reads it live (see `watchGitBranch`) instead of trusting
   // a stored value.
   worktreePath: string | null;
+  // Persisted provider/ACP choice and Ask/Bypass mode — see
+  // `store/acpSlice.ts`'s `decodeConversationBackend` and
+  // `store/permissionSlice.ts` for how these are read. `backend` is a JSON
+  // blob opaque to Rust; `model`/`effort` are meaningless without it.
+  backend: string | null;
+  model: string | null;
+  effort: string | null;
+  permissionMode: string | null;
 }
 
 export interface GitBranch {
@@ -349,6 +357,20 @@ export const api = {
     invoke<void>("set_conversation_title", { sessionId, title }),
   setConversationDone: (sessionId: string, done: boolean) =>
     invoke<void>("set_conversation_done", { sessionId, done }),
+  setConversationBackend: (
+    sessionId: string,
+    projectRoot: string,
+    backend: string,
+    model: string | null,
+    effort: string | null,
+  ) =>
+    invoke<void>("set_conversation_backend", {
+      sessionId,
+      projectRoot,
+      backend,
+      model,
+      effort,
+    }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
   compactConversation: (
@@ -432,8 +454,11 @@ export const api = {
     invoke<void>("delete_conversation", { sessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
-  setPermissionMode: (sessionId: string, bypass: boolean) =>
-    invoke<void>("set_permission_mode", { sessionId, bypass }),
+  setPermissionMode: (
+    sessionId: string,
+    projectRoot: string,
+    bypass: boolean,
+  ) => invoke<void>("set_permission_mode", { sessionId, projectRoot, bypass }),
   respondElicitation: (id: string, answer: ElicitationAnswer) =>
     invoke<void>("respond_elicitation", { id, answer }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>

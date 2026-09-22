@@ -77,6 +77,30 @@ pub fn set_conversation_title(
     Ok(())
 }
 
+/// Persists which provider/ACP agent (and its model/effort choice) a
+/// conversation is using — see `db::ConversationSummary::backend`'s doc
+/// comment for the encoding. `backend` is opaque here, same as it is in the
+/// DB: only the frontend knows how to build and read it.
+#[tauri::command]
+pub fn set_conversation_backend(
+    state: State<'_, AppState>,
+    session_id: String,
+    project_root: String,
+    backend: String,
+    model: Option<String>,
+    effort: Option<String>,
+) -> Result<(), String> {
+    db::set_conversation_backend(
+        &state.db,
+        &session_id,
+        &project_root,
+        &backend,
+        model.as_deref(),
+        effort.as_deref(),
+    );
+    Ok(())
+}
+
 #[tauri::command]
 pub fn set_conversation_done(
     state: State<'_, AppState>,

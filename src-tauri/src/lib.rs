@@ -134,6 +134,7 @@ pub fn run() {
             chat::history::get_conversation_title,
             chat::history::set_conversation_title,
             chat::history::set_conversation_done,
+            chat::history::set_conversation_backend,
             chat::clear_conversation,
             chat::compact_conversation,
             chat::history::list_sub_agents,
