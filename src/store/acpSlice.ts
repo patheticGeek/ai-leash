@@ -366,22 +366,23 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
     set((s) => ({
       conversationBackend: { ...s.conversationBackend, [sessionId]: selection },
     }));
+    // Only persist once this is a real, listed conversation —
+    // `useChatSession.ts` re-runs this on every backend/model change,
+    // including for a still-unsent "new thread" (it also re-saves the same
+    // defaults it read at mount), and that must not leave a row behind just
+    // from opening the model picker. `conversations` (not a DB round trip)
+    // is the right check: `conversationSlice.markConversationStarted` flips
+    // a thread from unsent to real *before* its first message actually
+    // lands in SQLite, and flushes this map's current entry right after —
+    // see that action's own comment for why a DB-existence check at that
+    // moment wouldn't work.
+    const listed = get().conversations.find((c) => c.id === sessionId);
+    if (!listed) return;
     const encoded = encodeConversationBackend(selection);
     if (!encoded) return;
-    // The row this id already has (once listed) is authoritative for its
-    // own `project_root`; a not-yet-listed brand-new conversation (this
-    // conversation's first ever choice, made before its first message) has
-    // no row yet, so this falls back to whichever project is currently
-    // open — `save_message`'s own upsert corrects `project_root` for real
-    // once this conversation actually sends anything, same tolerance
-    // `set_conversation_worktree` already relies on.
-    const projectRoot =
-      get().conversations.find((c) => c.id === sessionId)?.projectRoot ??
-      get().projectRoot;
-    if (!projectRoot) return;
     void api.setConversationBackend(
       sessionId,
-      projectRoot,
+      listed.projectRoot,
       JSON.stringify(encoded.backend),
       encoded.model,
       encoded.effort,

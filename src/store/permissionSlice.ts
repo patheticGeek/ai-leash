@@ -106,13 +106,24 @@ export const permissionSlice: StateCreator<
     set((s) => ({
       permissionMode: { ...s.permissionMode, [sessionId]: mode },
     }));
-    // See `acpSlice.setConversationBackend`'s doc comment on the
-    // `projectRoot` fallback for a not-yet-listed conversation.
-    const projectRoot =
-      get().conversations.find((c) => c.id === sessionId)?.projectRoot ??
-      get().projectRoot;
-    if (!projectRoot) return;
-    void api.setPermissionMode(sessionId, projectRoot, mode === "bypass");
+    // The in-memory bypass flag must always flip (enforcement can't wait),
+    // but persisting is gated on this being a real, listed conversation —
+    // `useSessionPermissions.ts` re-sends this on every mount, including a
+    // still-unsent "new thread", and that must not leave a row behind just
+    // from opening it. `conversations` (not a DB round trip) is the right
+    // check here: `conversationSlice.markConversationStarted` flips a
+    // thread from unsent to real *before* its first message actually lands
+    // in SQLite, and flushes this map's current entry right after — a
+    // DB-existence check at that moment would still say "not yet".
+    const listed = get().conversations.find((c) => c.id === sessionId);
+    const persist = !!listed;
+    const projectRoot = listed?.projectRoot ?? get().projectRoot ?? "";
+    void api.setPermissionMode(
+      sessionId,
+      projectRoot,
+      mode === "bypass",
+      persist,
+    );
   },
 
   forgetPermissionMode: (sessionId) =>

@@ -336,6 +336,7 @@ export const conversationSlice: StateCreator<
   // re-stamping `checkoutPathBySession` here would reset an existing
   // worktree conversation back to the primary root.
   markConversationStarted: (id, projectRoot, worktreePath = null) => {
+    const alreadyListed = get().conversations.some((c) => c.id === id);
     set((s) => {
       if (s.conversations.some((c) => c.id === id)) return s;
       return {
@@ -375,6 +376,17 @@ export const conversationSlice: StateCreator<
     // `persistActiveSessionTabState` skipped them until now, since the id
     // wasn't in `conversations` yet.
     get().persistActiveSessionTabState();
+    // This conversation just became real — flush whatever it already
+    // picked while `setConversationBackend`/`setPermissionMode` were
+    // suppressing the DB write (see their own comments). Only on the
+    // transition itself: a re-send in an already-listed conversation is a
+    // no-op above and has nothing new to flush.
+    if (!alreadyListed) {
+      const backend = get().conversationBackend[id];
+      if (backend) get().setConversationBackend(id, backend);
+      const mode = get().permissionMode[id];
+      if (mode) get().setPermissionMode(id, mode);
+    }
   },
 
   touchConversationActivity: (id) =>

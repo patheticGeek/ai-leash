@@ -454,11 +454,21 @@ export const api = {
     invoke<void>("delete_conversation", { sessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
+  // `persist: false` for a still-unsent "new thread" — see
+  // `set_permission_mode`'s doc comment in permissions.rs. The bypass flag
+  // itself always flips in memory either way.
   setPermissionMode: (
     sessionId: string,
     projectRoot: string,
     bypass: boolean,
-  ) => invoke<void>("set_permission_mode", { sessionId, projectRoot, bypass }),
+    persist: boolean,
+  ) =>
+    invoke<void>("set_permission_mode", {
+      sessionId,
+      projectRoot,
+      bypass,
+      persist,
+    }),
   respondElicitation: (id: string, answer: ElicitationAnswer) =>
     invoke<void>("respond_elicitation", { id, answer }),
   reportFrontendCrash: (kind: string, message: string, stack?: string) =>
