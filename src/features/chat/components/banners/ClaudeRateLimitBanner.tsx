@@ -46,15 +46,30 @@ export default function ClaudeRateLimitBanner({
       </AlertDescription>
       <AlertAction>
         {autoResumeArmed ? (
-          <Button size="sm" variant="outline" onClick={onDismiss}>
+          <Button
+            size="sm"
+            variant="chip-warning"
+            bordered={false}
+            onClick={onDismiss}
+          >
             Cancel
           </Button>
         ) : (
           <>
-            <Button size="sm" variant="outline" onClick={onDismiss}>
+            <Button
+              size="sm"
+              variant="chip-danger"
+              bordered={false}
+              onClick={onDismiss}
+            >
               No
             </Button>
-            <Button size="sm" onClick={onArmAutoResume}>
+            <Button
+              size="sm"
+              variant="chip-success"
+              bordered={false}
+              onClick={onArmAutoResume}
+            >
               {alreadyReset ? "Yes, continue" : "Yes, resume automatically"}
             </Button>
           </>
