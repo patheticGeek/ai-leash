@@ -8,7 +8,7 @@ import { Button } from "@/ui/button";
 const STICKY = "sticky top-1 z-10";
 
 interface TranscriptNoticesProps {
-  ollamaError: string | null;
+  chatError: string | null;
   acpRestoreFailed: string | null;
   onRetryAcpSession: () => void;
   // True when the connected ACP agent has no way to pick up this
@@ -24,7 +24,7 @@ interface TranscriptNoticesProps {
 // resume history" heads-up. Top-level-conversation-only — a sub-agent's
 // transcript never renders any of them.
 export default function TranscriptNotices({
-  ollamaError,
+  chatError,
   acpRestoreFailed,
   onRetryAcpSession,
   acpHistoryTruncated,
@@ -32,9 +32,9 @@ export default function TranscriptNotices({
 }: TranscriptNoticesProps) {
   return (
     <>
-      {ollamaError && (
+      {chatError && (
         <Alert variant="danger" outline className={STICKY}>
-          <AlertDescription>{ollamaError}</AlertDescription>
+          <AlertDescription>{chatError}</AlertDescription>
         </Alert>
       )}
       {acpRestoreFailed && (

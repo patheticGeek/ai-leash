@@ -59,7 +59,7 @@ export default function ChatPanel({
   const generatingState = useGenerating(sessionId);
   const generating = generatingState.active && !generatingState.autonomous;
 
-  const [ollamaError, setOllamaError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   // The composer floats over the bottom of the transcript; this is how much
   // room the transcript leaves for it (see `ChatComposer`'s `onHeightChange`).
   const [composerHeight, setComposerHeight] = useState(0);
@@ -72,7 +72,7 @@ export default function ChatPanel({
     setSending(generating);
   }, [generating]);
 
-  const session = useChatSession(sessionId, setOllamaError);
+  const session = useChatSession(sessionId, setChatError);
   const { isAcp, providerActiveId, activeAcpAgent, model, backendDisabled } =
     session;
   const {
@@ -89,7 +89,7 @@ export default function ChatPanel({
     claudeAutoResumeArmed,
     armClaudeAutoResume,
     dismissClaudeRateLimit,
-  } = useChatStream(sessionId, setOllamaError);
+  } = useChatStream(sessionId, setChatError);
   useEffect(() => {
     if (sessionTitle !== null) {
       setConversationTitle(sessionId, sessionTitle);
@@ -120,7 +120,7 @@ export default function ChatPanel({
   // that it's allowed right now); this is what they do to the conversation.
   async function runCommand(name: string) {
     if (name === "clear") {
-      setOllamaError(null);
+      setChatError(null);
       try {
         await api.clearConversation(sessionId);
         setEntries([]);
@@ -146,13 +146,13 @@ export default function ChatPanel({
           reconnectAcp();
         }
       } catch (e) {
-        setOllamaError(String(e));
+        setChatError(String(e));
       }
       return;
     }
     if (name === "compact") {
       if (isAcp || !model || backendDisabled) return;
-      setOllamaError(null);
+      setChatError(null);
       setSending(true);
       try {
         const summary = await api.compactConversation(
@@ -169,7 +169,7 @@ export default function ChatPanel({
         ]);
         setUsage(null);
       } catch (e) {
-        setOllamaError(String(e));
+        setChatError(String(e));
       } finally {
         setSending(false);
       }
@@ -183,12 +183,12 @@ export default function ChatPanel({
   // why: it still needs to persist a real tool-call/result pair so this
   // survives a reload).
   async function runShellEscape(command: string) {
-    setOllamaError(null);
+    setChatError(null);
     setSending(true);
     try {
       await api.runShellCommand(sessionId, command);
     } catch (e) {
-      setOllamaError(String(e));
+      setChatError(String(e));
     } finally {
       setSending(false);
     }
@@ -202,7 +202,7 @@ export default function ChatPanel({
     // Also covers a queued message delivered after its backend was turned
     // off — the composer's own `backendReady` check only gates typed sends.
     if (backendDisabled) return;
-    setOllamaError(null);
+    setChatError(null);
     markConversationStarted(sessionId, projectRoot, pendingWorktree);
     setEntries((prev) => [
       ...prev,
@@ -229,7 +229,7 @@ export default function ChatPanel({
       const title = await api.getConversationTitle(sessionId);
       setConversationTitle(sessionId, title);
     } catch (e) {
-      setOllamaError(String(e));
+      setChatError(String(e));
       setSending(false);
     }
   }
@@ -241,7 +241,7 @@ export default function ChatPanel({
 
   async function retry() {
     if (sending || !model || backendDisabled) return;
-    setOllamaError(null);
+    setChatError(null);
     setEntries((prev) => {
       for (let idx = prev.length - 1; idx >= 0; idx--) {
         const e = prev[idx];
@@ -259,7 +259,7 @@ export default function ChatPanel({
         model,
       );
     } catch (e) {
-      setOllamaError(String(e));
+      setChatError(String(e));
       setSending(false);
     }
   }
@@ -283,7 +283,7 @@ export default function ChatPanel({
           <div className="relative flex-1 overflow-hidden">
             <ChatEntryList
               entries={entries}
-              ollamaError={ollamaError}
+              chatError={chatError}
               acpRestoreFailed={acpRestoreFailed}
               onRetryAcpSession={retryAcpSession}
               acpHistoryTruncated={acpHistoryTruncated}
@@ -338,7 +338,7 @@ export default function ChatPanel({
           onRunShell={runShellEscape}
           onCommand={runCommand}
           onStop={stop}
-          onError={setOllamaError}
+          onError={setChatError}
           onHeightChange={setComposerHeight}
         />
       </div>

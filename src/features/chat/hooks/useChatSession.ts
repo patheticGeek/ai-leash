@@ -1,8 +1,14 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
+import {
+  providerModelListing,
+  providerUnreachableMessage,
+  useProviderBackends,
+  useProviderHealth,
+  useProviderModels,
+} from "../../../data/backends";
 import { useAcpAgentCatalog } from "../../../lib/acpCatalogQuery";
 import { LS_KEYS } from "../../../lib/localStorageKeys";
-import { useOllamaModelsByConfig } from "../../../lib/ollamaModelsQuery";
 import {
   type AcpCommandInfo,
   type AcpEffortOptions,
@@ -52,11 +58,9 @@ export function useChatSession(
   sessionId: string,
   setError: (message: string | null) => void,
 ) {
-  const providerConnectivity = useAppStore((s) => s.providerConnectivity);
   const providerSettings = useAppStore((s) => s.providerSettings);
-  const ollamaModelsByConfig = useOllamaModelsByConfig(
-    providerSettings.ollama.filter(isEnabled),
-  );
+  const providerBackends = useProviderBackends();
+  const modelsByProvider = useProviderModels();
   const agentBackend = useAppStore((s) => s.agentBackend);
   // Rust-authoritative catalog of discovered ACP models/effort levels —
   // persisted to disk and kept fresh across restarts by its own background
@@ -104,6 +108,9 @@ export function useChatSession(
       useAppStore.getState().conversationBackend[sessionId]?.acpEffort ?? null,
   );
   const isAcp = kind === "acp";
+  const providerConfig = isAcp
+    ? undefined
+    : providerBackends.find((c) => c.id === providerActiveId);
   const isOpenAiCompatible =
     !isAcp && !providerSettings.ollama.some((c) => c.id === providerActiveId);
   const activeAcpAgent = agentBackend.acpAgents.find(
@@ -308,55 +315,35 @@ export function useChatSession(
     appliedAcpEffortRef.current = acpEffortChoice;
   }, [acpEffortOptions, acpEffortChoice]);
 
-  // Ollama has no live models yet the first time a brand-new conversation
-  // opens on it — fill in a sensible one once this conversation's active
-  // config's list loads. Conversations that already have a `model` (from
-  // their own persisted choice, or from just having picked one) are left
-  // alone.
+  // A provider that lists its models has none yet the first time a
+  // brand-new conversation opens on it — fill in a sensible one once this
+  // conversation's active config's list loads. Conversations that already
+  // have a `model` (from their own persisted choice, or from just having
+  // picked one) are left alone.
+  const listsModels =
+    !!providerConfig && providerModelListing(providerConfig) === "live";
   useEffect(() => {
-    if (isOpenAiCompatible || isAcp) return;
-    const configModels = ollamaModelsByConfig[providerActiveId] ?? [];
+    if (!listsModels) return;
+    const configModels = modelsByProvider[providerActiveId] ?? [];
     if (model || !configModels.length) return;
     const last = localStorage.getItem(LS_KEYS.lastModel);
     const restored =
       last && configModels.some((m) => m.name === last) ? last : null;
     setModel(restored ?? configModels[0].name);
-  }, [
-    ollamaModelsByConfig,
-    providerActiveId,
-    model,
-    isOpenAiCompatible,
-    isAcp,
-  ]);
+  }, [modelsByProvider, providerActiveId, model, listsModels]);
 
-  // This conversation's own active provider's reachability — looked up from
-  // the app-wide per-provider map (`providerConnectivity`, refreshed
-  // regardless of which conversation is open) rather than a single global
-  // "the active provider is connected" flag, since which provider counts as
-  // "active" is now per-conversation.
+  // This conversation's own active provider's reachability — checked per
+  // provider (only while it is the one open), since which provider counts as
+  // "active" is per-conversation.
+  const connected = useProviderHealth(providerConfig);
   useEffect(() => {
-    if (isAcp || backendDisabled) return;
-    const connected = providerConnectivity[providerActiveId];
+    if (!providerConfig || backendDisabled) return;
     if (connected === false) {
-      const ollamaConfig = providerSettings.ollama.find(
-        (c) => c.id === providerActiveId,
-      );
-      setError(
-        ollamaConfig
-          ? `Could not reach Ollama at ${ollamaConfig.host || "localhost:11434"}. Is \`ollama serve\` running?`
-          : "Could not reach the configured provider. Check the base URL and API key in provider settings.",
-      );
+      setError(providerUnreachableMessage(providerConfig));
     } else if (connected === true) {
       setError(null);
     }
-  }, [
-    providerConnectivity,
-    providerActiveId,
-    isAcp,
-    backendDisabled,
-    providerSettings.ollama,
-    setError,
-  ]);
+  }, [connected, providerConfig, backendDisabled, setError]);
 
   useEffect(() => {
     const unlistens: Promise<() => void>[] = [];
@@ -400,7 +387,7 @@ export function useChatSession(
     };
   }, [sessionId]);
 
-  const selectedModel = (ollamaModelsByConfig[providerActiveId] ?? []).find(
+  const selectedModel = (modelsByProvider[providerActiveId] ?? []).find(
     (m) => m.name === model,
   );
   const contextLength = selectedModel?.contextLength ?? null;
@@ -420,7 +407,7 @@ export function useChatSession(
   // connection, etc., instead of one flat list.
   const backendOptions: PickerOption[] = [
     ...providerSettings.ollama.filter(isEnabled).flatMap((c) => {
-      const configModels = ollamaModelsByConfig[c.id] ?? [];
+      const configModels = modelsByProvider[c.id] ?? [];
       if (configModels.length > 0) {
         return configModels.map((m) => ({
           key: `ollama:${c.id}:${m.name}`,

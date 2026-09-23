@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useProviderModels } from "../data/backends";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
@@ -11,7 +12,6 @@ import {
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
-import { useOllamaModelsByConfig } from "../lib/ollamaModelsQuery";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
 import { isEnabled } from "../store/backendSlice";
@@ -22,10 +22,6 @@ import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const providerSettings = useAppStore((s) => s.providerSettings);
-  const refreshProviderConnectivity = useAppStore(
-    (s) => s.refreshProviderConnectivity,
-  );
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
@@ -55,10 +51,9 @@ function App() {
   // picker would flash empty for a tick each time, even though the
   // underlying data itself hasn't changed.
   const acpCatalogQuery = useAcpAgentCatalogQuery();
-  // Same reasoning, for Ollama's per-config model lists — keeps them warm
-  // across conversation switches now that they live in React Query instead
-  // of always-mounted Zustand state.
-  useOllamaModelsByConfig(providerSettings.ollama.filter(isEnabled));
+  // Same reasoning, for each provider's model list — keeps them warm across
+  // conversation switches.
+  useProviderModels();
 
   // Rust's own background refresh (`acp::refresh_acp_catalog_in_background`)
   // only re-discovers agents *already* in its catalog — nothing ever seeds
@@ -107,12 +102,6 @@ function App() {
     720,
     -1,
   );
-
-  useEffect(() => {
-    refreshProviderConnectivity();
-    const interval = setInterval(refreshProviderConnectivity, 5000);
-    return () => clearInterval(interval);
-  }, [refreshProviderConnectivity]);
 
   useEffect(() => {
     initializeStartupSession();

@@ -17,6 +17,11 @@ export const qk = {
   generating: (sessionId: string) => ["generating", sessionId] as const,
   gitBranch: (path: string) => ["git-branch", path] as const,
   preferences: ["preferences"] as const,
-  ollamaModels: (configId: string) => ["ollama-models", configId] as const,
+  // Everything cached about one provider backend (an Ollama or
+  // OpenAI-compatible config id) sits under this prefix, so editing or
+  // deleting the config is one invalidate/remove.
+  backend: (id: string) => ["backend", id] as const,
+  backendHealth: (id: string) => ["backend", id, "health"] as const,
+  backendModels: (id: string) => ["backend", id, "models"] as const,
   systemFonts: ["system-fonts"] as const,
 };

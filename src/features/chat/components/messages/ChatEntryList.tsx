@@ -56,7 +56,7 @@ export interface ChatEntryListProps {
   // banners, the collapsible system prompt block) — optional so a caller
   // with no such concept (e.g. `SubAgentChatTab.tsx`) doesn't need to pass
   // dummy values for all of them.
-  ollamaError?: string | null;
+  chatError?: string | null;
   acpRestoreFailed?: string | null;
   onRetryAcpSession?: () => void;
   // True when the connected ACP agent has no way to pick up this
@@ -86,7 +86,7 @@ export interface ChatEntryListProps {
 // copy feedback) — none of it is read anywhere outside this component.
 export default function ChatEntryList({
   entries,
-  ollamaError = null,
+  chatError = null,
   acpRestoreFailed = null,
   onRetryAcpSession = () => {},
   acpHistoryTruncated = false,
@@ -147,14 +147,14 @@ export default function ChatEntryList({
             style={bottomInset ? { paddingBottom: bottomInset } : undefined}
           >
             <TranscriptNotices
-              ollamaError={ollamaError}
+              chatError={chatError}
               acpRestoreFailed={acpRestoreFailed}
               onRetryAcpSession={onRetryAcpSession}
               acpHistoryTruncated={acpHistoryTruncated}
               acpAgentLabel={acpAgentLabel}
             />
             {systemPrompt && <SystemPromptRow systemPrompt={systemPrompt} />}
-            {entries.length === 0 && !ollamaError && <EmptyTranscript />}
+            {entries.length === 0 && !chatError && <EmptyTranscript />}
             {groupEntries(entries).map((item) =>
               item.kind === "activitygroup" ? (
                 <MessageScrollerItem

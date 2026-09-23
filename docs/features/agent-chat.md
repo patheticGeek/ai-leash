@@ -315,20 +315,12 @@ instead. Sending any message of your own ends the pending limit.
 
 ## Connection status and errors
 
-The status indicator in the application status area summarizes configured
-provider reachability:
+AI Leash checks that the provider selected for the open conversation can be
+reached, every few seconds while that conversation is open. A response means the
+host could be reached; it does not guarantee that an API key is valid or that a
+particular model is available.
 
-- **Gray**: the app has not completed its first check.
-- **Green**: every configured provider responded.
-- **Amber**: some providers responded and some did not.
-- **Red**: no configured provider responded.
-
-Hover the indicator for each provider's state: checking, connected, or
-disconnected. A response means the host could be reached; it does not
-guarantee that an API key is valid or that a particular model is available.
-
-The chat panel also warns when the provider selected for that conversation
-cannot be reached. Check the provider's host or base URL, credentials, model
+The chat panel warns when that check fails. Check the provider's host or base URL, credentials, model
 ID, and whether the service is running. For Ollama, the model picker is
 populated from the configured Ollama host. For an OpenAI-compatible service,
 the model ID is entered manually because model discovery varies between
