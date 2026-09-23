@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
+import { useSubAgents } from "@/data/subAgents";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
@@ -18,13 +19,10 @@ export default function SidePanel() {
   // otherwise this would count another conversation's still-running
   // sub-agents too, once more than one has ever been loaded into memory
   // this session.
-  const runningSubAgents = useAppStore(
-    (s) =>
-      s.subAgentTasks.filter(
-        (t) =>
-          t.status === "running" && t.parentSessionId === s.activeSessionId,
-      ).length,
-  );
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const runningSubAgents = useSubAgents(activeSessionId).filter(
+    (t) => t.status === "running",
+  ).length;
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const activeTab = panelTabs.find((t) => t.id === activePanelTabId) ?? null;

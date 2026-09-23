@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { RunCommandContext } from "@/ui/Markdown";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
+import { useSubAgents } from "../data/subAgents";
 import ChatPanel from "../features/chat/ChatPanel";
 import SubAgentChatTab from "../features/chat/SubAgentChatTab";
 import { useGenerating } from "../lib/generatingQuery";
@@ -60,13 +61,13 @@ export default function CenterPanel() {
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
   const closeChatTab = useAppStore((s) => s.closeChatTab);
   // Backend-driven per-session activity — the primary tab is covered by the
-  // always-mounted `useGeneratingListener` (`App.tsx`), `subAgentTasks`
+  // always-mounted `useGeneratingListener` (`App.tsx`), `useSubAgents`
   // covers sub-agent tabs (no `generating` event of its own; `status` is
   // already tracked for the Sub Agents sidebar). Queried even before the
   // `activeSessionId` null-check below since hooks can't be conditional;
   // an empty-string fallback session id is harmless (never actually shown).
   const primaryGenerating = useGenerating(activeSessionId ?? "").active;
-  const subAgentTasks = useAppStore((s) => s.subAgentTasks);
+  const subAgentTasks = useSubAgents(activeSessionId);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   // The run button on a transcript's shell code blocks: a new terminal tab
   // with the command typed at the prompt, waiting for Enter.

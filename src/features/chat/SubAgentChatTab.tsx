@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useSubAgents } from "../../data/subAgents";
 import {
   messagesToEntries,
   reconcileWithPersisted,
@@ -21,8 +22,9 @@ export default function SubAgentChatTab({
 }) {
   const entries = useAppStore((s) => s.subAgentThreads[subSessionId]) ?? [];
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
-  const task = useAppStore((s) =>
-    s.subAgentTasks.find((t) => t.subSessionId === subSessionId),
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const task = useSubAgents(activeSessionId).find(
+    (t) => t.subSessionId === subSessionId,
   );
 
   // The persisted transcript is the source of truth for what a sub-agent was
@@ -31,20 +33,33 @@ export default function SubAgentChatTab({
   // mount rather than only when nothing else has populated the store yet —
   // a live thread built purely from stream events would otherwise lack it,
   // and a tab reopened after an app restart has nothing else to show at all.
+  // Also re-run whenever its status changes: a sub-agent that fails or
+  // finishes without a reply gets its outcome written as a final message
+  // (`chat::run_sub_agent`/`acp::run_sub_agent_acp`) that's persisted but
+  // never streamed, so an already-open tab would otherwise never show it.
+  // `status` comes from the lifecycle-driven `useSubAgents` query, so the
+  // transition can't be missed the way a per-sub-agent stream event can.
+  const status = task?.status;
   useEffect(() => {
     let cancelled = false;
     api.loadConversationHistory(subSessionId).then((messages) => {
       if (cancelled) return;
+      const persisted = messagesToEntries(messages);
+      // Once it's finished, disk has the whole transcript (including that
+      // final message), so it replaces the live copy outright; while it's
+      // still running, live events are ahead of disk and win.
       setSubAgentEntries(subSessionId, (prev) =>
-        reconcileWithPersisted(prev, messagesToEntries(messages)),
+        status === "done" || status === "error"
+          ? persisted
+          : reconcileWithPersisted(prev, persisted),
       );
     });
     return () => {
       cancelled = true;
     };
-  }, [subSessionId, setSubAgentEntries]);
+  }, [subSessionId, setSubAgentEntries, status]);
 
-  const running = task?.status === "running";
+  const running = status === "running";
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-center gap-2 px-3 py-2 text-xs">

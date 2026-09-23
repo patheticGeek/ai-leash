@@ -1,5 +1,6 @@
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useSubAgents } from "@/data/subAgents";
 import { formatDuration, formatTime } from "@/lib/format";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
@@ -9,16 +10,9 @@ import SubAgentStatusBadge from "../../chat/SubAgentStatusBadge";
 
 export default function SubAgentsTab() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const allTasks = useAppStore((s) => s.subAgentTasks);
+  const tasks = useSubAgents(activeSessionId);
   const openChatTab = useAppStore((s) => s.openChatTab);
   const deleteSubAgentTask = useAppStore((s) => s.deleteSubAgentTask);
-
-  // Fetching is owned by `App.tsx` (runs on every conversation switch,
-  // regardless of whether this tab is even open — see its own comment on
-  // why) — this component only ever reads/filters `subAgentTasks` by
-  // whichever conversation is currently active.
-
-  const tasks = allTasks.filter((t) => t.parentSessionId === activeSessionId);
 
   // Ticks once a second so a running task's "running for" duration keeps
   // advancing — only while something is actually running, since otherwise
@@ -93,7 +87,10 @@ export default function SubAgentsTab() {
                   variant="danger"
                   size="icon-sm"
                   title="Delete sub-agent"
-                  onClick={() => deleteSubAgentTask(task.subSessionId)}
+                  onClick={() =>
+                    activeSessionId &&
+                    deleteSubAgentTask(activeSessionId, task.subSessionId)
+                  }
                   className={revealOnGroupHover}
                 >
                   <Trash2 size={12} />

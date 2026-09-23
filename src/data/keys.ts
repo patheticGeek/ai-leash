@@ -13,6 +13,10 @@ export const qk = {
   // same query rather than a second fetch, so there is no separate
   // `["conversation", id]` key yet (see PLAN.md's Phase 3 note on this).
   conversations: ["conversations", "list"] as const,
+  // Under the owner's `["conversation", id]` prefix, so clearing/deleting
+  // the owner can sweep it with the rest of that conversation's data.
+  subAgents: (ownerId: string) =>
+    ["conversation", ownerId, "sub-agents"] as const,
   // Prefix of every `fsDir` key — for predicate-based invalidation.
   fsDirs: ["fs-dir"] as const,
   // The path slot is always a real absolute path (the checkout root listing
