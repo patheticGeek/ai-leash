@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import { acpCatalogQueryKey } from "../lib/acpCatalogQuery";
+import { qk } from "../data/keys";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { queryClient } from "../lib/queryClient";
 import {
@@ -148,7 +148,7 @@ async function pushAcpCatalog(
   // (that event is only for Rust's own background refresh) — without this,
   // a just-discovered agent's models wouldn't show up in the picker until
   // the query's `staleTime` happened to lapse on its own.
-  queryClient.setQueryData(acpCatalogQueryKey, merged);
+  queryClient.setQueryData(qk.acpCatalog, merged);
 }
 
 // Which provider/agent (and which specific model) a given conversation is

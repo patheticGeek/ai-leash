@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
+import { qk } from "../data/keys";
 import { LS_KEYS } from "../lib/localStorageKeys";
-import { ollamaModelsQueryKey } from "../lib/ollamaModelsQuery";
 import { queryClient } from "../lib/queryClient";
 import { api, type ProviderConfigPayload } from "../lib/tauriApi";
 import { DEFAULT_OLLAMA_ID, isEnabled } from "./backendSlice";
@@ -207,7 +207,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
     // config's id has never been queried before, so it fetches on its own
     // the moment something first reads it, without needing this.
     queryClient.invalidateQueries({
-      queryKey: ollamaModelsQueryKey(config.id),
+      queryKey: qk.ollamaModels(config.id),
     });
     get().reconcileDefaultBackend();
   },
@@ -219,7 +219,7 @@ export const providerSlice: StateCreator<AppStore, [], [], ProviderSlice> = (
       saveProviderSettings(providerSettings);
       return { providerSettings };
     });
-    queryClient.removeQueries({ queryKey: ollamaModelsQueryKey(id) });
+    queryClient.removeQueries({ queryKey: qk.ollamaModels(id) });
     get().reconcileDefaultBackend();
   },
 

@@ -28,6 +28,7 @@ export interface PersistedToolCall {
 }
 
 export interface PersistedMessage {
+  id: number;
   role: string;
   content: string;
   toolCalls: PersistedToolCall[] | null;

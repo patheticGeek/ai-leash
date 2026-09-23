@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { qk } from "@/data/keys";
 import { Button } from "@/ui/button";
 import {
   Command,
@@ -33,7 +34,7 @@ export default function FontFamilyPicker({
   // in its own font would load hundreds of them at once.
   const [highlighted, setHighlighted] = useState("");
   const { data: fonts, isPending } = useQuery({
-    queryKey: ["system-fonts"],
+    queryKey: qk.systemFonts,
     queryFn: api.listSystemFonts,
     enabled: open,
     // Installing a font mid-session is rare; a restart picks it up.

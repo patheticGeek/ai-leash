@@ -1,14 +1,11 @@
 import { useQueries } from "@tanstack/react-query";
+import { qk } from "../data/keys";
 import {
   type OllamaProviderConfig,
   toProviderConfigPayload,
 } from "../store/providerSlice";
 import type { ModelSummary } from "./tauriApi";
 import { api } from "./tauriApi";
-
-export function ollamaModelsQueryKey(configId: string) {
-  return ["ollama-models", configId] as const;
-}
 
 // Ollama has no push/event mechanism to invalidate on — models are
 // pulled/removed directly by the user outside this app — so periodic
@@ -32,7 +29,7 @@ export function useOllamaModelsByConfig(
 ): Record<string, ModelSummary[]> {
   const results = useQueries({
     queries: configs.map((config) => ({
-      queryKey: ollamaModelsQueryKey(config.id),
+      queryKey: qk.ollamaModels(config.id),
       queryFn: async () => {
         try {
           return await api.listProviderModels(toProviderConfigPayload(config));

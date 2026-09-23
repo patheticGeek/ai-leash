@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { qk } from "../data/keys";
 import { useAppStore } from "../store";
 import { api } from "./tauriApi";
 import { useTauriEvent } from "./useTauriEvent";
@@ -25,10 +26,6 @@ const IDLE: GeneratingState = {
   startedAtMs: null,
 };
 
-export function generatingQueryKey(sessionId: string) {
-  return ["generating", sessionId] as const;
-}
-
 // Per-session turn-in-flight state, driven entirely by the backend's single
 // `chat://generating` event (payload carries `sessionId`) rather than any
 // frontend action. Defaults to idle for a session with no cache entry yet —
@@ -47,7 +44,7 @@ export function generatingQueryKey(sessionId: string) {
 // even though the backend never said the turn ended.
 export function useGenerating(sessionId: string): GeneratingState {
   const query = useQuery({
-    queryKey: generatingQueryKey(sessionId),
+    queryKey: qk.generating(sessionId),
     queryFn: () => IDLE,
     staleTime: Infinity,
     gcTime: Infinity,
@@ -71,7 +68,7 @@ export function useGeneratingListener() {
   useTauriEvent<{ sessionId: string; active: boolean; autonomous: boolean }>(
     "chat://generating",
     (payload) => {
-      const key = generatingQueryKey(payload.sessionId);
+      const key = qk.generating(payload.sessionId);
       if (!payload.active) {
         // Persisting the turn's duration here, in this single always-mounted
         // listener, rather than from `ChatPanel.tsx`, means it happens
