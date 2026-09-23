@@ -111,10 +111,10 @@ pub struct AppState {
     /// Running sub-agent id → the top-level conversation that spawned it.
     /// Registered when `spawn_sub_agent` starts one and dropped when it
     /// finishes (see `commands::SubAgentLink`); sub-agents never outlive the
-    /// process, so unlike `sub_agents.parent_session_id` (the persisted
-    /// record, used for listing/cleanup) this never needs to survive a
-    /// restart. It's how a sub-agent id is turned back into its parent —
-    /// ids themselves are opaque and never parsed.
+    /// process, so unlike `conversations.owner_conversation_id` (the
+    /// persisted record, used for listing/cleanup) this never needs to
+    /// survive a restart. It's how a sub-agent id is turned back into its
+    /// parent — ids themselves are opaque and never parsed.
     pub sub_agent_parents: Mutex<HashMap<String, String>>,
     pub ptys: Mutex<HashMap<String, PtyHandle>>,
     pub chat_sessions: Mutex<HashMap<String, Vec<ChatMessage>>>,

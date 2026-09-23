@@ -85,10 +85,32 @@ pub(crate) fn run_sub_agent<'a>(
                     .map(|m| m.content)
             });
 
-        match (final_text, loop_result) {
-            (Some(text), _) => Ok(text),
-            (None, Err(e)) => Ok(format!("Subtask failed: {e}")),
-            (None, Ok(())) => Ok("Subtask finished without a final response.".to_string()),
+        match final_text {
+            Some(text) => Ok(text),
+            // No real assistant message came out of the loop — this
+            // sub-agent's own transcript would otherwise end on its "user"
+            // prompt with no visible outcome at all. `db::get_sub_agent_for_parent`/
+            // `list_sub_agents_for_parent` read a sub-agent's result as
+            // "its last message", so push one here rather than only handing
+            // the text back to the caller (`sub_agent_tools.rs`'s
+            // `record_sub_agent_result`, which injects it into the
+            // *parent's* transcript, not this one's).
+            None => {
+                let text = match loop_result {
+                    Err(e) => format!("Subtask failed: {e}"),
+                    Ok(()) => "Subtask finished without a final response.".to_string(),
+                };
+                push_message(
+                    state,
+                    sub_session_id,
+                    ChatMessage {
+                        role: "assistant".into(),
+                        content: text.clone(),
+                        tool_calls: None,
+                    },
+                );
+                Ok(text)
+            }
         }
     })
 }

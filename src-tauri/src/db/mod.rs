@@ -1,9 +1,12 @@
-//! SQLite-backed persistence, split by table: `conversations.rs`,
-//! `messages.rs`, `sub_agents.rs` each own the SQL for their own table
-//! (`conversations.rs` additionally owns titles and whole-conversation deletes, which
-//! cascade into the other two tables). This module holds only what's
-//! genuinely shared: the `Db` handle itself, connection/schema setup, and
-//! the `now()` timestamp helper the other two files call into.
+//! SQLite-backed persistence, split by table: `conversations.rs` and
+//! `messages.rs` each own the SQL for their own table (`conversations.rs`
+//! additionally owns titles and whole-conversation deletes, which cascade
+//! into `messages` too). `sub_agents.rs` no longer owns a table of its own —
+//! a sub-agent is just a `conversations` row (see its own module doc) — it's
+//! kept as a separate file anyway, for the handful of queries shaped around
+//! that. This module holds only what's genuinely shared: the `Db` handle
+//! itself, connection/schema setup, and the `now()` timestamp helper the
+//! other files call into.
 
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -89,17 +92,6 @@ impl Db {
                 created_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, id);
-            CREATE TABLE IF NOT EXISTS sub_agents (
-                id TEXT PRIMARY KEY,
-                parent_session_id TEXT NOT NULL,
-                description TEXT NOT NULL,
-                prompt TEXT NOT NULL,
-                status TEXT NOT NULL,
-                result TEXT,
-                started_at INTEGER NOT NULL,
-                finished_at INTEGER
-            );
-            CREATE INDEX IF NOT EXISTS idx_sub_agents_parent ON sub_agents(parent_session_id, started_at);
             CREATE TABLE IF NOT EXISTS acp_agent_sessions (
                 conversation_id TEXT NOT NULL,
                 launch_command TEXT NOT NULL,
@@ -120,6 +112,28 @@ impl Db {
             ",
         )
         .expect("failed to initialize history database schema");
+        // Legacy table `v1_legacy_columns`/`v2_conversation_graph` still
+        // need to see — only created for a database that hasn't reached v3
+        // yet (which drops it for good); see `DROPS_SUB_AGENTS_AT_VERSION`.
+        if migrations::user_version(&conn) < migrations::DROPS_SUB_AGENTS_AT_VERSION {
+            conn.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS sub_agents (
+                    id TEXT PRIMARY KEY,
+                    parent_session_id TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    prompt TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result TEXT,
+                    started_at INTEGER NOT NULL,
+                    finished_at INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_sub_agents_parent
+                    ON sub_agents(parent_session_id, started_at);
+                ",
+            )
+            .expect("failed to initialize legacy sub_agents table");
+        }
         migrations::run(&conn);
         // Not a migration: reconciles rows the app itself may have written
         // without a project since (a conversation created before its project
@@ -196,5 +210,33 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    fn table_exists(db: &Db, name: &str) -> bool {
+        db.0.lock()
+            .unwrap()
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                [name],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n > 0)
+            .unwrap()
+    }
+
+    #[test]
+    fn reopening_a_fully_migrated_database_does_not_recreate_sub_agents() {
+        let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4()));
+        let db = Db::open(path.clone());
+        assert!(
+            !table_exists(&db, "sub_agents"),
+            "v3 should have dropped it on a brand-new database"
+        );
+        drop(db);
+
+        // The bug this guards: a naive `CREATE TABLE IF NOT EXISTS sub_agents`
+        // on every open would silently bring an empty copy back here.
+        let reopened = Db::open(path);
+        assert!(!table_exists(&reopened, "sub_agents"));
     }
 }

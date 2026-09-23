@@ -16,12 +16,22 @@ use rusqlite::Connection;
 
 type Migration = fn(&Connection);
 
-const MIGRATIONS: &[Migration] = &[v1_legacy_columns, v2_conversation_graph];
+const MIGRATIONS: &[Migration] = &[v1_legacy_columns, v2_conversation_graph, v3_drop_sub_agents];
+
+/// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
+/// baseline schema checks this before creating `sub_agents`, since v1/v2
+/// still need to see it on a database that hasn't reached v3 yet, but
+/// `CREATE TABLE IF NOT EXISTS` would otherwise silently bring an empty,
+/// unused copy back on every launch of a database that already dropped it.
+pub(super) const DROPS_SUB_AGENTS_AT_VERSION: usize = 3;
+
+pub(super) fn user_version(conn: &Connection) -> usize {
+    conn.pragma_query_value(None, "user_version", |row| row.get(0))
+        .expect("failed to read schema version")
+}
 
 pub(super) fn run(conn: &Connection) {
-    let current: usize = conn
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .expect("failed to read schema version");
+    let current: usize = user_version(conn);
     for (index, migration) in MIGRATIONS.iter().enumerate().skip(current) {
         let tx = conn
             .unchecked_transaction()
@@ -158,14 +168,54 @@ fn v2_conversation_graph(conn: &Connection) {
     .expect("failed to add the conversation graph columns");
 }
 
+/// Retires the `sub_agents` table now that everything it held has a home on
+/// `conversations`/`messages` directly (see PLAN.md's "Schema" section,
+/// 2c) — `status` is `lifecycle` (already written there by v2), `model`/
+/// `effort` are those columns, `started_at` is `created_at`, `description`
+/// is `title` (unused by a hidden sub-agent row otherwise), and `prompt` is
+/// the transcript's own first user message.
+///
+/// `result` needs one step of care: `chat::run_sub_agent`/
+/// `acp::run_sub_agent_acp` push it as a real assistant message going
+/// forward (so it's always just "the last message"), but that's a Rust
+/// change, not a schema one — it says nothing about sub-agents that already
+/// finished before this shipped. For those, this backfills the same message
+/// directly, skipping any row whose transcript already ends with it (the
+/// common case: a sub-agent that returned real text).
+fn v3_drop_sub_agents(conn: &Connection) {
+    conn.execute_batch(
+        "
+        ALTER TABLE conversations ADD COLUMN finished_at INTEGER;
+
+        INSERT INTO messages (conversation_id, role, content, tool_calls, created_at)
+        SELECT s.id, 'assistant', s.result, NULL, coalesce(s.finished_at, s.started_at)
+        FROM sub_agents s
+        WHERE s.result IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM messages m
+              WHERE m.conversation_id = s.id
+                AND m.id = (SELECT MAX(id) FROM messages WHERE conversation_id = s.id)
+                AND m.role = 'assistant'
+                AND m.content = s.result
+          );
+
+        UPDATE conversations
+            SET finished_at = (SELECT finished_at FROM sub_agents WHERE sub_agents.id = conversations.id)
+            WHERE id IN (SELECT id FROM sub_agents WHERE finished_at IS NOT NULL);
+
+        UPDATE conversations
+            SET title = (SELECT description FROM sub_agents WHERE sub_agents.id = conversations.id)
+            WHERE title IS NULL AND id IN (SELECT id FROM sub_agents);
+
+        DROP TABLE sub_agents;
+        ",
+    )
+    .expect("failed to retire the sub_agents table");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn user_version(conn: &Connection) -> usize {
-        conn.pragma_query_value(None, "user_version", |row| row.get(0))
-            .unwrap()
-    }
 
     #[test]
     fn upgrades_a_pre_runner_database_and_records_the_version() {
@@ -201,13 +251,25 @@ mod tests {
             ("conversations", "title"),
             ("conversations", "worktree_path"),
             ("conversations", "done"),
+            ("conversations", "owner_conversation_id"),
+            ("conversations", "finished_at"),
             ("messages", "duration_seconds"),
-            ("sub_agents", "model"),
-            ("sub_agents", "effort"),
         ] {
             assert!(has_column(&conn, table, column), "{table}.{column}");
         }
         assert!(!has_column(&conn, "conversations", "branch_name"));
+        // v1 adds sub_agents.model/effort (needed by v2's backfill) and v3
+        // drops the table outright once nothing reads it anymore — by the
+        // time every migration's run, it should simply be gone.
+        let table_exists: bool = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'sub_agents'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|n| n > 0)
+            .unwrap();
+        assert!(!table_exists);
         let kept: i64 = conn
             .query_row("SELECT count(*) FROM conversations", [], |r| r.get(0))
             .unwrap();
@@ -240,7 +302,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
             "CREATE TABLE conversations (id TEXT PRIMARY KEY, project_root TEXT NOT NULL,
-                 project_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+                 project_id TEXT, title TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
              CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT,
                  conversation_id TEXT NOT NULL, role TEXT NOT NULL,
                  content TEXT NOT NULL, tool_calls TEXT, created_at INTEGER NOT NULL);
@@ -305,5 +367,96 @@ mod tests {
                 []
             )
             .is_err());
+    }
+
+    #[test]
+    fn v3_backfills_a_missing_final_message_and_drops_sub_agents() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, project_root TEXT NOT NULL,
+                 project_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 conversation_id TEXT NOT NULL, role TEXT NOT NULL,
+                 content TEXT NOT NULL, tool_calls TEXT, created_at INTEGER NOT NULL);
+             CREATE TABLE sub_agents (id TEXT PRIMARY KEY, parent_session_id TEXT NOT NULL,
+                 description TEXT NOT NULL, prompt TEXT NOT NULL, status TEXT NOT NULL,
+                 result TEXT, started_at INTEGER NOT NULL, finished_at INTEGER);
+             CREATE TABLE acp_agent_sessions (conversation_id TEXT NOT NULL,
+                 launch_command TEXT NOT NULL, agent_session_id TEXT NOT NULL,
+                 updated_at INTEGER NOT NULL, PRIMARY KEY (conversation_id, launch_command));
+             INSERT INTO conversations (id, project_root, created_at, updated_at)
+                 VALUES ('parent', '/proj', 1, 2);
+             INSERT INTO sub_agents VALUES
+                 ('answered', 'parent', 'count files', 'count the files', 'done', 'there are 3 files', 10, 20),
+                 ('silent', 'parent', 'explain', 'explain the moon landing', 'done',
+                  'Subtask finished without a final response.', 30, 40),
+                 ('errored', 'parent', 'break', 'break something', 'error', 'Error: boom', 50, 60);
+             INSERT INTO messages (conversation_id, role, content, created_at) VALUES
+                 ('answered', 'user', 'count the files', 10),
+                 ('answered', 'assistant', 'there are 3 files', 15),
+                 ('silent', 'user', 'explain the moon landing', 30),
+                 ('errored', 'user', 'break something', 50);",
+        )
+        .unwrap();
+
+        run(&conn);
+
+        let messages = |id: &str| -> Vec<(String, String)> {
+            conn.prepare(
+                "SELECT role, content FROM messages WHERE conversation_id = ?1 ORDER BY id",
+            )
+            .unwrap()
+            .query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+        };
+        // Already ends with its real answer — nothing added.
+        assert_eq!(
+            messages("answered"),
+            vec![
+                ("user".into(), "count the files".into()),
+                ("assistant".into(), "there are 3 files".into()),
+            ]
+        );
+        // Its stored result wasn't a real message — backfilled as one.
+        assert_eq!(
+            messages("silent"),
+            vec![
+                ("user".into(), "explain the moon landing".into()),
+                (
+                    "assistant".into(),
+                    "Subtask finished without a final response.".into()
+                ),
+            ]
+        );
+        assert_eq!(
+            messages("errored"),
+            vec![
+                ("user".into(), "break something".into()),
+                ("assistant".into(), "Error: boom".into()),
+            ]
+        );
+
+        let row = |id: &str| -> (Option<i64>, Option<String>) {
+            conn.query_row(
+                "SELECT finished_at, title FROM conversations WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(row("answered"), (Some(20), Some("count files".into())));
+        assert_eq!(row("silent"), (Some(40), Some("explain".into())));
+        assert_eq!(row("errored"), (Some(60), Some("break".into())));
+
+        let table_exists: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'sub_agents'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_exists, 0);
     }
 }

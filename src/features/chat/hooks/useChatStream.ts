@@ -58,7 +58,13 @@ function addSubtaskThread(
   firstEntries: Entry[],
 ): PanelEntry[] {
   return prev.map((entry) =>
-    entry.kind === "tool" && entry.callId === callId
+    entry.kind === "tool" &&
+    entry.callId === callId &&
+    // Idempotent — see `startSubAgentTask`'s doc comment (same
+    // StrictMode-double-invoke race, same fix): without this, a raced
+    // `subtask_start` would also nest this sub-agent's thread twice under
+    // the tool-call bubble, not just duplicate its sidebar entry.
+    !entry.subtasks?.some((t) => t.subSessionId === subSessionId)
       ? {
           ...entry,
           subtasks: [
@@ -302,16 +308,28 @@ export function useChatStream(
         // user to notice it under a collapsed tool-call entry.
         openPanelTab("subagents");
 
-        unlistens.push(
-          listen(`chat://${subSessionId}/done`, () => {
-            finishSubAgentTask(subSessionId, "done");
-          }),
-        );
-        unlistens.push(
-          listen(`chat://${subSessionId}/error`, () => {
-            finishSubAgentTask(subSessionId, "error");
-          }),
-        );
+        const doneListener = listen(`chat://${subSessionId}/done`, () => {
+          finishSubAgentTask(subSessionId, "done");
+        });
+        const errorListener = listen(`chat://${subSessionId}/error`, () => {
+          finishSubAgentTask(subSessionId, "error");
+        });
+        unlistens.push(doneListener, errorListener);
+        // A sub-agent that finishes near-instantly (e.g. an immediate
+        // provider error, no streaming at all) can resolve before the two
+        // listeners just above have actually finished registering —
+        // `listen()` is itself an async round trip, so emitting
+        // `subtask_start` first doesn't guarantee it. Once they're attached,
+        // reconcile once against the backend's current state so a finish
+        // that raced past them still gets picked up, instead of leaving this
+        // stuck on "running" until the next full reload.
+        Promise.all([doneListener, errorListener]).then(async () => {
+          const rows = await api.listSubAgents(sessionId).catch(() => []);
+          const row = rows.find((r) => r.id === subSessionId);
+          if (row && row.status !== "running") {
+            finishSubAgentTask(subSessionId, row.status);
+          }
+        });
         unlistens.push(
           listen<string>(`chat://${subSessionId}/thinking`, (ev) => {
             setEntries((prev) =>

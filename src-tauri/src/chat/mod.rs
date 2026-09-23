@@ -132,7 +132,7 @@ pub(crate) fn forget_session_runtime_state(
 #[tauri::command]
 pub fn clear_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
     // Sub-agent ids must be read *before* the DB wipe below deletes their
-    // `sub_agents` rows — there'd be nothing left to query afterward.
+    // conversation rows — there'd be nothing left to query afterward.
     let sub_agent_ids: Vec<String> =
         db::list_sub_agents_for_parent(&state.db, &session_id, usize::MAX)
             .into_iter()
