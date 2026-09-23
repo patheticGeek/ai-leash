@@ -18,7 +18,7 @@ export type { ConversationSummary };
 export function useConversations(): ConversationSummary[] {
   const { data } = useQuery({
     queryKey: qk.conversations,
-    queryFn: api.listConversations,
+    queryFn: listConversations,
   });
   return data ?? [];
 }
@@ -62,8 +62,49 @@ export function setConversations(
 export function fetchConversations(): Promise<ConversationSummary[]> {
   return queryClient.fetchQuery({
     queryKey: qk.conversations,
-    queryFn: api.listConversations,
+    queryFn: listConversations,
   });
+}
+
+// Rows inserted client-side ahead of the backend having them
+// (`insertConversation`, for a thread's first send). A refetch — any
+// `conversation://changed` invalidation — can land between that insert and
+// the first `save_message` creating the real row; without this the new
+// thread would drop out of the sidebar until the next refetch. Each entry is
+// dropped as soon as a fetch returns its id (or it's deleted). Merging here
+// rather than `cancelQueries` before the insert: a cancelled fetch reverts
+// the cache asynchronously, which would wipe the insert anyway.
+const pendingInserts = new Map<string, ConversationSummary>();
+
+async function listConversations(): Promise<ConversationSummary[]> {
+  const rows = await api.listConversations();
+  for (const row of rows) pendingInserts.delete(row.id);
+  return pendingInserts.size ? [...pendingInserts.values(), ...rows] : rows;
+}
+
+// Adds a conversation the backend doesn't have yet — see `pendingInserts`.
+export function insertConversation(row: ConversationSummary): void {
+  pendingInserts.set(row.id, row);
+  setConversations((prev) =>
+    prev.some((c) => c.id === row.id) ? prev : [row, ...prev],
+  );
+}
+
+export function removeConversation(id: string): void {
+  pendingInserts.delete(id);
+  setConversations((prev) => prev.filter((c) => c.id !== id));
+}
+
+// The one way to change a single listed conversation in place.
+export function patchConversation(
+  id: string,
+  patch: (c: ConversationSummary) => ConversationSummary,
+): void {
+  setConversations((prev) =>
+    prev.some((c) => c.id === id)
+      ? prev.map((c) => (c.id === id ? patch(c) : c))
+      : prev,
+  );
 }
 
 // One shared `conversation://changed` listener for the whole app — see

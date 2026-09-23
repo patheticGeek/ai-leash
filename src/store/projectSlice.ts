@@ -99,7 +99,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
 
   removeProject: async (root) => {
     // Each `deleteConversation` call already removes its own row from the
-    // query cache (`setConversations`), so by the time this resolves the
+    // query cache (`removeConversation`), so by the time this resolves the
     // list needs no further filtering here — only this slice's own state.
     const toDelete = getConversations().filter((c) => c.projectRoot === root);
     await Promise.all(toDelete.map((c) => get().deleteConversation(c.id)));

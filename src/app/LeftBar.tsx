@@ -41,6 +41,7 @@ import {
   permissionForSession,
   useAppStore,
 } from "../store";
+import DeleteConversationDialog from "./DeleteConversationDialog";
 
 // Sentinel for "no project filter" — Radix `Select` doesn't allow an empty
 // string item value (that's reserved to mean "no selection").
@@ -261,6 +262,8 @@ export default function LeftBar() {
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openConversation = useAppStore((s) => s.openConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
+  const [pendingDelete, setPendingDelete] =
+    useState<ConversationSummary | null>(null);
   const setConversationDone = useAppStore((s) => s.setConversationDone);
   const addProject = useAppStore((s) => s.addProject);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
@@ -394,7 +397,7 @@ export default function LeftBar() {
                 }
                 active={c.id === activeSessionId}
                 onClick={() => openConversation(c.id)}
-                onDelete={() => deleteConversation(c.id)}
+                onDelete={() => setPendingDelete(c)}
                 onMarkDone={() => setConversationDone(c.id, true)}
               />
             ))}
@@ -410,7 +413,7 @@ export default function LeftBar() {
                     conversation={c}
                     active={c.id === activeSessionId}
                     onClick={() => openConversation(c.id)}
-                    onDelete={() => deleteConversation(c.id)}
+                    onDelete={() => setPendingDelete(c)}
                     onUndo={() => setConversationDone(c.id, false)}
                   />
                 ))}
@@ -443,6 +446,11 @@ export default function LeftBar() {
           Settings
         </Button>
       </div>
+      <DeleteConversationDialog
+        conversation={pendingDelete}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={deleteConversation}
+      />
     </div>
   );
 }

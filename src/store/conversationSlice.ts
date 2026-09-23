@@ -2,7 +2,9 @@ import type { StateCreator } from "zustand";
 import {
   fetchConversations,
   getConversations,
-  setConversations,
+  insertConversation,
+  patchConversation,
+  removeConversation,
 } from "../data/conversations";
 import { chatDraftKey } from "../lib/chatDraft";
 import { api } from "../lib/tauriApi";
@@ -315,32 +317,29 @@ export const conversationSlice: StateCreator<
     const alreadyListed = getConversations().some((c) => c.id === id);
     if (!alreadyListed) {
       const { projectRoot: currentRoot, projectId: currentProjectId } = get();
-      setConversations((prev) => [
-        {
-          id,
-          projectRoot,
-          // Mirrors what the backend stamps this row with (see
-          // `db::upsert_conversation`'s `ensure_project_connection`) —
-          // the id of the project this thread was started in, which is
-          // the open one. Left null (until the next
-          // `loadAllConversations` reconciles it) in the unexpected case
-          // where it isn't, rather than guessing a wrong id.
-          projectId: currentRoot === projectRoot ? currentProjectId : null,
-          title: null,
-          updatedAt: nowSeconds(),
-          done: false,
-          // Not yet known — this placeholder row is only for the sidebar
-          // list; `conversationBackend`/`permissionMode` (already seeded,
-          // possibly for this very id — see `startNewConversation`'s
-          // copy-forward) are what everything else actually reads.
-          backend: null,
-          model: null,
-          effort: null,
-          permissionMode: null,
-          worktreePath,
-        },
-        ...prev,
-      ]);
+      insertConversation({
+        id,
+        projectRoot,
+        // Mirrors what the backend stamps this row with (see
+        // `db::upsert_conversation`'s `ensure_project_connection`) —
+        // the id of the project this thread was started in, which is
+        // the open one. Left null (until the next
+        // `loadAllConversations` reconciles it) in the unexpected case
+        // where it isn't, rather than guessing a wrong id.
+        projectId: currentRoot === projectRoot ? currentProjectId : null,
+        title: null,
+        updatedAt: nowSeconds(),
+        done: false,
+        // Not yet known — this placeholder row is only for the sidebar
+        // list; `conversationBackend`/`permissionMode` (already seeded,
+        // possibly for this very id — see `startNewConversation`'s
+        // copy-forward) are what everything else actually reads.
+        backend: null,
+        model: null,
+        effort: null,
+        permissionMode: null,
+        worktreePath,
+      });
       set((s) => ({
         checkoutPathBySession: {
           ...s.checkoutPathBySession,
@@ -366,26 +365,25 @@ export const conversationSlice: StateCreator<
   },
 
   touchConversationActivity: (id) =>
-    setConversations((prev) =>
-      prev.some((c) => c.id === id)
-        ? prev.map((c) => (c.id === id ? { ...c, updatedAt: nowSeconds() } : c))
-        : prev,
-    ),
+    patchConversation(id, (c) => ({ ...c, updatedAt: nowSeconds() })),
 
   setConversationTitle: (id, title) =>
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, title } : c)),
-    ),
+    patchConversation(id, (c) => ({ ...c, title })),
 
-  // Optimistic like `setConversationTitle`, but round-trips to the backend
-  // (unlike title, which the backend derives itself) since "done" has no
-  // other source of truth to reconcile against on the next
-  // `loadAllConversations`.
+  // Optimistic, then round-trips to the backend (unlike title, which the
+  // backend derives itself). Rolled back if the write fails, rather than
+  // leaving the sidebar showing a state that was never saved.
   setConversationDone: async (id, done) => {
-    setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, done } : c)),
-    );
-    await api.setConversationDone(id, done);
+    const before = getConversations().find((c) => c.id === id)?.done;
+    patchConversation(id, (c) => ({ ...c, done }));
+    try {
+      await api.setConversationDone(id, done);
+    } catch (e) {
+      if (before !== undefined) {
+        patchConversation(id, (c) => ({ ...c, done: before }));
+      }
+      throw e;
+    }
   },
 
   // Removes a conversation for good — the backend cascades its own
@@ -411,7 +409,7 @@ export const conversationSlice: StateCreator<
     } catch {
       // Best-effort, same as the draft read/write sites in ChatPanel.tsx.
     }
-    setConversations((prev) => prev.filter((c) => c.id !== id));
+    removeConversation(id);
     set((s) => {
       const checkoutPathBySession = { ...s.checkoutPathBySession };
       delete checkoutPathBySession[id];
