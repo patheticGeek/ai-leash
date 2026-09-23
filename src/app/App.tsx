@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useProviderModels } from "../data/backends";
+import { useConversationsListener } from "../data/conversations";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
@@ -36,6 +37,9 @@ function App() {
   // for why a single top-level listener replaces what used to be a
   // per-session one.
   useGeneratingListener();
+  // Always on — keeps the conversation list query live off the backend's
+  // `conversation://changed` event (see its comment).
+  useConversationsListener();
   // Always on — watches every known project's git `HEAD`, not just the
   // ones with a branch label mounted (see its comment).
   useGitBranchWatchers();

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
@@ -19,7 +20,7 @@ export default function ChatPanel({
   projectRoot: string;
 }) {
   const providerConfigFor = useAppStore((s) => s.providerConfigFor);
-  const conversations = useAppStore((s) => s.conversations);
+  const conversations = useConversations();
   const markConversationStarted = useAppStore((s) => s.markConversationStarted);
   const setConversationCheckoutPath = useAppStore(
     (s) => s.setConversationCheckoutPath,
@@ -130,11 +131,9 @@ export default function ChatPanel({
         // so the Sub Agents sidebar and any open sub-agent tab don't keep
         // pointing at now-deleted rows.
         clearSubAgentTasksForParent(sessionId);
-        // The sidebar's cached title otherwise keeps showing whatever this
-        // conversation was called before — the backend already cleared its
-        // stored title along with everything else (`db::clear_conversation`
-        // deletes the `conversations` row outright), so the frontend's own
-        // copy needs to catch up until the next message sets a new one.
+        // The conversation stays listed, but the backend reset its title
+        // (`db::clear_conversation`) so the next message derives a new one —
+        // clear the cached copy now rather than waiting for the refetch.
         setConversationTitle(sessionId, null);
         if (isAcp) {
           // The backend just dropped its connection to this agent (see

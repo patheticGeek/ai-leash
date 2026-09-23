@@ -1,7 +1,23 @@
 use super::ChatMessage;
 use crate::db::{self, PersistedMessage};
 use crate::state::AppState;
-use tauri::State;
+use serde_json::json;
+use tauri::{AppHandle, Emitter, State};
+
+/// Tells the frontend's query cache one conversation changed — see
+/// `src/data/conversations.ts`'s cache-event bridge, which invalidates
+/// `["conversations","list"]` on this regardless of `reason` (a future pass
+/// can start `setQueryData`-ing the specific field instead, once mutations
+/// go through one shared helper — see PLAN.md's Phase 3b). Fires wherever a
+/// conversation row's own columns change; activity (a turn starting, which
+/// bumps sort order) rides the existing `chat://generating` event instead,
+/// since that's already global with `sessionId` in its payload.
+pub(super) fn emit_conversation_changed(app: &AppHandle, conversation_id: &str, reason: &str) {
+    let _ = app.emit(
+        "conversation://changed",
+        json!({ "conversationId": conversation_id, "reason": reason }),
+    );
+}
 
 /// Always reads `session_id`'s full transcript straight from disk — real
 /// timestamps, and includes ACP "thinking" rows — so the frontend can render
@@ -66,6 +82,7 @@ pub fn get_conversation_title(
 
 #[tauri::command]
 pub fn set_conversation_title(
+    app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     title: Option<String>,
@@ -74,6 +91,7 @@ pub fn set_conversation_title(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     db::set_conversation_title(&state.db, &session_id, title.as_deref());
+    emit_conversation_changed(&app, &session_id, "title");
     Ok(())
 }
 
@@ -83,6 +101,7 @@ pub fn set_conversation_title(
 /// DB: only the frontend knows how to build and read it.
 #[tauri::command]
 pub fn set_conversation_backend(
+    app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     project_root: String,
@@ -98,16 +117,19 @@ pub fn set_conversation_backend(
         model.as_deref(),
         effort.as_deref(),
     );
+    emit_conversation_changed(&app, &session_id, "backend");
     Ok(())
 }
 
 #[tauri::command]
 pub fn set_conversation_done(
+    app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
     done: bool,
 ) -> Result<(), String> {
     db::set_conversation_done(&state.db, &session_id, done);
+    emit_conversation_changed(&app, &session_id, "done");
     Ok(())
 }
 
@@ -142,6 +164,7 @@ pub fn list_projects(state: State<AppState>) -> Result<Vec<db::ProjectSummary>, 
 /// `INSERT ... ON CONFLICT DO UPDATE`.
 #[tauri::command]
 pub async fn delete_conversation(
+    app: AppHandle,
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), String> {
@@ -160,6 +183,7 @@ pub async fn delete_conversation(
         super::forget_session_runtime_state(state.inner(), id, true);
     }
     db::delete_conversation(&state.db, &session_id);
+    emit_conversation_changed(&app, &session_id, "deleted");
     Ok(())
 }
 

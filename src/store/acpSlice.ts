@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { getConversations } from "../data/conversations";
 import { qk } from "../data/keys";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { queryClient } from "../lib/queryClient";
@@ -376,7 +377,7 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
     // lands in SQLite, and flushes this map's current entry right after —
     // see that action's own comment for why a DB-existence check at that
     // moment wouldn't work.
-    const listed = get().conversations.find((c) => c.id === sessionId);
+    const listed = getConversations().find((c) => c.id === sessionId);
     if (!listed) return;
     const encoded = encodeConversationBackend(selection);
     if (!encoded) return;

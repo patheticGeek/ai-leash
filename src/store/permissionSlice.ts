@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { getConversations } from "../data/conversations";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import type { PermissionRequestPayload } from "../lib/tauriApi";
 import { api } from "../lib/tauriApi";
@@ -115,7 +116,7 @@ export const permissionSlice: StateCreator<
     // thread from unsent to real *before* its first message actually lands
     // in SQLite, and flushes this map's current entry right after — a
     // DB-existence check at that moment would still say "not yet".
-    const listed = get().conversations.find((c) => c.id === sessionId);
+    const listed = getConversations().find((c) => c.id === sessionId);
     const persist = !!listed;
     const projectRoot = listed?.projectRoot ?? get().projectRoot ?? "";
     void api.setPermissionMode(

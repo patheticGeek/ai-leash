@@ -109,6 +109,7 @@ pub fn respond_permission(
 /// all.
 #[tauri::command]
 pub fn set_permission_mode(
+    app: AppHandle,
     state: State<AppState>,
     session_id: String,
     project_root: String,
@@ -128,6 +129,13 @@ pub fn set_permission_mode(
             &session_id,
             &project_root,
             if bypass { "bypass" } else { "ask" },
+        );
+        // See `chat::history::emit_conversation_changed`'s doc comment — same
+        // event, inlined rather than shared across the module boundary for
+        // one call site.
+        let _ = app.emit(
+            "conversation://changed",
+            json!({ "conversationId": session_id, "reason": "permission" }),
         );
     }
     Ok(())

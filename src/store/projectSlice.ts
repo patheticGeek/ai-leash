@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { getConversations } from "../data/conversations";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
@@ -97,18 +98,17 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   },
 
   removeProject: async (root) => {
-    const toDelete = get().conversations.filter((c) => c.projectRoot === root);
+    // Each `deleteConversation` call already removes its own row from the
+    // query cache (`setConversations`), so by the time this resolves the
+    // list needs no further filtering here — only this slice's own state.
+    const toDelete = getConversations().filter((c) => c.projectRoot === root);
     await Promise.all(toDelete.map((c) => get().deleteConversation(c.id)));
     set((s) => {
       const recentProjects = s.recentProjects.filter((p) => p.path !== root);
       saveRecentProjects(recentProjects);
-      const conversations = s.conversations.filter(
-        (c) => c.projectRoot !== root,
-      );
-      if (s.projectRoot !== root) return { recentProjects, conversations };
+      if (s.projectRoot !== root) return { recentProjects };
       return {
         recentProjects,
-        conversations,
         projectRoot: null,
         projectId: null,
         activeSessionId: null,

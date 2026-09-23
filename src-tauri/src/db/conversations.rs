@@ -145,9 +145,9 @@ pub fn set_conversation_permission_mode(
 /// session id, and (since a sub-agent is owned by whichever conversation
 /// spawned it — see `wipe_conversation_and_sub_agents`) every conversation it
 /// owns, transitively, plus *their* own rows too. Distinct from
-/// `clear_conversation`: that wipes the same set of rows but the top-level
-/// id survives to be reused by the next message (the "/clear" command);
-/// this is "remove it from the sidebar for good."
+/// `clear_conversation` (the "/clear" command), which wipes the same rows
+/// except the conversation's own, so it stays listed; this is "remove it
+/// from the sidebar for good."
 pub fn delete_conversation(db: &Db, conversation_id: &str) {
     let conn = db.0.lock().unwrap();
     wipe_conversation_and_sub_agents(&conn, conversation_id);
@@ -271,13 +271,22 @@ pub fn set_conversation_done(db: &Db, conversation_id: &str, done: bool) {
 }
 
 /// Wipes a conversation's transcript for the local "/clear" command (see
-/// `chat::clear_conversation`), so `save_message`'s `ON CONFLICT` treats the
-/// next message as starting a brand new conversation rather than updating a
-/// leftover `updated_at`. Shares its row-deletion shape with
-/// `delete_conversation` — see `wipe_conversation_and_sub_agents`.
+/// `chat::clear_conversation`) but keeps the conversation itself: its row
+/// (done, worktree, backend/model/permission choice) stays, so it stays in
+/// the sidebar and the next message simply continues it. Only its title is
+/// reset, so the next message derives a fresh one. Everything
+/// it owns (sub-agents) goes entirely, same as `delete_conversation`, and so
+/// does its stored ACP session and rate-limit state — see
+/// `wipe_conversation_and_sub_agents` for why the ACP session must go.
 pub fn clear_conversation(db: &Db, conversation_id: &str) {
     let conn = db.0.lock().unwrap();
-    wipe_conversation_and_sub_agents(&conn, conversation_id);
+    for id in owned_tree(&conn, conversation_id) {
+        wipe_rows(&conn, &id, id != conversation_id);
+    }
+    let _ = conn.execute(
+        "UPDATE conversations SET title = NULL WHERE id = ?1",
+        params![conversation_id],
+    );
 }
 
 /// Deletes `conversation_id` and every conversation it owns, directly or
@@ -294,19 +303,27 @@ pub fn clear_conversation(db: &Db, conversation_id: &str) {
 /// scoped by `launch_command` since a conversation may have switched agents
 /// over its lifetime and all of them should be forgotten.
 ///
-/// Shared by `clear_conversation` (the "/clear" command — the id survives to
-/// be reused), `delete_conversation` (removed from the sidebar for good) and
-/// `sub_agents::delete_sub_agent`.
+/// Shared by `delete_conversation` (removed from the sidebar for good) and
+/// `sub_agents::delete_sub_agent`; `clear_conversation` walks the same tree
+/// but keeps the root's own row.
 pub(super) fn wipe_conversation_and_sub_agents(conn: &Connection, conversation_id: &str) {
     for id in owned_tree(conn, conversation_id) {
-        for sql in [
-            "DELETE FROM messages WHERE conversation_id = ?1",
-            "DELETE FROM conversations WHERE id = ?1",
-            "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
-            "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
-        ] {
-            let _ = conn.execute(sql, params![id]);
-        }
+        wipe_rows(conn, &id, true);
+    }
+}
+
+/// Every row keyed by one conversation id; `include_row` also drops the
+/// `conversations` row itself.
+fn wipe_rows(conn: &Connection, id: &str, include_row: bool) {
+    for sql in [
+        "DELETE FROM messages WHERE conversation_id = ?1",
+        "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
+        "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
+    ] {
+        let _ = conn.execute(sql, params![id]);
+    }
+    if include_row {
+        let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![id]);
     }
 }
 
@@ -731,5 +748,25 @@ mod tests {
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
+    }
+
+    #[test]
+    fn clear_conversation_keeps_the_conversation_row_and_its_settings() {
+        let db = temp_db();
+        save_message(&db, "c1", "/proj", &user_message("hello"));
+        set_conversation_title(&db, "c1", Some("My chat"));
+        set_conversation_backend(&db, "c1", "/proj", "{\"kind\":\"acp\"}", Some("m"), None);
+        record_sub_agent_started(&db, "sub", "c1", "d", "m", None);
+
+        clear_conversation(&db, "c1");
+
+        assert!(load_messages(&db, "c1").is_empty());
+        assert!(!conversation_exists(&db, "sub"));
+        let row = list_all_conversations(&db)
+            .into_iter()
+            .find(|c| c.id == "c1")
+            .expect("cleared conversation stays listed");
+        assert_eq!(row.title, None, "the next message derives a new title");
+        assert_eq!(row.model.as_deref(), Some("m"));
     }
 }

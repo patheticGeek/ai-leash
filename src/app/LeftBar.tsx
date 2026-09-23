@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
+import { useConversations } from "../data/conversations";
 import { useGenerating } from "../lib/generatingQuery";
 import type {
   ElicitationRequestPayload,
@@ -256,7 +257,7 @@ function DoneConversationRow({
 
 export default function LeftBar() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const conversations = useAppStore((s) => s.conversations);
+  const conversations = useConversations();
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openConversation = useAppStore((s) => s.openConversation);
   const deleteConversation = useAppStore((s) => s.deleteConversation);
