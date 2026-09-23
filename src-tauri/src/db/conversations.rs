@@ -31,6 +31,19 @@ pub struct ConversationSummary {
     /// branch live (see `git::watch_git_branch`) instead of trusting a
     /// stored value.
     pub worktree_path: Option<String>,
+    /// Which provider/ACP agent this conversation last talked to — a small
+    /// JSON blob (`{"kind":"builtin","providerId":...}` or
+    /// `{"kind":"acp","acpId":...}`), opaque to Rust — see
+    /// `set_conversation_backend`.
+    pub backend: Option<String>,
+    /// That backend's own model/effort choice — meaningless without
+    /// `backend`, so always read together.
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    /// Ask/Bypass tool-call permission choice ("ask" | "bypass") — see
+    /// `tools::permissions::set_permission_mode`. Missing means "ask", same
+    /// default as the in-memory enforcement side.
+    pub permission_mode: Option<String>,
 }
 
 /// Every top-level conversation across every known project — the
@@ -45,7 +58,8 @@ pub struct ConversationSummary {
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
-        "SELECT id, project_id, project_root, title, updated_at, worktree_path, done \
+        "SELECT id, project_id, project_root, title, updated_at, worktree_path, done, \
+                backend, model, effort, permission_mode \
          FROM conversations \
          WHERE hidden = 0 ORDER BY updated_at DESC",
     ) else {
@@ -60,10 +74,70 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
             updated_at: row.get(4)?,
             worktree_path: row.get(5)?,
             done: row.get(6)?,
+            backend: row.get(7)?,
+            model: row.get(8)?,
+            effort: row.get(9)?,
+            permission_mode: row.get(10)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
     .unwrap_or_default()
+}
+
+/// Persists which backend/model this conversation is using — see
+/// `ConversationSummary::backend`'s doc comment for the encoding. Upserts
+/// like `set_conversation_worktree`: a conversation picks its backend before
+/// it's sent its first message, when no row exists yet, and neither
+/// `project_root` nor this choice are touched by `messages::save_message`'s
+/// own upsert.
+pub fn set_conversation_backend(
+    db: &Db,
+    conversation_id: &str,
+    project_root: &str,
+    backend: &str,
+    model: Option<&str>,
+    effort: Option<&str>,
+) {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    let ts = now();
+    let _ = conn.execute(
+        "INSERT INTO conversations
+         (id, project_root, project_id, backend, model, effort, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
+         ON CONFLICT(id) DO UPDATE SET backend = ?4, model = ?5, effort = ?6",
+        params![
+            conversation_id,
+            project_root,
+            project_id,
+            backend,
+            model,
+            effort,
+            ts
+        ],
+    );
+}
+
+/// Persists the Ask/Bypass choice — see `ConversationSummary::permission_mode`
+/// and `tools::permissions::set_permission_mode`, which calls this alongside
+/// flipping the in-memory enforcement flag. Upserts for the same reason as
+/// `set_conversation_backend`.
+pub fn set_conversation_permission_mode(
+    db: &Db,
+    conversation_id: &str,
+    project_root: &str,
+    mode: &str,
+) {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    let ts = now();
+    let _ = conn.execute(
+        "INSERT INTO conversations
+         (id, project_root, project_id, permission_mode, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+         ON CONFLICT(id) DO UPDATE SET permission_mode = ?4",
+        params![conversation_id, project_root, project_id, mode, ts],
+    );
 }
 
 /// Deletes one conversation outright — its own row, `messages`, stored ACP
@@ -652,5 +726,52 @@ mod tests {
         assert!(name("a", "o1").is_ok());
         assert!(name("b", "o2").is_ok());
         assert!(name("c", "o1").is_err());
+    }
+
+    #[test]
+    fn set_conversation_backend_upserts_before_the_first_message() {
+        let db = temp_db();
+
+        set_conversation_backend(
+            &db,
+            "new",
+            "/proj",
+            "{\"kind\":\"acp\"}",
+            Some("m"),
+            Some("e"),
+        );
+        assert!(conversation_exists(&db, "new"));
+        let row = list_all_conversations(&db).into_iter().next().unwrap();
+        assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
+        assert_eq!(row.model.as_deref(), Some("m"));
+        assert_eq!(row.effort.as_deref(), Some("e"));
+
+        // The conversation's first real message upserts the same row
+        // (`messages::save_message`) and must not clobber what was already
+        // chosen for it.
+        save_message(&db, "new", "/proj", &user_message("hello"));
+        assert_eq!(load_messages(&db, "new").len(), 1);
+        let row = list_all_conversations(&db).into_iter().next().unwrap();
+        assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
+
+        set_conversation_backend(&db, "new", "/proj", "{\"kind\":\"builtin\"}", None, None);
+        let row = list_all_conversations(&db).into_iter().next().unwrap();
+        assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"builtin\"}"));
+        assert_eq!(row.model, None);
+    }
+
+    #[test]
+    fn set_conversation_permission_mode_upserts_independently_of_backend() {
+        let db = temp_db();
+
+        set_conversation_permission_mode(&db, "c1", "/proj", "bypass");
+        let row = list_all_conversations(&db).into_iter().next().unwrap();
+        assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
+        assert_eq!(row.backend, None);
+
+        set_conversation_backend(&db, "c1", "/proj", "{\"kind\":\"acp\"}", None, None);
+        let row = list_all_conversations(&db).into_iter().next().unwrap();
+        assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
+        assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
     }
 }

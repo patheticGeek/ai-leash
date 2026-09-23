@@ -24,8 +24,9 @@ pub use acp_sessions::{
 pub use action_last_run::{clear_last_run_action, get_last_run_action, set_last_run_action};
 pub use conversations::{
     clear_conversation, conversation_exists, delete_conversation, get_conversation_title,
-    list_all_conversations, set_conversation_done, set_conversation_title,
-    set_conversation_worktree, ConversationSummary,
+    list_all_conversations, set_conversation_backend, set_conversation_done,
+    set_conversation_permission_mode, set_conversation_title, set_conversation_worktree,
+    ConversationSummary,
 };
 pub use messages::{
     finish_streaming_message, load_messages, save_message, set_message_duration,

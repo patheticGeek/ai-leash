@@ -4,9 +4,14 @@
 export const LS_KEYS = {
   defaultBackend: "ai-leash:defaultBackend",
   agentBackend: "ai-leash:agentBackend",
+  // Legacy, pre-DB-column keys (per-conversation backend/model and
+  // Ask/Bypass choice moved into `conversations` — see
+  // `acpSlice.hydrateConversationBackendFromRows`/
+  // `permissionSlice.hydratePermissionModeFromRows`) — only ever read once,
+  // for migration, never written.
   conversationBackend: "ai-leash:conversationBackend",
-  providerConfig: "ai-leash:providerConfig",
   permissionMode: "ai-leash:permissionMode",
+  providerConfig: "ai-leash:providerConfig",
   recentProjects: "ai-leash:recentProjects",
   // Legacy, pre-multi-project-sidebar key — only ever read once, for
   // migration into `recentProjects` (see `projectSlice.ts`), never written.

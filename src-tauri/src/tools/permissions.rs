@@ -1,3 +1,4 @@
+use crate::db;
 use crate::state::AppState;
 use serde::Serialize;
 use serde_json::json;
@@ -90,21 +91,44 @@ pub fn respond_permission(
 /// Flips a session between "ask" (the default — every edit/shell/ACP
 /// permission request goes through `request_permission`'s popover) and
 /// "bypass" (auto-approved, no prompt at all) — see the Ask/Bypass selector
-/// in `ChatPanel.tsx`, next to the model picker. Backend-only state (not
-/// persisted to SQLite), so the frontend re-sends this once per session on
-/// mount to restore whatever the user last chose (it persists that choice
-/// itself, in localStorage).
+/// in `ChatPanel.tsx`, next to the model picker. The bypass flag itself is
+/// in-memory only (enforcement has to be instant, so it can't round-trip
+/// through SQLite) and always flips, regardless of `persist`.
+///
+/// The choice is also persisted to `conversations.permission_mode`, but only
+/// when `persist` is true — the frontend passes `false` for a still-unsent
+/// "new thread" conversation (mirrors `commands::set_conversation_root`'s
+/// own `conversation_exists` guard, same reasoning: a thread nobody's typed
+/// into yet shouldn't leave a row behind just because this re-sends on every
+/// mount — see `useSessionPermissions.ts`). Whether that row exists yet is
+/// decided by the frontend, not re-derived here from `conversation_exists`:
+/// `conversationSlice.markConversationStarted` — which flips a thread from
+/// unsent to real — runs *before* the row lands (it's optimistic, ahead of
+/// `save_message`'s own round trip), so a same-moment DB-existence check
+/// here would still see "not yet" and this choice would never get flushed at
+/// all.
 #[tauri::command]
 pub fn set_permission_mode(
     state: State<AppState>,
     session_id: String,
+    project_root: String,
     bypass: bool,
+    persist: bool,
 ) -> Result<(), String> {
     let mut bypass_set = state.permission_bypass.lock().unwrap();
     if bypass {
-        bypass_set.insert(session_id);
+        bypass_set.insert(session_id.clone());
     } else {
         bypass_set.remove(&session_id);
+    }
+    drop(bypass_set);
+    if persist {
+        db::set_conversation_permission_mode(
+            &state.db,
+            &session_id,
+            &project_root,
+            if bypass { "bypass" } else { "ask" },
+        );
     }
     Ok(())
 }

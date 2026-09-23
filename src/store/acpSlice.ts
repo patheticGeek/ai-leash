@@ -8,6 +8,7 @@ import {
   api,
 } from "../lib/tauriApi";
 import { isEnabled } from "./backendSlice";
+import type { ConversationSummary } from "./conversationSlice";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
@@ -169,23 +170,95 @@ export interface ConversationBackendSelection {
   acpEffort: string | null; // last explicitly chosen thought level for the active ACP agent, if any
 }
 
-function loadConversationBackend(): Record<
-  string,
-  ConversationBackendSelection
-> {
-  const parsed = localStorageJson.read<unknown>(
-    LS_KEYS.conversationBackend,
-    {},
-  );
-  return parsed && typeof parsed === "object"
-    ? (parsed as Record<string, ConversationBackendSelection>)
-    : {};
+// Wire shape of `ConversationSummary.backend` — a small JSON blob naming
+// which provider/ACP agent, same discriminated shape as `DefaultBackendRef`
+// in `backendSlice.ts` (that's a coincidence of both meaning "a backend
+// reference", not a shared type — this one is per-conversation and
+// round-trips through SQLite as opaque JSON, so it's kept local to this
+// file's encode/decode pair).
+type ConversationBackendRef =
+  | { kind: "builtin"; providerId: string }
+  | { kind: "acp"; acpId: string };
+
+// `ConversationBackendSelection` keeps both `model` and `acpModel` (and
+// `providerActiveId`/`acpActiveId`) at once so switching `kind` mid-session
+// and back restores whichever the *other* kind last had — but the DB only
+// has one `model`/`effort` slot per conversation, so only the *active*
+// kind's half round-trips through a restart; the other resets to nothing
+// next launch, same as a conversation that's never touched it.
+function encodeConversationBackend(selection: ConversationBackendSelection): {
+  backend: ConversationBackendRef;
+  model: string | null;
+  effort: string | null;
+} | null {
+  if (selection.kind === "acp") {
+    if (!selection.acpActiveId) return null; // nothing chosen yet — nothing to persist
+    return {
+      backend: { kind: "acp", acpId: selection.acpActiveId },
+      model: selection.acpModel,
+      effort: selection.acpEffort,
+    };
+  }
+  if (!selection.providerActiveId) return null;
+  return {
+    backend: { kind: "builtin", providerId: selection.providerActiveId },
+    model: selection.model || null,
+    effort: null,
+  };
 }
 
-function saveConversationBackendMap(
-  map: Record<string, ConversationBackendSelection>,
-) {
-  localStorageJson.write(LS_KEYS.conversationBackend, map);
+function decodeConversationBackend(row: {
+  backend: string | null;
+  model: string | null;
+  effort: string | null;
+}): ConversationBackendSelection | null {
+  if (!row.backend) return null;
+  let ref: ConversationBackendRef;
+  try {
+    ref = JSON.parse(row.backend);
+  } catch {
+    return null;
+  }
+  if (ref.kind === "acp" && ref.acpId) {
+    return {
+      kind: "acp",
+      providerActiveId: "",
+      acpActiveId: ref.acpId,
+      model: "",
+      acpModel: row.model,
+      acpEffort: row.effort,
+    };
+  }
+  if (ref.kind === "builtin" && ref.providerId) {
+    return {
+      kind: "builtin",
+      providerActiveId: ref.providerId,
+      acpActiveId: null,
+      model: row.model ?? "",
+      acpModel: null,
+      acpEffort: null,
+    };
+  }
+  return null;
+}
+
+// Old shape of the pre-DB `LS_KEYS.conversationBackend` blob — same fields
+// as `ConversationBackendSelection` since that's exactly what used to be
+// written there verbatim.
+function legacyConversationBackendEntry(
+  value: unknown,
+): ConversationBackendSelection | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Partial<ConversationBackendSelection>;
+  if (v.kind !== "builtin" && v.kind !== "acp") return null;
+  return {
+    kind: v.kind,
+    providerActiveId: v.providerActiveId ?? "",
+    acpActiveId: v.acpActiveId ?? null,
+    model: v.model ?? "",
+    acpModel: v.acpModel ?? null,
+    acpEffort: v.acpEffort ?? null,
+  };
 }
 
 export interface AcpSlice {
@@ -209,10 +282,20 @@ export interface AcpSlice {
     selection: ConversationBackendSelection,
   ) => void;
   // Drops a deleted conversation's saved backend/model choice — called by
-  // `conversationSlice.deleteConversation` so removing a conversation for
-  // good doesn't leave a permanent, never-read-again entry in this map's
-  // localStorage-backed persistence.
+  // `conversationSlice.deleteConversation`. Rust already drops the row's own
+  // `backend`/`model`/`effort` columns as part of deleting the conversation
+  // itself, so this only needs to clear the in-memory map.
   forgetConversationBackend: (sessionId: string) => void;
+  // Seeds `conversationBackend` from freshly loaded rows — called once from
+  // `conversationSlice.loadAllConversations`. For a row that already has a
+  // `backend` column (the normal case after the first run), decodes it
+  // straight in. Otherwise, the very first time this build runs against an
+  // existing history DB, falls back to the old localStorage blob for that
+  // id, pushes the decoded value to the DB (so it's there next launch) and,
+  // once every row's been checked, removes the old key for good — a
+  // one-shot migration with no separate "have I migrated yet" flag, since
+  // after the first run the key is simply gone.
+  hydrateConversationBackendFromRows: (rows: ConversationSummary[]) => void;
 }
 
 export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
@@ -220,7 +303,10 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
   get,
 ) => ({
   agentBackend: loadAgentBackend(),
-  conversationBackend: loadConversationBackend(),
+  // Seeded by `hydrateConversationBackendFromRows` once conversations load
+  // (see `conversationSlice.loadAllConversations`) — empty until then, same
+  // as `conversations` itself.
+  conversationBackend: {},
 
   saveAcpAgentConfig: (config) => {
     let commandChanged = true;
@@ -276,22 +362,61 @@ export const acpSlice: StateCreator<AppStore, [], [], AcpSlice> = (
     }
   },
 
-  setConversationBackend: (sessionId, selection) =>
-    set((s) => {
-      const conversationBackend = {
-        ...s.conversationBackend,
-        [sessionId]: selection,
-      };
-      saveConversationBackendMap(conversationBackend);
-      return { conversationBackend };
-    }),
+  setConversationBackend: (sessionId, selection) => {
+    set((s) => ({
+      conversationBackend: { ...s.conversationBackend, [sessionId]: selection },
+    }));
+    // Only persist once this is a real, listed conversation —
+    // `useChatSession.ts` re-runs this on every backend/model change,
+    // including for a still-unsent "new thread" (it also re-saves the same
+    // defaults it read at mount), and that must not leave a row behind just
+    // from opening the model picker. `conversations` (not a DB round trip)
+    // is the right check: `conversationSlice.markConversationStarted` flips
+    // a thread from unsent to real *before* its first message actually
+    // lands in SQLite, and flushes this map's current entry right after —
+    // see that action's own comment for why a DB-existence check at that
+    // moment wouldn't work.
+    const listed = get().conversations.find((c) => c.id === sessionId);
+    if (!listed) return;
+    const encoded = encodeConversationBackend(selection);
+    if (!encoded) return;
+    void api.setConversationBackend(
+      sessionId,
+      listed.projectRoot,
+      JSON.stringify(encoded.backend),
+      encoded.model,
+      encoded.effort,
+    );
+  },
 
   forgetConversationBackend: (sessionId) =>
     set((s) => {
       if (!(sessionId in s.conversationBackend)) return s;
       const conversationBackend = { ...s.conversationBackend };
       delete conversationBackend[sessionId];
-      saveConversationBackendMap(conversationBackend);
       return { conversationBackend };
     }),
+
+  hydrateConversationBackendFromRows: (rows) => {
+    const legacy = localStorageJson.read<Record<string, unknown>>(
+      LS_KEYS.conversationBackend,
+      {},
+    );
+    const hasLegacy =
+      legacy && typeof legacy === "object" && Object.keys(legacy).length > 0;
+    for (const row of rows) {
+      if (get().conversationBackend[row.id]) continue;
+      const decoded = decodeConversationBackend(row);
+      if (decoded) {
+        set((s) => ({
+          conversationBackend: { ...s.conversationBackend, [row.id]: decoded },
+        }));
+        continue;
+      }
+      if (!hasLegacy) continue;
+      const migrated = legacyConversationBackendEntry(legacy[row.id]);
+      if (migrated) get().setConversationBackend(row.id, migrated);
+    }
+    if (hasLegacy) localStorage.removeItem(LS_KEYS.conversationBackend);
+  },
 });
