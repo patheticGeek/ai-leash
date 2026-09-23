@@ -23,9 +23,6 @@ export const LS_KEYS = {
   // have actually been sent (listed in `conversations`); a new, unsent
   // thread's tabs live in memory only and are gone on the next restart.
   tabState: "ai-leash:tabState",
-  // Settings > Preferences > Debug toggles — see `preferencesSlice.ts`.
-  debugModeEnabled: "ai-leash:debugModeEnabled",
-  debugShowIds: "ai-leash:debugShowIds",
   debugPanelWidth: "ai-leash:debugPanelWidth",
   // The rest of the floating ACP Events panel's persisted geometry — see
   // `useFloatingDebugPanel.ts`. `debugPanelWidth` predates it being
@@ -34,14 +31,4 @@ export const LS_KEYS = {
   debugPanelHeight: "ai-leash:debugPanelHeight",
   debugPanelX: "ai-leash:debugPanelX",
   debugPanelY: "ai-leash:debugPanelY",
-  // Settings > Preferences — see `preferencesSlice.ts`.
-  composeMode: "ai-leash:composeMode",
-  composerMaxRows: "ai-leash:composerMaxRows",
-  // Settings > Preferences > Fonts — see `fontPreferences.ts`.
-  uiFontFamily: "ai-leash:uiFontFamily",
-  uiFontSize: "ai-leash:uiFontSize",
-  codeFontFamily: "ai-leash:codeFontFamily",
-  codeFontSize: "ai-leash:codeFontSize",
-  // Settings > Preferences > IDE — see `preferencesSlice.ts`.
-  ideCommand: "ai-leash:ideCommand",
 } as const;

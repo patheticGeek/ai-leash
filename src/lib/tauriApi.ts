@@ -11,6 +11,28 @@ export interface FontFamilyInfo {
   monospaced: boolean;
 }
 
+// Wire shape of Rust's `preferences::Preferences` (camelCase). Rust owns the
+// defaults and clamps every write, so treat a value read back as authoritative.
+export interface Preferences {
+  composeMode: boolean;
+  composerMaxRows: number;
+  ideCommand: string;
+  debugModeEnabled: boolean;
+  debugShowIds: boolean;
+  uiFontFamily: string;
+  uiFontSize: number;
+  codeFontFamily: string;
+  codeFontSize: number;
+}
+
+export interface PreferencesSnapshot {
+  preferences: Preferences;
+  // False until the first write, which is when leftover localStorage values
+  // from before preferences moved to Rust get copied over (see
+  // `data/preferences.ts`'s `bootPreferences`).
+  persisted: boolean;
+}
+
 export interface ModelSummary {
   name: string;
   contextLength: number | null;
@@ -301,6 +323,9 @@ export const api = {
   openInIde: (command: string, path: string) =>
     invoke<void>("open_in_ide", { command, path }),
   listSystemFonts: () => invoke<FontFamilyInfo[]>("list_system_fonts"),
+  getPreferences: () => invoke<PreferencesSnapshot>("get_preferences"),
+  setPreferences: (patch: Partial<Preferences>) =>
+    invoke<Preferences>("set_preferences", { patch }),
   // Opens in whichever checkout `sessionId`'s conversation is pinned to
   // (primary or worktree) — see `pty.rs`'s doc comment.
   ptySpawn: (sessionId: string, cols: number, rows: number) =>

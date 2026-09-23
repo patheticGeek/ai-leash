@@ -6,7 +6,6 @@ import { type DebugSlice, debugSlice } from "./debugSlice";
 import { type ElicitationSlice, elicitationSlice } from "./elicitationSlice";
 import { type PanelSlice, panelSlice } from "./panelSlice";
 import { type PermissionSlice, permissionSlice } from "./permissionSlice";
-import { type PreferencesSlice, preferencesSlice } from "./preferencesSlice";
 import { type ProjectSlice, projectSlice } from "./projectSlice";
 import { type ProviderSlice, providerSlice } from "./providerSlice";
 import { type SubAgentSlice, subAgentSlice } from "./subAgentSlice";
@@ -20,8 +19,7 @@ export type AppStore = ProjectSlice &
   SubAgentSlice &
   PanelSlice &
   ConversationSlice &
-  DebugSlice &
-  PreferencesSlice;
+  DebugSlice;
 
 export const useAppStore = create<AppStore>()((...a) => ({
   ...projectSlice(...a),
@@ -34,7 +32,6 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...panelSlice(...a),
   ...conversationSlice(...a),
   ...debugSlice(...a),
-  ...preferencesSlice(...a),
 }));
 
 export type {

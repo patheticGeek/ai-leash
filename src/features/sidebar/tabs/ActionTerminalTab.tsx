@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
+import { getPreferences } from "@/data/preferences";
 import "@xterm/xterm/css/xterm.css";
 import { qk } from "../../../data/keys";
 import {
@@ -13,7 +14,6 @@ import {
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
-import { useAppStore } from "../../../store";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();
@@ -63,9 +63,9 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
 
     const term = new Terminal({
       convertEol: true,
-      fontSize: useAppStore.getState().codeFontSize,
+      fontSize: getPreferences().codeFontSize,
       fontFamily: fontStack(
-        useAppStore.getState().codeFontFamily,
+        getPreferences().codeFontFamily,
         DEFAULT_MONO_STACK,
       ),
       theme: terminalTheme,

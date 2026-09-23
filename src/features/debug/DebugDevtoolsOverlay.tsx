@@ -1,3 +1,4 @@
+import { usePreference } from "@/data/preferences";
 import { useAppStore } from "../../store";
 import DebugEventsPanel from "./DebugEventsPanel";
 import { useDebugEventCapture } from "./useDebugEventCapture";
@@ -20,7 +21,7 @@ import { useFloatingDebugPanel } from "./useFloatingDebugPanel";
 export default function DebugDevtoolsOverlay() {
   useDebugEventCapture();
 
-  const debugModeEnabled = useAppStore((s) => s.debugModeEnabled);
+  const debugModeEnabled = usePreference("debugModeEnabled");
   const debugPanelOpen = useAppStore((s) => s.debugPanelOpen);
   const setDebugPanelOpen = useAppStore((s) => s.setDebugPanelOpen);
 

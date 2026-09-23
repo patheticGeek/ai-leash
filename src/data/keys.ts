@@ -16,6 +16,7 @@ export const qk = {
     ["fs-dir", checkoutPath, path ?? checkoutPath] as const,
   generating: (sessionId: string) => ["generating", sessionId] as const,
   gitBranch: (path: string) => ["git-branch", path] as const,
+  preferences: ["preferences"] as const,
   ollamaModels: (configId: string) => ["ollama-models", configId] as const,
   systemFonts: ["system-fonts"] as const,
 };

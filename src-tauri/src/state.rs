@@ -3,6 +3,7 @@ use crate::actions::ActionRun;
 use crate::chat::ChatMessage;
 use crate::db::Db;
 use crate::mcp_bridge::McpBridgeInfo;
+use crate::preferences::Preferences;
 use crate::provider::ProviderConfig;
 use crate::pty::PtyHandle;
 use agent_client_protocol::schema::v1::ElicitationAction;
@@ -152,6 +153,8 @@ pub struct AppState {
     /// One pending auto-resume timer per conversation with an armed Claude
     /// session-limit resume — see `acp::rate_limit`.
     pub rate_limit_timers: Mutex<HashMap<String, tauri::async_runtime::JoinHandle<()>>>,
+    /// Settings > Preferences — see `preferences.rs`.
+    pub preferences: Mutex<Preferences>,
     /// See `AcpAgentCatalogEntry`'s doc comment.
     pub acp_agent_catalog: Mutex<Vec<AcpAgentCatalogEntry>>,
     /// Guards `acp::refresh_acp_catalog_in_background` so it only ever runs

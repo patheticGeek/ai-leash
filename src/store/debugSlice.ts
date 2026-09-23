@@ -24,13 +24,14 @@ export interface DebugSlice {
   // Only the devtools icon vs. panel visibility — independent of whether
   // events are being captured, so closing the panel never drops anything
   // (per the ask: open/close shouldn't lose events, only turning debug
-  // mode off entirely does — see `setDebugModeEnabled` in
-  // `preferencesSlice.ts`, which owns that toggle).
+  // mode off entirely does — see `resetDebugState`, called by
+  // `useDebugEventCapture` when the preference turns off).
   debugPanelOpen: boolean;
   debugEvents: AcpDebugEvent[];
   setDebugPanelOpen: (open: boolean) => void;
   addDebugEvent: (event: Omit<AcpDebugEvent, "id" | "receivedAt">) => void;
   clearDebugEvents: () => void;
+  resetDebugState: () => void;
 }
 
 export const debugSlice: StateCreator<AppStore, [], [], DebugSlice> = (
@@ -55,4 +56,5 @@ export const debugSlice: StateCreator<AppStore, [], [], DebugSlice> = (
     });
   },
   clearDebugEvents: () => set({ debugEvents: [] }),
+  resetDebugState: () => set({ debugPanelOpen: false, debugEvents: [] }),
 });

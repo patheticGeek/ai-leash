@@ -1,15 +1,15 @@
 import { CodeXml } from "lucide-react";
 import { useState } from "react";
+import { usePreference } from "@/data/preferences";
 import { Button } from "@/ui/button";
 import { api } from "../lib/tauriApi";
 import { useActiveCheckoutPath } from "../lib/useActiveCheckoutPath";
-import { useAppStore } from "../store";
 
 // Title-bar shortcut that opens the active conversation's checkout (primary
 // root or worktree) in the IDE configured under Settings > IDE.
 export default function OpenInIdeButton() {
   const checkoutPath = useActiveCheckoutPath();
-  const ideCommand = useAppStore((s) => s.ideCommand);
+  const ideCommand = usePreference("ideCommand");
   const [error, setError] = useState<string | null>(null);
 
   if (!checkoutPath) return null;
