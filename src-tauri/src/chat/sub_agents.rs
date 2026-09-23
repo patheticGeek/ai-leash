@@ -85,30 +85,36 @@ pub(crate) fn run_sub_agent<'a>(
                     .map(|m| m.content)
             });
 
-        match final_text {
-            Some(text) => Ok(text),
-            // No real assistant message came out of the loop — this
-            // sub-agent's own transcript would otherwise end on its "user"
-            // prompt with no visible outcome at all. `db::get_sub_agent_for_parent`/
-            // `list_sub_agents_for_parent` read a sub-agent's result as
-            // "its last message", so push one here rather than only handing
-            // the text back to the caller (`sub_agent_tools.rs`'s
-            // `record_sub_agent_result`, which injects it into the
-            // *parent's* transcript, not this one's).
-            None => {
-                let text = match loop_result {
-                    Err(e) => format!("Subtask failed: {e}"),
-                    Ok(()) => "Subtask finished without a final response.".to_string(),
-                };
-                push_message(
-                    state,
-                    sub_session_id,
-                    ChatMessage {
-                        role: "assistant".into(),
-                        content: text.clone(),
-                        tool_calls: None,
-                    },
-                );
+        // Every outcome leaves a real assistant message as the last one in
+        // this sub-agent's own transcript: `db::get_sub_agent_for_parent`/
+        // `list_sub_agents_for_parent` read its result as "its last
+        // message", and the handed-back text alone only reaches the
+        // *parent's* transcript (`record_sub_agent_result`).
+        //
+        // A loop error is an error even if some text came out first — `Err`
+        // makes the caller (`sub_agent_tools.rs`) record it as failed and
+        // format the result as `"Error: {e}"`, the same text pushed here and
+        // the same shape `acp::run_sub_agent_acp` uses.
+        let push_final = |text: String| {
+            push_message(
+                state,
+                sub_session_id,
+                ChatMessage {
+                    role: "assistant".into(),
+                    content: text,
+                    tool_calls: None,
+                },
+            );
+        };
+        match (loop_result, final_text) {
+            (Err(e), _) => {
+                push_final(format!("Error: {e}"));
+                Err(e)
+            }
+            (Ok(()), Some(text)) => Ok(text),
+            (Ok(()), None) => {
+                let text = "Subtask finished without a final response.".to_string();
+                push_final(text.clone());
                 Ok(text)
             }
         }

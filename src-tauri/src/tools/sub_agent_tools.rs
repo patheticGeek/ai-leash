@@ -290,6 +290,7 @@ pub(super) fn spawn_sub_agent(
             &display_model,
             display_effort.as_deref(),
         );
+        emit_agent_lifecycle(app, &sub_session_id, session_id, "running");
         let _ = app.emit(
             &format!("chat://{session_id}/subtask_start"),
             json!({
@@ -372,6 +373,16 @@ pub(super) fn spawn_sub_agent(
                 Err(e) => ("error", format!("Error: {e}")),
             };
             db::record_sub_agent_finished(&state.db, &sub_session_id, status);
+            emit_agent_lifecycle(
+                &app_owned,
+                &sub_session_id,
+                &session_id_owned,
+                if status == "error" {
+                    "failed"
+                } else {
+                    "stopped"
+                },
+            );
             // Nothing below resolves this sub-agent's root anymore — only the
             // parent's, which resumes or is notified next.
             drop(link);
@@ -438,6 +449,23 @@ pub(super) fn spawn_sub_agent(
         "Spawned {count} sub-agent(s): {}. Results will be appended to this chat as each finishes — no need to call list_sub_agents or read_sub_agent to check, just continue or stop here and wait.",
         labels.join(", ")
     ))
+}
+
+/// Tells the frontend a sub-agent's `lifecycle` changed — one global event
+/// with ids in the payload (see `src/data/subAgents.ts`'s listener, which
+/// refetches `ownerId`'s sub-agent list), rather than per-sub-agent
+/// `chat://{id}/done`/`error` listeners the frontend can only register after
+/// `subtask_start` arrives, and so can miss for a sub-agent that finishes
+/// near-instantly.
+fn emit_agent_lifecycle(app: &AppHandle, conversation_id: &str, owner_id: &str, lifecycle: &str) {
+    let _ = app.emit(
+        "agent://lifecycle",
+        json!({
+            "conversationId": conversation_id,
+            "ownerId": owner_id,
+            "lifecycle": lifecycle,
+        }),
+    );
 }
 
 pub(super) async fn list_agent_options(

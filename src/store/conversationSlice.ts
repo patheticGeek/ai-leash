@@ -393,7 +393,7 @@ export const conversationSlice: StateCreator<
   // mirrors that on the frontend: drops the now-stale in-memory entries in
   // `conversationBackend`/`permissionMode` and panel-/chat-tab state (both
   // in-memory and its disk-persisted entry) this id will never use again,
-  // its chat draft, and any sub-agent bookkeeping (`subAgentTasks`/
+  // its chat draft, and any sub-agent bookkeeping (cached list/
   // `subAgentThreads`/their
   // `chatTabs`) via the same `clearSubAgentTasksForParent` action `/clear`
   // already uses.

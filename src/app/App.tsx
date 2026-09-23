@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useProviderModels } from "../data/backends";
 import { useConversationsListener } from "../data/conversations";
+import { useSubAgentsListener } from "../data/subAgents";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
@@ -26,7 +27,6 @@ function App() {
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
-  const loadSubAgentTasks = useAppStore((s) => s.loadSubAgentTasks);
   const agentBackend = useAppStore((s) => s.agentBackend);
   const fetchAcpModelsFor = useAppStore((s) => s.fetchAcpModelsFor);
 
@@ -40,6 +40,8 @@ function App() {
   // Always on — keeps the conversation list query live off the backend's
   // `conversation://changed` event (see its comment).
   useConversationsListener();
+  // Always on — keeps every open sub-agent list live off `agent://lifecycle`.
+  useSubAgentsListener();
   // Always on — watches every known project's git `HEAD`, not just the
   // ones with a branch label mounted (see its comment).
   useGitBranchWatchers();
@@ -110,17 +112,6 @@ function App() {
   useEffect(() => {
     initializeStartupSession();
   }, [initializeStartupSession]);
-
-  // Runs on every conversation switch regardless of whether the Sub Agents
-  // panel tab is even open — that tab is `mountMode: "active-only"`
-  // (`tabKinds.ts`), so relying on its own mount effect alone left
-  // `subAgentTasks` (and every count derived from it — the Sub Agents tab
-  // itself, `SidePanel.tsx`'s inline badge, `TabPicker.tsx`'s corner badge)
-  // showing whatever the *previous* conversation last loaded until the user
-  // happened to open that tab for the new one.
-  useEffect(() => {
-    if (activeSessionId) loadSubAgentTasks(activeSessionId);
-  }, [activeSessionId, loadSubAgentTasks]);
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no

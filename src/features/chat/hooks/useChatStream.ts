@@ -60,10 +60,10 @@ function addSubtaskThread(
   return prev.map((entry) =>
     entry.kind === "tool" &&
     entry.callId === callId &&
-    // Idempotent — see `startSubAgentTask`'s doc comment (same
-    // StrictMode-double-invoke race, same fix): without this, a raced
-    // `subtask_start` would also nest this sub-agent's thread twice under
-    // the tool-call bubble, not just duplicate its sidebar entry.
+    // Idempotent — React StrictMode double-invokes this hook's effect in dev,
+    // and its async cleanup (`listen()`'s unlisten, itself a promise) can
+    // leave two `subtask_start` listeners briefly live; without this a raced
+    // event would nest this sub-agent's thread twice under the tool call.
     !entry.subtasks?.some((t) => t.subSessionId === subSessionId)
       ? {
           ...entry,
@@ -110,8 +110,6 @@ export function useChatStream(
   sessionId: string,
   setError: (message: string) => void,
 ) {
-  const startSubAgentTask = useAppStore((s) => s.startSubAgentTask);
-  const finishSubAgentTask = useAppStore((s) => s.finishSubAgentTask);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
 
@@ -277,7 +275,7 @@ export function useChatStream(
     // subtask's own thread, nested under the parent tool call once expanded.
     unlistens.push(
       listen<SubtaskStartPayload>(`chat://${sessionId}/subtask_start`, (e) => {
-        const { subSessionId, description, prompt, model, effort } = e.payload;
+        const { subSessionId, description, prompt } = e.payload;
         const callId = String(e.payload.callId);
 
         // The backend persists the prompt as the sub-agent's first user
@@ -297,39 +295,14 @@ export function useChatStream(
           ]),
         );
         setSubAgentEntries(subSessionId, () => [promptEntry]);
-        startSubAgentTask({
-          subSessionId,
-          parentSessionId: sessionId,
-          description,
-          model,
-          effort: effort ?? undefined,
-        });
         // Surface the running sub-agent immediately rather than leaving the
         // user to notice it under a collapsed tool-call entry.
         openPanelTab("subagents");
 
-        const doneListener = listen(`chat://${subSessionId}/done`, () => {
-          finishSubAgentTask(subSessionId, "done");
-        });
-        const errorListener = listen(`chat://${subSessionId}/error`, () => {
-          finishSubAgentTask(subSessionId, "error");
-        });
-        unlistens.push(doneListener, errorListener);
-        // A sub-agent that finishes near-instantly (e.g. an immediate
-        // provider error, no streaming at all) can resolve before the two
-        // listeners just above have actually finished registering —
-        // `listen()` is itself an async round trip, so emitting
-        // `subtask_start` first doesn't guarantee it. Once they're attached,
-        // reconcile once against the backend's current state so a finish
-        // that raced past them still gets picked up, instead of leaving this
-        // stuck on "running" until the next full reload.
-        Promise.all([doneListener, errorListener]).then(async () => {
-          const rows = await api.listSubAgents(sessionId).catch(() => []);
-          const row = rows.find((r) => r.id === subSessionId);
-          if (row && row.status !== "running") {
-            finishSubAgentTask(subSessionId, row.status);
-          }
-        });
+        // Its status (running → done/error) isn't tracked here: the Sub
+        // Agents list is a query (`useSubAgents`) refreshed by the global
+        // `agent://lifecycle` event, which can't be missed the way a
+        // per-sub-agent listener registered only after this event could.
         unlistens.push(
           listen<string>(`chat://${subSessionId}/thinking`, (ev) => {
             setEntries((prev) =>
@@ -409,14 +382,7 @@ export function useChatStream(
         u.then((f) => f());
       });
     };
-  }, [
-    sessionId,
-    startSubAgentTask,
-    finishSubAgentTask,
-    openPanelTab,
-    setSubAgentEntries,
-    setError,
-  ]);
+  }, [sessionId, openPanelTab, setSubAgentEntries, setError]);
 
   return {
     entries,

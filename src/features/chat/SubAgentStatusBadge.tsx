@@ -1,5 +1,5 @@
 import { Badge } from "@/ui/badge";
-import type { SubAgentTask } from "../../store/subAgentSlice";
+import type { SubAgentTask } from "../../data/subAgents";
 
 const STATUS_VARIANT = {
   running: "warning",

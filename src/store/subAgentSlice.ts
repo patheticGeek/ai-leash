@@ -1,58 +1,34 @@
 import type { StateCreator } from "zustand";
+import { qk } from "../data/keys";
+import { getSubAgents, setSubAgents } from "../data/subAgents";
 import type { Entry } from "../lib/chatEntries";
+import { queryClient } from "../lib/queryClient";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
 
-export interface SubAgentTask {
-  subSessionId: string;
-  parentSessionId: string;
-  description: string;
-  status: "running" | "done" | "error";
-  startedAt: number;
-  endedAt?: number;
-  model: string;
-  effort?: string;
-}
+export type { SubAgentTask } from "../data/subAgents";
 
+// The sub-agent *list* (status, timings, model) is a query now — see
+// `data/subAgents.ts`'s `useSubAgents(ownerId)`. What stays here is only
+// the live, per-frame part: each sub-agent's streamed transcript while it
+// runs, plus the cleanup that goes with removing one.
 export interface SubAgentSlice {
-  subAgentTasks: SubAgentTask[];
-  // Bumped every time `clearSubAgentTasksForParent` runs. Lets an in-flight
-  // `loadSubAgentTasks()` fetch (started before the clear) detect that its
-  // result is now stale and must not merge stale rows back in — see
-  // `loadSubAgentTasks`.
-  subAgentTasksEpoch: number;
   subAgentThreads: Record<string, Entry[]>;
-  startSubAgentTask: (task: {
-    subSessionId: string;
-    parentSessionId: string;
-    description: string;
-    model: string;
-    effort?: string;
-  }) => void;
-  finishSubAgentTask: (subSessionId: string, status: "done" | "error") => void;
-  // Drops every sub-agent spawned by `parentSessionId` from local state —
-  // called alongside `/clear` (`ChatPanel.tsx`), since `chat::
-  // clear_conversation` now deletes their rows on the backend too
-  // (`db::clear_conversation`) rather than leaving them as orphaned rows a
-  // cleared conversation can no longer reach. Also closes any of their open
-  // `chatTabs` (a stale tab pointing at a just-deleted transcript would
-  // 404 the next time `load_conversation_history` runs for it) and drops
-  // their live `subAgentThreads`.
+  // Drops every sub-agent spawned by `parentSessionId` from the frontend —
+  // called alongside `/clear` (`ChatPanel.tsx`) and a conversation delete,
+  // since the backend deletes their rows too. Empties the cached list right
+  // away (the `conversation://changed` refetch confirms it), and when the
+  // parent is the open conversation also closes their `chatTabs` (a stale
+  // tab pointing at a deleted transcript would 404 on its next load) and
+  // drops their live `subAgentThreads`.
   clearSubAgentTasksForParent: (parentSessionId: string) => void;
   // Removes a single finished sub-agent (Sub Agents tab's delete button —
-  // see `SubAgentsTab.tsx`), both on the backend (`db::delete_sub_agent`)
-  // and from local state/tabs, the same bookkeeping
-  // `clearSubAgentTasksForParent` does for a whole parent's worth at once.
-  deleteSubAgentTask: (subSessionId: string) => Promise<void>;
-  // Backend is the source of truth (SQLite, kept indefinitely) — this merges
-  // in anything not already known locally, without clobbering live updates
-  // a `subtask_start`/`done`/`error` event may have already applied. Safe
-  // to call repeatedly (e.g. whenever `SubAgentsTab` mounts or
-  // `activeSessionId` changes — it only ever fetches `parentSessionId`'s own
-  // sub-agents, since that's the sidebar's whole scope). Discards its result
-  // if `clearSubAgentTasksForParent` ran while the fetch was in flight, so a
-  // stale read can't resurrect rows a `/clear` just removed.
-  loadSubAgentTasks: (parentSessionId: string) => Promise<void>;
+  // see `SubAgentsTab.tsx`), on the backend (`db::delete_sub_agent`) and in
+  // the cached list, tabs and threads.
+  deleteSubAgentTask: (
+    parentSessionId: string,
+    subSessionId: string,
+  ) => Promise<void>;
   setSubAgentEntries: (
     subSessionId: string,
     updater: (prev: Entry[]) => Entry[],
@@ -63,114 +39,43 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
   set,
   get,
 ) => ({
-  subAgentTasks: [],
-  subAgentTasksEpoch: 0,
   subAgentThreads: {},
 
-  startSubAgentTask: ({
-    subSessionId,
-    parentSessionId,
-    description,
-    model,
-    effort,
-  }) =>
+  clearSubAgentTasksForParent: (parentSessionId) => {
+    const ownsOpenTabs = get().activeSessionId === parentSessionId;
+    const removedIds = new Set(
+      getSubAgents(parentSessionId).map((t) => t.subSessionId),
+    );
+    if (ownsOpenTabs) {
+      for (const t of get().chatTabs) {
+        if (t.kind === "subagent") removedIds.add(t.subSessionId);
+      }
+    }
+    setSubAgents(parentSessionId, () => []);
+    if (removedIds.size === 0) return;
     set((s) => {
-      // Idempotent — React StrictMode double-invokes `useChatStream.ts`'s
-      // effect in dev, and its async cleanup (`listen()`'s own unlisten,
-      // itself a promise) isn't guaranteed to land before a second `listen`
-      // call registers — a `subtask_start` that arrives in that gap would
-      // otherwise fire both listeners and add this sub-agent twice.
-      if (s.subAgentTasks.some((t) => t.subSessionId === subSessionId))
-        return s;
-      return {
-        subAgentTasks: [
-          ...s.subAgentTasks,
-          {
-            subSessionId,
-            parentSessionId,
-            description,
-            status: "running",
-            startedAt: Date.now(),
-            model,
-            effort,
-          },
-        ],
-      };
-    }),
-
-  loadSubAgentTasks: async (parentSessionId) => {
-    const epochAtStart = get().subAgentTasksEpoch;
-    const rows = await api.listSubAgents(parentSessionId);
-    set((s) => {
-      // A `/clear` ran while this fetch was in flight — `rows` reflects a
-      // pre-clear snapshot, so merging it back in would resurrect entries
-      // `clearSubAgentTasksForParent` just removed. Drop it.
-      if (s.subAgentTasksEpoch !== epochAtStart) return s;
-      const known = new Set(s.subAgentTasks.map((t) => t.subSessionId));
-      const fromDb: SubAgentTask[] = rows
-        .filter((r) => !known.has(r.id))
-        .map((r) => ({
-          subSessionId: r.id,
-          parentSessionId: r.parentSessionId,
-          description: r.description,
-          status: r.status,
-          startedAt: r.startedAt * 1000,
-          endedAt: r.finishedAt ? r.finishedAt * 1000 : undefined,
-          model: r.model,
-          effort: r.effort ?? undefined,
-        }));
-      return fromDb.length
-        ? { subAgentTasks: [...s.subAgentTasks, ...fromDb] }
-        : s;
-    });
-  },
-
-  finishSubAgentTask: (subSessionId, status) =>
-    set((s) => ({
-      subAgentTasks: s.subAgentTasks.map((t) =>
-        t.subSessionId === subSessionId
-          ? { ...t, status, endedAt: Date.now() }
-          : t,
-      ),
-    })),
-
-  clearSubAgentTasksForParent: (parentSessionId) =>
-    set((s) => {
-      const removedIds = new Set(
-        s.subAgentTasks
-          .filter((t) => t.parentSessionId === parentSessionId)
-          .map((t) => t.subSessionId),
-      );
-      // Always bump the epoch, even with nothing locally known to remove yet:
-      // an initial `loadSubAgentTasks()` fetch may still be in flight and
-      // would otherwise merge in this parent's now-deleted rows once it
-      // resolves (see `loadSubAgentTasks`).
-      if (removedIds.size === 0)
-        return { subAgentTasksEpoch: s.subAgentTasksEpoch + 1 };
-
-      const subAgentTasks = s.subAgentTasks.filter(
-        (t) => !removedIds.has(t.subSessionId),
-      );
       const subAgentThreads = Object.fromEntries(
         Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
       );
+      if (!ownsOpenTabs) return { subAgentThreads };
       const chatTabs = s.chatTabs.filter(
         (t) => t.kind !== "subagent" || !removedIds.has(t.subSessionId),
       );
       const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
         ? s.activeChatTabId
         : "primary";
-      return {
-        subAgentTasks,
-        subAgentThreads,
-        chatTabs,
-        activeChatTabId,
-        subAgentTasksEpoch: s.subAgentTasksEpoch + 1,
-      };
-    }),
+      return { subAgentThreads, chatTabs, activeChatTabId };
+    });
+  },
 
-  deleteSubAgentTask: async (subSessionId) => {
+  deleteSubAgentTask: async (parentSessionId, subSessionId) => {
     await api.deleteSubAgent(subSessionId);
+    setSubAgents(parentSessionId, (prev) =>
+      prev.filter((t) => t.subSessionId !== subSessionId),
+    );
+    void queryClient.invalidateQueries({
+      queryKey: qk.subAgents(parentSessionId),
+    });
     set((s) => {
       const chatTabs = s.chatTabs.filter(
         (t) => t.kind !== "subagent" || t.subSessionId !== subSessionId,
@@ -180,18 +85,7 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
         : "primary";
       const subAgentThreads = { ...s.subAgentThreads };
       delete subAgentThreads[subSessionId];
-      return {
-        subAgentTasks: s.subAgentTasks.filter(
-          (t) => t.subSessionId !== subSessionId,
-        ),
-        subAgentThreads,
-        chatTabs,
-        activeChatTabId,
-        // Guards against a `loadSubAgentTasks()` fetch that was already in
-        // flight from re-adding this id once it resolves with stale data —
-        // same reasoning as `clearSubAgentTasksForParent`.
-        subAgentTasksEpoch: s.subAgentTasksEpoch + 1,
-      };
+      return { subAgentThreads, chatTabs, activeChatTabId };
     });
   },
 

@@ -1,3 +1,4 @@
+import { useSubAgents } from "@/data/subAgents";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
@@ -11,13 +12,10 @@ export default function TabPicker({
   // Scoped to the active conversation, same as `SubAgentsTab.tsx`/
   // `SidePanel.tsx`'s own badge — otherwise this would count another
   // conversation's still-running sub-agents too.
-  const runningSubAgents = useAppStore(
-    (s) =>
-      s.subAgentTasks.filter(
-        (t) =>
-          t.status === "running" && t.parentSessionId === s.activeSessionId,
-      ).length,
-  );
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const runningSubAgents = useSubAgents(activeSessionId).filter(
+    (t) => t.status === "running",
+  ).length;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
