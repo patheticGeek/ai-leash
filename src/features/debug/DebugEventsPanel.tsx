@@ -1,5 +1,6 @@
 import { MoveDiagonal2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useConversations } from "@/data/conversations";
 import { Button } from "@/ui/button";
 import { JsonViewer } from "@/ui/json-viewer";
 import {
@@ -33,7 +34,7 @@ export default function DebugEventsPanel({
   const events = useAppStore((s) => s.debugEvents);
   const clearDebugEvents = useAppStore((s) => s.clearDebugEvents);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const conversations = useAppStore((s) => s.conversations);
+  const conversations = useConversations();
   const [filter, setFilter] = useState<string>(ALL_CONVERSATIONS);
 
   const conversationIds = useMemo(() => {

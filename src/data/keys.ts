@@ -8,6 +8,11 @@
 export const qk = {
   acpCatalog: ["acp-agent-catalog"] as const,
   actions: (checkoutPath: string | null) => ["actions", checkoutPath] as const,
+  // Every top-level conversation across every known project — see
+  // `src/data/conversations.ts`. `useConversation(id)` selects from this
+  // same query rather than a second fetch, so there is no separate
+  // `["conversation", id]` key yet (see PLAN.md's Phase 3 note on this).
+  conversations: ["conversations", "list"] as const,
   // Prefix of every `fsDir` key — for predicate-based invalidation.
   fsDirs: ["fs-dir"] as const,
   // The path slot is always a real absolute path (the checkout root listing

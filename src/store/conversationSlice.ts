@@ -1,39 +1,23 @@
 import type { StateCreator } from "zustand";
+import {
+  fetchConversations,
+  getConversations,
+  setConversations,
+} from "../data/conversations";
 import { chatDraftKey } from "../lib/chatDraft";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
 import type { PanelTab } from "./panelSlice";
 import { PRIMARY_CHAT_TAB } from "./panelSlice";
 
-export interface ConversationSummary {
-  id: string;
-  projectRoot: string;
-  // Stable project UUID (`db::ensure_project`'s id) — distinct from
-  // `projectRoot`'s filesystem path, which can move; only null for rows
-  // written before this column existed (see `db/mod.rs`'s backfill).
-  projectId: string | null;
-  title: string | null;
-  updatedAt: number; // epoch seconds, matches the backend's `ConversationSummary`
-  // Sidebar organization only — see `setConversationDone`. Marked done
-  // conversations sort to their own collapsed section at the bottom of
-  // `LeftBar` instead of the main list.
-  done: boolean;
-  // Non-null only when this conversation runs in a worktree instead of the
-  // project's primary checkout — see `BranchBar`. Never a branch name: what's
-  // checked out there can change outside the app, so the frontend always
-  // reads it live (`api.watchGitBranch`) instead of trusting a stored value.
-  worktreePath: string | null;
-  // Persisted provider/model/permission choice — read once, at load, by
-  // `acpSlice.hydrateConversationBackendFromRows`/
-  // `permissionSlice.hydratePermissionModeFromRows`, which own decoding and
-  // day-to-day access from here on (`conversationBackend`/`permissionMode`).
-  // Kept on this row too (rather than dropped after hydration) only because
-  // it's what the backend already sends; nothing else reads it off here.
-  backend: string | null;
-  model: string | null;
-  effort: string | null;
-  permissionMode: string | null;
-}
+// The canonical shape now lives in `lib/tauriApi.ts` (the wire type) and is
+// re-exported via `data/conversations.ts` — this file only owns the actions
+// around it, not the type itself. Re-exported here too so existing imports
+// (`store/index.ts`, `acpSlice.ts`, `permissionSlice.ts`) don't all need a
+// new import path.
+export type { ConversationSummary } from "../data/conversations";
+
+import type { ConversationSummary } from "../data/conversations";
 
 // The resolved checkout a conversation runs in — a worktree, or the
 // project's primary checkout when there isn't one. Backend state that's
@@ -65,18 +49,17 @@ function nowSeconds(): number {
 let latestSwitchToken = 0;
 
 export interface ConversationSlice {
-  // Every top-level conversation across every known project — the
-  // sidebar's own scope (`LeftBar.tsx`), loaded once at startup via
-  // `loadAllConversations` and kept in sync incrementally from then on
-  // (`markConversationStarted`/`touchConversationActivity`/
-  // `setConversationTitle`) rather than re-fetched on every change.
-  conversations: ConversationSummary[];
   // The conversation currently shown in the center pane. Minted up front
   // the moment a project is picked (`startNewConversation`/
   // `openConversation`/`initializeStartupSession`) rather than deferred to
   // first send, so `App.tsx`'s `key={activeSessionId}` remount boundary
   // never has to fire mid-turn — see `conversationSlice.ts`'s module doc.
   // Only null before any project has ever been known.
+  //
+  // The list itself (`conversations`) is no longer Zustand state — see
+  // `data/conversations.ts`'s `useConversations()`/`getConversations()` —
+  // this slice keeps only what's genuinely per-session UI state, plus the
+  // actions that drive both.
   activeSessionId: string | null;
   // The checkout each known session is currently pinned to. Unlike
   // `conversations[*].worktreePath`, this also covers still-new threads that
@@ -108,24 +91,16 @@ export const conversationSlice: StateCreator<
   [],
   ConversationSlice
 > = (set, get) => ({
-  conversations: [],
   activeSessionId: null,
   checkoutPathBySession: {},
 
-  // Backend is the source of truth (SQLite, kept indefinitely) — this
-  // merges in anything not already known locally, without clobbering a
-  // conversation `markConversationStarted` already optimistically inserted
-  // ahead of its own first `save_message` landing (same non-destructive
-  // merge as `subAgentSlice.loadSubAgentTasks`).
+  // Backend is the source of truth (SQLite, kept indefinitely) — a plain
+  // fetch is safe here (no merge-with-optimistic-rows dance needed): this
+  // only ever runs once, from `initializeStartupSession` at boot, before
+  // anything could have optimistically inserted a still-unsent conversation
+  // (`markConversationStarted`).
   loadAllConversations: async () => {
-    const rows = await api.listConversations();
-    set((s) => {
-      const known = new Set(s.conversations.map((c) => c.id));
-      const fresh = rows.filter((r) => !known.has(r.id));
-      return fresh.length
-        ? { conversations: [...s.conversations, ...fresh] }
-        : s;
-    });
+    const rows = await fetchConversations();
     get().hydrateConversationBackendFromRows(rows);
     get().hydratePermissionModeFromRows(rows);
   },
@@ -136,7 +111,8 @@ export const conversationSlice: StateCreator<
   // message is sent) without selecting any real, listed conversation.
   initializeStartupSession: async () => {
     await get().loadAllConversations();
-    const { conversations, recentProjects } = get();
+    const conversations = getConversations();
+    const { recentProjects } = get();
     if (recentProjects.length === 0) return;
     const lastConversation = [...conversations].sort(
       (a, b) => b.updatedAt - a.updatedAt,
@@ -162,7 +138,7 @@ export const conversationSlice: StateCreator<
   // per-conversation), then swaps panel/chat-tab state exactly like the old
   // `openProject` did, just keyed by conversation id instead of project path.
   openConversation: async (id) => {
-    const conversation = get().conversations.find((c) => c.id === id);
+    const conversation = getConversations().find((c) => c.id === id);
     if (!conversation) return;
     const { projectRoot } = conversation;
     const checkoutPath = conversationCheckoutPath(conversation);
@@ -257,7 +233,7 @@ export const conversationSlice: StateCreator<
   // those maps via their lazy `useState` initializers.
   startNewConversation: async (projectRoot) => {
     const id = crypto.randomUUID();
-    const prior = [...get().conversations]
+    const prior = [...getConversations()]
       .filter((c) => c.projectRoot === projectRoot)
       .sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (prior) {
@@ -336,45 +312,45 @@ export const conversationSlice: StateCreator<
   // re-stamping `checkoutPathBySession` here would reset an existing
   // worktree conversation back to the primary root.
   markConversationStarted: (id, projectRoot, worktreePath = null) => {
-    const alreadyListed = get().conversations.some((c) => c.id === id);
-    set((s) => {
-      if (s.conversations.some((c) => c.id === id)) return s;
-      return {
+    const alreadyListed = getConversations().some((c) => c.id === id);
+    if (!alreadyListed) {
+      const { projectRoot: currentRoot, projectId: currentProjectId } = get();
+      setConversations((prev) => [
+        {
+          id,
+          projectRoot,
+          // Mirrors what the backend stamps this row with (see
+          // `db::upsert_conversation`'s `ensure_project_connection`) —
+          // the id of the project this thread was started in, which is
+          // the open one. Left null (until the next
+          // `loadAllConversations` reconciles it) in the unexpected case
+          // where it isn't, rather than guessing a wrong id.
+          projectId: currentRoot === projectRoot ? currentProjectId : null,
+          title: null,
+          updatedAt: nowSeconds(),
+          done: false,
+          // Not yet known — this placeholder row is only for the sidebar
+          // list; `conversationBackend`/`permissionMode` (already seeded,
+          // possibly for this very id — see `startNewConversation`'s
+          // copy-forward) are what everything else actually reads.
+          backend: null,
+          model: null,
+          effort: null,
+          permissionMode: null,
+          worktreePath,
+        },
+        ...prev,
+      ]);
+      set((s) => ({
         checkoutPathBySession: {
           ...s.checkoutPathBySession,
           [id]: worktreePath ?? projectRoot,
         },
-        conversations: [
-          {
-            id,
-            projectRoot,
-            // Mirrors what the backend stamps this row with (see
-            // `db::upsert_conversation`'s `ensure_project_connection`) —
-            // the id of the project this thread was started in, which is
-            // the open one. Left null (until the next
-            // `loadAllConversations` reconciles it) in the unexpected case
-            // where it isn't, rather than guessing a wrong id.
-            projectId: s.projectRoot === projectRoot ? s.projectId : null,
-            title: null,
-            updatedAt: nowSeconds(),
-            done: false,
-            // Not yet known — this placeholder row is only for the sidebar
-            // list; `conversationBackend`/`permissionMode` (already seeded,
-            // possibly for this very id — see `startNewConversation`'s
-            // copy-forward) are what everything else actually reads.
-            backend: null,
-            model: null,
-            effort: null,
-            permissionMode: null,
-            worktreePath,
-          },
-          ...s.conversations,
-        ],
-      };
-    });
+      }));
+    }
     // Catches any tabs opened while this was still a new/unsent thread —
     // `persistActiveSessionTabState` skipped them until now, since the id
-    // wasn't in `conversations` yet.
+    // wasn't in the list yet.
     get().persistActiveSessionTabState();
     // This conversation just became real — flush whatever it already
     // picked while `setConversationBackend`/`setPermissionMode` were
@@ -390,32 +366,25 @@ export const conversationSlice: StateCreator<
   },
 
   touchConversationActivity: (id) =>
-    set((s) => {
-      if (!s.conversations.some((c) => c.id === id)) return s;
-      return {
-        conversations: s.conversations.map((c) =>
-          c.id === id ? { ...c, updatedAt: nowSeconds() } : c,
-        ),
-      };
-    }),
+    setConversations((prev) =>
+      prev.some((c) => c.id === id)
+        ? prev.map((c) => (c.id === id ? { ...c, updatedAt: nowSeconds() } : c))
+        : prev,
+    ),
 
   setConversationTitle: (id, title) =>
-    set((s) => ({
-      conversations: s.conversations.map((c) =>
-        c.id === id ? { ...c, title } : c,
-      ),
-    })),
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title } : c)),
+    ),
 
   // Optimistic like `setConversationTitle`, but round-trips to the backend
   // (unlike title, which the backend derives itself) since "done" has no
   // other source of truth to reconcile against on the next
   // `loadAllConversations`.
   setConversationDone: async (id, done) => {
-    set((s) => ({
-      conversations: s.conversations.map((c) =>
-        c.id === id ? { ...c, done } : c,
-      ),
-    }));
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, done } : c)),
+    );
     await api.setConversationDone(id, done);
   },
 
@@ -431,7 +400,7 @@ export const conversationSlice: StateCreator<
   // `chatTabs`) via the same `clearSubAgentTasksForParent` action `/clear`
   // already uses.
   deleteConversation: async (id) => {
-    const conversation = get().conversations.find((c) => c.id === id);
+    const conversation = getConversations().find((c) => c.id === id);
     await api.deleteConversation(id);
     get().clearSubAgentTasksForParent(id);
     get().forgetConversationBackend(id);
@@ -442,13 +411,11 @@ export const conversationSlice: StateCreator<
     } catch {
       // Best-effort, same as the draft read/write sites in ChatPanel.tsx.
     }
+    setConversations((prev) => prev.filter((c) => c.id !== id));
     set((s) => {
       const checkoutPathBySession = { ...s.checkoutPathBySession };
       delete checkoutPathBySession[id];
-      return {
-        conversations: s.conversations.filter((c) => c.id !== id),
-        checkoutPathBySession,
-      };
+      return { checkoutPathBySession };
     });
     if (get().activeSessionId === id && conversation) {
       await get().startNewConversation(conversation.projectRoot);

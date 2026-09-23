@@ -1,17 +1,17 @@
+import { useConversation } from "../data/conversations";
 import { useAppStore } from "../store";
 import { conversationCheckoutPath } from "../store/conversationSlice";
 
 // The checkout path (worktree or primary root) the currently focused
 // conversation is pinned to, or null before any conversation is known.
 export function useActiveCheckoutPath(): string | null {
-  return useAppStore((s) => {
-    const sessionId = s.activeSessionId;
-    if (!sessionId) return null;
-    const remembered = s.checkoutPathBySession[sessionId];
-    if (remembered) return remembered;
-    const conversation = s.conversations.find((c) => c.id === sessionId);
-    return conversation
-      ? conversationCheckoutPath(conversation)
-      : s.projectRoot;
-  });
+  const sessionId = useAppStore((s) => s.activeSessionId);
+  const remembered = useAppStore((s) =>
+    sessionId ? s.checkoutPathBySession[sessionId] : undefined,
+  );
+  const projectRoot = useAppStore((s) => s.projectRoot);
+  const conversation = useConversation(sessionId);
+  if (!sessionId) return null;
+  if (remembered) return remembered;
+  return conversation ? conversationCheckoutPath(conversation) : projectRoot;
 }

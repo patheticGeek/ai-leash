@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
@@ -87,7 +88,7 @@ export default function TitleBar({
   const projectId = useAppStore((s) => s.projectId);
   const recentProjects = useAppStore((s) => s.recentProjects);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const conversations = useAppStore((s) => s.conversations);
+  const conversations = useConversations();
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const startNewConversation = useAppStore((s) => s.startNewConversation);

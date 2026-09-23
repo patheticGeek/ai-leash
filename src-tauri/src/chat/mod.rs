@@ -6,9 +6,9 @@ use crate::db;
 use crate::provider::{self, ProviderConfig};
 use crate::state::AppState;
 use crate::tools::ToolCall;
-use history::load_conversation_history;
+use history::{emit_conversation_changed, load_conversation_history};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 // `pub(crate)`, not `pub use`: `tools/shell_tools.rs`, `tools/sub_agent_tools.rs`,
 // and `acp/events.rs`/`acp/process.rs` reference these by their
@@ -130,7 +130,11 @@ pub(crate) fn forget_session_runtime_state(
 /// `retry_last`), so there's no live turn whose `push_message` calls could
 /// otherwise land in the freshly-cleared history right after this runs.
 #[tauri::command]
-pub fn clear_conversation(state: State<AppState>, session_id: String) -> Result<(), String> {
+pub fn clear_conversation(
+    app: AppHandle,
+    state: State<AppState>,
+    session_id: String,
+) -> Result<(), String> {
     // Sub-agent ids must be read *before* the DB wipe below deletes their
     // conversation rows — there'd be nothing left to query afterward.
     let sub_agent_ids: Vec<String> =
@@ -142,6 +146,9 @@ pub fn clear_conversation(state: State<AppState>, session_id: String) -> Result<
         forget_session_runtime_state(state.inner(), &id, false);
     }
     db::clear_conversation(&state.db, &session_id);
+    // The row itself stays (see `db::clear_conversation`), but its sub-agents
+    // and activity don't — let the sidebar refresh.
+    emit_conversation_changed(&app, &session_id, "cleared");
     Ok(())
 }
 

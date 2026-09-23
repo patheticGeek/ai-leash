@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { getConversations } from "../data/conversations";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
@@ -328,7 +329,7 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
   persistActiveSessionTabState: () => {
     const s = get();
     const id = s.activeSessionId;
-    if (!id || !s.conversations.some((c) => c.id === id)) return;
+    if (!id || !getConversations().some((c) => c.id === id)) return;
     const map = loadPersistedTabState();
     map[id] = {
       panelTabs: s.panelTabs,

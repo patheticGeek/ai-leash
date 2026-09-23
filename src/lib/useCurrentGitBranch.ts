@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
+import { useConversations } from "../data/conversations";
 import { qk } from "../data/keys";
 import { useAppStore } from "../store";
 import { api } from "./tauriApi";
@@ -43,7 +44,7 @@ export function useCurrentGitBranch(path: string): string | null {
 // as the set grows is cheap. Mount once, near the app root.
 export function useGitBranchWatchers() {
   const recentProjects = useAppStore((s) => s.recentProjects);
-  const conversations = useAppStore((s) => s.conversations);
+  const conversations = useConversations();
 
   const paths = useMemo(() => {
     const all = new Set<string>(recentProjects.map((p) => p.path));
