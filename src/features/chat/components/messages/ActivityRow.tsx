@@ -78,6 +78,7 @@ function ActivityRow({
           fullWidth && "shrink-0 max-w-4/5",
           italic && "italic",
           shine && "shine-text",
+          failed && "text-red-400",
         )}
       >
         {label}
