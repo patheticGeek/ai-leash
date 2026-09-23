@@ -7,8 +7,9 @@
 
 use crate::db;
 use crate::pty;
+use crate::run::{Run, RunHandle};
 use crate::state::AppState;
-use crate::tools;
+use crate::tools::MAX_TOOL_OUTPUT;
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -16,29 +17,11 @@ use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
-/// Ring-buffer cap for a running action's captured output — backs both
-/// `read_action` (agent-facing) and `action_backlog` (frontend terminal-tab
-/// replay on open). Raw bytes, not per-line, so this trims from the front
-/// rather than tracking a line count.
-const MAX_OUTPUT_BYTES: usize = 256 * 1024;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ActionDef {
     pub id: String,
     pub name: String,
     pub command: String,
-}
-
-/// One action's live (or most recently finished) process — in-memory only,
-/// not persisted. `pty_id` indexes into `AppState.ptys` (see `pty.rs`) for
-/// the actual process/IO; whether it's *currently* running is checked
-/// lazily via `pty::is_running` rather than tracked here, since a process
-/// can exit on its own (e.g. a dev server crashing) with nothing to tell
-/// this struct about it.
-pub struct ActionRun {
-    pub pty_id: String,
-    pub started_at: i64,
-    pub output: Arc<StdMutex<Vec<u8>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -54,6 +37,13 @@ pub struct ActionWithStatus {
     /// same event a plain terminal tab already listens to (see
     /// `ActionTerminalTab.tsx`).
     pub pty_id: Option<String>,
+    /// The current (or most recent) run's own id, status (`running`,
+    /// `exited`, `stopped`), exit code and end time — see `run.rs`. A run is
+    /// kept after it ends, so these describe the last outcome too.
+    pub run_id: Option<String>,
+    pub status: Option<&'static str>,
+    pub exit_code: Option<u32>,
+    pub ended_at: Option<i64>,
     /// True for the one action last run in this checkout — persisted (see
     /// `db/action_last_run.rs`), unlike `started_at`, so it survives a stop
     /// or an app restart. False for all if nothing has run yet or that
@@ -94,8 +84,11 @@ fn find_def<'a>(defs: &'a [ActionDef], key: &str) -> Result<&'a ActionDef, Strin
         .ok_or_else(|| format!("no action named `{key}`"))
 }
 
-/// `action_runs`' actual key — see that field's doc comment on why the
-/// checkout is part of it, not just the action id.
+/// `AppState.runs`' key — the checkout is part of it, not just the action
+/// id, because `.ai-leash/actions.json` is a real tracked file: two
+/// worktrees of the same project can each have their own copy (same ids,
+/// until one diverges), and a run started in one must never show as running
+/// for a conversation pinned to the other.
 fn run_key(root: &Path, action_id: &str) -> (String, String) {
     (root.display().to_string(), action_id.to_string())
 }
@@ -104,72 +97,66 @@ fn run_key(root: &Path, action_id: &str) -> (String, String) {
 /// running — re-running a live action is a deliberate no-op (not a
 /// restart), so a stray duplicate call (agent or user) can't kill a
 /// mid-flight process like a dev server out from under itself. Explicit
-/// `stop_action` + `run_action` restarts it.
+/// `stop_action` + `run_action` restarts it. A finished run is replaced by
+/// the new one.
 pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, String> {
     let defs = load_actions(root);
     let def = find_def(&defs, key)?.clone();
 
     let state = app.state::<AppState>();
     let key = run_key(root, &def.id);
-    {
-        let runs = state.action_runs.lock().unwrap();
-        if let Some(run) = runs.get(&key) {
-            if pty::is_running(&state, &run.pty_id) {
-                return Ok(format!("Action `{}` is already running.", def.name));
-            }
+    if let Some(run) = state.runs.get(&key) {
+        let run = run.lock().unwrap();
+        if run.is_running() {
+            return Ok(format!(
+                "Action `{}` is already running (run {}).",
+                def.name, run.id
+            ));
         }
     }
 
-    let output: Arc<StdMutex<Vec<u8>>> = Arc::new(StdMutex::new(Vec::new()));
-    let output_for_cb = output.clone();
+    let run_id = Uuid::new_v4().to_string();
+    let run: RunHandle = Arc::new(StdMutex::new(Run::new(run_id.clone(), now())));
+    let on_data_run = run.clone();
+    let on_exit_run = run.clone();
     let pty_id = pty::spawn_command_pty(
         app,
         &state,
         Some(root.display().to_string()),
         &def.command,
-        Box::new(move |chunk: &[u8]| {
-            let mut buf = output_for_cb.lock().unwrap();
-            buf.extend_from_slice(chunk);
-            if buf.len() > MAX_OUTPUT_BYTES {
-                let excess = buf.len() - MAX_OUTPUT_BYTES;
-                buf.drain(0..excess);
-            }
-        }),
+        Box::new(move |chunk: &[u8]| on_data_run.lock().unwrap().output.append(chunk)),
+        Box::new(move |code| on_exit_run.lock().unwrap().finish(code, now())),
     )?;
+    run.lock().unwrap().pty_id = pty_id;
 
     // Here rather than in `run_action_cmd` so runs started by an agent
     // (native tool or MCP bridge) count as "last ran" too.
     db::set_last_run_action(&state.db, &key.0, &key.1);
-    state.action_runs.lock().unwrap().insert(
-        key,
-        ActionRun {
-            pty_id,
-            started_at: now(),
-            output,
-        },
-    );
+    state.runs.insert(key, run);
 
-    Ok(format!("Started action `{}`.", def.name))
+    Ok(format!("Started action `{}` (run {run_id}).", def.name))
 }
 
+/// Kills the running process but keeps the run (now `stopped`), so its
+/// output stays readable with `read_action`.
 pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, String> {
     let defs = load_actions(root);
     let def = find_def(&defs, key)?;
 
     let state = app.state::<AppState>();
-    let key = run_key(root, &def.id);
-    let pty_id = {
-        let runs = state.action_runs.lock().unwrap();
-        runs.get(&key).map(|r| r.pty_id.clone())
+    let Some(run) = state.runs.get(&run_key(root, &def.id)) else {
+        return Ok(format!("Action `{}` is not running.", def.name));
     };
-    match pty_id {
-        Some(id) if pty::is_running(&state, &id) => {
-            pty::pty_kill(state.clone(), id)?;
-            state.action_runs.lock().unwrap().remove(&key);
-            Ok(format!("Stopped action `{}`.", def.name))
+    let pty_id = {
+        let mut run = run.lock().unwrap();
+        if !run.is_running() {
+            return Ok(format!("Action `{}` is not running.", def.name));
         }
-        _ => Ok(format!("Action `{}` is not running.", def.name)),
-    }
+        run.mark_stopped(now());
+        run.pty_id.clone()
+    };
+    pty::pty_kill(state.clone(), pty_id)?;
+    Ok(format!("Stopped action `{}`.", def.name))
 }
 
 /// Text summary for the agent-facing `list_actions` tool — the frontend
@@ -182,39 +169,73 @@ pub fn list_actions_status(app: &AppHandle, root: &Path) -> String {
         return "No actions defined for this project.".to_string();
     }
     let state = app.state::<AppState>();
-    let runs = state.action_runs.lock().unwrap();
     defs.iter()
         .map(|def| {
-            let running = runs
+            let status = state
+                .runs
                 .get(&run_key(root, &def.id))
-                .is_some_and(|r| pty::is_running(&state, &r.pty_id));
-            format!(
-                "- {} ({}): {}",
-                def.name,
-                if running { "running" } else { "stopped" },
-                def.command
-            )
+                .map(|r| r.lock().unwrap().describe_status())
+                .unwrap_or_else(|| "not run yet".to_string());
+            format!("- {} ({status}): {}", def.name, def.command)
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-pub fn read_action_output(app: &AppHandle, root: &Path, key: &str) -> Result<String, String> {
+/// The agent-facing `read_action`: a status header, then the captured
+/// output from byte offset `since` on (everything still held if `None`).
+/// Output beyond the tool-output cap keeps its *end* — the newest lines are
+/// the ones that say whether a dev server is up or a build failed — and the
+/// header gives the offsets so the agent can page or poll for only new
+/// output next time.
+pub fn read_action_output(
+    app: &AppHandle,
+    root: &Path,
+    key: &str,
+    since: Option<u64>,
+) -> Result<String, String> {
     let defs = load_actions(root);
     let def = find_def(&defs, key)?;
     let state = app.state::<AppState>();
-    let runs = state.action_runs.lock().unwrap();
-    let run = runs
+    let run = state
+        .runs
         .get(&run_key(root, &def.id))
         .ok_or_else(|| format!("Action `{}` hasn't been run yet.", def.name))?;
-    let buf = run.output.lock().unwrap();
-    Ok(tools::truncate(String::from_utf8_lossy(&buf).into_owned()))
+    let run = run.lock().unwrap();
+    let end = run.output.end();
+    let (mut from, bytes) = run.output.since(since);
+    let mut text = String::from_utf8_lossy(bytes).into_owned();
+    let mut notes = Vec::new();
+    if since.is_some_and(|s| s < from) {
+        notes.push("older output was already discarded".to_string());
+    }
+    if text.len() > MAX_TOOL_OUTPUT {
+        let mut cut = text.len() - MAX_TOOL_OUTPUT;
+        while !text.is_char_boundary(cut) {
+            cut += 1;
+        }
+        text.drain(..cut);
+        from = end - text.len() as u64;
+        notes.push("only the newest part is shown".to_string());
+    }
+    let mut header = format!(
+        "Status: {} (run {})\nOutput bytes {from}-{end}",
+        run.describe_status(),
+        run.id
+    );
+    if !notes.is_empty() {
+        header.push_str(&format!(" ({})", notes.join("; ")));
+    }
+    header.push_str(&format!(
+        ". Call read_action with since={end} to read only newer output."
+    ));
+    Ok(format!("{header}\n---\n{text}"))
 }
 
 // --- Frontend-facing Tauri commands ---
 
 /// Actions and their run status are scoped to a checkout path directly
-/// (not a session id) — see `state.rs`'s `action_runs` doc comment on why
+/// (not a session id) — see `run_key`'s doc comment on why
 /// the checkout, not just the action id, has to be part of the key:
 /// `.ai-leash/actions.json` is a real tracked file, so two worktrees of the
 /// same project can each have their own copy. The frontend already has to
@@ -230,20 +251,23 @@ pub fn list_actions(
     let root = PathBuf::from(checkout_path);
     let defs = load_actions(&root);
     let last_run_id = db::get_last_run_action(&state.db, &root.display().to_string());
-    let runs = state.action_runs.lock().unwrap();
     Ok(defs
         .into_iter()
         .map(|def| {
-            let run = runs.get(&run_key(&root, &def.id));
-            let running = run.is_some_and(|r| pty::is_running(&state, &r.pty_id));
+            let run = state.runs.get(&run_key(&root, &def.id));
+            let run = run.as_ref().map(|r| r.lock().unwrap());
             ActionWithStatus {
                 last_run: last_run_id.as_deref() == Some(def.id.as_str()),
+                running: run.as_ref().is_some_and(|r| r.is_running()),
+                started_at: run.as_ref().map(|r| r.started_at),
+                pty_id: run.as_ref().map(|r| r.pty_id.clone()),
+                run_id: run.as_ref().map(|r| r.id.clone()),
+                status: run.as_ref().map(|r| r.status.as_str()),
+                exit_code: run.as_ref().and_then(|r| r.exit_code),
+                ended_at: run.as_ref().and_then(|r| r.ended_at),
                 id: def.id,
                 name: def.name,
                 command: def.command,
-                running,
-                started_at: run.map(|r| r.started_at),
-                pty_id: run.map(|r| r.pty_id.clone()),
             }
         })
         .collect())
@@ -314,11 +338,7 @@ pub fn delete_action(
     defs.retain(|a| a.id != id);
     save_actions(&root, &defs)?;
     db::clear_last_run_action(&state.db, &root.display().to_string(), &id);
-    state
-        .action_runs
-        .lock()
-        .unwrap()
-        .remove(&run_key(&root, &id));
+    state.runs.remove(&run_key(&root, &id));
     Ok(())
 }
 
@@ -349,9 +369,11 @@ pub fn action_backlog(
     id: String,
 ) -> Result<String, String> {
     let root = PathBuf::from(checkout_path);
-    let runs = state.action_runs.lock().unwrap();
-    match runs.get(&run_key(&root, &id)) {
-        Some(run) => Ok(general_purpose::STANDARD.encode(&*run.output.lock().unwrap())),
+    match state.runs.get(&run_key(&root, &id)) {
+        Some(run) => {
+            let run = run.lock().unwrap();
+            Ok(general_purpose::STANDARD.encode(run.output.since(None).1))
+        }
         None => Ok(String::new()),
     }
 }

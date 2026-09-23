@@ -13,6 +13,7 @@ mod paths;
 mod preferences;
 mod provider;
 mod pty;
+mod run;
 mod state;
 mod tools;
 
@@ -179,11 +180,13 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 let state = app_handle.state::<AppState>();
                 let pty_ids: Vec<String> = state
-                    .action_runs
-                    .lock()
-                    .unwrap()
-                    .values()
-                    .map(|run| run.pty_id.clone())
+                    .runs
+                    .all()
+                    .iter()
+                    .filter_map(|run| {
+                        let run = run.lock().unwrap();
+                        run.is_running().then(|| run.pty_id.clone())
+                    })
                     .collect();
                 for id in pty_ids {
                     let _ = pty::pty_kill(state.clone(), id);

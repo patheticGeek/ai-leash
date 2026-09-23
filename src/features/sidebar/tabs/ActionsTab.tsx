@@ -10,6 +10,37 @@ import { useActions } from "../../actions/useActions";
 
 const emptyForm = { name: "", command: "" };
 
+// How the action's current or last run stands. A run that exited on its own
+// with a non-zero code is the one worth flagging.
+function RunStatusBadge({ action }: { action: ActionSummary }) {
+  const failed =
+    action.status === "exited" &&
+    action.exitCode !== null &&
+    action.exitCode !== 0;
+  const label = action.running
+    ? "running…"
+    : action.status === "exited"
+      ? failed
+        ? `exited ${action.exitCode}`
+        : "exited"
+      : "stopped";
+  return (
+    <Badge
+      size="sm"
+      variant={action.running ? "warning" : failed ? "danger" : "muted"}
+      outline
+      className="shrink-0"
+      title={
+        action.endedAt
+          ? `Ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`
+          : undefined
+      }
+    >
+      {label}
+    </Badge>
+  );
+}
+
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, refresh, checkoutPath } = useActions();
@@ -91,14 +122,7 @@ export default function ActionsTab() {
             className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
           >
             <div className="flex w-full items-center gap-2">
-              <Badge
-                size="sm"
-                variant={action.running ? "warning" : "muted"}
-                outline
-                className="shrink-0"
-              >
-                {action.running ? "running…" : "stopped"}
-              </Badge>
+              <RunStatusBadge action={action} />
               <span className="min-w-0 flex-1 truncate text-zinc-300">
                 {action.name}
               </span>

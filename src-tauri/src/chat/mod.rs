@@ -326,7 +326,7 @@ mod tests {
             acp_catalog_refresh_started: AtomicBool::new(false),
             mcp_bridge: Mutex::new(None),
             permission_bypass: Mutex::new(HashSet::new()),
-            action_runs: Mutex::new(HashMap::new()),
+            runs: Default::default(),
         }
     }
 

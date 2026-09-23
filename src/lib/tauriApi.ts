@@ -268,6 +268,12 @@ export interface ActionSummary {
   running: boolean;
   startedAt: number | null;
   ptyId: string | null;
+  // The current or most recent run (see `run.rs`) — kept after it ends, so
+  // these also describe how the last run finished. All null if never run.
+  runId: string | null;
+  status: "running" | "exited" | "stopped" | null;
+  exitCode: number | null;
+  endedAt: number | null;
   // The action last run in this checkout — persisted, so it outlives a stop
   // or app restart (unlike `startedAt`). None is set if nothing has run yet
   // or that action was deleted.

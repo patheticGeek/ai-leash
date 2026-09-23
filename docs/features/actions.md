@@ -47,6 +47,15 @@ Select the stop button next to a running Action. The Action changes to
 **stopped**, and its command is ended. You can select the play button again
 later to start a fresh run.
 
+An Action whose command ends on its own shows **exited** instead. If the
+command failed (a non-zero exit code), the label shows the code, for example
+**exited 1**, in red.
+
+The last run's output is kept after it stops or exits, until the Action runs
+again. An agent can still read it with `read_action`, which also reports the
+run's status and exit code, and can ask for only the output that arrived
+since its previous read.
+
 ## Edit or delete an Action
 
 Hover over an Action in the sidebar to reveal its controls:
