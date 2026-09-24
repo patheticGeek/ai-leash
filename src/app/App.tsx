@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useProviderModels } from "../data/backends";
 import { useConversationsListener } from "../data/conversations";
 import { useSubAgentsListener } from "../data/subAgents";
+import { useActionEvents } from "../features/actions/useActions";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
@@ -42,6 +43,9 @@ function App() {
   useConversationsListener();
   // Always on — keeps every open sub-agent list live off `agent://lifecycle`.
   useSubAgentsListener();
+  // Always on — keeps every checkout's Actions list live off `run://status`
+  // and `action://defs-changed` (see `useActions.ts`); nothing polls it.
+  useActionEvents();
   // Always on — watches every known project's git `HEAD`, not just the
   // ones with a branch label mounted (see its comment).
   useGitBranchWatchers();

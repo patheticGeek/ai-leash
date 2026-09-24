@@ -1,41 +1,83 @@
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "../../data/keys";
-import { api } from "../../lib/tauriApi";
+import { queryClient } from "../../lib/queryClient";
+import { type ActionSummary, api } from "../../lib/tauriApi";
 import { useActiveCheckoutPath } from "../../lib/useActiveCheckoutPath";
+import { useTauriEvent } from "../../lib/useTauriEvent";
 
 // Keyed on the resolved checkout path, not the session/conversation id: the
 // backend keys Actions and their run status by checkout path too (see
 // `actions.rs`'s `run_key`), and multiple conversations routinely share one
-// (every brand-new conversation defaults to the primary root). Keying on
-// session id would give each such conversation its own cache entry and its
-// own poll for what the backend considers identical, already-shared state —
-// e.g. starting a run from one conversation's Actions tab wouldn't be
-// reflected by another conversation pinned to the same checkout until (and
-// unless) *that* conversation's own independent poll happened to catch it.
-// Polls rather than reacting to events — Actions don't have a push channel
-// the way sub-agents do (see `chat://.../subtask_start`), and a 2s interval
-// is more than responsive enough for "is this still running" status.
+// (every brand-new conversation defaults to the primary root), so they share
+// one cache entry for what the backend considers identical state.
 //
-// Backed by React Query keyed on `qk.actions`: every caller of this
-// hook (or anyone else querying the same key directly, e.g.
-// `ActionTerminalTab`) for the same checkout shares one cache entry and one
-// 2s poll instead of each running its own independent
-// `setInterval`/`listActions` call.
+// No polling: `useActionEvents` (mounted once in `App.tsx`) keeps this live
+// off the backend's `run://status` and `action://defs-changed` events, so
+// every caller — the Actions tab, the title bar's split button,
+// `ActionTerminalTab` — sees a run start, stop or exit the moment it happens.
 export function useActions() {
   const checkoutPath = useActiveCheckoutPath();
   const query = useQuery({
     queryKey: qk.actions(checkoutPath),
-    // Same value as the query key — the backend commands take the checkout
-    // path directly now (see `actions.rs`), so there's no separate
-    // session-id parameter to drift out of sync with the cache key.
     queryFn: () => api.listActions(checkoutPath as string),
     enabled: checkoutPath != null,
-    refetchInterval: checkoutPath != null ? 2000 : false,
   });
 
   return {
     actions: checkoutPath ? (query.data ?? []) : [],
-    refresh: query.refetch,
     checkoutPath,
   };
+}
+
+interface RunStatusPayload {
+  checkoutPath: string;
+  actionId: string;
+  runId: string;
+  ptyId: string;
+  status: "running" | "exited" | "stopped";
+  exitCode: number | null;
+  startedAt: number;
+  endedAt: number | null;
+}
+
+// One always-mounted pair of listeners for every checkout. `run://status`
+// carries the run's new state, so it patches the cached list in place (a
+// run starting also makes that action the checkout's "last run"); a cache
+// entry that doesn't have the action yet, or no entry for that checkout at
+// all, falls back to refetching every Actions list. `action://defs-changed`
+// only names the checkout, so it refetches that one.
+export function useActionEvents() {
+  useTauriEvent<RunStatusPayload>("run://status", (e) => {
+    const key = qk.actions(e.checkoutPath);
+    let patched = false;
+    queryClient.setQueryData<ActionSummary[]>(key, (old) => {
+      if (!old?.some((a) => a.id === e.actionId)) return old;
+      patched = true;
+      return old.map((a) =>
+        a.id === e.actionId
+          ? {
+              ...a,
+              running: e.status === "running",
+              status: e.status,
+              runId: e.runId,
+              ptyId: e.ptyId,
+              exitCode: e.exitCode,
+              startedAt: e.startedAt,
+              endedAt: e.endedAt,
+              lastRun: e.status === "running" ? true : a.lastRun,
+            }
+          : e.status === "running"
+            ? { ...a, lastRun: false }
+            : a,
+      );
+    });
+    if (!patched) {
+      void queryClient.invalidateQueries({ queryKey: ["actions"] });
+    }
+  });
+  useTauriEvent<{ checkoutPath: string }>("action://defs-changed", (e) => {
+    void queryClient.invalidateQueries({
+      queryKey: qk.actions(e.checkoutPath),
+    });
+  });
 }

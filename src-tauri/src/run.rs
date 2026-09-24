@@ -107,12 +107,15 @@ impl Run {
 
     /// The process ended. Leaves a run already marked stopped alone: a
     /// killed process also ends, but "stopped" is the more useful outcome.
-    pub fn finish(&mut self, exit_code: Option<u32>, at: i64) {
-        if self.status == RunStatus::Running {
-            self.status = RunStatus::Exited;
-            self.exit_code = exit_code;
-            self.ended_at = Some(at);
+    /// Returns whether it changed anything (false if it was already stopped).
+    pub fn finish(&mut self, exit_code: Option<u32>, at: i64) -> bool {
+        if self.status != RunStatus::Running {
+            return false;
         }
+        self.status = RunStatus::Exited;
+        self.exit_code = exit_code;
+        self.ended_at = Some(at);
+        true
     }
 
     pub fn mark_stopped(&mut self, at: i64) {

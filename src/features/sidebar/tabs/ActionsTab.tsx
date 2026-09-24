@@ -43,7 +43,7 @@ function RunStatusBadge({ action }: { action: ActionSummary }) {
 
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, refresh, checkoutPath } = useActions();
+  const { actions, checkoutPath } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -75,13 +75,11 @@ export default function ActionsTab() {
       await api.createAction(checkoutPath, name, command);
     }
     cancelForm();
-    refresh();
   }
 
   async function remove(id: string) {
     if (!checkoutPath) return;
     await api.deleteAction(checkoutPath, id);
-    refresh();
   }
 
   async function toggle(action: ActionSummary) {
@@ -92,7 +90,6 @@ export default function ActionsTab() {
       await api.runAction(checkoutPath, action.id);
       openTerminal(action);
     }
-    refresh();
   }
 
   function openTerminal(action: ActionSummary) {
