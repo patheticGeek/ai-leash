@@ -70,9 +70,10 @@ Selecting an Action opens its own terminal tab. When the Action is running,
 that tab shows its live output, and you can interact with the process there
 when it accepts input. If the agent starts an Action, you can open the same
 Action tab to follow along without losing the output that has already been
-produced. When you run the Action again after stopping it, the tab follows
-the new run. The tab clears its previous output as soon as the new run
-starts.
+produced. After the Action stops or exits, the tab keeps showing that run's
+output, and opening the tab later still shows it. When you run the Action
+again, the tab follows the new run and clears the previous output as soon as
+the new run starts.
 
 ## Everyday use with an agent
 

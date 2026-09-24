@@ -136,6 +136,68 @@ impl Run {
     }
 }
 
+/// Payload of `run://output`: `data` (base64) is the run's output starting
+/// at byte `offset`. Also the shape `actions::run_snapshot` returns, so a
+/// terminal can treat a snapshot and a live chunk the same way — write
+/// whatever part of it lies past what it has already written.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RunOutputChunk {
+    pub run_id: String,
+    pub offset: u64,
+    pub data: String,
+}
+
+impl Run {
+    /// Output from `offset` on (clamped to what's held), as a chunk.
+    pub fn chunk_since(&self, offset: Option<u64>) -> RunOutputChunk {
+        use base64::{engine::general_purpose, Engine as _};
+        let (from, bytes) = self.output.since(offset);
+        RunOutputChunk {
+            run_id: self.id.clone(),
+            offset: from,
+            data: general_purpose::STANDARD.encode(bytes),
+        }
+    }
+}
+
+/// How often a running Action's new output is emitted — coalesces the pty's
+/// many small reads (a dev server's per-line writes) into a few events per
+/// frame instead of one per read.
+const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(30);
+
+/// Streams a run's output as `run://output` until the run has ended and
+/// everything it wrote has gone out. Reads from the run's own buffer rather
+/// than being handed chunks, so batching never loses bytes; if the buffer
+/// trimmed past what was last sent (the webview fell far behind), the next
+/// chunk simply starts later and the listener sees the gap in `offset`.
+pub fn spawn_output_flusher(app: tauri::AppHandle, run: RunHandle) {
+    use tauri::Emitter;
+    std::thread::spawn(move || {
+        let mut sent = 0u64;
+        loop {
+            std::thread::sleep(FLUSH_INTERVAL);
+            let (chunk, done) = {
+                let run = run.lock().unwrap();
+                let end = run.output.end();
+                let chunk = (end > sent).then(|| run.chunk_since(Some(sent)));
+                sent = end;
+                // A stopped run is marked before its pty is killed, so its
+                // last few bytes can land after — only finish on a quiet
+                // tick once the run has ended.
+                let done = chunk.is_none() && !run.is_running();
+                (chunk, done)
+            };
+            if let Some(chunk) = chunk {
+                let _ = app.emit("run://output", chunk);
+            }
+            if done {
+                break;
+            }
+        }
+    });
+}
+
 #[derive(Default)]
 pub struct RunRegistry {
     by_key: Mutex<HashMap<(String, String), RunHandle>>,
@@ -152,6 +214,15 @@ impl RunRegistry {
 
     pub fn remove(&self, key: &(String, String)) {
         self.by_key.lock().unwrap().remove(key);
+    }
+
+    pub fn by_id(&self, run_id: &str) -> Option<RunHandle> {
+        self.by_key
+            .lock()
+            .unwrap()
+            .values()
+            .find(|r| r.lock().unwrap().id == run_id)
+            .cloned()
     }
 
     pub fn all(&self) -> Vec<RunHandle> {
@@ -195,6 +266,19 @@ mod tests {
         assert_eq!(run.status, RunStatus::Stopped);
         assert_eq!(run.exit_code, None);
         assert_eq!(run.ended_at, Some(2));
+    }
+
+    #[test]
+    fn a_chunk_starts_where_it_was_asked_to() {
+        use base64::{engine::general_purpose, Engine as _};
+        let mut run = Run::new("r".into(), 1);
+        run.output.append(b"hello world");
+        let chunk = run.chunk_since(Some(6));
+        assert_eq!(chunk.offset, 6);
+        assert_eq!(
+            general_purpose::STANDARD.decode(chunk.data).unwrap(),
+            b"world"
+        );
     }
 
     #[test]

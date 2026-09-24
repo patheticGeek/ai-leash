@@ -7,10 +7,9 @@
 
 use crate::db;
 use crate::pty;
-use crate::run::{Run, RunHandle};
+use crate::run::{Run, RunHandle, RunOutputChunk};
 use crate::state::AppState;
 use crate::tools::MAX_TOOL_OUTPUT;
-use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -32,10 +31,9 @@ pub struct ActionWithStatus {
     pub command: String,
     pub running: bool,
     pub started_at: Option<i64>,
-    /// The pty backing the current (or most recent) run, if any — the
-    /// frontend subscribes to `pty://{ptyId}/data` on it directly, the
-    /// same event a plain terminal tab already listens to (see
-    /// `ActionTerminalTab.tsx`).
+    /// The pty backing the current (or most recent) run, if any — what
+    /// `ActionTerminalTab.tsx` forwards typing and resizes to while the run
+    /// is live. Its output arrives as `run://output`, not per-pty events.
     pub pty_id: Option<String>,
     /// The current (or most recent) run's own id, status (`running`,
     /// `exited`, `stopped`), exit code and end time — see `run.rs`. A run is
@@ -182,6 +180,7 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
     // (native tool or MCP bridge) count as "last ran" too.
     db::set_last_run_action(&state.db, &key.0, &key.1);
     emit_run_status(app, &key, &run.lock().unwrap());
+    crate::run::spawn_output_flusher(app.clone(), run.clone());
     state.runs.insert(key, run);
 
     Ok(format!("Started action `{}` (run {run_id}).", def.name))
@@ -426,24 +425,15 @@ pub fn stop_action_cmd(
     stop_action(&app, &root, &id)
 }
 
-/// Base64-encoded raw output captured so far, for a terminal tab to replay
-/// on open before attaching to the live `pty://{pty_id}/data` stream — see
-/// `ActionTerminalTab.tsx`. Empty (not an error) if the action has never
-/// been run.
+/// Everything a run still holds, as a `run://output`-shaped chunk — what a
+/// terminal writes first when it attaches, before following `run://output`
+/// from the chunk's end (see `ActionTerminalTab.tsx`). Works for a finished
+/// run too. Errors if the run is gone (the Action was run again or deleted).
 #[tauri::command]
-pub fn action_backlog(
-    state: State<AppState>,
-    checkout_path: String,
-    id: String,
-) -> Result<String, String> {
-    let root = PathBuf::from(checkout_path);
-    match state.runs.get(&run_key(&root, &id)) {
-        Some(run) => {
-            let run = run.lock().unwrap();
-            Ok(general_purpose::STANDARD.encode(run.output.since(None).1))
-        }
-        None => Ok(String::new()),
-    }
+pub fn run_snapshot(state: State<AppState>, run_id: String) -> Result<RunOutputChunk, String> {
+    let run = state.runs.by_id(&run_id).ok_or("no such run")?;
+    let run = run.lock().unwrap();
+    Ok(run.chunk_since(None))
 }
 
 #[cfg(test)]

@@ -261,6 +261,14 @@ export interface ProjectSummary {
   lastOpenedAt: number | null;
 }
 
+// A run's output from byte `offset` on (`data` is base64) — the payload of
+// `run://output` and the return of `runSnapshot`. See `run.rs`.
+export interface RunOutputChunk {
+  runId: string;
+  offset: number;
+  data: string;
+}
+
 export interface ActionSummary {
   id: string;
   name: string;
@@ -506,6 +514,8 @@ export const api = {
     invoke<string>("run_action_cmd", { checkoutPath, id }),
   stopAction: (checkoutPath: string, id: string) =>
     invoke<string>("stop_action_cmd", { checkoutPath, id }),
-  actionBacklog: (checkoutPath: string, id: string) =>
-    invoke<string>("action_backlog", { checkoutPath, id }),
+  // Everything a run still holds — see `runOutput.ts` for how a terminal
+  // stitches this together with live `run://output` chunks.
+  runSnapshot: (runId: string) =>
+    invoke<RunOutputChunk>("run_snapshot", { runId }),
 };
