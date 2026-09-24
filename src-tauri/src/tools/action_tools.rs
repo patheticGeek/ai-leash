@@ -60,7 +60,8 @@ pub(super) fn read_action(app: &AppHandle, root: &Path, args: &Value) -> Result<
         .get("name")
         .and_then(|v| v.as_str())
         .ok_or("missing `name`")?;
-    actions::read_action_output(app, root, action_name)
+    let since = args.get("since").and_then(|v| v.as_u64());
+    actions::read_action_output(app, root, action_name, since)
 }
 
 /// The native/bridge-shared definitions of every Action tool, in
@@ -111,11 +112,12 @@ pub(crate) fn action_defs() -> Vec<Value> {
         }),
         json!({
             "name": "read_action",
-            "description": "Read the recent captured output of an Action that's running or has been run — e.g. to check a dev server's compile output for an error. Call this after run_action, or whenever a running Action might have failed, instead of guessing.",
+            "description": "Read an Action's status (running, stopped, or exited with its exit code) and captured output — works for a running Action and after it has stopped or exited, e.g. to check a dev server's compile output or why a build failed. Call this after run_action, or whenever a running Action might have failed, instead of guessing. The header gives byte offsets; pass `since` from a previous read to get only newer output.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" }
+                    "name": { "type": "string", "description": "The Action's name, as shown by list_actions" },
+                    "since": { "type": "integer", "description": "Optional byte offset from a previous read_action's header; returns only output after it" }
                 },
                 "required": ["name"]
             }

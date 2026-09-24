@@ -3,7 +3,7 @@ use crate::state::AppState;
 use base64::{engine::general_purpose, Engine as _};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 pub struct PtyHandle {
@@ -16,6 +16,12 @@ pub struct PtyHandle {
 /// to buffer output for `read_action`/backlog replay; `pty_spawn`'s plain
 /// interactive terminals pass `None`.
 pub(crate) type PtyDataCallback = Box<dyn Fn(&[u8]) + Send + 'static>;
+
+/// Called once when the pty's output ends, with the process's exit code if
+/// it could be read — `None` if it was killed through `pty_kill` (which
+/// removes the handle) or didn't report one in time. `actions.rs` uses this
+/// to record how a run ended.
+pub(crate) type PtyExitCallback = Box<dyn FnOnce(Option<u32>) + Send + 'static>;
 
 /// Opens in whichever checkout `session_id`'s conversation is pinned to
 /// (primary or worktree) — same resolution tools/shell/ACP and Actions
@@ -34,7 +40,7 @@ pub fn pty_spawn(
     if let Ok(dir) = commands::get_session_root(state.inner(), &session_id) {
         cmd.cwd(dir);
     }
-    spawn_pty(&app, &state, cmd, cols, rows, None)
+    spawn_pty(&app, &state, cmd, cols, rows, None, None)
 }
 
 /// Spawns an arbitrary command in the project's shell (`$SHELL -c
@@ -50,6 +56,7 @@ pub(crate) fn spawn_command_pty(
     cwd: Option<String>,
     command: &str,
     on_data: PtyDataCallback,
+    on_exit: PtyExitCallback,
 ) -> Result<String, String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
     let mut cmd = CommandBuilder::new(shell);
@@ -59,7 +66,7 @@ pub(crate) fn spawn_command_pty(
     if let Some(dir) = cwd {
         cmd.cwd(dir);
     }
-    spawn_pty(app, state, cmd, 120, 30, Some(on_data))
+    spawn_pty(app, state, cmd, 120, 30, Some(on_data), Some(on_exit))
 }
 
 /// Shared by `pty_spawn` (interactive `$SHELL`, no output callback) and
@@ -72,6 +79,7 @@ fn spawn_pty(
     cols: u16,
     rows: u16,
     on_data: Option<PtyDataCallback>,
+    on_exit: Option<PtyExitCallback>,
 ) -> Result<String, String> {
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -98,11 +106,23 @@ fn spawn_pty(
     // explanation); it unsubscribes before calling `pty_kill` itself on
     // unmount, same as its `data_event` listener, so a deliberate close
     // never shows a stray "process exited". `ActionTerminalTab.tsx` doesn't
-    // listen to this — it already gets accurate running/stopped status from
-    // the polled Actions list (`is_running`, above).
+    // listen to this — it gets running/stopped status from the Actions list,
+    // which `run.rs` keeps current via `on_exit`.
     let exit_event = format!("pty://{}/exit", id);
 
+    // Registered before the reader starts: a command that exits instantly
+    // would otherwise hit EOF before its handle exists, and
+    // `wait_for_exit_code` would read "no handle" as "killed".
+    state.ptys.lock().unwrap().insert(
+        id.clone(),
+        PtyHandle {
+            writer,
+            master: pair.master,
+            child,
+        },
+    );
     let app_handle = app.clone();
+    let reader_id = id.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
@@ -120,32 +140,32 @@ fn spawn_pty(
                 Err(_) => break,
             }
         }
+        if let Some(on_exit) = on_exit {
+            on_exit(wait_for_exit_code(&app_handle, &reader_id));
+        }
         let _ = app_handle.emit(&exit_event, ());
     });
 
-    state.ptys.lock().unwrap().insert(
-        id.clone(),
-        PtyHandle {
-            writer,
-            master: pair.master,
-            child,
-        },
-    );
     Ok(id)
 }
 
-/// Whether a pty's process is still alive — checked lazily via
-/// `try_wait()` rather than tracked via a callback, since a `PtyHandle`
-/// stays in `state.ptys` after its process exits on its own (only
-/// `pty_kill` removes the entry); `actions.rs` uses this to report
-/// accurate running/stopped status even for an Action that crashed or
-/// exited by itself.
-pub(crate) fn is_running(state: &State<AppState>, id: &str) -> bool {
-    let mut ptys = state.ptys.lock().unwrap();
-    match ptys.get_mut(id) {
-        Some(handle) => matches!(handle.child.try_wait(), Ok(None)),
-        None => false,
+/// Once a pty's output has ended, its process has exited or is about to —
+/// polls briefly for the exit status rather than blocking in `wait()`, which
+/// would need the `ptys` lock held (and `pty_kill` needs it too). `None` if
+/// the handle is gone (killed via `pty_kill`) or nothing arrives in ~2s.
+fn wait_for_exit_code(app: &AppHandle, id: &str) -> Option<u32> {
+    let state = app.state::<AppState>();
+    for _ in 0..100 {
+        {
+            let mut ptys = state.ptys.lock().unwrap();
+            let handle = ptys.get_mut(id)?;
+            if let Ok(Some(status)) = handle.child.try_wait() {
+                return Some(status.exit_code());
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
     }
+    None
 }
 
 #[tauri::command]

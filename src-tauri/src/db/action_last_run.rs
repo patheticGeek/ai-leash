@@ -1,8 +1,8 @@
 //! `action_last_run` table access — remembers, per checkout, which action
 //! was run most recently, so the title bar's split button (see
 //! `TitleBarActions.tsx`) can keep showing it across stops and app restarts.
-//! `action_runs` in `AppState` can't serve that purpose: it's in-memory only
-//! and `stop_action` drops the entry. Kept out of `.ai-leash/actions.json`
+//! `AppState.runs` can't serve that purpose: it's in-memory only, so it's
+//! gone after a restart. Kept out of `.ai-leash/actions.json`
 //! because that file is git-tracked and shared, while this is per-user.
 
 use super::{now, Db};

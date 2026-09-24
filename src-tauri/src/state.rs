@@ -1,11 +1,11 @@
 use crate::acp::AcpCommand;
-use crate::actions::ActionRun;
 use crate::chat::ChatMessage;
 use crate::db::Db;
 use crate::mcp_bridge::McpBridgeInfo;
 use crate::preferences::Preferences;
 use crate::provider::ProviderConfig;
 use crate::pty::PtyHandle;
+use crate::run::RunRegistry;
 use agent_client_protocol::schema::v1::ElicitationAction;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -177,13 +177,9 @@ pub struct AppState {
     /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
     /// parent's cancellation flag the same way.
     pub permission_bypass: Mutex<HashSet<String>>,
-    /// Live/most-recent run per Action, keyed by (the checkout it ran in,
-    /// the Action's stable `id` — not its pty id) — see `actions.rs::run_key`.
-    /// The checkout is part of the key, not just the id, because
-    /// `.ai-leash/actions.json` is a real tracked file: two worktrees of the
-    /// same project can each have their own copy (same ids, until one
-    /// diverges), and a run started in one must never show as running for a
-    /// conversation pinned to the other. Persisted Action *definitions* live
-    /// in `.ai-leash/actions.json` under whichever checkout, not here.
-    pub action_runs: Mutex<HashMap<(String, String), ActionRun>>,
+    /// Latest run per Action, keyed by (checkout, action id) — see
+    /// `run.rs`, and `actions.rs::run_key` on why the checkout is part of
+    /// the key. Kept after a run ends so its outcome and output stay
+    /// readable. Action *definitions* live in `.ai-leash/actions.json`.
+    pub runs: RunRegistry,
 }
