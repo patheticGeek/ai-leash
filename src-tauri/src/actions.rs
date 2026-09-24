@@ -14,7 +14,7 @@ use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -49,6 +49,48 @@ pub struct ActionWithStatus {
     /// or an app restart. False for all if nothing has run yet or that
     /// action has since been deleted.
     pub last_run: bool,
+}
+
+/// Payload of `run://status` — one global event for every Action run, fired
+/// when a run starts, is stopped, or its process exits. Carries the new
+/// state, so the frontend patches its `["actions", checkoutPath]` cache
+/// entry directly instead of polling (see `src/data/actionEvents.ts`).
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct RunStatusEvent {
+    checkout_path: String,
+    action_id: String,
+    run_id: String,
+    pty_id: String,
+    status: &'static str,
+    exit_code: Option<u32>,
+    started_at: i64,
+    ended_at: Option<i64>,
+}
+
+fn emit_run_status(app: &AppHandle, key: &(String, String), run: &Run) {
+    let _ = app.emit(
+        "run://status",
+        RunStatusEvent {
+            checkout_path: key.0.clone(),
+            action_id: key.1.clone(),
+            run_id: run.id.clone(),
+            pty_id: run.pty_id.clone(),
+            status: run.status.as_str(),
+            exit_code: run.exit_code,
+            started_at: run.started_at,
+            ended_at: run.ended_at,
+        },
+    );
+}
+
+/// `action://defs-changed {checkoutPath}` — an Action was created, edited or
+/// deleted in that checkout; the frontend refetches its list.
+fn emit_defs_changed(app: &AppHandle, root: &Path) {
+    let _ = app.emit(
+        "action://defs-changed",
+        serde_json::json!({ "checkoutPath": root.display().to_string() }),
+    );
 }
 
 fn now() -> i64 {
@@ -119,19 +161,27 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
     let run: RunHandle = Arc::new(StdMutex::new(Run::new(run_id.clone(), now())));
     let on_data_run = run.clone();
     let on_exit_run = run.clone();
+    let on_exit_app = app.clone();
+    let on_exit_key = key.clone();
     let pty_id = pty::spawn_command_pty(
         app,
         &state,
         Some(root.display().to_string()),
         &def.command,
         Box::new(move |chunk: &[u8]| on_data_run.lock().unwrap().output.append(chunk)),
-        Box::new(move |code| on_exit_run.lock().unwrap().finish(code, now())),
+        Box::new(move |code| {
+            let mut run = on_exit_run.lock().unwrap();
+            if run.finish(code, now()) {
+                emit_run_status(&on_exit_app, &on_exit_key, &run);
+            }
+        }),
     )?;
     run.lock().unwrap().pty_id = pty_id;
 
     // Here rather than in `run_action_cmd` so runs started by an agent
     // (native tool or MCP bridge) count as "last ran" too.
     db::set_last_run_action(&state.db, &key.0, &key.1);
+    emit_run_status(app, &key, &run.lock().unwrap());
     state.runs.insert(key, run);
 
     Ok(format!("Started action `{}` (run {run_id}).", def.name))
@@ -144,7 +194,8 @@ pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, St
     let def = find_def(&defs, key)?;
 
     let state = app.state::<AppState>();
-    let Some(run) = state.runs.get(&run_key(root, &def.id)) else {
+    let key = run_key(root, &def.id);
+    let Some(run) = state.runs.get(&key) else {
         return Ok(format!("Action `{}` is not running.", def.name));
     };
     let pty_id = {
@@ -153,6 +204,7 @@ pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, St
             return Ok(format!("Action `{}` is not running.", def.name));
         }
         run.mark_stopped(now());
+        emit_run_status(app, &key, &run);
         run.pty_id.clone()
     };
     pty::pty_kill(state.clone(), pty_id)?;
@@ -273,7 +325,12 @@ pub fn list_actions(
         .collect())
 }
 
-fn new_action(root: &Path, name: String, command: String) -> Result<ActionDef, String> {
+fn new_action(
+    app: &AppHandle,
+    root: &Path,
+    name: String,
+    command: String,
+) -> Result<ActionDef, String> {
     let mut defs = load_actions(root);
     let def = ActionDef {
         id: Uuid::new_v4().to_string(),
@@ -282,25 +339,32 @@ fn new_action(root: &Path, name: String, command: String) -> Result<ActionDef, S
     };
     defs.push(def.clone());
     save_actions(root, &defs)?;
+    emit_defs_changed(app, root);
     Ok(def)
 }
 
 #[tauri::command]
 pub fn create_action(
+    app: AppHandle,
     checkout_path: String,
     name: String,
     command: String,
 ) -> Result<ActionDef, String> {
     let root = PathBuf::from(checkout_path);
-    new_action(&root, name, command)
+    new_action(&app, &root, name, command)
 }
 
 /// Agent-facing counterpart to `create_action`, gated behind the same
 /// write/edit permission prompt as `write_file`/`edit_file` (see
 /// `tools.rs`'s `create_action` arm) — unlike `run_action`/`stop_action`,
 /// this introduces a *new* command the user hasn't vetted yet.
-pub fn create_action_tool(root: &Path, name: &str, command: &str) -> Result<String, String> {
-    let def = new_action(root, name.to_string(), command.to_string())?;
+pub fn create_action_tool(
+    app: &AppHandle,
+    root: &Path,
+    name: &str,
+    command: &str,
+) -> Result<String, String> {
+    let def = new_action(app, root, name.to_string(), command.to_string())?;
     Ok(format!(
         "Created action `{}` ({}). Run it with run_action.",
         def.name, def.command
@@ -309,6 +373,7 @@ pub fn create_action_tool(root: &Path, name: &str, command: &str) -> Result<Stri
 
 #[tauri::command]
 pub fn update_action(
+    app: AppHandle,
     checkout_path: String,
     id: String,
     name: String,
@@ -322,7 +387,9 @@ pub fn update_action(
         .ok_or("no such action")?;
     def.name = name;
     def.command = command;
-    save_actions(&root, &defs)
+    save_actions(&root, &defs)?;
+    emit_defs_changed(&app, &root);
+    Ok(())
 }
 
 #[tauri::command]
@@ -339,6 +406,7 @@ pub fn delete_action(
     save_actions(&root, &defs)?;
     db::clear_last_run_action(&state.db, &root.display().to_string(), &id);
     state.runs.remove(&run_key(&root, &id));
+    emit_defs_changed(&app, &root);
     Ok(())
 }
 

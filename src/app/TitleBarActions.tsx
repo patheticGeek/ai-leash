@@ -22,7 +22,7 @@ function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
 // action without having to open the side panel.
 export default function TitleBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, refresh, checkoutPath } = useActions();
+  const { actions, checkoutPath } = useActions();
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +39,6 @@ export default function TitleBarActions() {
       await api.runAction(checkoutPath, action.id);
       openPanelTab("action", { path: action.id, label: action.name });
     }
-    refresh();
   }
 
   return (

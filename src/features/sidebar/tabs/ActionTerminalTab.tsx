@@ -1,11 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import { getPreferences } from "@/data/preferences";
 import "@xterm/xterm/css/xterm.css";
-import { qk } from "../../../data/keys";
 import {
   DEFAULT_MONO_STACK,
   fontStack,
@@ -14,6 +12,7 @@ import {
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
+import { useActions } from "../../actions/useActions";
 
 function base64ToBytes(b64: string): Uint8Array {
   if (!b64) return new Uint8Array();
@@ -44,18 +43,11 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   const syncRef = useRef<(() => void) | null>(null);
   const actionsRef = useRef<ActionSummary[]>([]);
 
-  // Shares the same 2s-polled `qk.actions(checkoutPath)` query as
-  // `useActions` (ActionsTab / TitleBarActions) instead of running its own
-  // independent `listActions` poll — see PLAN.md Phase 1. Keyed on the
-  // checkout path so two conversations pinned to the same checkout share
-  // one cache entry/poll, matching the backend's own `run_key` granularity.
-  const { data: actionsData } = useQuery({
-    queryKey: qk.actions(checkoutPath),
-    queryFn: () => api.listActions(checkoutPath as string),
-    enabled: checkoutPath != null,
-    refetchInterval: checkoutPath != null ? 2000 : false,
-  });
-  actionsRef.current = actionsData ?? [];
+  // The same event-fed `qk.actions(checkoutPath)` cache entry every other
+  // Actions view reads — a run starting (new `ptyId`) or ending re-renders
+  // this and re-runs `sync` below.
+  const { actions: actionsData } = useActions();
+  actionsRef.current = actionsData;
 
   useEffect(() => {
     if (!containerRef.current || !checkoutPath) return;
@@ -141,8 +133,8 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     };
   }, [actionId, checkoutPath]);
 
-  // Re-derive attach/detach whenever the shared actions query refreshes —
-  // this is what used to be this component's own `setInterval` poll.
+  // Re-derive attach/detach whenever the shared actions list changes (a
+  // `run://status` event patched it).
   // biome-ignore lint/correctness/useExhaustiveDependencies: syncRef is a ref; actionsData is the actual trigger
   useEffect(() => {
     syncRef.current?.();

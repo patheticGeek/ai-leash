@@ -32,7 +32,7 @@ pub(super) async fn create_action(
     if !approved {
         return Ok("The user denied permission to add this action.".into());
     }
-    actions::create_action_tool(root, action_name, command)
+    actions::create_action_tool(app, root, action_name, command)
 }
 
 pub(super) fn run_action(app: &AppHandle, root: &Path, args: &Value) -> Result<String, String> {
