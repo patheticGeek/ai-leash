@@ -163,7 +163,7 @@ pub fn run() {
             actions::delete_action,
             actions::run_action_cmd,
             actions::stop_action_cmd,
-            actions::action_backlog,
+            actions::run_snapshot,
             crashlog::report_frontend_crash,
             crashlog::get_crash_log,
             crashlog::clear_crash_log,

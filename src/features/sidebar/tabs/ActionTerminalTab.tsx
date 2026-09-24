@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
@@ -9,26 +8,19 @@ import {
   fontStack,
   watchTerminalFonts,
 } from "../../../lib/fontPreferences";
+import { attachRunOutput } from "../../../lib/runOutput";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useActions } from "../../actions/useActions";
 
-function base64ToBytes(b64: string): Uint8Array {
-  if (!b64) return new Uint8Array();
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
-// Attaches to an Action's process rather than spawning one — unlike
-// TerminalPanel, the pty (if any) is already running by the time this
-// mounts (started via the Actions tab's Run button, or by an agent's
-// run_action tool call). Replays buffered output on open via
-// action_backlog, then follows the live `pty://{ptyId}/data` stream for
-// whichever pty is currently backing this action, re-attaching whenever
-// that changes (a fresh Run after a Stop gets a new ptyId).
+// Shows an Action's current or most recent run rather than spawning one —
+// unlike TerminalPanel, the process (if any) was started from the Actions
+// tab or by an agent's run_action. Follows the action's `runId`: a new run
+// (a fresh Run after a Stop) resets the terminal and attaches to it, and a
+// finished run still shows its output (see `attachRunOutput` for how the
+// snapshot and live chunks are stitched together without gaps or repeats).
+// Typing and resizing only reach the process while it's running.
 export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   // Actions/their run status are scoped to a checkout path (see
   // `actions.rs`'s `run_key` doc comment), not a session id — this tab only
@@ -38,20 +30,21 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const attachedPtyIdRef = useRef<string | null>(null);
-  const unlistenRef = useRef<(() => void) | null>(null);
+  // The live process to forward input/resizes to — null once it has ended.
+  const livePtyIdRef = useRef<string | null>(null);
+  const attachedRunIdRef = useRef<string | null>(null);
+  const detachRef = useRef<(() => void) | null>(null);
   const syncRef = useRef<(() => void) | null>(null);
   const actionsRef = useRef<ActionSummary[]>([]);
 
   // The same event-fed `qk.actions(checkoutPath)` cache entry every other
-  // Actions view reads — a run starting (new `ptyId`) or ending re-renders
+  // Actions view reads — a run starting (new `runId`) or ending re-renders
   // this and re-runs `sync` below.
   const { actions: actionsData } = useActions();
   actionsRef.current = actionsData;
 
   useEffect(() => {
     if (!containerRef.current || !checkoutPath) return;
-    const currentCheckoutPath = checkoutPath;
 
     const term = new Terminal({
       convertEol: true,
@@ -71,8 +64,8 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
 
     const refit = () => {
       fit.fit();
-      if (attachedPtyIdRef.current) {
-        api.ptyResize(attachedPtyIdRef.current, term.cols, term.rows);
+      if (livePtyIdRef.current) {
+        api.ptyResize(livePtyIdRef.current, term.cols, term.rows);
       }
     };
     const resizeObserver = new ResizeObserver(refit);
@@ -81,36 +74,21 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
 
     let disposed = false;
 
-    async function attach(ptyId: string) {
-      unlistenRef.current?.();
-      attachedPtyIdRef.current = ptyId;
-      // A new pty means a fresh run: wipe the previous run's output now
-      // rather than after the backlog round trip.
-      term.reset();
-      const backlog = await api.actionBacklog(currentCheckoutPath, actionId);
-      if (disposed) return;
-      term.write(base64ToBytes(backlog));
-      unlistenRef.current = await listen<string>(`pty://${ptyId}/data`, (e) => {
-        term.write(base64ToBytes(e.payload));
-      });
-    }
-
-    function detach() {
-      unlistenRef.current?.();
-      unlistenRef.current = null;
-      attachedPtyIdRef.current = null;
-    }
-
     function sync() {
       if (disposed) return;
       const action = actionsRef.current.find((a) => a.id === actionId);
-      const ptyId = action?.running ? (action.ptyId ?? null) : null;
-      if (ptyId !== attachedPtyIdRef.current) {
-        if (ptyId) {
-          attach(ptyId);
-        } else {
-          detach();
-        }
+      livePtyIdRef.current = action?.running ? action.ptyId : null;
+      const runId = action?.runId ?? null;
+      if (runId === attachedRunIdRef.current) return;
+      detachRef.current?.();
+      detachRef.current = null;
+      attachedRunIdRef.current = runId;
+      term.reset();
+      if (runId) {
+        detachRef.current = attachRunOutput(runId, (bytes) =>
+          term.write(bytes),
+        );
+        refit();
       }
     }
 
@@ -118,8 +96,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     sync();
 
     const onData = term.onData((data) => {
-      if (attachedPtyIdRef.current)
-        api.ptyWrite(attachedPtyIdRef.current, data);
+      if (livePtyIdRef.current) api.ptyWrite(livePtyIdRef.current, data);
     });
 
     return () => {
@@ -127,7 +104,9 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
       syncRef.current = null;
       resizeObserver.disconnect();
       unwatchFonts();
-      unlistenRef.current?.();
+      detachRef.current?.();
+      detachRef.current = null;
+      attachedRunIdRef.current = null;
       onData.dispose();
       term.dispose();
     };

@@ -10,6 +10,15 @@ interface Registration {
 
 const registrations = new Map<string, Registration>();
 
+// Non-hook form of `useTauriEvent`, for code that manages its own lifetime
+// (e.g. `runOutput.ts`'s attach/detach) — same shared listener.
+export function subscribeTauriEvent<T>(
+  eventName: string,
+  handler: Handler<T>,
+): () => void {
+  return subscribe(eventName, handler);
+}
+
 function subscribe<T>(eventName: string, handler: Handler<T>): () => void {
   let reg = registrations.get(eventName);
   if (!reg) {

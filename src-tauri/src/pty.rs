@@ -129,8 +129,12 @@ fn spawn_pty(
             match reader.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => {
+                    // An Action's pty hands its output to `on_data` only —
+                    // `run.rs` streams it as offset-addressed `run://output`
+                    // instead of this per-pty event (see `actions.rs`).
                     if let Some(cb) = &on_data {
                         cb(&buf[..n]);
+                        continue;
                     }
                     let encoded = general_purpose::STANDARD.encode(&buf[..n]);
                     if app_handle.emit(&data_event, encoded).is_err() {
