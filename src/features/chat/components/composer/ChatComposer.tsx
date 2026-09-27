@@ -88,20 +88,19 @@ export default function ChatComposer({
   // without a real click.
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
-  const { isAcp, model, activeAcpAgent } = session;
-  const backendReady =
-    !session.backendDisabled && (isAcp ? !!activeAcpAgent : !!model);
+  const { backend, model, activeAcpAgent } = session;
+  const backendReady = backend.ready;
 
-  // "/compact" only exists for the built-in provider loop — see
-  // `COMPACT_COMMAND`. Local commands first, then whatever the connected
-  // ACP agent advertises (skipping any name a local command already
-  // covers) — see `LOCAL_COMMANDS`.
-  const localCommands = isAcp
-    ? LOCAL_COMMANDS
-    : [...LOCAL_COMMANDS, COMPACT_COMMAND];
+  // "/compact" only for a backend that can summarize (`caps.compaction`) —
+  // see `COMPACT_COMMAND`. Local commands first, then whatever the connected
+  // agent advertises (skipping any name a local command already covers) —
+  // see `LOCAL_COMMANDS`.
+  const localCommands = backend.caps.compaction
+    ? [...LOCAL_COMMANDS, COMPACT_COMMAND]
+    : LOCAL_COMMANDS;
   const allCommands = [
     ...localCommands,
-    ...session.acpCommands.filter(
+    ...session.agentCommands.filter(
       (c) => !localCommands.some((l) => l.name === c.name),
     ),
   ];
@@ -268,16 +267,15 @@ export default function ChatComposer({
               activeBackendLabel={session.activeBackendLabel}
               backendDisabledReason={session.backendDisabledReason}
               onSelectBackend={session.selectBackendOption}
-              modelSwitchPending={session.acpModelSwitchPending}
+              modelSwitchPending={session.modelSwitchPending}
               modelPickerOpen={modelPickerOpen}
               onModelPickerOpenChange={setModelPickerOpen}
-              isAcp={isAcp}
-              effortOptions={session.acpEffortOptions}
-              effortChoice={session.acpEffortChoice}
-              onSelectEffort={session.selectAcpEffort}
+              effortOptions={session.effortOptions}
+              effortChoice={session.effortChoice}
+              onSelectEffort={session.selectEffort}
               permissionMode={permissions.permissionMode}
               onSelectPermissionMode={permissions.setPermissionMode}
-              showModelIdInput={session.isOpenAiCompatible && !isAcp}
+              showModelIdInput={backend.caps.freeTextModel}
               model={model}
               onModelChange={session.setModel}
             />

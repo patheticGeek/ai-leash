@@ -27,8 +27,8 @@ use tokio::sync::oneshot;
 // reasoning as the `tools::permissions`/`tools::shell_tools` re-exports in
 // `tools/mod.rs` — a plain re-export is enough here since, unlike those,
 // nothing needs to name `AcpCommand` through `generate_handler!`.
-use process::ensure_acp_session;
 pub(crate) use process::AcpCommand;
+use process::{ensure_acp_session, AcpSessionOptions};
 
 use discovery::{
     find_model_config_option, find_thought_level_config_option, format_acp_error,
@@ -87,6 +87,17 @@ pub async fn send_prompt_acp(
     );
     rate_limit::clear(&app, &session_id);
     Ok(())
+}
+
+/// What `session_id`'s live connection offers right now — the same snapshot
+/// `acp://session-options` publishes on every change, for a view that opens
+/// after the connection came up.
+#[tauri::command]
+pub fn get_acp_session_options(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> AcpSessionOptions {
+    process::session_options(&state, &session_id)
 }
 
 /// Only meaningful once a session is already connected (send a prompt

@@ -2,19 +2,76 @@
 //! tool-call arguments arrive as incremental string fragments keyed by index
 //! and must be concatenated before parsing as JSON.
 
-use super::{emit_line_effects, persist_chunk, LineEffects, ProviderError};
+use super::backend::{Backend, BackendError, BoxFuture, Capabilities, TurnRequest};
+use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tauri::AppHandle;
+use std::sync::atomic::Ordering;
 
-pub(super) async fn check_openai_compatible_connection(base_url: &str, api_key: &str) -> bool {
+pub(super) struct OpenAiCompatBackend {
+    /// Full base URL, no `/chat/completions` suffix.
+    pub base_url: String,
+    /// Sent as a bearer token when non-empty.
+    pub api_key: String,
+}
+
+impl Backend for OpenAiCompatBackend {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            // Many hosts don't implement `GET /models` reliably (or gate it
+            // separately), and it has no context-length equivalent anyway —
+            // the model id is free text for this provider kind.
+            model_listing: false,
+            owns_agent_loop: false,
+            native_tools: true,
+            thinking: true,
+            resume: false,
+            effort: true,
+            compaction: true,
+            slash_commands: false,
+        }
+    }
+
+    fn list_models(&self) -> BoxFuture<'_, Result<Vec<ModelSummary>, BackendError>> {
+        Box::pin(async { Ok(vec![]) })
+    }
+
+    fn check_connection(&self) -> BoxFuture<'_, bool> {
+        Box::pin(check_openai_compatible_connection(
+            &self.base_url,
+            &self.api_key,
+        ))
+    }
+
+    fn complete<'a>(
+        &'a self,
+        model: &'a str,
+        messages: &'a [ChatMessage],
+    ) -> BoxFuture<'a, Result<String, BackendError>> {
+        Box::pin(complete_openai(
+            &self.base_url,
+            &self.api_key,
+            model,
+            messages,
+        ))
+    }
+
+    fn stream_turn<'a>(
+        &'a self,
+        request: TurnRequest<'a>,
+    ) -> BoxFuture<'a, Result<TurnResult, BackendError>> {
+        Box::pin(stream_turn_openai(&self.base_url, &self.api_key, request))
+    }
+}
+
+/// A 5xx from a hosted API is usually a momentary outage worth retrying.
+const RETRY_SERVER_ERRORS: bool = true;
+
+async fn check_openai_compatible_connection(base_url: &str, api_key: &str) -> bool {
     let base_url = base_url.trim_end_matches('/');
     let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
@@ -30,12 +87,12 @@ pub(super) async fn check_openai_compatible_connection(base_url: &str, api_key: 
     request.send().await.is_ok()
 }
 
-pub(super) async fn complete_openai(
+async fn complete_openai(
     base_url: &str,
     api_key: &str,
     model: &str,
     messages: &[ChatMessage],
-) -> Result<String, String> {
+) -> Result<String, BackendError> {
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
@@ -48,13 +105,21 @@ pub(super) async fn complete_openai(
     let resp = request
         .send()
         .await
-        .map_err(|e| format!("failed to reach {base_url}: {e}"))?;
+        .map_err(|e| BackendError::Unreachable(format!("failed to reach {base_url}: {e}")))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("provider returned {status}: {body_text}"));
+        return Err(BackendError::from_status(
+            status,
+            format!("provider returned {status}: {body_text}"),
+            false,
+            RETRY_SERVER_ERRORS,
+        ));
     }
-    let value: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let value: Value = resp
+        .json()
+        .await
+        .map_err(|e| BackendError::Fatal(e.to_string()))?;
     value
         .get("choices")
         .and_then(|c| c.get(0))
@@ -62,7 +127,7 @@ pub(super) async fn complete_openai(
         .and_then(|m| m.get("content"))
         .and_then(|c| c.as_str())
         .map(str::to_string)
-        .ok_or_else(|| "provider response had no message content".to_string())
+        .ok_or_else(|| BackendError::Fatal("provider response had no message content".to_string()))
 }
 
 #[derive(Serialize)]
@@ -229,23 +294,25 @@ fn accumulate_openai_data(data: &str, accum: &mut OpenAiAccum) -> Vec<LineEffect
     effects
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn stream_turn_openai(
-    app: &AppHandle,
+async fn stream_turn_openai(
     base_url: &str,
     api_key: &str,
-    model: &str,
-    history: &[ChatMessage],
-    chunk_event: &str,
-    thinking_event: &str,
-    error_event: &str,
-    cancel_flag: &Arc<AtomicBool>,
-    root: Option<&Path>,
-    touched_dirs: &[PathBuf],
-    allow_subtasks: bool,
-    message_id: Option<i64>,
-    effort: Option<&str>,
-) -> Result<TurnResult, ProviderError> {
+    request: TurnRequest<'_>,
+) -> Result<TurnResult, BackendError> {
+    let TurnRequest {
+        app,
+        model,
+        history,
+        chunk_event,
+        thinking_event,
+        error_event,
+        cancel_flag,
+        root,
+        touched_dirs,
+        allow_subtasks,
+        message_id,
+        effort,
+    } = request;
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
     let body = OpenAiChatRequest {
@@ -266,7 +333,7 @@ pub(super) async fn stream_turn_openai(
     let resp = match request.send().await {
         Ok(r) => r,
         Err(e) => {
-            return Err(ProviderError::Fatal(format!(
+            return Err(BackendError::Unreachable(format!(
                 "failed to reach {base_url}: {e}"
             )));
         }
@@ -274,14 +341,14 @@ pub(super) async fn stream_turn_openai(
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let is_transient = status.as_u16() == 429 || status.is_server_error();
         let body_text = resp.text().await.unwrap_or_default();
         let msg = format!("provider returned {status}: {body_text}");
-        return Err(if is_transient {
-            ProviderError::Transient(msg)
-        } else {
-            ProviderError::Fatal(msg)
-        });
+        return Err(BackendError::from_status(
+            status,
+            msg,
+            false,
+            RETRY_SERVER_ERRORS,
+        ));
     }
 
     let mut stream = resp.bytes_stream();
@@ -301,7 +368,7 @@ pub(super) async fn stream_turn_openai(
 
         let bytes = match item {
             Ok(b) => b,
-            Err(e) => return Err(ProviderError::Fatal(e.to_string())),
+            Err(e) => return Err(BackendError::Fatal(e.to_string())),
         };
         buf.push_str(&String::from_utf8_lossy(&bytes));
         while let Some(pos) = buf.find('\n') {

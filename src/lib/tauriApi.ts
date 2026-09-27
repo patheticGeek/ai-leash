@@ -58,10 +58,8 @@ export interface PersistedMessage {
   durationSeconds: number | null;
 }
 
-// Payload of the `chat://{sessionId}/acp_model_options` event, emitted only
-// when the connected ACP agent exposes a "model" session config option (see
-// docs/features/agent-chat.md) — most agents won't, so this event may never
-// fire for a given session.
+// An ACP agent's "model" session config option (see
+// docs/features/agent-chat.md) — most agents don't expose one.
 export interface AcpModelOptions {
   id: string; // the agent's own SessionConfigId, opaque — passed back verbatim to setAcpModel
   name: string;
@@ -95,16 +93,29 @@ export interface AcpAgentCatalogEntry {
   effortOptions: unknown;
 }
 
-// Payload of the `chat://{sessionId}/acp_commands` event, emitted whenever
-// the connected ACP agent (re-)announces its slash commands — typically
-// once, right after the session opens, but an agent can send this again if
-// its command set changes mid-conversation. `hint` is the agent's
+// One slash command an ACP agent advertises. `hint` is the agent's
 // placeholder text for the command's argument (e.g. "<file>"), null when
 // the command takes no input.
 export interface AcpCommandInfo {
   name: string;
   description: string;
   hint: string | null;
+}
+
+// What a conversation's live ACP connection offers — the payload of the
+// global `acp://session-options` event (published whenever any part
+// changes) and of `getAcpSessionOptions`. Every field null/false when the
+// conversation has no connection; `connection` changes when a new one
+// replaces it.
+export interface AcpSessionOptions {
+  sessionId: string;
+  connection: number | null;
+  launchCommand: string | null;
+  // The agent has answered and the options below are what it offers.
+  ready: boolean;
+  model: AcpModelOptions | null;
+  effort: AcpEffortOptions | null;
+  commands: AcpCommandInfo[] | null;
 }
 
 // Payload of the global `permission://request` event — one listener for the
@@ -448,6 +459,8 @@ export const api = {
     invoke<void>("arm_rate_limit_resume", { sessionId }),
   dismissRateLimitResume: (sessionId: string) =>
     invoke<void>("dismiss_rate_limit_resume", { sessionId }),
+  getAcpSessionOptions: (sessionId: string) =>
+    invoke<AcpSessionOptions>("get_acp_session_options", { sessionId }),
   setAcpModel: (sessionId: string, value: string) =>
     invoke<void>("set_acp_model", { sessionId, value }),
   setAcpEffort: (sessionId: string, value: string) =>

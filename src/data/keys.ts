@@ -17,6 +17,10 @@ export const qk = {
   // the owner can sweep it with the rest of that conversation's data.
   subAgents: (ownerId: string) =>
     ["conversation", ownerId, "sub-agents"] as const,
+  // What the conversation's live ACP connection offers — see
+  // `src/data/acpSessionOptions.ts`.
+  acpSessionOptions: (sessionId: string) =>
+    ["conversation", sessionId, "acp-options"] as const,
   // Prefix of every `fsDir` key — for predicate-based invalidation.
   fsDirs: ["fs-dir"] as const,
   // The path slot is always a real absolute path (the checkout root listing

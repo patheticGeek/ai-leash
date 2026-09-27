@@ -47,16 +47,18 @@ pub struct AcpSession {
     /// provider/model argument to) has something to run the sub-agent with.
     pub provider: ProviderConfig,
     pub model: String,
-    /// Last-emitted `chat://{session_id}/acp_model_options`,
-    /// `.../acp_effort_options`, and `.../acp_commands` payloads, if any —
-    /// each is normally only ever sent once (right after connecting, or
-    /// when explicitly changed via `SetModel`/`SetEffort`), so a frontend
-    /// that (re)subscribes after this connection already exists — e.g. the
-    /// same conversation's `ChatPanel` remounting after switching away and
-    /// back — would otherwise never learn them. `ensure_acp_session`
-    /// re-emits these verbatim when reusing an already-running connection
-    /// instead of spawning a fresh one. See `process.rs`/`events.rs` for
-    /// where each is populated.
+    /// Identifies this connection among every one the app has opened, so
+    /// the frontend can tell a fresh connection (which needs the remembered
+    /// model/effort choice applied again) from the same one re-reported.
+    pub connection: u64,
+    /// The agent has answered `session/new`/`session/load` and its options
+    /// below are what it offers; `false` while it's still starting up.
+    pub ready: bool,
+    /// What this connection offers: its model and effort config options and
+    /// its slash commands, each `None` if the agent doesn't advertise one.
+    /// Published as a whole on `acp://session-options` whenever any of them
+    /// changes and readable any time via `get_acp_session_options` — see
+    /// `process::publish_session_options`.
     pub model_options: Option<serde_json::Value>,
     pub effort_options: Option<serde_json::Value>,
     pub available_commands: Option<serde_json::Value>,

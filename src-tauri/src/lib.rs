@@ -152,6 +152,7 @@ pub fn run() {
             acp::rate_limit::get_rate_limit_resume,
             acp::rate_limit::arm_rate_limit_resume,
             acp::rate_limit::dismiss_rate_limit_resume,
+            acp::get_acp_session_options,
             acp::set_acp_model,
             acp::set_acp_effort,
             acp::fetch_acp_models,

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useProviderModels } from "../data/backends";
 import { useConversationsListener } from "../data/conversations";
 import { useSubAgentsListener } from "../data/subAgents";
@@ -43,6 +44,9 @@ function App() {
   useConversationsListener();
   // Always on — keeps every open sub-agent list live off `agent://lifecycle`.
   useSubAgentsListener();
+  // Always on — keeps each conversation's ACP connection options live off
+  // `acp://session-options`.
+  useAcpSessionOptionsListener();
   // Always on — keeps every checkout's Actions list live off `run://status`
   // and `action://defs-changed` (see `useActions.ts`); nothing polls it.
   useActionEvents();

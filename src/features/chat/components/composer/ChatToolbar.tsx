@@ -20,8 +20,8 @@ interface ChatToolbarProps {
   modelSwitchPending: boolean;
   modelPickerOpen: boolean;
   onModelPickerOpenChange: (open: boolean) => void;
-  isAcp: boolean;
-  // ACP-only "thought level" picker; hidden when the agent advertises none.
+  // The agent's own "thought level" picker; null (hidden) when the backend
+  // has no effort picker or the agent advertises none.
   effortOptions: {
     options: { value: string; name: string }[];
     currentValue: string;
@@ -30,7 +30,7 @@ interface ChatToolbarProps {
   onSelectEffort: (value: string) => void;
   permissionMode: PermissionMode;
   onSelectPermissionMode: (mode: PermissionMode) => void;
-  // Free-text model id for OpenAI-compatible providers (no model list to pick from).
+  // Free-text model id for a backend with no model list to pick from.
   showModelIdInput: boolean;
   model: string;
   onModelChange: (model: string) => void;
@@ -49,7 +49,6 @@ export default function ChatToolbar({
   modelSwitchPending,
   modelPickerOpen,
   onModelPickerOpenChange,
-  isAcp,
   effortOptions,
   effortChoice,
   onSelectEffort,
@@ -73,7 +72,7 @@ export default function ChatToolbar({
         open={modelPickerOpen}
         onOpenChange={onModelPickerOpenChange}
       />
-      {isAcp && effortOptions && (
+      {effortOptions && (
         <EffortPickerPopover
           options={effortOptions.options}
           value={effortChoice ?? effortOptions.currentValue}

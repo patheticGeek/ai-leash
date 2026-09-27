@@ -22,10 +22,11 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
+use serde::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{mpsc, oneshot, Notify};
@@ -45,7 +46,7 @@ pub(crate) enum AcpCommand {
     /// Sets the agent's "model" session config option, if it exposes one
     /// (see `find_model_config_option`) — a no-op (with a surfaced error) if
     /// it doesn't. `String` is the `SessionConfigValueId` to select, as
-    /// offered in the `chat://{session_id}/acp_model_options` event.
+    /// offered in `AcpSessionOptions::model`.
     SetModel(String),
     /// Sets the agent's "thought level" session config option, if it exposes
     /// one (see `find_thought_level_config_option`).
@@ -116,19 +117,7 @@ pub(super) fn ensure_acp_session(
         if existing.launch_command == launch_command {
             existing.provider = provider;
             existing.model = model;
-            let sender = existing.sender.clone();
-            // Re-announce this connection's cached config to whatever just
-            // (re)subscribed — see `AcpSession::model_options`'s doc comment.
-            if let Some(payload) = existing.model_options.clone() {
-                let _ = app.emit(&format!("chat://{session_id}/acp_model_options"), payload);
-            }
-            if let Some(payload) = existing.effort_options.clone() {
-                let _ = app.emit(&format!("chat://{session_id}/acp_effort_options"), payload);
-            }
-            if let Some(payload) = existing.available_commands.clone() {
-                let _ = app.emit(&format!("chat://{session_id}/acp_commands"), payload);
-            }
-            return sender;
+            return existing.sender.clone();
         }
         sessions.remove(session_id);
     }
@@ -140,6 +129,8 @@ pub(super) fn ensure_acp_session(
             sender: tx.clone(),
             provider,
             model,
+            connection: NEXT_CONNECTION.fetch_add(1, Ordering::Relaxed),
+            ready: false,
             model_options: None,
             effort_options: None,
             available_commands: None,
@@ -147,6 +138,7 @@ pub(super) fn ensure_acp_session(
         },
     );
     drop(sessions);
+    publish_session_options(app, session_id);
 
     tokio::spawn(run_acp_session(
         app.clone(),
@@ -157,27 +149,76 @@ pub(super) fn ensure_acp_session(
     tx
 }
 
-/// Caches a just-emitted `acp_model_options`/`acp_effort_options`/
-/// `acp_commands` payload onto this session's `AcpSession` entry, if it's
-/// still live — see that struct's doc comment on why (re-emitting it later
-/// when `ensure_acp_session` reuses this connection). A no-op if the session
-/// has since been dropped/replaced, which can't happen from any of this
-/// function's own call sites (they all run inside the same connection's
-/// still-live task) but is possible in principle if this ever gets called
-/// from elsewhere.
+/// Source of `AcpSession::connection`.
+static NEXT_CONNECTION: AtomicU64 = AtomicU64::new(1);
+
+/// What a conversation's live ACP connection offers, as one snapshot — the
+/// payload of `acp://session-options` and `get_acp_session_options`. All
+/// `None`/`false` when the conversation has no connection.
+#[derive(Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpSessionOptions {
+    pub session_id: String,
+    pub connection: Option<u64>,
+    pub launch_command: Option<String>,
+    pub ready: bool,
+    pub model: Option<serde_json::Value>,
+    pub effort: Option<serde_json::Value>,
+    pub commands: Option<serde_json::Value>,
+}
+
+pub(super) fn session_options(state: &AppState, session_id: &str) -> AcpSessionOptions {
+    let sessions = state.acp_sessions.lock().unwrap();
+    let Some(s) = sessions.get(session_id) else {
+        return AcpSessionOptions {
+            session_id: session_id.to_string(),
+            ..Default::default()
+        };
+    };
+    AcpSessionOptions {
+        session_id: session_id.to_string(),
+        connection: Some(s.connection),
+        launch_command: Some(s.launch_command.clone()),
+        ready: s.ready,
+        model: s.model_options.clone(),
+        effort: s.effort_options.clone(),
+        commands: s.available_commands.clone(),
+    }
+}
+
+/// Emits `session_id`'s current snapshot — whatever connection is in the map
+/// now, so a late call from a replaced connection's task still reports the
+/// replacement, never stale state.
+pub(super) fn publish_session_options(app: &AppHandle, session_id: &str) {
+    let snapshot = session_options(&app.state::<AppState>(), session_id);
+    let _ = app.emit("acp://session-options", snapshot);
+}
+
+/// Updates this session's `AcpSession` entry, if it's still live, and
+/// publishes the result. A no-op if the session has since been dropped or
+/// replaced, which can't happen from any of this function's own call sites
+/// (they all run inside the same connection's still-live task) but is
+/// possible in principle if this ever gets called from elsewhere.
 pub(super) fn cache_acp_config(
     app: &AppHandle,
     session_id: &str,
     update: impl FnOnce(&mut AcpSession),
 ) {
-    if let Some(session) = app
+    let updated = match app
         .state::<AppState>()
         .acp_sessions
         .lock()
         .unwrap()
         .get_mut(session_id)
     {
-        update(session);
+        Some(session) => {
+            update(session);
+            true
+        }
+        None => false,
+    };
+    if updated {
+        publish_session_options(app, session_id);
     }
 }
 
@@ -213,6 +254,10 @@ fn remove_if_still_current(app: &AppHandle, session_id: &str, launch_command: &s
     {
         sessions.remove(session_id);
     }
+    drop(sessions);
+    // Also reached after an explicit removal (`/clear`, a worktree switch)
+    // once the subprocess winds down, so the frontend learns it's gone.
+    publish_session_options(app, session_id);
 }
 
 /// Whether this conversation already has transcript worth telling the user
@@ -550,34 +595,25 @@ async fn drive_acp_connection(
                 history_truncated,
             );
 
-            // If this agent exposes a Model config option, tell the
-            // frontend what's selectable; most agents won't have one, in
-            // which case no event fires and the chat bar shows nothing for
-            // model selection (there's nothing to select).
-            let mut model_config_id: Option<SessionConfigId> = None;
-            if let Some(option) = config_options
+            // The model and effort levels this agent offers, if it exposes
+            // them as config options (most don't — the chat bar then shows
+            // nothing to pick). Published together with `ready` so the
+            // frontend sees the connection come up in one snapshot.
+            let model_option = config_options
                 .as_ref()
-                .and_then(|opts| find_model_config_option(opts))
-            {
-                model_config_id = Some(option.id.clone());
-                let payload = model_options_payload(option);
-                cache_acp_config(&app, &session_id, |s| {
-                    s.model_options = Some(payload.clone())
-                });
-                let _ = app.emit(&format!("chat://{session_id}/acp_model_options"), payload);
-            }
-            let mut effort_config_id: Option<SessionConfigId> = None;
-            if let Some(option) = config_options
+                .and_then(|opts| find_model_config_option(opts));
+            let effort_option = config_options
                 .as_ref()
-                .and_then(|opts| find_thought_level_config_option(opts))
-            {
-                effort_config_id = Some(option.id.clone());
-                let payload = thought_level_options_payload(option);
-                cache_acp_config(&app, &session_id, |s| {
-                    s.effort_options = Some(payload.clone())
-                });
-                let _ = app.emit(&format!("chat://{session_id}/acp_effort_options"), payload);
-            }
+                .and_then(|opts| find_thought_level_config_option(opts));
+            let model_config_id: Option<SessionConfigId> = model_option.map(|o| o.id.clone());
+            let effort_config_id: Option<SessionConfigId> = effort_option.map(|o| o.id.clone());
+            let model_payload = model_option.map(model_options_payload);
+            let effort_payload = effort_option.map(thought_level_options_payload);
+            cache_acp_config(&app, &session_id, |s| {
+                s.model_options = model_payload;
+                s.effort_options = effort_payload;
+                s.ready = true;
+            });
 
             while let Some(cmd) = commands.recv().await {
                 match cmd {
@@ -715,12 +751,8 @@ async fn drive_acp_connection(
                                 {
                                     let payload = model_options_payload(option);
                                     cache_acp_config(&app, &session_id, |s| {
-                                        s.model_options = Some(payload.clone())
+                                        s.model_options = Some(payload)
                                     });
-                                    let _ = app.emit(
-                                        &format!("chat://{session_id}/acp_model_options"),
-                                        payload,
-                                    );
                                 }
                             }
                             Err(e) => {
@@ -776,12 +808,8 @@ async fn drive_acp_connection(
                                 {
                                     let payload = thought_level_options_payload(option);
                                     cache_acp_config(&app, &session_id, |s| {
-                                        s.effort_options = Some(payload.clone())
+                                        s.effort_options = Some(payload)
                                     });
-                                    let _ = app.emit(
-                                        &format!("chat://{session_id}/acp_effort_options"),
-                                        payload,
-                                    );
                                 }
                             }
                             Err(e) => {

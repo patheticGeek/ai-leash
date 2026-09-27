@@ -1,5 +1,8 @@
-import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  patchAcpSessionOptions,
+  useAcpSessionOptions,
+} from "../../../data/acpSessionOptions";
 import {
   providerModelListing,
   providerUnreachableMessage,
@@ -17,6 +20,7 @@ import {
 } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import { isEnabled } from "../../../store/backendSlice";
+import { type ChatBackend, createChatBackend } from "../chatBackend";
 import type { PickerOption } from "../components/popovers/ModelPickerPopover";
 
 // Commands we handle ourselves, client-side, rather than sending as a
@@ -42,6 +46,8 @@ export const LOCAL_COMMANDS: AcpCommandInfo[] = [
 // Kept separate from `LOCAL_COMMANDS` so `isAcp` conversations never list
 // or intercept it, letting an agent-advertised "/compact" (if any) pass
 // straight through as a normal prompt like any other agent command.
+const NO_COMMANDS: AcpCommandInfo[] = [];
+
 export const COMPACT_COMMAND: AcpCommandInfo = {
   name: "compact",
   description: "Summarize this conversation to reclaim context",
@@ -134,71 +140,9 @@ export function useChatSession(
     return () => setError(null);
   }, [backendDisabledReason, setError]);
 
-  // Only set if the connected ACP agent advertises a Model config option
-  // (see docs/features/agent-chat.md) — most agents won't, in which case
-  // this stays null and no model dropdown shows for ACP mode.
-  const [acpModelOptions, setAcpModelOptions] =
-    useState<AcpModelOptions | null>(null);
-  const [acpEffortOptions, setAcpEffortOptions] =
-    useState<AcpEffortOptions | null>(null);
-  // Slash commands the connected ACP agent advertises, if any — most agents
-  // won't send this notification at all, in which case typing "/" does
-  // nothing special. See `chat://{sessionId}/acp_commands` below.
-  const [acpCommands, setAcpCommands] = useState<AcpCommandInfo[]>([]);
   const [model, setModel] = useState(
     () => useAppStore.getState().conversationBackend[sessionId]?.model ?? "",
   );
-  // Set by `selectBackendOption` when picking a model that belongs to a
-  // *different* agent than the one currently connected — there's no live
-  // connection for that agent yet, so the choice can't go straight into
-  // `acpModelChoice`: the apply-effect below would then fire in the very
-  // same render as the reset effect, using that render's already-captured
-  // (stale, OLD agent's) `acpModelOptions` — a `setState` from an earlier
-  // effect in the same commit doesn't retroactively update a later effect's
-  // closure, only a *subsequent* render does — sending a "set model"
-  // request to the wrong, about-to-be-replaced connection. Stashed here
-  // instead, and promoted into `acpModelChoice` once the new connection's
-  // own `acp_model_options` event actually arrives (see the listener
-  // below), by which point applying it is genuinely safe. Tagged with the
-  // agent it's meant for so a stale event from an abandoned, still-tearing-
-  // down connection (a rapid second switch before the first one's handshake
-  // finished) can't misapply it — checked against `lastResetAcpActiveIdRef`,
-  // which the reset effect keeps in sync with `acpActiveId` synchronously,
-  // well before any async connection handshake could resolve.
-  const pendingCrossAgentModelRef = useRef<{
-    agentId: string;
-    model: string;
-  } | null>(null);
-  // Reactive mirror of "is `pendingCrossAgentModelRef` set" — the ref itself
-  // doesn't trigger a re-render, but the model picker's trigger button wants
-  // to show a spinner in place of the agent icon for this window (see
-  // `ModelPickerPopover`'s `loading` prop). Cleared either when the pending
-  // choice is actually applied (the listener below) or, as a safety net, on
-  // any ACP error for this session — a spawn failure or crashed subprocess
-  // means whatever this was waiting for is never coming.
-  const [acpModelSwitchPending, setAcpModelSwitchPending] = useState(false);
-  // The reset effect only does its work when `acpActiveId` has actually
-  // changed since the last time it ran — tracked here rather than a plain
-  // "has this effect ever run" boolean, because React StrictMode
-  // deliberately double-invokes every effect on mount (setup → cleanup →
-  // setup again) to catch non-idempotent effects, and a "run once, consume a
-  // flag" guard is exactly that: the first of the two mount-time invocations
-  // consumes the flag, so the *second* one runs for real and wipes the
-  // `acpModelChoice` this conversation just restored from persisted state,
-  // on every fresh mount. Comparing against the last value this effect
-  // actually processed is idempotent no matter how many times it's invoked
-  // with the same `acpActiveId`, which a plain boolean flag can't guarantee.
-  // Also read live by the `acp_model_options` listener below to validate
-  // `pendingCrossAgentModelRef` against whichever agent is *actually*
-  // current, since it stays in sync synchronously (no `setState` delay).
-  const lastResetAcpActiveIdRef = useRef(acpActiveId);
-  // Tracks the last `acpModelChoice` actually sent to the *current*
-  // connection, so the apply-effect doesn't resend it every time some
-  // unrelated dependency changes, and so a fresh connection (after an
-  // agent switch) knows it hasn't applied anything yet.
-  const appliedAcpModelRef = useRef<string | null>(null);
-  const appliedAcpEffortRef = useRef<string | null>(null);
-
   // Keeps this conversation's own choice durable across remounts (a project
   // switch away and back, or an app restart) — writes the full snapshot
   // whenever any piece of it changes. Also backfills a record for a
@@ -224,96 +168,65 @@ export function useChatSession(
     setConversationBackend,
   ]);
 
-  // Model options are per-connection (they only exist once a session's ACP
-  // subprocess replies to session/new) — clear the stale ones, and the
-  // previously-chosen model, whenever which ACP agent is active changes. A
-  // model chosen for the *new* agent in the same click as the switch
-  // (`selectBackendOption`) isn't lost by this: it goes through
-  // `pendingCrossAgentModelRef` instead of `acpModelChoice` until the new
-  // connection is actually live (see that ref's doc comment).
+  // What the live connection offers — Rust owns it (see
+  // `data/acpSessionOptions.ts`). Only a connection to this conversation's
+  // current agent counts: right after a switch the old one can still report.
+  const launchCommand = isAcp ? activeAcpAgent?.launchCommand : undefined;
+  const liveOptions = useAcpSessionOptions(sessionId);
+  const live =
+    launchCommand && liveOptions?.launchCommand === launchCommand
+      ? liveOptions
+      : null;
+  const liveModelOptions = live?.model ?? null;
+  const liveEffortOptions = live?.effort ?? null;
+  const agentCommands = live?.commands ?? NO_COMMANDS;
+  // A model is picked and the agent is still starting up — the picker shows
+  // a spinner until it can be applied. A failed start drops the connection,
+  // which ends this too.
+  const modelSwitchPending = !!live && !live.ready && !!acpModelChoice;
+
+  // Sends this conversation's remembered model/effort choice to the agent
+  // once per connection (a fresh one after an agent switch, `/clear` or an
+  // app restart starts on the agent's defaults), and again whenever the
+  // choice changes. Tracked per connection rather than re-checked against
+  // `currentValue` every time, so a change the agent makes itself (its own
+  // `/model` command) isn't overridden.
+  const appliedRef = useRef<{
+    connection: number | null;
+    model: string | null;
+    effort: string | null;
+  }>({ connection: null, model: null, effort: null });
   useEffect(() => {
-    if (lastResetAcpActiveIdRef.current === acpActiveId) return;
-    lastResetAcpActiveIdRef.current = acpActiveId;
-    setAcpModelOptions(null);
-    setAcpModelChoice(null);
-    appliedAcpModelRef.current = null;
-    setAcpEffortOptions(null);
-    setAcpEffortChoice(null);
-    appliedAcpEffortRef.current = null;
-    setAcpCommands([]);
-  }, [acpActiveId]);
-
-  // Drops the live-discovered model/effort/commands options (and the
-  // "already applied" bookkeeping that gates re-sending a choice) without
-  // touching the persisted `acpModelChoice`/`acpEffortChoice` preference or
-  // which agent is active — unlike the agent-switch reset effect above,
-  // which agent this conversation talks to hasn't changed here. For "/clear"
-  // (`ChatPanel.tsx`'s `runCommand`): the backend drops its connection
-  // to the same agent and reconnects fresh, which re-announces these same
-  // options and re-applies the still-remembered choice once it arrives — in
-  // the meantime the old, now-stale options shouldn't keep showing as if
-  // they were still live.
-  function resetAcpConnectionState() {
-    setAcpModelOptions(null);
-    setAcpEffortOptions(null);
-    setAcpCommands([]);
-    appliedAcpModelRef.current = null;
-    appliedAcpEffortRef.current = null;
-  }
-
-  async function selectAcpModel(value: string) {
-    setAcpModelOptions((prev) =>
-      prev ? { ...prev, currentValue: value } : prev,
-    );
-    try {
-      await api.setAcpModel(sessionId, value);
-    } catch (e) {
-      setError(String(e));
+    if (!live?.ready || live.connection === null) return;
+    if (appliedRef.current.connection !== live.connection) {
+      appliedRef.current = {
+        connection: live.connection,
+        model: null,
+        effort: null,
+      };
     }
-  }
-
-  async function selectAcpEffort(value: string) {
-    setAcpEffortChoice(value);
-    // Picked off the catalog's cached options before a live connection has
-    // reported in — nothing to send yet, the apply-effect below sends the
-    // remembered choice once the real `acp_effort_options` event arrives.
-    if (!acpEffortOptions) return;
-    setAcpEffortOptions((prev) =>
-      prev ? { ...prev, currentValue: value } : prev,
-    );
-    try {
-      await api.setAcpEffort(sessionId, value);
-    } catch (e) {
-      setError(String(e));
+    const applied = appliedRef.current;
+    if (live.model && acpModelChoice && applied.model !== acpModelChoice) {
+      applied.model = acpModelChoice;
+      if (live.model.currentValue !== acpModelChoice) {
+        const value = acpModelChoice;
+        patchAcpSessionOptions(sessionId, (o) =>
+          o.model ? { ...o, model: { ...o.model, currentValue: value } } : o,
+        );
+        api.setAcpModel(sessionId, value).catch((e) => setError(String(e)));
+      }
     }
-  }
-
-  // Applies a model choice (from the unified popover's per-model ACP rows)
-  // once a real connection actually reports its options — either right
-  // after the first prompt connects, or immediately if the agent was
-  // already connected when a different model was picked. Reopening a
-  // conversation restores its last `acpModelChoice` from persisted state
-  // (see the lazy `useState` initializer above), so this also re-applies it
-  // to a freshly (re)connected subprocess after an app restart.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectAcpModel is a fresh function reference every render (not memoized) and would make this effect re-run every render for no reason; appliedAcpModelRef already makes the call idempotent per acpModelChoice
-  useEffect(() => {
-    if (!acpModelOptions || !acpModelChoice) return;
-    if (appliedAcpModelRef.current === acpModelChoice) return;
-    if (acpModelOptions.currentValue !== acpModelChoice) {
-      selectAcpModel(acpModelChoice);
+    if (live.effort && acpEffortChoice && applied.effort !== acpEffortChoice) {
+      applied.effort = acpEffortChoice;
+      if (live.effort.currentValue !== acpEffortChoice) {
+        const value = acpEffortChoice;
+        patchAcpSessionOptions(sessionId, (o) =>
+          o.effort ? { ...o, effort: { ...o.effort, currentValue: value } } : o,
+        );
+        api.setAcpEffort(sessionId, value).catch((e) => setError(String(e)));
+      }
     }
-    appliedAcpModelRef.current = acpModelChoice;
-  }, [acpModelOptions, acpModelChoice]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectAcpEffort is a fresh function reference every render; this effect is keyed by the persisted effort choice and live options
-  useEffect(() => {
-    if (!acpEffortOptions || !acpEffortChoice) return;
-    if (appliedAcpEffortRef.current === acpEffortChoice) return;
-    if (acpEffortOptions.currentValue !== acpEffortChoice) {
-      selectAcpEffort(acpEffortChoice);
-    }
-    appliedAcpEffortRef.current = acpEffortChoice;
-  }, [acpEffortOptions, acpEffortChoice]);
+  }, [live, acpModelChoice, acpEffortChoice, sessionId, setError]);
 
   // A provider that lists its models has none yet the first time a
   // brand-new conversation opens on it — fill in a sensible one once this
@@ -344,48 +257,6 @@ export function useChatSession(
       setError(null);
     }
   }, [connected, providerConfig, backendDisabled, setError]);
-
-  useEffect(() => {
-    const unlistens: Promise<() => void>[] = [];
-    unlistens.push(
-      listen<AcpModelOptions>(`chat://${sessionId}/acp_model_options`, (e) => {
-        setAcpModelOptions(e.payload);
-        const pending = pendingCrossAgentModelRef.current;
-        if (pending && pending.agentId === lastResetAcpActiveIdRef.current) {
-          pendingCrossAgentModelRef.current = null;
-          setAcpModelChoice(pending.model);
-          setAcpModelSwitchPending(false);
-        }
-      }),
-    );
-    // Safety net for `acpModelSwitchPending`: a spawn failure or crashed
-    // subprocess means the connection this was waiting on is never coming,
-    // so there's nothing left to spin on.
-    unlistens.push(
-      listen(`chat://${sessionId}/error`, () => {
-        pendingCrossAgentModelRef.current = null;
-        setAcpModelSwitchPending(false);
-      }),
-    );
-    unlistens.push(
-      listen<AcpEffortOptions>(
-        `chat://${sessionId}/acp_effort_options`,
-        (e) => {
-          setAcpEffortOptions(e.payload);
-        },
-      ),
-    );
-    unlistens.push(
-      listen<AcpCommandInfo[]>(`chat://${sessionId}/acp_commands`, (e) => {
-        setAcpCommands(e.payload);
-      }),
-    );
-    return () => {
-      unlistens.forEach((u) => {
-        u.then((f) => f());
-      });
-    };
-  }, [sessionId]);
 
   const selectedModel = (modelsByProvider[providerActiveId] ?? []).find(
     (m) => m.name === model,
@@ -442,7 +313,7 @@ export function useChatSession(
         (acpCatalog.find((e) => e.id === c.id)?.modelOptions as
           | AcpModelOptions
           | null
-          | undefined) ?? (c.id === acpActiveId ? acpModelOptions : null);
+          | undefined) ?? (c.id === acpActiveId ? liveModelOptions : null);
       if (known && known.options.length > 0) {
         return known.options.map((o) => ({
           key: `acp:${c.id}:${o.value}`,
@@ -472,7 +343,7 @@ export function useChatSession(
   // were a model.
   const activeAcpModelValue =
     acpModelChoice ??
-    acpModelOptions?.currentValue ??
+    liveModelOptions?.currentValue ??
     (activeAcpAgent
       ? (
           acpCatalog.find((e) => e.id === activeAcpAgent.id)?.modelOptions as
@@ -519,12 +390,11 @@ export function useChatSession(
       const sepIdx = rest.indexOf(":");
       const agentId = sepIdx === -1 ? rest : rest.slice(0, sepIdx);
       const modelValue = sepIdx === -1 ? null : rest.slice(sepIdx + 1);
-      if (modelValue && agentId !== acpActiveId) {
-        // See `pendingCrossAgentModelRef`'s doc comment — the new agent
-        // isn't connected yet, so this can't go into `acpModelChoice` until
-        // its own `acp_model_options` event proves the connection is live.
-        pendingCrossAgentModelRef.current = { agentId, model: modelValue };
-        setAcpModelSwitchPending(true);
+      // A different agent starts from its own defaults: whatever was picked
+      // for the previous one doesn't carry over.
+      if (agentId !== acpActiveId) {
+        setAcpModelChoice(modelValue);
+        setAcpEffortChoice(null);
       } else if (modelValue) {
         setAcpModelChoice(modelValue);
       }
@@ -558,11 +428,37 @@ export function useChatSession(
   // What the effort picker shows: the live connection's options when it has
   // reported in, else the catalog's cached ones for the active agent, so a
   // brand-new thread shows the picker immediately instead of after the
-  // warmup handshake. Only the live options gate `selectAcpEffort`/the
-  // apply-effect — a choice made against the cached list is sent once the
-  // live event arrives.
-  const displayedAcpEffortOptions: AcpEffortOptions | null =
-    acpEffortOptions ??
+  // warmup handshake. A choice made against the cached list is sent once the
+  // connection is ready (the apply effect above).
+  const backendKind = isAcp
+    ? "acp"
+    : isOpenAiCompatible
+      ? "openAiCompatible"
+      : "ollama";
+  const providerConfigFor = useAppStore((s) => s.providerConfigFor);
+  // Whoever answers this conversation — see `chatBackend.ts`. Everything
+  // outside this hook uses it (and its `caps`) instead of branching on kind.
+  const backend: ChatBackend = useMemo(
+    () =>
+      createChatBackend({
+        kind: backendKind,
+        model,
+        provider: providerConfigFor(providerActiveId),
+        launchCommand,
+        disabled: backendDisabled,
+      }),
+    [
+      backendKind,
+      model,
+      providerConfigFor,
+      providerActiveId,
+      launchCommand,
+      backendDisabled,
+    ],
+  );
+
+  const displayedEffortOptions: AcpEffortOptions | null =
+    liveEffortOptions ??
     (isAcp && activeAcpAgent
       ? ((acpCatalog.find((e) => e.id === activeAcpAgent.id)?.effortOptions as
           | AcpEffortOptions
@@ -571,25 +467,25 @@ export function useChatSession(
       : null);
 
   return {
-    isAcp,
-    isOpenAiCompatible,
+    backend,
     backendDisabled,
     backendDisabledReason,
     providerActiveId,
     activeAcpAgent,
-    acpEffortOptions: displayedAcpEffortOptions,
-    acpEffortChoice,
-    acpCommands,
+    // Only for a backend with an effort picker — a live options event from an
+    // agent this conversation has since switched away from can linger.
+    effortOptions: backend.caps.effortPicker ? displayedEffortOptions : null,
+    effortChoice: acpEffortChoice,
+    selectEffort: setAcpEffortChoice,
+    agentCommands,
     model,
     setModel,
     contextLength,
     backendOptions,
     activeBackendKey,
     activeBackendLabel,
-    acpModelSwitchPending,
+    modelSwitchPending,
     selectBackendOption,
-    selectAcpEffort,
-    resetAcpConnectionState,
   };
 }
 

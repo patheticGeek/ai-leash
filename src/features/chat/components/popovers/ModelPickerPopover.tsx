@@ -30,11 +30,9 @@ interface ModelPickerPopoverProps {
   // the active agent is turned off in Settings.
   dangerMessage?: string | null;
   disabled?: boolean;
-  // Shows a spinner in place of the agent icon — currently only meaningful
-  // while `useChatSession`'s `pendingCrossAgentModelRef` is waiting for a
-  // freshly-switched-to agent's connection to come up and report its own
-  // options, so the trigger doesn't sit there silently showing the *old*
-  // agent's icon/label for that window.
+  // Shows a spinner in place of the agent icon while a picked model waits
+  // for the agent's connection to come up (`useChatSession`'s
+  // `modelSwitchPending`).
   loading?: boolean;
   // Controlled from outside (rather than the plain internal toggle this
   // started with) so the "/model" local command can pop it open without a

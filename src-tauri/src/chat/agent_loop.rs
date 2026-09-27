@@ -2,7 +2,7 @@ use super::ChatMessage;
 use crate::commands;
 use crate::context;
 use crate::db;
-use crate::provider::{self, ProviderConfig, ProviderError};
+use crate::provider::{BackendError, ProviderConfig, TurnRequest};
 use crate::state::AppState;
 use crate::tools;
 use serde_json::{json, Value};
@@ -145,46 +145,48 @@ pub(super) async fn run_agent_loop(
         // behind from the failed attempt.
         let assistant_message_id = start_streaming_assistant_message(state, session_id);
 
-        // Providers occasionally fail a turn outright with a transient hiccup
-        // (e.g. Ollama's "error parsing tool call" 500 when the model's own
-        // output mixes raw reasoning text into where clean JSON is expected,
-        // or a 429/5xx from an OpenAI-compatible host) — not a real error
-        // condition. Retrying the exact same request a couple of times
-        // usually gets a well-formed response without bothering the user.
+        // Backends occasionally fail a turn with a transient hiccup (e.g.
+        // Ollama's "error parsing tool call" 500 when the model's own output
+        // mixes raw reasoning text into where clean JSON is expected, or a
+        // 5xx from an OpenAI-compatible host) — not a real error condition.
+        // Retrying the exact same request a couple of times usually gets a
+        // well-formed response without bothering the user. Every other kind
+        // (rate limit, rejected credentials, unreachable, fatal) is surfaced
+        // right away: retrying immediately wouldn't change it.
+        let backend = provider.backend();
         let mut attempt = 0;
         let turn = loop {
             if let Some(id) = assistant_message_id {
                 db::update_streaming_message(&state.db, id, "");
             }
-            match provider::stream_turn(
+            let request = TurnRequest {
                 app,
-                provider,
                 model,
-                &history,
-                &chunk_event,
-                &thinking_event,
-                &error_event,
+                history: &history,
+                chunk_event: &chunk_event,
+                thinking_event: &thinking_event,
+                error_event: &error_event,
                 cancel_flag,
-                root.as_deref(),
-                &touched,
+                root: root.as_deref(),
+                touched_dirs: &touched,
                 allow_subtasks,
-                assistant_message_id,
+                message_id: assistant_message_id,
                 effort,
-            )
-            .await
-            {
+            };
+            match backend.stream_turn(request).await {
                 Ok(t) => break t,
-                Err(ProviderError::Transient(_)) if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES => {
+                Err(BackendError::Transient(_)) if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES => {
                     attempt += 1;
                 }
-                Err(ProviderError::Transient(_)) => {
-                    let msg = "The model kept producing malformed tool calls that the provider couldn't parse, even after retrying. Try again, simplify the request, or switch to a model that handles tool calling more reliably.".to_string();
+                Err(BackendError::Transient(e)) => {
+                    let msg = format!("The provider kept failing even after retrying ({e}). If the model produces malformed tool calls, simplify the request or switch to a model that handles tool calling more reliably.");
                     let _ = app.emit(&error_event, &msg);
                     return Err(msg);
                 }
-                Err(ProviderError::Fatal(e)) => {
-                    let _ = app.emit(&error_event, &e);
-                    return Err(e);
+                Err(e) => {
+                    let msg = e.message().to_string();
+                    let _ = app.emit(&error_event, &msg);
+                    return Err(msg);
                 }
             }
         };
@@ -355,8 +357,8 @@ pub(crate) fn push_message(state: &State<'_, AppState>, session_id: &str, messag
 
 /// The in-memory half of `push_message`, split out for
 /// `start_streaming_assistant_message`'s callers: they persist the assistant
-/// turn to disk incrementally as it streams (see `provider::stream_turn`'s
-/// `message_id` param) rather than in one `save_message` INSERT at the end,
+/// turn to disk incrementally as it streams (see `TurnRequest::message_id`)
+/// rather than in one `save_message` INSERT at the end,
 /// so this is all that's left to do once the turn is fully known.
 pub(crate) fn remember_in_memory(
     state: &State<'_, AppState>,
@@ -373,7 +375,7 @@ pub(crate) fn remember_in_memory(
 }
 
 /// Reserves a row for the assistant's reply before a single token of it has
-/// arrived, so `provider::stream_turn` can flush accumulated content into it
+/// arrived, so the backend's `stream_turn` can flush accumulated content into it
 /// on every chunk (`db::update_streaming_message`) instead of only once the
 /// full turn finishes — otherwise an app crash mid-reply loses the whole
 /// message instead of just whatever arrived after the last flush. `None`
