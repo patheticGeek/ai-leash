@@ -180,7 +180,7 @@ pub fn set_conversation_root(
     );
     drop(roots);
     if changed {
-        state.acp_sessions.lock().unwrap().remove(&session_id);
+        crate::backend::disconnect(&state, &session_id);
     }
     let worktree_path = (cwd != project_root).then_some(cwd.as_str());
     if worktree_path.is_some() || db::conversation_exists(&state.db, &session_id) {

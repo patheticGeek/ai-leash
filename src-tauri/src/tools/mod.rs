@@ -12,12 +12,13 @@ mod schema;
 pub(crate) mod shell_tools;
 pub(crate) mod sub_agent_tools;
 
+use crate::backend::Backend;
 use crate::commands;
-use crate::provider::ProviderConfig;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use similar::{ChangeTag, TextDiff};
+use std::sync::Arc;
 use tauri::{AppHandle, State};
 
 pub(crate) use permissions::request_permission;
@@ -106,14 +107,12 @@ pub(crate) fn diff_text(old: &str, new: &str) -> String {
     out
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn execute_tool(
     app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
     call_id: Option<&str>,
-    provider: &ProviderConfig,
-    model: &str,
+    backend: &Arc<dyn Backend>,
     name: &str,
     args: &Value,
 ) -> Result<String, String> {
@@ -128,11 +127,11 @@ pub async fn execute_tool(
         "update_memory" => memory_tools::update_memory(app, state, session_id, &root, args).await,
         "shell" => shell_tools::shell(app, state, session_id, &root, args).await,
         "spawn_sub_agent" => {
-            sub_agent_tools::spawn_sub_agent(app, state, session_id, call_id, provider, model, args)
+            sub_agent_tools::spawn_sub_agent(app, state, session_id, call_id, backend, args)
         }
         "list_sub_agents" => sub_agent_tools::list_sub_agents(state, session_id),
         "read_sub_agent" => sub_agent_tools::read_sub_agent(state, session_id, args),
-        "list_agent_options" => sub_agent_tools::list_agent_options(state, provider).await,
+        "list_agent_options" => sub_agent_tools::list_agent_options(state, backend.native()).await,
         "load_skill" => memory_tools::load_skill(state, session_id, &root, args),
         "create_action" => action_tools::create_action(app, state, session_id, &root, args).await,
         "run_action" => action_tools::run_action(app, &root, args),

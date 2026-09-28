@@ -1,8 +1,9 @@
 use super::ChatMessage;
+use crate::backend::{Backend, NativeBackend};
 use crate::commands;
 use crate::context;
 use crate::db;
-use crate::provider::{BackendError, ProviderConfig, TurnRequest};
+use crate::provider::{BackendError, TurnRequest};
 use crate::state::AppState;
 use crate::tools;
 use serde_json::{json, Value};
@@ -25,13 +26,13 @@ fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()
 
 /// Serializes every turn for a given session — whether it's a normal
 /// user-initiated `send_prompt`/`retry_last`, or a background subtask
-/// autonomously resuming the conversation (see `resume_after_background_subtask`)
+/// autonomously resuming the conversation (see `Backend::deliver_task_result`)
 /// — so the two can never interleave writes to the same session's history.
 ///
 /// Also the single choke point for the `chat://generating` events the
 /// frontend uses to know a session is busy — emitted here rather than at
 /// each call site (`send_prompt`, `retry_last`,
-/// `resume_after_background_subtask`) specifically so a background subtask
+/// `Backend::deliver_task_result`) specifically so a background subtask
 /// autonomously resuming the conversation (no frontend action kicks that
 /// off) still reports it's working, not just user-initiated turns. This is
 /// what lets the left sidebar show a project as generating even while
@@ -42,7 +43,7 @@ fn session_lock(state: &AppState, session_id: &str) -> Arc<tokio::sync::Mutex<()
 ///
 /// `autonomous` distinguishes *why* this turn is running: `false` for
 /// `send_prompt`/`retry_last` (the user is actually waiting on this one),
-/// `true` for `resume_after_background_subtask` (the model reacting to a
+/// `true` for `Backend::deliver_task_result` (the model reacting to a
 /// finished sub-agent on its own — nothing the user did or is necessarily
 /// watching for). The event payload carries both fields so `LeftBar.tsx`'s
 /// sidebar busy-dot (which should light up for *any* activity) and
@@ -55,9 +56,7 @@ pub(super) async fn run_with_cancellation(
     state: &State<'_, AppState>,
     session_id: &str,
     scope_id: &str,
-    provider: &ProviderConfig,
-    model: &str,
-    effort: Option<&str>,
+    native: &NativeBackend,
     allow_subtasks: bool,
     autonomous: bool,
 ) -> Result<(), String> {
@@ -80,9 +79,7 @@ pub(super) async fn run_with_cancellation(
         state,
         session_id,
         scope_id,
-        provider,
-        model,
-        effort,
+        native,
         &cancel_flag,
         allow_subtasks,
     )
@@ -102,12 +99,15 @@ pub(super) async fn run_agent_loop(
     state: &State<'_, AppState>,
     session_id: &str,
     scope_id: &str,
-    provider: &ProviderConfig,
-    model: &str,
-    effort: Option<&str>,
+    native: &NativeBackend,
     cancel_flag: &Arc<AtomicBool>,
     allow_subtasks: bool,
 ) -> Result<(), String> {
+    let model = native.model.as_str();
+    let effort = native.effort.as_deref();
+    // What the tools this loop runs see as the conversation's backend —
+    // `spawn_sub_agent` hands its sub-agents' results back through it.
+    let backend: Arc<dyn Backend> = Arc::new(native.clone());
     let chunk_event = format!("chat://{}/chunk", session_id);
     let thinking_event = format!("chat://{}/thinking", session_id);
     let done_event = format!("chat://{}/done", session_id);
@@ -153,7 +153,7 @@ pub(super) async fn run_agent_loop(
         // well-formed response without bothering the user. Every other kind
         // (rate limit, rejected credentials, unreachable, fatal) is surfaced
         // right away: retrying immediately wouldn't change it.
-        let backend = provider.backend();
+        let client = native.provider.client();
         let mut attempt = 0;
         let turn = loop {
             if let Some(id) = assistant_message_id {
@@ -173,7 +173,7 @@ pub(super) async fn run_agent_loop(
                 message_id: assistant_message_id,
                 effort,
             };
-            match backend.stream_turn(request).await {
+            match client.stream_turn(request).await {
                 Ok(t) => break t,
                 Err(BackendError::Transient(_)) if attempt < MAX_MALFORMED_TOOL_CALL_RETRIES => {
                     attempt += 1;
@@ -258,8 +258,7 @@ pub(super) async fn run_agent_loop(
                     state,
                     scope_id,
                     call.id.as_deref(),
-                    provider,
-                    model,
+                    &backend,
                     &call.function.name,
                     &call.function.arguments,
                 )

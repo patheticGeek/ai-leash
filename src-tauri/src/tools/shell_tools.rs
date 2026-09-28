@@ -67,7 +67,7 @@ async fn run_shell(command: &str, cwd: &Path) -> Result<String, String> {
 /// "are you sure?" before running what you typed. Recorded as a real
 /// assistant-tool_call/tool message pair (not a bare injected message) so
 /// it renders and persists exactly like an agent-issued `shell` call — see
-/// `resume_after_background_subtask` in `chat.rs`, which uses the same
+/// `chat::record_sub_agent_result`, which uses the same
 /// pattern for the same reason.
 #[tauri::command]
 pub async fn run_shell_command(

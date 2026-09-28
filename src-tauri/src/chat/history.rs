@@ -151,7 +151,7 @@ pub fn list_projects(state: State<AppState>) -> Result<Vec<db::ProjectSummary>, 
 /// Removes one conversation from the sidebar for good — its own row plus
 /// every sub-agent it spawned (see `db::delete_conversation`'s doc comment),
 /// and each of their in-memory backend state too (same
-/// `forget_session_runtime_state` helper `clear_conversation` uses), this
+/// `backend::close` `clear_conversation` uses), this
 /// time also forgetting bypass-permission-mode membership since none of
 /// these ids will ever be passed again. Distinct from `clear_conversation`'s
 /// "/clear" semantics, which wipe the same rows but keep the top-level id
@@ -180,7 +180,7 @@ pub async fn delete_conversation(
         super::cancel_and_await_idle(state.inner(), id).await;
     }
     for id in &ids {
-        super::forget_session_runtime_state(state.inner(), id, true);
+        crate::backend::close(state.inner(), id, true);
     }
     db::delete_conversation(&state.db, &session_id);
     emit_conversation_changed(&app, &session_id, "deleted");

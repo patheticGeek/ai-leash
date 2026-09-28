@@ -1,5 +1,6 @@
 mod acp;
 mod actions;
+mod backend;
 mod chat;
 mod commands;
 mod context;

@@ -1,8 +1,9 @@
 //! Ollama: bare newline-delimited JSON, one full message snapshot per line,
 //! tool_calls sent whole (not incrementally) right before the final `done`.
 
-use super::backend::{Backend, BackendError, BoxFuture, Capabilities, TurnRequest};
+use super::client::{BackendError, ModelClient, TurnRequest};
 use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary, ProviderConfig};
+use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
@@ -10,12 +11,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::Ordering;
 
-pub(super) struct OllamaBackend {
+pub(super) struct OllamaClient {
     /// e.g. "localhost:11434", no scheme; empty means the default.
     pub host: String,
 }
 
-impl Backend for OllamaBackend {
+impl ModelClient for OllamaClient {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             model_listing: true,

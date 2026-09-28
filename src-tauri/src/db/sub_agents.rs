@@ -3,7 +3,7 @@
 //! `role = 'sub-agent'` (see `record_sub_agent_started`) — its transcript
 //! lives in `messages` like any other session, its prompt is that
 //! transcript's own first user message, and its result is guaranteed (by
-//! `chat::run_sub_agent`/`acp::run_sub_agent_acp`, which push a message for
+//! `chat::run_sub_agent`/`AcpBackend::run_task`, which push a message for
 //! it either way, even a synthesized "no response"/error one) to be the
 //! last assistant one. There used to be a dedicated `sub_agents` table for
 //! this; migration v3 retired it once every field it held had a home here
@@ -95,7 +95,7 @@ pub fn record_sub_agent_started(
 }
 
 /// Records a sub-agent finishing. Callers (`chat::run_sub_agent`,
-/// `acp::run_sub_agent_acp`) already guarantee the transcript's own last
+/// `AcpBackend::run_task`) already guarantee the transcript's own last
 /// message is whatever result they're about to hand back to their caller —
 /// this only needs to flip `lifecycle` and stamp `finished_at`.
 pub fn record_sub_agent_finished(db: &Db, id: &str, status: &str) {

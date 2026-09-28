@@ -8,10 +8,10 @@ use super::events::{
     PendingToolCallContent, SuppressReplay,
 };
 use super::permissions::bridge_acp_permission;
+use crate::backend::NativeBackend;
 use crate::commands;
 use crate::db;
 use crate::mcp_bridge;
-use crate::provider::ProviderConfig;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
     CancelNotification, ClientCapabilities, ContentBlock, CreateElicitationRequest,
@@ -36,7 +36,7 @@ use tokio::sync::{mpsc, oneshot, Notify};
 pub(crate) enum AcpCommand {
     /// The `oneshot::Sender`, when present, is signalled with this prompt's
     /// outcome once `PromptRequest` resolves — used by
-    /// `run_sub_agent_acp` to await a one-shot sub-agent's turn without a
+    /// `AcpBackend::run_task` to await a one-shot sub-agent's turn without a
     /// frontend polling `chat://{session_id}/done`/`error` the way a normal
     /// top-level conversation does. `None` for every ordinary
     /// `send_prompt_acp` call, which has no one to notify beyond those
@@ -109,14 +109,12 @@ pub(super) fn ensure_acp_session(
     state: &State<'_, AppState>,
     session_id: &str,
     launch_command: &str,
-    provider: ProviderConfig,
-    model: String,
+    native: NativeBackend,
 ) -> mpsc::UnboundedSender<AcpCommand> {
     let mut sessions = state.acp_sessions.lock().unwrap();
     if let Some(existing) = sessions.get_mut(session_id) {
         if existing.launch_command == launch_command {
-            existing.provider = provider;
-            existing.model = model;
+            existing.native = native;
             return existing.sender.clone();
         }
         sessions.remove(session_id);
@@ -127,8 +125,7 @@ pub(super) fn ensure_acp_session(
         AcpSession {
             launch_command: launch_command.to_string(),
             sender: tx.clone(),
-            provider,
-            model,
+            native,
             connection: NEXT_CONNECTION.fetch_add(1, Ordering::Relaxed),
             ready: false,
             model_options: None,
@@ -632,7 +629,7 @@ async fn drive_acp_connection(
                         );
 
                         // Registered for the duration of this one request so
-                        // `signal_cancel` (`chat/mod.rs`) can wake the
+                        // `backend::cancel` can wake the
                         // `select!` below immediately, even while the
                         // request itself is still in flight — see
                         // `AcpSession::current_prompt_cancel`'s doc comment

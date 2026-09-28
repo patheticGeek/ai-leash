@@ -1,43 +1,20 @@
-//! The `Backend` trait: one interface every model provider implements, so
-//! the agent loop, `/compact` and the model/health commands never branch on
-//! which provider they're talking to. Adding a provider means implementing
-//! this and returning it from `ProviderConfig::backend`; nothing in `chat/`
-//! changes. (ACP agents join this in a later step — see PLAN.md, Phase 5.)
+//! The `ModelClient` trait: one interface every model provider (Ollama,
+//! OpenAI-compatible) implements for a single call — list models, one
+//! completion, one streamed turn. Our own agent loop (`chat/agent_loop.rs`)
+//! drives it; the conversation-level `crate::backend::Backend` sits above
+//! it. Adding a provider means implementing this and returning it from
+//! `ProviderConfig::client`; nothing in `chat/` changes.
 //!
 //! Methods return boxed futures rather than using `async fn`: the trait is
-//! used as `dyn Backend`, and `async fn` in traits isn't object-safe.
+//! used as `dyn ModelClient`, and `async fn` in traits isn't object-safe.
 
 use super::ModelSummary;
+use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
-use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tauri::AppHandle;
-
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
-/// What a backend supports, so callers ask instead of checking its kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Capabilities {
-    /// `list_models` returns a real list; otherwise the model id is free text.
-    pub model_listing: bool,
-    /// Runs its own agent loop (tools, history) rather than ours — ACP.
-    pub owns_agent_loop: bool,
-    /// Accepts our tool definitions and returns tool calls.
-    pub native_tools: bool,
-    /// Streams reasoning separately from the answer.
-    pub thinking: bool,
-    /// Picks up a previous session's context on reconnect.
-    pub resume: bool,
-    /// Honors a reasoning-effort setting.
-    pub effort: bool,
-    /// Can run `/compact`'s summarization call.
-    pub compaction: bool,
-    /// Advertises its own slash commands.
-    pub slash_commands: bool,
-}
 
 /// Why a call failed, normalized across providers so the agent loop decides
 /// what to do from the kind, never from provider-specific error text.
@@ -112,7 +89,7 @@ pub struct TurnRequest<'a> {
     pub effort: Option<&'a str>,
 }
 
-pub trait Backend: Send + Sync {
+pub trait ModelClient: Send + Sync {
     fn capabilities(&self) -> Capabilities;
 
     /// Available models. Only meaningful when `capabilities().model_listing`.

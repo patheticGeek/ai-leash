@@ -78,8 +78,9 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   renders as a single space); fenced ` ``` ` blocks are left alone.
 - Sub-agent conventions and the always-async `spawn_sub_agent` model
   are documented in `docs/features/agent-chat.md` — check there before
-  changing anything in `tools.rs`'s sub-agent handling or `chat.rs`'s
-  `run_sub_agent`/`resume_after_background_subtask`.
+  changing anything in `tools/sub_agent_tools.rs`'s sub-agent handling
+  or the `Backend` trait's `run_task`/`deliver_task_result`
+  (`backend/native.rs`, `acp/backend.rs`).
 - **`src/ui` components come from shadcn, then get themed.** Add a
   component with `npx shadcn@latest add <name>` (or, for a third-party
   registry such as AI Elements, `npx shadcn@latest view

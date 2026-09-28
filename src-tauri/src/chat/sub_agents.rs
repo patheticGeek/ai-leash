@@ -1,12 +1,12 @@
-use super::agent_loop::{push_message, run_agent_loop, run_with_cancellation};
+use super::agent_loop::{push_message, run_agent_loop};
 use super::ChatMessage;
-use crate::provider::ProviderConfig;
+use crate::backend::NativeBackend;
 use crate::state::AppState;
 use crate::tools::{ToolCall, ToolCallFunction};
 use serde_json::json;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 /// Runs an isolated sub-agent for the `spawn_sub_agent` tool: its own fresh
@@ -43,9 +43,7 @@ pub(crate) fn run_sub_agent<'a>(
     parent_session_id: &'a str,
     sub_session_id: &'a str,
     prompt: &'a str,
-    provider: &'a ProviderConfig,
-    model: &'a str,
-    effort: Option<&'a str>,
+    native: &'a NativeBackend,
     cancel_flag: &'a Arc<AtomicBool>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send + 'a>> {
     Box::pin(async move {
@@ -64,9 +62,7 @@ pub(crate) fn run_sub_agent<'a>(
             state,
             sub_session_id,
             parent_session_id,
-            provider,
-            model,
-            effort,
+            native,
             cancel_flag,
             false,
         )
@@ -94,7 +90,7 @@ pub(crate) fn run_sub_agent<'a>(
         // A loop error is an error even if some text came out first — `Err`
         // makes the caller (`sub_agent_tools.rs`) record it as failed and
         // format the result as `"Error: {e}"`, the same text pushed here and
-        // the same shape `acp::run_sub_agent_acp` uses.
+        // the same shape `AcpBackend::run_task` uses.
         let push_final = |text: String| {
             push_message(
                 state,
@@ -129,10 +125,8 @@ pub(crate) fn run_sub_agent<'a>(
 /// pairing) instead of being an invisible, dangling `tool`-role message with
 /// nothing to attach it to.
 ///
-/// Shared by both ways a parent can learn its sub-agent finished:
-/// `resume_after_background_subtask` (native parent, below) and the ACP
-/// notify branch (`tools::sub_agent_tools::spawn_sub_agent`, when the parent
-/// is an external ACP agent's conversation). For the ACP case this is
+/// Shared by both backends' `deliver_task_result` — native
+/// (`backend/native.rs`) and ACP (`acp/backend.rs`). For the ACP case this is
 /// *purely* AI Leash's own UI/history — ACP has no way to inject a synthetic
 /// historical tool call into the agent's own context, so what's actually
 /// sent to that subprocess is still a plain-text prompt; without this call,
@@ -181,56 +175,4 @@ pub(crate) fn record_sub_agent_result(
         &format!("chat://{session_id}/tool_result"),
         json!({ "id": call_id, "result": result }),
     );
-}
-
-/// Called from the detached background task every `spawn_sub_agent`-spawned
-/// subtask runs in (see `tools.rs`) once it finishes — *after* the turn that
-/// launched it has already returned to the model. Injects that subtask's
-/// result into the session's history as if it just arrived, then
-/// autonomously runs another turn so the main agent gets a chance to react —
-/// nothing about this is triggered by the user clicking send.
-/// `run_with_cancellation`'s per-session lock is what keeps this from racing
-/// a real `send_prompt`/`retry_last` call or another subtask's resume
-/// happening at the same time.
-/// Same reasoning as `run_sub_agent`'s doc comment: this closes a second
-/// recursive cycle (`execute_tool`'s `spawn_sub_agent` arm spawns a task that calls this,
-/// which calls `run_with_cancellation` -> `run_agent_loop` -> `execute_tool`
-/// again), so it needs the same explicit boxed-future signature rather than
-/// being a plain `async fn`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn resume_after_background_subtask(
-    app: AppHandle,
-    session_id: String,
-    provider: ProviderConfig,
-    model: String,
-    effort: Option<String>,
-    sub_session_id: String,
-    description: String,
-    result: String,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> {
-    Box::pin(async move {
-        let state = app.state::<AppState>();
-
-        record_sub_agent_result(
-            &app,
-            &state,
-            &session_id,
-            &sub_session_id,
-            &description,
-            &result,
-        );
-
-        let _ = run_with_cancellation(
-            &app,
-            &state,
-            &session_id,
-            &session_id,
-            &provider,
-            &model,
-            effort.as_deref(),
-            true,
-            true,
-        )
-        .await;
-    })
 }
