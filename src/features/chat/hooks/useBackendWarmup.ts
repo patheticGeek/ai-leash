@@ -3,7 +3,7 @@ import type { ChatBackend } from "../chatBackend";
 
 // Connects a backend that supports it (`caps.warmup` — an ACP agent's
 // subprocess) as soon as it's picked for this conversation, rather than
-// waiting for the first message — see `warm_acp_session`'s doc comment. This
+// waiting for the first message — see `Backend::warm`'s doc comment. This
 // is what lets a `session/load` resume failure surface (as
 // `acp_session_restore_failed`, handled in `useChatStream`) before there's a
 // typed message a send could strand: the composer clears the input as soon as

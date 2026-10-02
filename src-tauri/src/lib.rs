@@ -85,6 +85,7 @@ pub fn run() {
         .manage(AppState {
             acp_agent_catalog: Mutex::new(acp::load_acp_catalog_from_disk()),
             preferences: Mutex::new(preferences::load_preferences_from_disk()),
+            backends: Mutex::new(backend::registry::load_registry_from_disk()),
             ..Default::default()
         })
         .setup(|app| {
@@ -100,6 +101,8 @@ pub fn run() {
                 info.token,
             ));
             acp::rate_limit::rearm_all(app.handle());
+            // The catalog on disk may predate the registry's current agents.
+            acp::sync_catalog_with_registry(app.handle());
 
             Ok(())
         })
@@ -126,10 +129,17 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
-            provider::list_provider_models,
-            provider::check_provider_connection,
-            chat::send_prompt,
-            chat::retry_last,
+            backend::registry::get_backends,
+            backend::registry::import_backends,
+            backend::registry::save_backend,
+            backend::registry::delete_backend,
+            backend::registry::set_default_backend,
+            backend::registry::list_backend_models,
+            backend::registry::check_backend_connection,
+            backend::session::send_prompt,
+            backend::session::retry_last,
+            backend::session::compact_conversation,
+            backend::session::warm_session,
             chat::cancel_prompt,
             chat::history::load_conversation_history,
             chat::history::set_message_duration,
@@ -138,7 +148,6 @@ pub fn run() {
             chat::history::set_conversation_done,
             chat::history::set_conversation_backend,
             chat::clear_conversation,
-            chat::compact_conversation,
             chat::history::list_sub_agents,
             chat::history::delete_sub_agent,
             chat::history::list_conversations,
@@ -148,16 +157,12 @@ pub fn run() {
             tools::permissions::set_permission_mode,
             acp::elicitation::respond_elicitation,
             tools::shell_tools::run_shell_command,
-            acp::warm_acp_session,
-            acp::send_prompt_acp,
             acp::rate_limit::get_rate_limit_resume,
             acp::rate_limit::arm_rate_limit_resume,
             acp::rate_limit::dismiss_rate_limit_resume,
             acp::get_acp_session_options,
-            acp::set_acp_model,
-            acp::set_acp_effort,
-            acp::fetch_acp_models,
-            acp::sync_acp_agent_catalog,
+            acp::set_session_model,
+            acp::set_session_effort,
             acp::get_acp_agent_catalog,
             actions::list_actions,
             actions::create_action,

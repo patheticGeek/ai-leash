@@ -33,6 +33,7 @@ impl ModelClient for OpenAiCompatClient {
             resume: false,
             effort: true,
             compaction: true,
+            retry: true,
             slash_commands: false,
         }
     }

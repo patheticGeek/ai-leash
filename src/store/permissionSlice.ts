@@ -64,13 +64,13 @@ export interface PermissionSlice {
   setPermissionMode: (sessionId: string, mode: PermissionMode) => void;
   // Drops a deleted conversation's saved Ask/Bypass choice — called by
   // `conversationSlice.deleteConversation`, mirroring
-  // `acpSlice.forgetConversationBackend`. Rust already drops the row's own
+  // `selectionSlice.forgetConversationBackend`. Rust already drops the row's own
   // `permission_mode` column as part of deleting the conversation, so this
   // only needs to clear the in-memory map.
   forgetPermissionMode: (sessionId: string) => void;
   // Seeds `permissionMode` from freshly loaded rows, migrating the old
   // localStorage blob for a row that doesn't have a DB value yet — mirrors
-  // `acpSlice.hydrateConversationBackendFromRows`.
+  // `selectionSlice.hydrateConversationBackendFromRows`.
   hydratePermissionModeFromRows: (rows: ConversationSummary[]) => void;
 }
 

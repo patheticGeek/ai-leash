@@ -68,7 +68,11 @@ a check. The selection applies
 to the current conversation and is used for its next message. It does not
 change conversations that already have their own selection. A new
 conversation starts with the current default, then keeps its own choice after
-you use it.
+you use it. Each Ollama connection and OpenAI-compatible provider remembers
+the model last used on it, so a new conversation on it starts with that model.
+Sub-agents started from an ACP agent's conversation run on the default
+built-in provider (or the first enabled one, if the default is an ACP agent)
+with its last-used model, unless the agent asks for another.
 
 The picker also shows an ACP agent's model choices when that agent advertises
 them. If an agent has not advertised model choices, it still appears as an

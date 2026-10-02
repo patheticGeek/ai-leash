@@ -12,6 +12,8 @@
 //! native agent loop, `execute_tool` and `spawn_sub_agent`.
 
 mod native;
+pub mod registry;
+pub mod session;
 
 pub use native::NativeBackend;
 
@@ -41,6 +43,8 @@ pub struct Capabilities {
     pub effort: bool,
     /// Can run `/compact`'s summarization call.
     pub compaction: bool,
+    /// Can answer the last message again (`retry`).
+    pub retry: bool,
     /// Advertises its own slash commands.
     pub slash_commands: bool,
 }
@@ -79,6 +83,26 @@ pub trait Backend: Send + Sync {
         prompt: &'a str,
         cancel_flag: &'a Arc<AtomicBool>,
     ) -> BoxFuture<'a, Result<String, String>>;
+
+    /// Answers the last user message again from scratch. Only when
+    /// `capabilities().retry` — an ACP agent keeps its own history.
+    fn retry<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _session_id: &'a str,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async { Err("This agent can't retry a turn.".to_string()) })
+    }
+
+    /// Summarizes `session_id`'s transcript and replaces it with the summary,
+    /// resolving to the summary. Only when `capabilities().compaction`.
+    fn compact<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _session_id: &'a str,
+    ) -> BoxFuture<'a, Result<String, String>> {
+        Box::pin(async { Err("This agent can't compact a conversation.".to_string()) })
+    }
 
     /// A sub-agent `session_id` spawned has finished: records its result in
     /// `session_id`'s transcript and lets this backend react to it with a

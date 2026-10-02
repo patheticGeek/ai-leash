@@ -125,7 +125,7 @@ export function useChatStream(
   // session store expired or was cleared) — distinct from `error` (plain
   // string banner) since this one offers a "start new" action rather than
   // just reporting failure. Cleared by `ChatPanel.tsx` right before it
-  // retries the connection (see `warm_acp_session`), so the banner drops
+  // retries the connection (see `Backend::warm`), so the banner drops
   // immediately rather than lingering until a second failure would
   // overwrite it.
   const [acpRestoreFailed, setAcpRestoreFailed] = useState<string | null>(null);

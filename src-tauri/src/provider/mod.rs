@@ -11,10 +11,8 @@ use tauri::{AppHandle, Manager};
 
 pub(crate) const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
 
-/// Sent from the frontend on every call that talks to a model — there is no
-/// backend-persisted provider config, this mirrors how `model: String` is
-/// already passed per-call today. Tagged so it serializes to/from the
-/// frontend's `ProviderConfigPayload` union directly.
+/// How to reach a native provider — built from a registry entry
+/// (`backend::registry::BackendConfig`), never sent by the frontend.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ProviderConfig {
@@ -67,28 +65,6 @@ impl ProviderConfig {
 pub struct ModelSummary {
     pub name: String,
     pub context_length: Option<u64>,
-}
-
-/// Empty for a backend without a model list (the model id is free text
-/// there — see `Capabilities::model_listing`).
-#[tauri::command]
-pub async fn list_provider_models(provider: ProviderConfig) -> Result<Vec<ModelSummary>, String> {
-    let client = provider.client();
-    if !client.capabilities().model_listing {
-        return Ok(vec![]);
-    }
-    client
-        .list_models()
-        .await
-        .map_err(|e| e.message().to_string())
-}
-
-/// Reachability for the provider's health indicator — a live round trip for
-/// every backend, including ones without a model list. Any HTTP response
-/// counts as "connected": this checks the host, not the credentials.
-#[tauri::command]
-pub async fn check_provider_connection(provider: ProviderConfig) -> bool {
-    provider.client().check_connection().await
 }
 
 /// Flushes the turn's accumulated content to disk on every chunk that

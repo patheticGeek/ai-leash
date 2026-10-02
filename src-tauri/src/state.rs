@@ -40,7 +40,7 @@ pub struct AcpSession {
     /// the next, unrelated one.
     pub current_prompt_cancel: Arc<Mutex<Option<Arc<Notify>>>>,
     /// The native provider/model this conversation's sub-agents run on (see
-    /// `Backend::native`) — refreshed on every `send_prompt_acp` call, same
+    /// `Backend::native`) — refreshed on every send, same
     /// as `launch_command`. Needed so a `spawn_sub_agent` call relayed
     /// through `mcp_bridge` (arriving from the ACP subprocess on its own,
     /// with no frontend command to carry it) has something to run on.
@@ -62,13 +62,11 @@ pub struct AcpSession {
     pub available_commands: Option<serde_json::Value>,
 }
 
-/// One configured ACP agent (id/label/launch command) plus whatever
-/// model/effort options have been discovered for it. Written two ways:
-/// wholesale via `acp::sync_acp_agent_catalog` whenever `acpSlice.ts`'s
-/// `agentBackend.acpAgents` changes (on-demand discovery of a new/edited
-/// agent, still frontend-triggered), and by Rust's own
-/// `acp::refresh_acp_catalog_in_background` re-running discovery for
-/// already-known agents once per launch. Persisted to disk
+/// One enabled ACP backend from the registry (id/label/launch command) plus
+/// whatever model/effort options have been discovered for it. Rebuilt by
+/// `acp::sync_catalog_with_registry` whenever the registry changes (a new or
+/// re-pointed agent is discovered then), and re-discovered once per launch
+/// by `acp::refresh_acp_catalog_in_background`. Persisted to disk
 /// (`acp::acp_catalog_path`) so it survives a restart and is loaded back
 /// into this field synchronously in `lib.rs`'s `.setup()` hook, before the
 /// frontend has even booted — this cache is what lets backend tool calls
@@ -176,6 +174,8 @@ pub struct AppState {
     /// (`ChatPanel.tsx`). A sub-agent inherits its parent's membership at
     /// spawn time (see `spawn_sub_agent` in tools.rs) since it shares the
     /// parent's cancellation flag the same way.
+    /// Every configured backend and the default — see `backend::registry`.
+    pub backends: Mutex<crate::backend::registry::Registry>,
     pub permission_bypass: Mutex<HashSet<String>>,
     /// Latest run per Action, keyed by (checkout, action id) — see
     /// `run.rs`, and `actions.rs::run_key` on why the checkout is part of

@@ -27,6 +27,7 @@ impl ModelClient for OllamaClient {
             // Ollama's chat API has no reasoning-effort setting.
             effort: false,
             compaction: true,
+            retry: true,
             slash_commands: false,
         }
     }

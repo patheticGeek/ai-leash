@@ -16,7 +16,12 @@ use rusqlite::Connection;
 
 type Migration = fn(&Connection);
 
-const MIGRATIONS: &[Migration] = &[v1_legacy_columns, v2_conversation_graph, v3_drop_sub_agents];
+const MIGRATIONS: &[Migration] = &[
+    v1_legacy_columns,
+    v2_conversation_graph,
+    v3_drop_sub_agents,
+    v4_backend_ids,
+];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
 /// baseline schema checks this before creating `sub_agents`, since v1/v2
@@ -213,6 +218,36 @@ fn v3_drop_sub_agents(conn: &Connection) {
     .expect("failed to retire the sub_agents table");
 }
 
+/// `conversations.backend` held a small JSON reference —
+/// `{"kind":"builtin","providerId":…}` or `{"kind":"acp","acpId":…}` —
+/// written by the frontend. Backends now live in one registry
+/// (`backend::registry`) where every id is unique across kinds, so the
+/// column holds just the id. Anything unparseable is cleared, which makes
+/// that conversation start from the default backend.
+fn v4_backend_ids(conn: &Connection) {
+    let rows: Vec<(String, String)> = conn
+        .prepare("SELECT id, backend FROM conversations WHERE backend IS NOT NULL")
+        .and_then(|mut stmt| {
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect()
+        })
+        .expect("failed to read conversation backends");
+    for (id, backend) in rows {
+        let value: Option<serde_json::Value> = serde_json::from_str(&backend).ok();
+        let backend_id = value.as_ref().and_then(|v| {
+            v.get("providerId")
+                .or_else(|| v.get("acpId"))
+                .and_then(serde_json::Value::as_str)
+                .filter(|id| !id.is_empty())
+        });
+        conn.execute(
+            "UPDATE conversations SET backend = ?2 WHERE id = ?1",
+            rusqlite::params![id, backend_id],
+        )
+        .expect("failed to rewrite a conversation backend");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,6 +402,34 @@ mod tests {
                 []
             )
             .is_err());
+    }
+
+    #[test]
+    fn v4_turns_backend_references_into_ids() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, project_root TEXT NOT NULL,
+                 created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, backend TEXT);
+             INSERT INTO conversations VALUES
+                 ('native', '/p', 1, 1, '{\"kind\":\"builtin\",\"providerId\":\"ollama-default\"}'),
+                 ('agent', '/p', 1, 1, '{\"kind\":\"acp\",\"acpId\":\"acp-preset-claude-code\"}'),
+                 ('junk', '/p', 1, 1, 'not json'),
+                 ('unset', '/p', 1, 1, NULL);",
+        )
+        .unwrap();
+        v4_backend_ids(&conn);
+        let backend = |id: &str| -> Option<String> {
+            conn.query_row(
+                "SELECT backend FROM conversations WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(backend("native").as_deref(), Some("ollama-default"));
+        assert_eq!(backend("agent").as_deref(), Some("acp-preset-claude-code"));
+        assert_eq!(backend("junk"), None);
+        assert_eq!(backend("unset"), None);
     }
 
     #[test]

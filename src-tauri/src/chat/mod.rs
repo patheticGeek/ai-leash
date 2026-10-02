@@ -2,9 +2,8 @@ mod agent_loop;
 pub(crate) mod history;
 mod sub_agents;
 
-use crate::backend::{self, Backend, NativeBackend};
+use crate::backend::{self, NativeBackend};
 use crate::db;
-use crate::provider::ProviderConfig;
 use crate::state::AppState;
 use crate::tools::ToolCall;
 use history::{emit_conversation_changed, load_conversation_history};
@@ -106,11 +105,9 @@ pub fn clear_conversation(
     Ok(())
 }
 
-/// The local "/compact" command — see `ChatPanel.tsx`'s `LOCAL_COMMANDS`.
-/// Only ever called for the built-in provider loop: unlike `/clear`, the
-/// frontend doesn't offer this at all in ACP mode, since an ACP agent's
-/// real context lives inside its own subprocess (nothing to compact from
-/// out here) and some agents implement a genuine `/compact` of their own
+/// The native backend's "/compact" (`Backend::compact`). An ACP agent's
+/// real context lives inside its own subprocess — nothing to compact from
+/// out here — and some agents implement a genuine `/compact` of their own
 /// that intercepting the name locally would otherwise shadow.
 ///
 /// Asks the model itself for a summary of the existing transcript — a
@@ -123,14 +120,12 @@ pub fn clear_conversation(
 /// rather than a normal chat bubble either way; see `runLocalCommand`.)
 /// Returns the summary text directly so the frontend can show it without a
 /// second round-trip through `load_conversation_history`.
-#[tauri::command]
-pub async fn compact_conversation(
-    state: State<'_, AppState>,
-    session_id: String,
-    provider: ProviderConfig,
-    model: String,
+pub(crate) async fn compact(
+    state: &State<'_, AppState>,
+    session_id: &str,
+    native: &NativeBackend,
 ) -> Result<String, String> {
-    let history = load_conversation_history(state.clone(), session_id.clone())?;
+    let history = load_conversation_history(state.clone(), session_id.to_string())?;
     if history.is_empty() {
         return Err("Nothing to compact yet.".to_string());
     }
@@ -153,18 +148,19 @@ pub async fn compact_conversation(
         tool_calls: None,
     });
 
-    let summary = provider
+    let summary = native
+        .provider
         .client()
-        .complete(&model, &prompt_history)
+        .complete(&native.model, &prompt_history)
         .await
         .map_err(|e| e.message().to_string())?;
 
-    state.chat_sessions.lock().unwrap().remove(&session_id);
-    state.touched_dirs.lock().unwrap().remove(&session_id);
-    db::clear_conversation(&state.db, &session_id);
+    state.chat_sessions.lock().unwrap().remove(session_id);
+    state.touched_dirs.lock().unwrap().remove(session_id);
+    db::clear_conversation(&state.db, session_id);
     push_message(
-        &state,
-        &session_id,
+        state,
+        session_id,
         ChatMessage {
             role: "user".into(),
             content: format!("[Earlier conversation compacted to save context]\n\n{summary}"),
@@ -189,52 +185,27 @@ pub(crate) async fn run_turn(
         .await
 }
 
-#[tauri::command]
-pub async fn send_prompt(
-    app: tauri::AppHandle,
-    session_id: String,
-    provider: ProviderConfig,
-    model: String,
-    message: String,
-) -> Result<(), String> {
-    NativeBackend {
-        provider,
-        model,
-        effort: None,
-    }
-    .send(&app, &session_id, message)
-    .await
-}
-
 /// Drops trailing assistant/tool messages back to the last user message, then
 /// re-runs generation on the existing history. Used for both "regenerate this
 /// response" (last message is assistant/tool) and "retry this message" (last
 /// message is already the user's, e.g. a previous attempt errored before any
 /// reply came back) — in both cases the effect is "answer the last user
 /// message again from scratch".
-#[tauri::command]
-pub async fn retry_last(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    session_id: String,
-    provider: ProviderConfig,
-    model: String,
+pub(crate) async fn retry(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    session_id: &str,
+    native: &NativeBackend,
 ) -> Result<(), String> {
     {
         let mut sessions = state.chat_sessions.lock().unwrap();
-        if let Some(history) = sessions.get_mut(&session_id) {
+        if let Some(history) = sessions.get_mut(session_id) {
             while matches!(history.last(), Some(m) if m.role != "user") {
                 history.pop();
             }
         }
     }
-
-    let native = NativeBackend {
-        provider,
-        model,
-        effort: None,
-    };
-    run_turn(&app, &state, &session_id, &native, false).await
+    run_turn(app, state, session_id, native, false).await
 }
 
 #[cfg(test)]
@@ -276,6 +247,7 @@ mod tests {
             acp_catalog_refresh_started: AtomicBool::new(false),
             mcp_bridge: Mutex::new(None),
             permission_bypass: Mutex::new(HashSet::new()),
+            backends: Mutex::new(Default::default()),
             runs: Default::default(),
         }
     }

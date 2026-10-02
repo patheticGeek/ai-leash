@@ -47,6 +47,28 @@ impl Backend for NativeBackend {
         })
     }
 
+    fn retry<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let state = app.state::<AppState>();
+            chat::retry(app, &state, session_id, self).await
+        })
+    }
+
+    fn compact<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<String, String>> {
+        Box::pin(async move {
+            let state = app.state::<AppState>();
+            chat::compact(&state, session_id, self).await
+        })
+    }
+
     fn run_task<'a>(
         &'a self,
         app: &'a AppHandle,

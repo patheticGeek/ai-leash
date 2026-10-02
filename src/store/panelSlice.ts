@@ -79,6 +79,8 @@ function savePersistedTabState(map: Record<string, PersistedTabState>) {
 const persistedTabState = loadPersistedTabState();
 
 export interface PanelSlice {
+  settingsModalOpen: boolean;
+  setSettingsModalOpen: (open: boolean) => void;
   panelTabs: PanelTab[];
   activePanelTabId: string | null;
   panelStateByConversation: Record<string, ConversationPanelState>;
@@ -123,7 +125,7 @@ export interface PanelSlice {
   // in-memory maps and their disk-persisted entry) and any leftover
   // generating/autonomous flags — called by
   // `conversationSlice.deleteConversation`, mirroring
-  // `acpSlice.forgetConversationBackend`/`permissionSlice.forgetPermissionMode`.
+  // `selectionSlice.forgetConversationBackend`/`permissionSlice.forgetPermissionMode`.
   // The `["generating", sessionId]` query cache entry (see
   // `generatingQuery.ts`) needs no equivalent cleanup — React Query garbage
   // collects it on its own once nothing's observing that key anymore.
@@ -145,6 +147,8 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
   set,
   get,
 ) => ({
+  settingsModalOpen: false,
+  setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
   // Always starts empty/primary-only, even if a previous run persisted tab
   // state: `initializeStartupSession` (`conversationSlice.ts`) always opens
   // a fresh new thread on boot rather than reselecting the last real
