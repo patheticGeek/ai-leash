@@ -67,13 +67,12 @@ export interface ChatEntryListProps {
   acpAgentLabel?: string | null;
   systemPrompt?: string | null;
   sending: boolean;
-  isAcp: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
   onRetry?: () => void;
   // Whether the last reply's footer may show a Retry button — see
-  // `ChatEntryRenderer`'s doc comment on the same prop. Defaults to `true`
-  // (top-level conversations always have a real retry_last to call).
+  // `ChatEntryRenderer`'s doc comment on the same prop. Defaults to `true`;
+  // `ChatPanel` passes its backend's `caps.retry`.
   allowRetry?: boolean;
 }
 
@@ -93,7 +92,6 @@ export default function ChatEntryList({
   acpAgentLabel = null,
   systemPrompt = null,
   sending,
-  isAcp,
   turnDurations,
   replyStartedAt,
   onRetry = () => {},
@@ -120,7 +118,6 @@ export default function ChatEntryList({
         key={i}
         entry={entry}
         isLast={i === entries.length - 1}
-        isAcp={isAcp}
         sending={sending}
         expanded={expandOverride[i] ?? false}
         onToggleExpand={() => toggle(i)}

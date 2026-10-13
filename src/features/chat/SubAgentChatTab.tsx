@@ -85,7 +85,6 @@ export default function SubAgentChatTab({
           <ChatEntryList
             entries={entries}
             sending={running}
-            isAcp={false}
             allowRetry={false}
             turnDurations={{}}
             replyStartedAt={task?.startedAt ?? null}

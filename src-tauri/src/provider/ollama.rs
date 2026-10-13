@@ -1,24 +1,64 @@
 //! Ollama: bare newline-delimited JSON, one full message snapshot per line,
 //! tool_calls sent whole (not incrementally) right before the final `done`.
 
-use super::{
-    emit_line_effects, persist_chunk, LineEffects, ModelSummary, ProviderConfig, ProviderError,
-};
+use super::backend::{Backend, BackendError, BoxFuture, Capabilities, TurnRequest};
+use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary, ProviderConfig};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tauri::AppHandle;
+use std::sync::atomic::Ordering;
 
-pub(super) async fn complete_ollama(
+pub(super) struct OllamaBackend {
+    /// e.g. "localhost:11434", no scheme; empty means the default.
+    pub host: String,
+}
+
+impl Backend for OllamaBackend {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            model_listing: true,
+            owns_agent_loop: false,
+            native_tools: true,
+            thinking: true,
+            resume: false,
+            // Ollama's chat API has no reasoning-effort setting.
+            effort: false,
+            compaction: true,
+            slash_commands: false,
+        }
+    }
+
+    fn list_models(&self) -> BoxFuture<'_, Result<Vec<ModelSummary>, BackendError>> {
+        Box::pin(list_ollama_models(&self.host))
+    }
+
+    fn check_connection(&self) -> BoxFuture<'_, bool> {
+        Box::pin(async move { list_ollama_models(&self.host).await.is_ok() })
+    }
+
+    fn complete<'a>(
+        &'a self,
+        model: &'a str,
+        messages: &'a [ChatMessage],
+    ) -> BoxFuture<'a, Result<String, BackendError>> {
+        Box::pin(complete_ollama(&self.host, model, messages))
+    }
+
+    fn stream_turn<'a>(
+        &'a self,
+        request: TurnRequest<'a>,
+    ) -> BoxFuture<'a, Result<TurnResult, BackendError>> {
+        Box::pin(stream_turn_ollama(&self.host, request))
+    }
+}
+
+async fn complete_ollama(
     host: &str,
     model: &str,
     messages: &[ChatMessage],
-) -> Result<String, String> {
+) -> Result<String, BackendError> {
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
@@ -27,25 +67,38 @@ pub(super) async fn complete_ollama(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("failed to reach ollama at {host}: {e}"))?;
+        .map_err(|e| BackendError::Unreachable(format!("failed to reach ollama at {host}: {e}")))?;
     if !resp.status().is_success() {
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
-        return Err(format!("ollama returned {status}: {body_text}"));
+        return Err(BackendError::from_status(
+            status,
+            format!("ollama returned {status}: {body_text}"),
+            false,
+            false,
+        ));
     }
-    let value: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let value: Value = resp
+        .json()
+        .await
+        .map_err(|e| BackendError::Fatal(e.to_string()))?;
     value
         .get("message")
         .and_then(|m| m.get("content"))
         .and_then(|c| c.as_str())
         .map(str::to_string)
-        .ok_or_else(|| "ollama response had no message content".to_string())
+        .ok_or_else(|| BackendError::Fatal("ollama response had no message content".to_string()))
 }
 
-pub(super) async fn list_ollama_models(host: &str) -> Result<Vec<ModelSummary>, String> {
+async fn list_ollama_models(host: &str) -> Result<Vec<ModelSummary>, BackendError> {
     let url = format!("{}/api/tags", ProviderConfig::ollama_base_url(host));
-    let resp = reqwest::get(&url).await.map_err(|e| e.to_string())?;
-    let tags: OllamaTagsResponse = resp.json().await.map_err(|e| e.to_string())?;
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| BackendError::Unreachable(e.to_string()))?;
+    let tags: OllamaTagsResponse = resp
+        .json()
+        .await
+        .map_err(|e| BackendError::Fatal(e.to_string()))?;
     Ok(tags
         .models
         .into_iter()
@@ -150,22 +203,24 @@ fn accumulate_ollama_line(line: &str, accum: &mut OllamaAccum) -> LineEffects {
     effects
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn stream_turn_ollama(
-    app: &AppHandle,
+async fn stream_turn_ollama(
     host: &str,
-    model: &str,
-    history: &[ChatMessage],
-    chunk_event: &str,
-    thinking_event: &str,
-    error_event: &str,
-    cancel_flag: &Arc<AtomicBool>,
-    root: Option<&Path>,
-    touched_dirs: &[PathBuf],
-    allow_subtasks: bool,
-    message_id: Option<i64>,
-    _effort: Option<&str>,
-) -> Result<TurnResult, ProviderError> {
+    request: TurnRequest<'_>,
+) -> Result<TurnResult, BackendError> {
+    let TurnRequest {
+        app,
+        model,
+        history,
+        chunk_event,
+        thinking_event,
+        error_event,
+        cancel_flag,
+        root,
+        touched_dirs,
+        allow_subtasks,
+        message_id,
+        effort: _,
+    } = request;
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
     let body = OllamaChatRequest {
@@ -182,7 +237,7 @@ pub(super) async fn stream_turn_ollama(
     {
         Ok(r) => r,
         Err(e) => {
-            return Err(ProviderError::Fatal(format!(
+            return Err(BackendError::Unreachable(format!(
                 "failed to reach ollama at {host}: {e}"
             )));
         }
@@ -192,11 +247,13 @@ pub(super) async fn stream_turn_ollama(
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
         let msg = format!("ollama returned {status}: {body_text}");
-        return Err(if body_text.contains("error parsing tool call") {
-            ProviderError::Transient(msg)
-        } else {
-            ProviderError::Fatal(msg)
-        });
+        let tool_call_parse_error = body_text.contains("error parsing tool call");
+        return Err(BackendError::from_status(
+            status,
+            msg,
+            tool_call_parse_error,
+            false,
+        ));
     }
 
     let mut stream = resp.bytes_stream();
@@ -215,7 +272,7 @@ pub(super) async fn stream_turn_ollama(
 
         let bytes = match item {
             Ok(b) => b,
-            Err(e) => return Err(ProviderError::Fatal(e.to_string())),
+            Err(e) => return Err(BackendError::Fatal(e.to_string())),
         };
         buf.push_str(&String::from_utf8_lossy(&bytes));
         while let Some(pos) = buf.find('\n') {

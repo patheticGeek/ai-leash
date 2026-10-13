@@ -186,7 +186,13 @@ pub(super) fn handle_session_notification(
         "session/update",
         debug_json(&update),
     );
-    if suppress_replay.load(Ordering::Acquire) {
+    // The command list describes the connection as it is now, not replayed
+    // history — a resumed session announces it during `session/load`, and
+    // dropping it would leave the composer without commands until the agent
+    // happens to send it again.
+    if suppress_replay.load(Ordering::Acquire)
+        && !matches!(update, SessionUpdate::AvailableCommandsUpdate(_))
+    {
         return;
     }
     match update {
@@ -237,9 +243,8 @@ pub(super) fn handle_session_notification(
         SessionUpdate::AvailableCommandsUpdate(update) => {
             let payload = available_commands_payload(&update.available_commands);
             super::process::cache_acp_config(app, session_id, |s| {
-                s.available_commands = Some(payload.clone())
+                s.available_commands = Some(payload)
             });
-            let _ = app.emit(&format!("chat://{session_id}/acp_commands"), payload);
         }
         SessionUpdate::UsageUpdate(update) => {
             let _ = app.emit(

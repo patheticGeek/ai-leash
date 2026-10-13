@@ -9,18 +9,67 @@ import {
 } from "../store/providerSlice";
 import { qk } from "./keys";
 
-// Provider backends (Ollama, OpenAI-compatible): what each one can do and
-// how to reach it, kept out of the chat code so `useChatSession` never has to
-// know which provider it is talking to. ACP agents are still a separate
-// family (`useAcpAgentCatalog`); they join this one when the Rust `Backend`
-// trait lands (see PLAN.md, Phase 5).
+// Every kind of backend that can answer a chat, and what each one can do —
+// the frontend counterpart of Rust's `Backend` trait and `Capabilities`
+// (`provider/backend.rs`). This table is the one place a kind's abilities
+// are written down: chat code asks `caps`, never which kind it has (see
+// `features/chat/chatBackend.ts` for the operations).
+export type BackendKind = "ollama" | "openAiCompatible" | "acp";
+
+export interface BackendCapabilities {
+  // The model picker lists this backend's models.
+  modelListing: boolean;
+  // No model list: the user types a model id instead.
+  freeTextModel: boolean;
+  // Runs its own agent loop (and history) in a subprocess — ACP.
+  ownsAgentLoop: boolean;
+  // "Retry" on the last message re-runs the turn.
+  retry: boolean;
+  // "/compact" summarizes the conversation.
+  compaction: boolean;
+  // Offers a reasoning-effort picker (options come from the agent itself).
+  effortPicker: boolean;
+  // Connects ahead of the first message, so a failed resume shows before
+  // anything is typed.
+  warmup: boolean;
+}
+
+export const BACKEND_CAPABILITIES: Record<BackendKind, BackendCapabilities> = {
+  ollama: {
+    modelListing: true,
+    freeTextModel: false,
+    ownsAgentLoop: false,
+    retry: true,
+    compaction: true,
+    effortPicker: false,
+    warmup: false,
+  },
+  openAiCompatible: {
+    modelListing: false,
+    freeTextModel: true,
+    ownsAgentLoop: false,
+    retry: true,
+    compaction: true,
+    effortPicker: false,
+    warmup: false,
+  },
+  acp: {
+    modelListing: true,
+    freeTextModel: false,
+    ownsAgentLoop: true,
+    retry: false,
+    compaction: false,
+    effortPicker: true,
+    warmup: true,
+  },
+};
 
 // "live": the provider can list its models. "freeText": it can't, so the user
 // types a model id (see docs/features/agent-chat.md).
 export type ModelListing = "live" | "freeText";
 
 export function providerModelListing(config: ProviderConfig): ModelListing {
-  return config.kind === "ollama" ? "live" : "freeText";
+  return BACKEND_CAPABILITIES[config.kind].modelListing ? "live" : "freeText";
 }
 
 /** What to tell the user when `config` fails its connection check. */

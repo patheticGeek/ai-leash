@@ -7,7 +7,7 @@ import { useAppStore } from "../../store";
 import ChatComposer from "./components/composer/ChatComposer";
 import NewThreadHero from "./components/empty-states/NewThreadHero";
 import ChatEntryList from "./components/messages/ChatEntryList";
-import { useAcpWarmup } from "./hooks/useAcpWarmup";
+import { useBackendWarmup } from "./hooks/useBackendWarmup";
 import { useChatSession } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 import { useTurnDurations } from "./hooks/useTurnDurations";
@@ -19,7 +19,6 @@ export default function ChatPanel({
   sessionId: string;
   projectRoot: string;
 }) {
-  const providerConfigFor = useAppStore((s) => s.providerConfigFor);
   const conversations = useConversations();
   const markConversationStarted = useAppStore((s) => s.markConversationStarted);
   const setConversationCheckoutPath = useAppStore(
@@ -74,8 +73,7 @@ export default function ChatPanel({
   }, [generating]);
 
   const session = useChatSession(sessionId, setChatError);
-  const { isAcp, providerActiveId, activeAcpAgent, model, backendDisabled } =
-    session;
+  const { backend, activeAcpAgent } = session;
   const {
     entries,
     setEntries,
@@ -97,17 +95,10 @@ export default function ChatPanel({
     }
   }, [sessionId, sessionTitle, setConversationTitle]);
 
-  const { reconnect: reconnectAcp } = useAcpWarmup({
-    sessionId,
-    isAcp,
-    launchCommand: backendDisabled ? undefined : activeAcpAgent?.launchCommand,
-    providerActiveId,
-    providerConfigFor,
-    model,
-  });
+  const { reconnect } = useBackendWarmup(sessionId, backend);
   const retryAcpSession = () => {
     clearAcpRestoreFailed();
-    reconnectAcp();
+    reconnect();
   };
 
   const turnDurations = useTurnDurations(
@@ -135,14 +126,11 @@ export default function ChatPanel({
         // (`db::clear_conversation`) so the next message derives a new one —
         // clear the cached copy now rather than waiting for the refetch.
         setConversationTitle(sessionId, null);
-        if (isAcp) {
-          // The backend just dropped its connection to this agent (see
-          // `chat::clear_conversation`) — the picker would otherwise keep
-          // showing the old, now-disconnected model/effort options as if
-          // they were still live. Reconnecting immediately (rather than
-          // waiting for the next send) re-announces them fresh.
-          session.resetAcpConnectionState();
-          reconnectAcp();
+        if (backend.caps.warmup) {
+          // The backend just dropped its connection (see
+          // `chat::clear_conversation`); reconnect now rather than on the
+          // next send, so the picker's options come back straight away.
+          reconnect();
         }
       } catch (e) {
         setChatError(String(e));
@@ -150,15 +138,11 @@ export default function ChatPanel({
       return;
     }
     if (name === "compact") {
-      if (isAcp || !model || backendDisabled) return;
+      if (!backend.caps.compaction || !backend.ready) return;
       setChatError(null);
       setSending(true);
       try {
-        const summary = await api.compactConversation(
-          sessionId,
-          providerConfigFor(providerActiveId),
-          model,
-        );
+        const summary = await backend.compact(sessionId);
         setEntries([
           {
             kind: "info",
@@ -199,8 +183,8 @@ export default function ChatPanel({
   // send right now live in the composer, not here.
   async function submitPrompt(text: string) {
     // Also covers a queued message delivered after its backend was turned
-    // off — the composer's own `backendReady` check only gates typed sends.
-    if (backendDisabled) return;
+    // off — the composer's own `backend.ready` check only gates typed sends.
+    if (!backend.ready) return;
     setChatError(null);
     markConversationStarted(sessionId, projectRoot, pendingWorktree);
     setEntries((prev) => [
@@ -209,22 +193,7 @@ export default function ChatPanel({
     ]);
     setSending(true);
     try {
-      if (isAcp && activeAcpAgent) {
-        await api.sendPromptAcp(
-          sessionId,
-          activeAcpAgent.launchCommand,
-          providerConfigFor(providerActiveId),
-          model,
-          text,
-        );
-      } else {
-        await api.sendPrompt(
-          sessionId,
-          providerConfigFor(providerActiveId),
-          model,
-          text,
-        );
-      }
+      await backend.send(sessionId, text);
       const title = await api.getConversationTitle(sessionId);
       setConversationTitle(sessionId, title);
     } catch (e) {
@@ -239,7 +208,7 @@ export default function ChatPanel({
   }
 
   async function retry() {
-    if (sending || !model || backendDisabled) return;
+    if (sending || !backend.caps.retry || !backend.ready) return;
     setChatError(null);
     setEntries((prev) => {
       for (let idx = prev.length - 1; idx >= 0; idx--) {
@@ -252,11 +221,7 @@ export default function ChatPanel({
     });
     setSending(true);
     try {
-      await api.retryLast(
-        sessionId,
-        providerConfigFor(providerActiveId),
-        model,
-      );
+      await backend.retry(sessionId);
     } catch (e) {
       setChatError(String(e));
       setSending(false);
@@ -289,7 +254,7 @@ export default function ChatPanel({
               acpAgentLabel={activeAcpAgent?.label}
               systemPrompt={systemPrompt}
               sending={sending}
-              isAcp={isAcp}
+              allowRetry={backend.caps.retry}
               turnDurations={turnDurations}
               replyStartedAt={replyStartedAt}
               onRetry={retry}
@@ -330,7 +295,7 @@ export default function ChatPanel({
               // re-trigger it now that `set_conversation_root` (called by
               // `CheckoutBar` itself) has updated this session's cwd, same
               // retry path a resume failure uses.
-              reconnectAcp();
+              reconnect();
             },
           }}
           onSubmit={submitPrompt}

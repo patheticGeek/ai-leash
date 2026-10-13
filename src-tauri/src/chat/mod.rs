@@ -3,7 +3,7 @@ pub(crate) mod history;
 mod sub_agents;
 
 use crate::db;
-use crate::provider::{self, ProviderConfig};
+use crate::provider::ProviderConfig;
 use crate::state::AppState;
 use crate::tools::ToolCall;
 use history::{emit_conversation_changed, load_conversation_history};
@@ -160,7 +160,7 @@ pub fn clear_conversation(
 /// that intercepting the name locally would otherwise shadow.
 ///
 /// Asks the model itself for a summary of the existing transcript — a
-/// plain one-shot completion (`provider::complete`, no tools, no
+/// plain one-shot completion (`Backend::complete`, no tools, no
 /// streaming) — then wipes the on-disk/in-memory history exactly like
 /// `clear_conversation` does and reseeds it with a single synthetic `user`
 /// message carrying that summary, so the *next* real turn still has it as
@@ -199,7 +199,11 @@ pub async fn compact_conversation(
         tool_calls: None,
     });
 
-    let summary = provider::complete(&provider, &model, &prompt_history).await?;
+    let summary = provider
+        .backend()
+        .complete(&model, &prompt_history)
+        .await
+        .map_err(|e| e.message().to_string())?;
 
     state.chat_sessions.lock().unwrap().remove(&session_id);
     state.touched_dirs.lock().unwrap().remove(&session_id);

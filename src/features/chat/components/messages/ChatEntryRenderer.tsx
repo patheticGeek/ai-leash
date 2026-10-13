@@ -8,7 +8,6 @@ import ToolEntry from "./ToolEntry";
 export interface ChatEntryRendererProps {
   entry: PanelEntry;
   isLast: boolean;
-  isAcp: boolean;
   sending: boolean;
   expanded: boolean;
   onToggleExpand: () => void;
@@ -18,11 +17,9 @@ export interface ChatEntryRendererProps {
   turnDuration: number | undefined;
   showFooter: boolean;
   // Whether the last reply's footer may show a Retry button at all — false
-  // for a transcript with no real "send this again" concept of its own
-  // (e.g. `SubAgentChatTab.tsx`, which has no `retry_last` equivalent, so
-  // showing the button would just be a dead control). Independent of
-  // `isAcp`, which already suppresses it for a different reason (an ACP
-  // agent's own turn can't be resent through the native retry path either).
+  // when the backend can't re-run a turn (`caps.retry`, e.g. an ACP agent)
+  // or the transcript has no "send this again" of its own (e.g.
+  // `SubAgentChatTab.tsx`), where the button would be a dead control.
   allowRetry: boolean;
 }
 
@@ -31,12 +28,11 @@ export interface ChatEntryRendererProps {
 // (grouping lives in `entryGrouping.ts`). Also reused as-is by
 // `SubAgentChatTab.tsx` (via `ChatEntryList`) so a sub-agent's own transcript
 // shows tool calls/thinking identically to a top-level conversation's, just
-// with `allowRetry`/`isAcp` forced off and no system-prompt/Ollama/ACP-restore
+// with `allowRetry` forced off and no system-prompt/provider-error/ACP-restore
 // banners.
 export default function ChatEntryRenderer({
   entry,
   isLast,
-  isAcp,
   sending,
   expanded,
   onToggleExpand,
@@ -81,7 +77,7 @@ export default function ChatEntryRenderer({
             time={entry.time}
             copied={copied}
             onCopy={onCopy}
-            showRetry={!sending && isLast && !isAcp && allowRetry}
+            showRetry={!sending && isLast && allowRetry}
             onRetry={onRetry}
             turnDuration={isUser ? undefined : turnDuration}
           />

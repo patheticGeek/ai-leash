@@ -1,13 +1,12 @@
+mod backend;
 mod ollama;
 mod openai_compat;
 
-use crate::chat::{ChatMessage, TurnResult};
+pub use backend::{Backend, BackendError, TurnRequest};
+
 use crate::db;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 pub(crate) const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
@@ -37,6 +36,22 @@ pub enum ProviderConfig {
 }
 
 impl ProviderConfig {
+    /// The one place a provider kind is branched on — everything else talks
+    /// to the returned `Backend`.
+    pub fn backend(&self) -> Box<dyn Backend> {
+        match self {
+            ProviderConfig::Ollama { host } => {
+                Box::new(ollama::OllamaBackend { host: host.clone() })
+            }
+            ProviderConfig::OpenAiCompatible { base_url, api_key } => {
+                Box::new(openai_compat::OpenAiCompatBackend {
+                    base_url: base_url.clone(),
+                    api_key: api_key.clone(),
+                })
+            }
+        }
+    }
+
     fn ollama_base_url(host: &str) -> String {
         let host = if host.trim().is_empty() {
             "localhost:11434"
@@ -47,20 +62,6 @@ impl ProviderConfig {
     }
 }
 
-/// Lets `run_agent_loop` decide whether to silently retry a turn without
-/// string-matching provider-specific error text in generic code. The
-/// `Transient` message isn't read today (the loop emits its own generic
-/// "gave up retrying" text once retries are exhausted) but is kept for
-/// future logging/diagnostics.
-pub enum ProviderError {
-    /// A transient hiccup worth retrying the same turn a couple of times
-    /// (Ollama's "error parsing tool call" 500, or a 429/5xx from an
-    /// OpenAI-compatible host).
-    Transient(#[allow(dead_code)] String),
-    /// Not worth retrying — surface to the user immediately.
-    Fatal(String),
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSummary {
@@ -68,109 +69,26 @@ pub struct ModelSummary {
     pub context_length: Option<u64>,
 }
 
+/// Empty for a backend without a model list (the model id is free text
+/// there — see `Capabilities::model_listing`).
 #[tauri::command]
 pub async fn list_provider_models(provider: ProviderConfig) -> Result<Vec<ModelSummary>, String> {
-    match provider {
-        ProviderConfig::Ollama { host } => ollama::list_ollama_models(&host).await,
-        // Many OpenAI-compatible hosts don't implement `GET /v1/models`
-        // reliably (or gate it separately), and it has no context-length
-        // equivalent anyway — the frontend uses a free-text model id input
-        // for this provider kind instead of a populated dropdown.
-        ProviderConfig::OpenAiCompatible { .. } => Ok(vec![]),
+    let backend = provider.backend();
+    if !backend.capabilities().model_listing {
+        return Ok(vec![]);
     }
+    backend
+        .list_models()
+        .await
+        .map_err(|e| e.message().to_string())
 }
 
-/// Real reachability check for the status bar's provider indicator — unlike
-/// `list_provider_models`, this always does a live network round-trip for
-/// both provider kinds (including OpenAI-compatible, which has no model
-/// list). Any HTTP response at all (even 401/404) counts as "connected":
-/// this checks that the host is reachable, not that credentials are valid.
+/// Reachability for the provider's health indicator — a live round trip for
+/// every backend, including ones without a model list. Any HTTP response
+/// counts as "connected": this checks the host, not the credentials.
 #[tauri::command]
 pub async fn check_provider_connection(provider: ProviderConfig) -> bool {
-    match provider {
-        ProviderConfig::Ollama { host } => ollama::list_ollama_models(&host).await.is_ok(),
-        ProviderConfig::OpenAiCompatible { base_url, api_key } => {
-            openai_compat::check_openai_compatible_connection(&base_url, &api_key).await
-        }
-    }
-}
-
-/// A single, non-streaming, tool-free completion call — used only by
-/// `/compact`'s summarization request (`chat::compact_conversation`).
-/// Unlike `stream_turn`, this never emits chunk/thinking events, never
-/// offers tools (there's no `tools` key in the request body at all, unlike
-/// `stream_turn` which always includes at least the built-in file tools),
-/// and returns the final text directly rather than threading it through
-/// cancellation/retry — a summarization call is a one-shot backend-internal
-/// request, not a turn the user is watching stream in.
-pub async fn complete(
-    provider: &ProviderConfig,
-    model: &str,
-    messages: &[ChatMessage],
-) -> Result<String, String> {
-    match provider {
-        ProviderConfig::Ollama { host } => ollama::complete_ollama(host, model, messages).await,
-        ProviderConfig::OpenAiCompatible { base_url, api_key } => {
-            openai_compat::complete_openai(base_url, api_key, model, messages).await
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn stream_turn(
-    app: &AppHandle,
-    provider: &ProviderConfig,
-    model: &str,
-    history: &[ChatMessage],
-    chunk_event: &str,
-    thinking_event: &str,
-    error_event: &str,
-    cancel_flag: &Arc<AtomicBool>,
-    root: Option<&Path>,
-    touched_dirs: &[PathBuf],
-    allow_subtasks: bool,
-    message_id: Option<i64>,
-    effort: Option<&str>,
-) -> Result<TurnResult, ProviderError> {
-    match provider {
-        ProviderConfig::Ollama { host } => {
-            ollama::stream_turn_ollama(
-                app,
-                host,
-                model,
-                history,
-                chunk_event,
-                thinking_event,
-                error_event,
-                cancel_flag,
-                root,
-                touched_dirs,
-                allow_subtasks,
-                message_id,
-                effort,
-            )
-            .await
-        }
-        ProviderConfig::OpenAiCompatible { base_url, api_key } => {
-            openai_compat::stream_turn_openai(
-                app,
-                base_url,
-                api_key,
-                model,
-                history,
-                chunk_event,
-                thinking_event,
-                error_event,
-                cancel_flag,
-                root,
-                touched_dirs,
-                allow_subtasks,
-                message_id,
-                effort,
-            )
-            .await
-        }
-    }
+    provider.backend().check_connection().await
 }
 
 /// Flushes the turn's accumulated content to disk on every chunk that
