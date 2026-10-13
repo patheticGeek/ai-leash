@@ -21,6 +21,7 @@ import {
   setDefaultBackend,
   useBackends,
   useDefaultBackendId,
+  useKeyStorageError,
 } from "../../../data/backends";
 import type { BackendConfig } from "../../../lib/tauriApi";
 
@@ -72,6 +73,7 @@ type View =
 export default function AgentsSettingsTab() {
   const backends = useBackends();
   const defaultBackendId = useDefaultBackendId();
+  const keyStorageError = useKeyStorageError();
 
   const [view, setView] = useState<View>({ step: "grid" });
   const [ollamaForm, setOllamaForm] = useState(emptyOllamaForm);
@@ -92,7 +94,8 @@ export default function AgentsSettingsTab() {
       setOpenAiForm({
         label: config.label,
         baseUrl: config.baseUrl,
-        apiKey: config.apiKey,
+        // Never comes back from Rust — blank keeps the saved one.
+        apiKey: "",
         model: config.model,
       });
     } else {
@@ -126,6 +129,7 @@ export default function AgentsSettingsTab() {
         label: openAiForm.label.trim(),
         baseUrl: openAiForm.baseUrl.trim(),
         apiKey: openAiForm.apiKey.trim(),
+        apiKeySaved: false,
         model: openAiForm.model.trim(),
       });
     } else {
@@ -200,6 +204,7 @@ export default function AgentsSettingsTab() {
 
   if (view.step === "form") {
     const { type, id } = view;
+    const editingOpenAi = backends.find((b) => b.id === id);
     return (
       <div className="space-y-3">
         <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
@@ -259,10 +264,22 @@ export default function AgentsSettingsTab() {
                 setOpenAiForm({ ...openAiForm, apiKey: e.currentTarget.value })
               }
               type="password"
-              placeholder="API key"
+              placeholder={
+                editingOpenAi?.kind === "openAiCompatible" &&
+                editingOpenAi.apiKeySaved
+                  ? "API key saved — leave blank to keep it"
+                  : "API key"
+              }
             />
-            <div className="text-xs text-zinc-600">
-              Stored in this app's settings file, unencrypted.
+            <div
+              className={cn(
+                "text-xs",
+                keyStorageError ? "text-amber-400" : "text-zinc-600",
+              )}
+            >
+              {keyStorageError
+                ? `Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`
+                : "Stored in the system keychain."}
             </div>
             <Input
               value={openAiForm.model}

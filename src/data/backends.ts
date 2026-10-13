@@ -101,6 +101,14 @@ export function useBackends(): BackendConfig[] {
   return useRegistry().backends;
 }
 
+/**
+ * Why API keys are in the settings file instead of the OS keychain, if they
+ * are — null when every key is in the keychain.
+ */
+export function useKeyStorageError(): string | null {
+  return useRegistry().keyStorageError ?? null;
+}
+
 /** The backend a brand-new conversation starts on. */
 export function useDefaultBackendId(): string {
   return useRegistry().defaultBackendId;
@@ -150,10 +158,8 @@ export async function bootBackends(): Promise<void> {
     applyRegistry(await api.importBackends(legacy));
     for (const key of LEGACY_KEYS) localStorage.removeItem(key);
   } else {
-    applyRegistry({
-      backends: snapshot.backends,
-      defaultBackendId: snapshot.defaultBackendId,
-    });
+    const { persisted: _, ...registry } = snapshot;
+    applyRegistry(registry);
   }
 }
 
@@ -239,6 +245,7 @@ function readLegacyRegistry(): BackendRegistry | null {
       enabled: on(c.enabled),
       baseUrl: str(c.baseUrl),
       apiKey: str(c.apiKey),
+      apiKeySaved: false,
       model: str(c.model),
     })),
   ].filter((b) => b.id);

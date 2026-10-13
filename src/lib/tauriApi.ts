@@ -46,7 +46,10 @@ export type BackendConfig = { id: string; label: string; enabled: boolean } & (
   | {
       kind: "openAiCompatible";
       baseUrl: string;
+      // Never sent back by Rust (the key lives in the OS keychain): always
+      // "" from it. To Rust: a new key, or "" to keep the saved one.
       apiKey: string;
+      apiKeySaved: boolean;
       model: string;
     }
   | { kind: "acp"; launchCommand: string }
@@ -55,6 +58,9 @@ export type BackendConfig = { id: string; label: string; enabled: boolean } & (
 // Every backend plus the one new conversations start on — Rust-owned
 // (`backends.json`), payload of `backends://changed`.
 export interface BackendRegistry {
+  // Set when the keychain refused a key, which is then stored unencrypted
+  // in the settings file instead. Only ever set by Rust.
+  keyStorageError?: string | null;
   backends: BackendConfig[];
   defaultBackendId: string;
 }

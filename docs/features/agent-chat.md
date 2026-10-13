@@ -90,7 +90,12 @@ The built-in agent can use either:
   picker with their context-window information when available.
 - **An OpenAI-compatible API**, configured with a label, base URL, API key,
   and model ID in Settings. Because compatible services do not all provide a
-  reliable model catalog, enter the model ID supplied by that service.
+  reliable model catalog, enter the model ID supplied by that service. The API
+  key is stored in the system keychain (macOS Keychain, Windows Credential
+  Manager, or the Secret Service on Linux) and is never shown again; leave
+  the field blank when editing to keep it. If the keychain can't be used,
+  Settings says so and the key is stored unencrypted in the app's settings
+  file instead.
 
 Open Settings from the gear button. Use the provider section to change the
 Ollama host or add, edit, remove, and activate saved OpenAI-compatible

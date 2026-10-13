@@ -4,9 +4,11 @@
 //! it with `get_backends`, changes it only through the commands below, and
 //! hears about every change on `backends://changed` (payload: the whole
 //! registry). Commands that talk to a model take a backend id and resolve it
-//! here, so connection details never cross the IPC boundary per call.
+//! here, so connection details never cross the IPC boundary per call. API
+//! keys live in the OS keychain (`secrets`), not the file, and never go back
+//! to the frontend at all (`Registry::view`).
 
-use super::{Backend, NativeBackend};
+use super::{secrets, Backend, NativeBackend};
 use crate::acp::AcpBackend;
 use crate::paths;
 use crate::provider::ProviderConfig;
@@ -51,8 +53,14 @@ pub enum BackendKind {
     #[serde(rename_all = "camelCase")]
     OpenAiCompatible {
         base_url: String,
+        /// Only set when the key couldn't go into the keychain (the
+        /// fallback). From the frontend: a new key, or empty to keep the
+        /// saved one. Always empty in what's sent back to it.
         #[serde(default)]
         api_key: String,
+        /// A key is saved — in the keychain, unless `api_key` holds it.
+        #[serde(default)]
+        api_key_saved: bool,
         /// Free text (no model listing); same role as Ollama's `model`.
         #[serde(default)]
         model: String,
@@ -66,16 +74,31 @@ pub enum BackendKind {
 }
 
 impl BackendConfig {
-    /// The provider connection, for a native backend.
+    fn is_native(&self) -> bool {
+        !matches!(self.kind, BackendKind::Acp { .. })
+    }
+
+    /// The provider connection, for a native backend — with its API key
+    /// read from the keychain when that's where it is.
     fn provider(&self) -> Option<ProviderConfig> {
         match &self.kind {
             BackendKind::Ollama { host, .. } => Some(ProviderConfig::Ollama { host: host.clone() }),
             BackendKind::OpenAiCompatible {
-                base_url, api_key, ..
-            } => Some(ProviderConfig::OpenAiCompatible {
-                base_url: base_url.clone(),
-                api_key: api_key.clone(),
-            }),
+                base_url,
+                api_key,
+                api_key_saved,
+                ..
+            } => {
+                let api_key = if !api_key.is_empty() || !api_key_saved {
+                    api_key.clone()
+                } else {
+                    secrets::get(&self.id).ok().flatten().unwrap_or_default()
+                };
+                Some(ProviderConfig::OpenAiCompatible {
+                    base_url: base_url.clone(),
+                    api_key,
+                })
+            }
             BackendKind::Acp { .. } => None,
         }
     }
@@ -169,7 +192,7 @@ impl Registry {
     /// names no agent: the default backend if it's native, else the first
     /// enabled native one, with the model last used on it.
     pub fn default_native(&self) -> NativeBackend {
-        let native = |b: &&BackendConfig| b.enabled && b.provider().is_some();
+        let native = |b: &&BackendConfig| b.enabled && b.is_native();
         let chosen = self
             .get(&self.default_backend_id)
             .filter(native)
@@ -189,6 +212,103 @@ impl Registry {
             },
         }
     }
+}
+
+impl Registry {
+    /// What the frontend sees: every API key blanked (`api_key_saved` says
+    /// whether one exists), plus why keys are in the file, if they are.
+    pub fn view(&self, key_storage_error: Option<String>) -> RegistryView {
+        // Only worth showing while a key actually sits in the file.
+        let key_in_file = self.backends.iter().any(
+            |b| matches!(&b.kind, BackendKind::OpenAiCompatible { api_key, .. } if !api_key.is_empty()),
+        );
+        let key_storage_error = key_storage_error.filter(|_| key_in_file);
+        let mut registry = self.clone();
+        for b in &mut registry.backends {
+            if let BackendKind::OpenAiCompatible { api_key, .. } = &mut b.kind {
+                api_key.clear();
+            }
+        }
+        RegistryView {
+            registry,
+            key_storage_error,
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryView {
+    #[serde(flatten)]
+    pub registry: Registry,
+    /// Set when the keychain couldn't store a key, so it's in
+    /// `backends.json` unencrypted instead — shown in Settings.
+    pub key_storage_error: Option<String>,
+}
+
+/// Moves a key arriving from the frontend (or left in the file by an older
+/// build) into the keychain. An empty incoming key keeps `previous`'s saved
+/// one. If the keychain fails, the key stays in the file and the error is
+/// recorded for Settings.
+fn store_api_key(state: &AppState, config: &mut BackendConfig, previous: Option<&BackendConfig>) {
+    let id = config.id.clone();
+    let BackendKind::OpenAiCompatible {
+        api_key,
+        api_key_saved,
+        ..
+    } = &mut config.kind
+    else {
+        return;
+    };
+    if api_key.is_empty() {
+        // Keep whatever was saved before (and where it was).
+        if let Some(BackendConfig {
+            kind:
+                BackendKind::OpenAiCompatible {
+                    api_key: old_key,
+                    api_key_saved: old_saved,
+                    ..
+                },
+            ..
+        }) = previous
+        {
+            *api_key = old_key.clone();
+            *api_key_saved = *old_saved;
+        } else {
+            *api_key_saved = false;
+        }
+        return;
+    }
+    *api_key_saved = true;
+    match secrets::set(&id, api_key) {
+        Ok(()) => api_key.clear(),
+        Err(e) => {
+            *state.key_storage_error.lock().unwrap() = Some(e);
+        }
+    }
+}
+
+/// Keys an earlier build wrote into `backends.json` move to the keychain —
+/// run once at startup, off the main thread (the keychain may prompt).
+pub fn move_file_keys_to_keychain(app: &AppHandle) {
+    let has_file_keys = app
+        .state::<AppState>()
+        .backends
+        .lock()
+        .unwrap()
+        .backends
+        .iter()
+        .any(|b| matches!(&b.kind, BackendKind::OpenAiCompatible { api_key, .. } if !api_key.is_empty()));
+    if !has_file_keys {
+        return;
+    }
+    let _ = update(app, |r| {
+        let state = app.state::<AppState>();
+        for b in &mut r.backends {
+            store_api_key(&state, b, None);
+        }
+        Ok(())
+    });
 }
 
 fn registry_path() -> PathBuf {
@@ -218,7 +338,7 @@ fn save_registry_to_disk(registry: &Registry) -> Result<(), String> {
 fn update(
     app: &AppHandle,
     change: impl FnOnce(&mut Registry) -> Result<(), String>,
-) -> Result<Registry, String> {
+) -> Result<RegistryView, String> {
     let state = app.state::<AppState>();
     let next = {
         let mut current = state.backends.lock().unwrap();
@@ -229,9 +349,10 @@ fn update(
         *current = next.clone();
         next
     };
-    let _ = app.emit("backends://changed", &next);
+    let view = next.view(state.key_storage_error.lock().unwrap().clone());
+    let _ = app.emit("backends://changed", &view);
     crate::acp::sync_catalog_with_registry(app);
-    Ok(next)
+    Ok(view)
 }
 
 /// Looks `id` up and builds the `Backend` that answers with it. `model` and
@@ -293,7 +414,7 @@ pub fn remember_model(app: &AppHandle, id: &str, model: &str) {
         .lock()
         .unwrap()
         .get(id)
-        .is_none_or(|b| b.provider().is_none() || b.remembered_model() == model);
+        .is_none_or(|b| !b.is_native() || b.remembered_model() == model);
     if unchanged {
         return;
     }
@@ -313,7 +434,7 @@ pub fn remember_model(app: &AppHandle, id: &str, model: &str) {
 #[serde(rename_all = "camelCase")]
 pub struct BackendsSnapshot {
     #[serde(flatten)]
-    pub registry: Registry,
+    pub view: RegistryView,
     /// Whether `backends.json` exists yet. False on the first launch of this
     /// build, which is when the frontend imports the settings it still has
     /// in localStorage (`import_backends`).
@@ -323,7 +444,11 @@ pub struct BackendsSnapshot {
 #[tauri::command]
 pub fn get_backends(state: State<'_, AppState>) -> BackendsSnapshot {
     BackendsSnapshot {
-        registry: state.backends.lock().unwrap().clone(),
+        view: state
+            .backends
+            .lock()
+            .unwrap()
+            .view(state.key_storage_error.lock().unwrap().clone()),
         persisted: registry_path().exists(),
     }
 }
@@ -332,30 +457,44 @@ pub fn get_backends(state: State<'_, AppState>) -> BackendsSnapshot {
 /// localStorage. Refused once `backends.json` exists, so a stale window
 /// can't overwrite later edits.
 #[tauri::command]
-pub fn import_backends(app: AppHandle, registry: Registry) -> Result<Registry, String> {
+pub fn import_backends(app: AppHandle, registry: Registry) -> Result<RegistryView, String> {
     if registry_path().exists() {
         return Err("backends were already imported".into());
     }
     update(&app, |r| {
+        let state = app.state::<AppState>();
         *r = registry;
+        for b in &mut r.backends {
+            store_api_key(&state, b, None);
+        }
         Ok(())
     })
 }
 
 /// Adds `config`, or replaces the backend with the same id.
 #[tauri::command]
-pub fn save_backend(app: AppHandle, config: BackendConfig) -> Result<Registry, String> {
+pub fn save_backend(app: AppHandle, mut config: BackendConfig) -> Result<RegistryView, String> {
     update(&app, |r| {
+        let state = app.state::<AppState>();
         match r.backends.iter_mut().find(|b| b.id == config.id) {
-            Some(existing) => *existing = config,
-            None => r.backends.push(config),
+            Some(existing) => {
+                store_api_key(&state, &mut config, Some(existing));
+                *existing = config;
+            }
+            None => {
+                store_api_key(&state, &mut config, None);
+                r.backends.push(config);
+            }
         }
         Ok(())
     })
 }
 
 #[tauri::command]
-pub fn delete_backend(app: AppHandle, id: String) -> Result<Registry, String> {
+pub fn delete_backend(app: AppHandle, id: String) -> Result<RegistryView, String> {
+    // Best effort: a key left behind in the keychain is harmless, and a
+    // failure here shouldn't keep the backend from being deleted.
+    let _ = secrets::delete(&id);
     update(&app, |r| {
         r.backends.retain(|b| b.id != id);
         Ok(())
@@ -363,7 +502,7 @@ pub fn delete_backend(app: AppHandle, id: String) -> Result<Registry, String> {
 }
 
 #[tauri::command]
-pub fn set_default_backend(app: AppHandle, id: String) -> Result<Registry, String> {
+pub fn set_default_backend(app: AppHandle, id: String) -> Result<RegistryView, String> {
     update(&app, |r| {
         if r.get(&id).is_none() {
             return Err(format!("no backend with id {id:?}"));
@@ -455,6 +594,29 @@ mod tests {
         }
         .reconciled();
         assert_eq!(registry.default_backend_id, "on");
+    }
+
+    #[test]
+    fn the_view_never_carries_an_api_key() {
+        let registry = Registry {
+            backends: vec![BackendConfig {
+                id: "o".into(),
+                label: "o".into(),
+                enabled: true,
+                kind: BackendKind::OpenAiCompatible {
+                    base_url: "u".into(),
+                    api_key: "sk-secret".into(),
+                    api_key_saved: true,
+                    model: String::new(),
+                },
+            }],
+            default_backend_id: "o".into(),
+        };
+        let view = serde_json::to_string(&registry.view(Some("locked".into()))).unwrap();
+        assert!(!view.contains("sk-secret"));
+        assert!(view.contains("\"apiKeySaved\":true"));
+        // The key is in the file here, so the keychain error is shown.
+        assert!(view.contains("locked"));
     }
 
     #[test]

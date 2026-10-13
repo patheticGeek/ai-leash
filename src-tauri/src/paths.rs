@@ -42,3 +42,9 @@ pub fn versioned_file(stem: &str, ext: &str) -> PathBuf {
 pub fn versioned_dir(name: &str) -> PathBuf {
     config_dir().join(dev_suffixed(name))
 }
+
+/// The OS keychain service secrets are stored under — `ai-leash.dev` in
+/// debug builds, same split as the files above.
+pub fn keychain_service() -> String {
+    dev_suffixed("ai-leash")
+}
