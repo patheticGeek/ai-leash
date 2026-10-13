@@ -176,6 +176,9 @@ pub struct AppState {
     /// parent's cancellation flag the same way.
     /// Every configured backend and the default — see `backend::registry`.
     pub backends: Mutex<crate::backend::registry::Registry>,
+    /// Why the keychain last refused an API key, if it did — the key is then
+    /// in `backends.json` instead. Shown in Settings.
+    pub key_storage_error: Mutex<Option<String>>,
     pub permission_bypass: Mutex<HashSet<String>>,
     /// Latest run per Action, keyed by (checkout, action id) — see
     /// `run.rs`, and `actions.rs::run_key` on why the checkout is part of

@@ -13,6 +13,7 @@
 
 mod native;
 pub mod registry;
+mod secrets;
 pub mod session;
 
 pub use native::NativeBackend;

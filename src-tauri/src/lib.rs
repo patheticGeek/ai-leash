@@ -103,6 +103,11 @@ pub fn run() {
             acp::rate_limit::rearm_all(app.handle());
             // The catalog on disk may predate the registry's current agents.
             acp::sync_catalog_with_registry(app.handle());
+            // Off the main thread: the keychain may ask to be unlocked.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                backend::registry::move_file_keys_to_keychain(&handle);
+            });
 
             Ok(())
         })

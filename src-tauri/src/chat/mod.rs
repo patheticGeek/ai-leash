@@ -248,6 +248,7 @@ mod tests {
             mcp_bridge: Mutex::new(None),
             permission_bypass: Mutex::new(HashSet::new()),
             backends: Mutex::new(Default::default()),
+            key_storage_error: Mutex::new(None),
             runs: Default::default(),
         }
     }
