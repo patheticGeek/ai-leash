@@ -39,7 +39,7 @@ pub(crate) enum AcpCommand {
     /// `AcpBackend::run_task` to await a one-shot sub-agent's turn without a
     /// frontend polling `chat://{session_id}/done`/`error` the way a normal
     /// top-level conversation does. `None` for every ordinary
-    /// `send_prompt_acp` call, which has no one to notify beyond those
+    /// `AcpBackend::send` call, which has no one to notify beyond those
     /// events.
     Prompt(String, Option<oneshot::Sender<Result<(), String>>>),
     Cancel,
@@ -137,7 +137,8 @@ pub(super) fn ensure_acp_session(
     drop(sessions);
     publish_session_options(app, session_id);
 
-    tokio::spawn(run_acp_session(
+    // Not `tokio::spawn`: this can be reached from outside the runtime.
+    tauri::async_runtime::spawn(run_acp_session(
         app.clone(),
         session_id.to_string(),
         launch_command.to_string(),

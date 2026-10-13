@@ -15,8 +15,14 @@ import { Button } from "@/ui/button";
 import { Card } from "@/ui/card";
 import { Checkbox } from "@/ui/checkbox";
 import { Input } from "@/ui/input";
-import { useAppStore } from "../../../store";
-import { isEnabled } from "../../../store/backendSlice";
+import {
+  deleteBackend,
+  saveBackend,
+  setDefaultBackend,
+  useBackends,
+  useDefaultBackendId,
+} from "../../../data/backends";
+import type { BackendConfig } from "../../../lib/tauriApi";
 
 // One flat grid of every configured backend — Ollama connections, ACP
 // agents, then OpenAI-compatible APIs — matching what the user asked for
@@ -25,7 +31,7 @@ import { isEnabled } from "../../../store/backendSlice";
 // tool loop vs. an external ACP subprocess) is never shown here — a card is
 // just "an agent", same framing `useChatSession.ts`'s chat-bar picker
 // already uses.
-type CardType = "ollama" | "acp" | "openAiCompatible";
+type CardType = BackendConfig["kind"];
 
 const TYPE_META: Record<
   CardType,
@@ -64,39 +70,13 @@ type View =
   | { step: "form"; type: CardType; id: string | null };
 
 export default function AgentsSettingsTab() {
-  const providerSettings = useAppStore((s) => s.providerSettings);
-  const agentBackend = useAppStore((s) => s.agentBackend);
-  const defaultBackend = useAppStore((s) => s.defaultBackend);
-  const setDefaultBackend = useAppStore((s) => s.setDefaultBackend);
-  const saveOllamaConfig = useAppStore((s) => s.saveOllamaConfig);
-  const deleteOllamaConfig = useAppStore((s) => s.deleteOllamaConfig);
-  const saveOpenAiCompatibleConfig = useAppStore(
-    (s) => s.saveOpenAiCompatibleConfig,
-  );
-  const deleteOpenAiCompatibleConfig = useAppStore(
-    (s) => s.deleteOpenAiCompatibleConfig,
-  );
-  const saveAcpAgentConfig = useAppStore((s) => s.saveAcpAgentConfig);
-  const deleteAcpAgentConfig = useAppStore((s) => s.deleteAcpAgentConfig);
+  const backends = useBackends();
+  const defaultBackendId = useDefaultBackendId();
 
   const [view, setView] = useState<View>({ step: "grid" });
   const [ollamaForm, setOllamaForm] = useState(emptyOllamaForm);
   const [openAiForm, setOpenAiForm] = useState(emptyOpenAiForm);
   const [acpForm, setAcpForm] = useState(emptyAcpForm);
-
-  function isDefaultCard(type: CardType, id: string): boolean {
-    return type === "acp"
-      ? defaultBackend.kind === "acp" && defaultBackend.acpId === id
-      : defaultBackend.kind === "builtin" && defaultBackend.providerId === id;
-  }
-
-  function makeDefault(type: CardType, id: string) {
-    setDefaultBackend(
-      type === "acp"
-        ? { kind: "acp", acpId: id }
-        : { kind: "builtin", providerId: id },
-    );
-  }
 
   function startAdd(type: CardType) {
     if (type === "ollama") setOllamaForm(emptyOllamaForm);
@@ -105,65 +85,44 @@ export default function AgentsSettingsTab() {
     setView({ step: "form", type, id: null });
   }
 
-  function startEdit(type: CardType, id: string) {
-    if (type === "ollama") {
-      const c = providerSettings.ollama.find((x) => x.id === id);
-      if (!c) return;
-      setOllamaForm({ label: c.label, host: c.host });
-    } else if (type === "openAiCompatible") {
-      const c = providerSettings.openAiCompatible.find((x) => x.id === id);
-      if (!c) return;
+  function startEdit(config: BackendConfig) {
+    if (config.kind === "ollama") {
+      setOllamaForm({ label: config.label, host: config.host });
+    } else if (config.kind === "openAiCompatible") {
       setOpenAiForm({
-        label: c.label,
-        baseUrl: c.baseUrl,
-        apiKey: c.apiKey,
-        model: c.model,
+        label: config.label,
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        model: config.model,
       });
     } else {
-      const c = agentBackend.acpAgents.find((x) => x.id === id);
-      if (!c) return;
-      setAcpForm({ label: c.label, launchCommand: c.launchCommand });
+      setAcpForm({ label: config.label, launchCommand: config.launchCommand });
     }
-    setView({ step: "form", type, id });
-  }
-
-  function setCardEnabled(type: CardType, id: string, enabled: boolean) {
-    if (type === "ollama") {
-      const c = providerSettings.ollama.find((x) => x.id === id);
-      if (c) saveOllamaConfig({ ...c, enabled });
-    } else if (type === "openAiCompatible") {
-      const c = providerSettings.openAiCompatible.find((x) => x.id === id);
-      if (c) saveOpenAiCompatibleConfig({ ...c, enabled });
-    } else {
-      const c = agentBackend.acpAgents.find((x) => x.id === id);
-      if (c) saveAcpAgentConfig({ ...c, enabled });
-    }
-  }
-
-  function deleteCard(type: CardType, id: string) {
-    if (type === "ollama") deleteOllamaConfig(id);
-    else if (type === "openAiCompatible") deleteOpenAiCompatibleConfig(id);
-    else deleteAcpAgentConfig(id);
+    setView({ step: "form", type: config.kind, id: config.id });
   }
 
   function saveForm() {
     if (view.step !== "form") return;
-    const { type, id } = view;
+    const { type } = view;
+    const existing = backends.find((b) => b.id === view.id);
+    const base = {
+      id: view.id ?? crypto.randomUUID(),
+      enabled: existing?.enabled ?? true,
+    };
     if (type === "ollama") {
       if (!ollamaForm.label.trim() || !ollamaForm.host.trim()) return;
-      saveOllamaConfig({
-        ...providerSettings.ollama.find((c) => c.id === id),
+      void saveBackend({
+        ...base,
         kind: "ollama",
-        id: id ?? crypto.randomUUID(),
         label: ollamaForm.label.trim(),
         host: ollamaForm.host.trim(),
+        model: existing?.kind === "ollama" ? existing.model : "",
       });
     } else if (type === "openAiCompatible") {
       if (!openAiForm.label.trim() || !openAiForm.baseUrl.trim()) return;
-      saveOpenAiCompatibleConfig({
-        ...providerSettings.openAiCompatible.find((c) => c.id === id),
+      void saveBackend({
+        ...base,
         kind: "openAiCompatible",
-        id: id ?? crypto.randomUUID(),
         label: openAiForm.label.trim(),
         baseUrl: openAiForm.baseUrl.trim(),
         apiKey: openAiForm.apiKey.trim(),
@@ -171,9 +130,9 @@ export default function AgentsSettingsTab() {
       });
     } else {
       if (!acpForm.label.trim() || !acpForm.launchCommand.trim()) return;
-      saveAcpAgentConfig({
-        ...agentBackend.acpAgents.find((c) => c.id === id),
-        id: id ?? crypto.randomUUID(),
+      void saveBackend({
+        ...base,
+        kind: "acp",
         label: acpForm.label.trim(),
         launchCommand: acpForm.launchCommand.trim(),
       });
@@ -181,35 +140,19 @@ export default function AgentsSettingsTab() {
     setView({ step: "grid" });
   }
 
-  const cards: {
-    type: CardType;
-    id: string;
-    label: string;
-    subtitle: string;
-    enabled: boolean;
-  }[] = [
-    ...providerSettings.ollama.map((c) => ({
-      type: "ollama" as const,
-      id: c.id,
-      label: c.label,
-      subtitle: c.host || "localhost:11434",
-      enabled: isEnabled(c),
-    })),
-    ...agentBackend.acpAgents.map((c) => ({
-      type: "acp" as const,
-      id: c.id,
-      label: c.label,
-      subtitle: c.launchCommand,
-      enabled: isEnabled(c),
-    })),
-    ...providerSettings.openAiCompatible.map((c) => ({
-      type: "openAiCompatible" as const,
-      id: c.id,
-      label: c.label,
-      subtitle: c.baseUrl,
-      enabled: isEnabled(c),
-    })),
-  ];
+  // Ollama connections, then ACP agents, then OpenAI-compatible APIs.
+  const order: Record<CardType, number> = {
+    ollama: 0,
+    acp: 1,
+    openAiCompatible: 2,
+  };
+  const cards = [...backends].sort((a, b) => order[a.kind] - order[b.kind]);
+
+  function subtitle(config: BackendConfig): string {
+    if (config.kind === "ollama") return config.host || "localhost:11434";
+    if (config.kind === "acp") return config.launchCommand;
+    return config.baseUrl;
+  }
 
   if (view.step === "pickType") {
     return (
@@ -319,7 +262,7 @@ export default function AgentsSettingsTab() {
               placeholder="API key"
             />
             <div className="text-xs text-zinc-600">
-              Stored locally in this app's settings, unencrypted.
+              Stored in this app's settings file, unencrypted.
             </div>
             <Input
               value={openAiForm.model}
@@ -392,11 +335,11 @@ export default function AgentsSettingsTab() {
       </div>
       <div className="flex flex-col gap-2">
         {cards.map((c) => {
-          const meta = TYPE_META[c.type];
-          const active = c.enabled && isDefaultCard(c.type, c.id);
+          const meta = TYPE_META[c.kind];
+          const active = c.enabled && c.id === defaultBackendId;
           return (
             <Card
-              key={`${c.type}:${c.id}`}
+              key={c.id}
               interactive
               selected={active}
               className={cn(
@@ -407,7 +350,7 @@ export default function AgentsSettingsTab() {
               <Button
                 variant="unstyled"
                 size="none"
-                onClick={() => makeDefault(c.type, c.id)}
+                onClick={() => void setDefaultBackend(c.id)}
                 disabled={!c.enabled}
                 title={
                   !c.enabled
@@ -430,14 +373,14 @@ export default function AgentsSettingsTab() {
                   </span>
                 </span>
                 <span className="w-full truncate pl-[23px] text-xs text-zinc-600">
-                  {c.subtitle}
+                  {subtitle(c)}
                 </span>
               </Button>
               <div className="flex shrink-0 items-center gap-1 pr-2">
                 <Checkbox
                   checked={c.enabled}
                   onCheckedChange={(next) =>
-                    setCardEnabled(c.type, c.id, next === true)
+                    void saveBackend({ ...c, enabled: next === true })
                   }
                   title={c.enabled ? "Turn off" : "Turn on"}
                   aria-label={`Enable ${c.label}`}
@@ -447,7 +390,7 @@ export default function AgentsSettingsTab() {
                   variant="ghost"
                   size="icon-sm"
                   title="Edit"
-                  onClick={() => startEdit(c.type, c.id)}
+                  onClick={() => startEdit(c)}
                 >
                   <Pencil size={13} />
                 </Button>
@@ -455,7 +398,7 @@ export default function AgentsSettingsTab() {
                   variant="danger"
                   size="icon-sm"
                   title="Delete"
-                  onClick={() => deleteCard(c.type, c.id)}
+                  onClick={() => void deleteBackend(c.id)}
                 >
                   <Trash2 size={13} />
                 </Button>

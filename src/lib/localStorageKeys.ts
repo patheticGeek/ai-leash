@@ -2,21 +2,23 @@
 // string is only ever spelled out once. Pair with `localStorageJson.ts`'s
 // read/write wrapper for anything storing JSON rather than a raw string.
 export const LS_KEYS = {
+  // Legacy backend settings, moved to Rust's `backends.json` — only read
+  // once, by `bootBackends` (`data/backends.ts`), never written.
   defaultBackend: "ai-leash:defaultBackend",
   agentBackend: "ai-leash:agentBackend",
+  providerConfig: "ai-leash:providerConfig",
+  lastModel: "ai-leash:lastModel",
   // Legacy, pre-DB-column keys (per-conversation backend/model and
   // Ask/Bypass choice moved into `conversations` — see
-  // `acpSlice.hydrateConversationBackendFromRows`/
+  // `selectionSlice.hydrateConversationBackendFromRows`/
   // `permissionSlice.hydratePermissionModeFromRows`) — only ever read once,
   // for migration, never written.
   conversationBackend: "ai-leash:conversationBackend",
   permissionMode: "ai-leash:permissionMode",
-  providerConfig: "ai-leash:providerConfig",
   recentProjects: "ai-leash:recentProjects",
   // Legacy, pre-multi-project-sidebar key — only ever read once, for
   // migration into `recentProjects` (see `projectSlice.ts`), never written.
   lastProjectRoot: "ai-leash:lastProjectRoot",
-  lastModel: "ai-leash:lastModel",
   leftBarWidth: "ai-leash:leftBarWidth",
   rightPanelWidth: "ai-leash:rightPanelWidth",
   // Per-session draft text — not a standalone key, see `chatDraftKey` in

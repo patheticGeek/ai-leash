@@ -73,7 +73,7 @@ export default function ChatPanel({
   }, [generating]);
 
   const session = useChatSession(sessionId, setChatError);
-  const { backend, activeAcpAgent } = session;
+  const { backend, backendConfig } = session;
   const {
     entries,
     setEntries,
@@ -251,7 +251,7 @@ export default function ChatPanel({
               acpRestoreFailed={acpRestoreFailed}
               onRetryAcpSession={retryAcpSession}
               acpHistoryTruncated={acpHistoryTruncated}
-              acpAgentLabel={activeAcpAgent?.label}
+              acpAgentLabel={backendConfig?.label}
               systemPrompt={systemPrompt}
               sending={sending}
               allowRetry={backend.caps.retry}
@@ -290,7 +290,7 @@ export default function ChatPanel({
                 sessionId,
                 worktreePath ?? projectRoot,
               );
-              // `warmAcpSession` may have already connected against the
+              // `backend.warm` may have already connected against the
               // primary checkout before this worktree was picked —
               // re-trigger it now that `set_conversation_root` (called by
               // `CheckoutBar` itself) has updated this session's cwd, same

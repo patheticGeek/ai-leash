@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
+import { bootBackends } from "./data/backends";
 import { bootPreferences } from "./data/preferences";
 import { installCrashReporting } from "./lib/crashReporting";
 import { installFontPreferences } from "./lib/fontPreferences";
@@ -14,7 +15,8 @@ installCrashReporting();
 
 // Preferences live in Rust; load them first so the first paint already has the
 // saved fonts and toggles.
-await bootPreferences();
+// Same for the backend registry, so the chat bar never renders without it.
+await Promise.all([bootPreferences(), bootBackends()]);
 installFontPreferences();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

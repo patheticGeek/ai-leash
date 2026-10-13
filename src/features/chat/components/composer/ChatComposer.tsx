@@ -88,7 +88,7 @@ export default function ChatComposer({
   // without a real click.
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
-  const { backend, model, activeAcpAgent } = session;
+  const { backend, model } = session;
   const backendReady = backend.ready;
 
   // "/compact" only for a backend that can summarize (`caps.compaction`) —
@@ -108,11 +108,11 @@ export default function ChatComposer({
   // A dismissed popover is remembered by the query it was dismissed for —
   // that goes stale when the connected agent (and so its command list)
   // changes.
-  const acpAgentId = activeAcpAgent?.id;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: acpAgentId is a trigger-only dep — `slash.resetDismissed` is a fresh function every render and must not re-run this
+  const backendId = backend.id;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: backendId is a trigger-only dep — `slash.resetDismissed` is a fresh function every render and must not re-run this
   useEffect(() => {
     slash.resetDismissed();
-  }, [acpAgentId]);
+  }, [backendId]);
   // Mirrors `send()`'s own check — a leading space ("!" escaped as " !")
   // means "just send this as text", so it's not shell mode either.
   const shellMode = input.startsWith("!");

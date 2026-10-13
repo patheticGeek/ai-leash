@@ -6,10 +6,9 @@ mod permissions;
 mod process;
 pub mod rate_limit;
 
-use crate::backend::{Backend, NativeBackend};
+use crate::backend::registry::BackendKind;
 use crate::commands;
 use crate::paths;
-use crate::provider::ProviderConfig;
 use crate::state::{AcpAgentCatalogEntry, AppState};
 use agent_client_protocol::schema::v1::{
     ClientCapabilities, InitializeRequest, NewSessionRequest, RequestPermissionOutcome,
@@ -34,55 +33,6 @@ use discovery::{
     find_model_config_option, find_thought_level_config_option, format_acp_error,
     model_options_payload, thought_level_options_payload,
 };
-
-/// Connects an ACP agent's subprocess ahead of the user's first message,
-/// rather than waiting for `send_prompt_acp` to do it lazily — called once
-/// an ACP agent becomes active for a conversation (see `ChatPanel.tsx`).
-/// This is what lets a `session/load` resume failure (see `process.rs`'s
-/// `drive_acp_connection`) surface to the user before there's a typed
-/// message it could otherwise strand: `send_prompt_acp` clears the input as
-/// soon as it's called, so a failure discovered only on first send would
-/// have nowhere to put that text back.
-#[tauri::command]
-pub async fn warm_acp_session(
-    app: AppHandle,
-    session_id: String,
-    launch_command: String,
-    provider: ProviderConfig,
-    model: String,
-) -> Result<(), String> {
-    top_level(launch_command, provider, model).warm(&app, &session_id);
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn send_prompt_acp(
-    app: AppHandle,
-    session_id: String,
-    launch_command: String,
-    provider: ProviderConfig,
-    model: String,
-    message: String,
-) -> Result<(), String> {
-    top_level(launch_command, provider, model)
-        .send(&app, &session_id, message)
-        .await
-}
-
-/// A top-level conversation's agent. `provider`/`model` are the native ones
-/// its sub-agents run on — see `Backend::native`.
-fn top_level(launch_command: String, provider: ProviderConfig, model: String) -> AcpBackend {
-    AcpBackend {
-        launch_command,
-        model_value: None,
-        effort_value: None,
-        native: NativeBackend {
-            provider,
-            model,
-            effort: None,
-        },
-    }
-}
 
 /// The ACP half of `backend::cancel`: wakes `drive_acp_connection`'s
 /// `tokio::select!` (`process.rs`) immediately even while a `Prompt` is in
@@ -115,7 +65,7 @@ pub fn get_acp_session_options(
 /// option — see `find_model_config_option`. Doesn't spawn a session on its
 /// own since there'd be nothing to set a model on yet.
 #[tauri::command]
-pub async fn set_acp_model(
+pub async fn set_session_model(
     state: State<'_, AppState>,
     session_id: String,
     value: String,
@@ -133,7 +83,7 @@ pub async fn set_acp_model(
 }
 
 #[tauri::command]
-pub async fn set_acp_effort(
+pub async fn set_session_effort(
     state: State<'_, AppState>,
     session_id: String,
     value: String,
@@ -150,7 +100,7 @@ pub async fn set_acp_effort(
         .map_err(|_| "ACP agent process is no longer running.".to_string())
 }
 
-/// `fetch_acp_models`'s return shape — both fields independently `None` when
+/// `discover_acp_options`'s result — both fields independently `None` when
 /// the agent connects fine but simply doesn't expose that config option.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -167,21 +117,6 @@ pub struct AcpDiscoveredOptions {
 /// no separate teardown step: the "fake session" cleans itself up. Not
 /// registered in `AppState.acp_sessions`, since it's not a real session
 /// anything else should be able to find.
-#[tauri::command]
-pub async fn fetch_acp_models(
-    app: AppHandle,
-    launch_command: String,
-) -> Result<AcpDiscoveredOptions, String> {
-    let root = {
-        let state = app.state::<AppState>();
-        commands::get_root_path(state.inner())?
-    };
-    discover_acp_options(root, &launch_command).await
-}
-
-/// The actual "fake session" handshake, factored out of the `fetch_acp_models`
-/// command so `refresh_acp_catalog_in_background` (below) can reuse it
-/// without going through the Tauri IPC/command layer.
 async fn discover_acp_options(
     root: PathBuf,
     launch_command: &str,
@@ -232,13 +167,96 @@ async fn discover_acp_options(
         .map_err(|e| format_acp_error(&e))
 }
 
-/// Replaces the whole cached ACP agent catalog wholesale — called by the
-/// frontend (`acpSlice.ts`) whenever its configured agents or discovered
-/// model/effort options change. See `AcpAgentCatalogEntry`'s doc comment.
-#[tauri::command]
-pub fn sync_acp_agent_catalog(state: State<'_, AppState>, agents: Vec<AcpAgentCatalogEntry>) {
-    save_acp_catalog_to_disk(&agents);
-    *state.acp_agent_catalog.lock().unwrap() = agents;
+/// Rebuilds the catalog from the registry's enabled ACP agents — called at
+/// startup and whenever the registry changes. An agent keeps its discovered
+/// options while its launch command is unchanged; a new or re-pointed one
+/// is discovered in the background (once a project root exists to run it
+/// in — before that, `refresh_acp_catalog_in_background` covers it).
+pub(crate) fn sync_catalog_with_registry(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let agents: Vec<(String, String, String)> = state
+        .backends
+        .lock()
+        .unwrap()
+        .backends
+        .iter()
+        .filter(|b| b.enabled)
+        .filter_map(|b| match &b.kind {
+            BackendKind::Acp { launch_command } => {
+                Some((b.id.clone(), b.label.clone(), launch_command.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    let (catalog, undiscovered) = {
+        let mut catalog = state.acp_agent_catalog.lock().unwrap();
+        let mut undiscovered = Vec::new();
+        let next: Vec<AcpAgentCatalogEntry> = agents
+            .into_iter()
+            .map(|(id, label, launch_command)| {
+                let known = catalog
+                    .iter()
+                    .find(|e| e.id == id && e.launch_command == launch_command);
+                let (model_options, effort_options) = match known {
+                    Some(e) => (e.model_options.clone(), e.effort_options.clone()),
+                    None => {
+                        undiscovered.push((id.clone(), launch_command.clone()));
+                        (None, None)
+                    }
+                };
+                AcpAgentCatalogEntry {
+                    id,
+                    label,
+                    launch_command,
+                    model_options,
+                    effort_options,
+                }
+            })
+            .collect();
+        *catalog = next.clone();
+        (next, undiscovered)
+    };
+    save_acp_catalog_to_disk(&catalog);
+    let _ = app.emit("acp://catalog-updated", &catalog);
+
+    let Ok(root) = commands::get_root_path(state.inner()) else {
+        return;
+    };
+    for (id, launch_command) in undiscovered {
+        let app = app.clone();
+        let root = root.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Ok(options) = discover_acp_options(root, &launch_command).await {
+                record_discovered(&app, &id, &launch_command, options);
+            }
+        });
+    }
+}
+
+/// Stores one agent's freshly discovered options — only if the catalog
+/// still has it with the same launch command (it may have been edited or
+/// removed while discovery ran).
+fn record_discovered(
+    app: &AppHandle,
+    id: &str,
+    launch_command: &str,
+    options: AcpDiscoveredOptions,
+) {
+    let state = app.state::<AppState>();
+    let catalog = {
+        let mut catalog = state.acp_agent_catalog.lock().unwrap();
+        let Some(entry) = catalog
+            .iter_mut()
+            .find(|e| e.id == id && e.launch_command == launch_command)
+        else {
+            return;
+        };
+        entry.model_options = options.model;
+        entry.effort_options = options.effort;
+        catalog.clone()
+    };
+    save_acp_catalog_to_disk(&catalog);
+    let _ = app.emit("acp://catalog-updated", &catalog);
 }
 
 /// Returns the current in-memory catalog — what the frontend's
@@ -302,18 +320,9 @@ pub(crate) async fn refresh_acp_catalog_in_background(app: AppHandle) {
         }
     };
 
-    let mut refreshed = snapshot;
-    for entry in refreshed.iter_mut() {
+    for entry in snapshot {
         if let Ok(options) = discover_acp_options(root.clone(), &entry.launch_command).await {
-            entry.model_options = options.model;
-            entry.effort_options = options.effort;
+            record_discovered(&app, &entry.id, &entry.launch_command, options);
         }
     }
-
-    save_acp_catalog_to_disk(&refreshed);
-    {
-        let state = app.state::<AppState>();
-        *state.acp_agent_catalog.lock().unwrap() = refreshed.clone();
-    }
-    let _ = app.emit("acp://catalog-updated", &refreshed);
 }

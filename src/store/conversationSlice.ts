@@ -15,7 +15,7 @@ import { PRIMARY_CHAT_TAB } from "./panelSlice";
 // The canonical shape now lives in `lib/tauriApi.ts` (the wire type) and is
 // re-exported via `data/conversations.ts` — this file only owns the actions
 // around it, not the type itself. Re-exported here too so existing imports
-// (`store/index.ts`, `acpSlice.ts`, `permissionSlice.ts`) don't all need a
+// (`store/index.ts`, `selectionSlice.ts`, `permissionSlice.ts`) don't all need a
 // new import path.
 export type { ConversationSummary } from "../data/conversations";
 

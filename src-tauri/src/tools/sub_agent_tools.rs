@@ -2,7 +2,7 @@ use super::{paginate_lines, truncate, DEFAULT_READ_LIMIT};
 use crate::acp::AcpBackend;
 use crate::backend::{Backend, NativeBackend, TaskResult};
 use crate::db;
-use crate::provider::{self, EFFORT_LEVELS};
+use crate::provider::EFFORT_LEVELS;
 use crate::state::{AcpAgentCatalogEntry, AppState};
 use serde_json::{json, Value};
 use std::sync::atomic::AtomicBool;
@@ -412,7 +412,16 @@ pub(super) async fn list_agent_options(
     let mut output = String::from(
         "NATIVE PROVIDER — pass these to spawn_sub_agent WITHOUT an `agent` argument (omit `agent` entirely):\n",
     );
-    match provider::list_provider_models(native.provider.clone()).await {
+    let client = native.provider.client();
+    let models = if client.capabilities().model_listing {
+        client
+            .list_models()
+            .await
+            .map_err(|e| e.message().to_string())
+    } else {
+        Ok(vec![])
+    };
+    match models {
         Ok(models) if models.is_empty() => {
             output.push_str(
                 "  This OpenAI-compatible provider does not expose a model listing API — omit `model` too, to reuse the current model.",

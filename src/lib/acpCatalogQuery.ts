@@ -4,30 +4,20 @@ import type { AcpAgentCatalogEntry } from "./tauriApi";
 import { api } from "./tauriApi";
 import { useTauriEvent } from "./useTauriEvent";
 
-// Rust-authoritative ACP agent/model catalog — populated from disk at
-// startup (before the frontend even boots) and kept fresh by a background
-// refresh once a project root exists (see `acp::refresh_acp_catalog_in_background`
-// and `AppState.acp_agent_catalog`'s doc comment). Replaces the old
-// frontend-only `acpModelCache` (localStorage, in-memory-only Rust mirror).
+// Rust-owned ACP agent/model catalog — built from the backend registry's
+// enabled ACP agents (`acp::sync_catalog_with_registry`), with each agent's
+// models and effort levels discovered and refreshed by Rust itself.
 export function useAcpAgentCatalog(): AcpAgentCatalogEntry[] {
-  return useAcpAgentCatalogQuery().data ?? [];
-}
-
-// Full query result, for the one caller (`App.tsx`'s "seed any never-yet-
-// discovered agent" effect) that needs to tell "hasn't loaded yet" apart
-// from "loaded, and genuinely has nothing for this agent" — treating the
-// two the same would fire a redundant on-demand discovery for an agent
-// Rust's own background refresh already has covered, just because the
-// first fetch hadn't resolved yet.
-export function useAcpAgentCatalogQuery() {
-  return useQuery({
+  const { data } = useQuery({
     queryKey: qk.acpCatalog,
     queryFn: () => api.getAcpAgentCatalog(),
   });
+  return data ?? NO_ENTRIES;
 }
 
-// Invalidates the catalog query whenever Rust's background refresh (or an
-// on-demand `sync_acp_agent_catalog` call) changes it — called once from
+const NO_ENTRIES: AcpAgentCatalogEntry[] = [];
+
+// Invalidates the catalog query whenever Rust changes it — called once from
 // the always-mounted `App.tsx`, same pattern as `useFsChangeInvalidator`/
 // `useGeneratingListener`.
 export function useAcpCatalogInvalidator() {

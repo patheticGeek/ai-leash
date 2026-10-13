@@ -38,11 +38,26 @@ export interface ModelSummary {
   contextLength: number | null;
 }
 
-// Wire shape matching Rust's `provider::ProviderConfig` exactly (see
-// provider.rs's `provider_config_serde_matches_frontend_wire_shape` test).
-export type ProviderConfigPayload =
-  | { kind: "ollama"; host: string }
-  | { kind: "openAiCompatible"; baseUrl: string; apiKey: string };
+// One configured backend — Rust's `backend::registry::BackendConfig`.
+// `model` on a native backend is the one last used on it, which is what a
+// new conversation starts with.
+export type BackendConfig = { id: string; label: string; enabled: boolean } & (
+  | { kind: "ollama"; host: string; model: string }
+  | {
+      kind: "openAiCompatible";
+      baseUrl: string;
+      apiKey: string;
+      model: string;
+    }
+  | { kind: "acp"; launchCommand: string }
+);
+
+// Every backend plus the one new conversations start on — Rust-owned
+// (`backends.json`), payload of `backends://changed`.
+export interface BackendRegistry {
+  backends: BackendConfig[];
+  defaultBackendId: string;
+}
 
 export interface PersistedToolCall {
   id: string | null;
@@ -61,7 +76,7 @@ export interface PersistedMessage {
 // An ACP agent's "model" session config option (see
 // docs/features/agent-chat.md) — most agents don't expose one.
 export interface AcpModelOptions {
-  id: string; // the agent's own SessionConfigId, opaque — passed back verbatim to setAcpModel
+  id: string; // the agent's own SessionConfigId, opaque
   name: string;
   currentValue: string;
   options: { value: string; name: string }[];
@@ -74,23 +89,15 @@ export interface AcpEffortOptions {
   options: { value: string; name: string }[];
 }
 
-// Return shape of `fetch_acp_models` — both fields independently null when
-// the agent connects fine but simply doesn't expose that config option.
-export interface AcpAgentOptions {
-  model: AcpModelOptions | null;
-  effort: AcpEffortOptions | null;
-}
-
-// One entry of the ACP agent catalog snapshot pushed to the backend via
-// `syncAcpAgentCatalog` — see `acpSlice.ts`. Lets backend tool calls
-// (`list_agent_options`, `spawn_sub_agent`'s `agent` argument) look up a
-// configured ACP agent and its cached models/effort levels by id or label.
+// One entry of the ACP agent catalog — an enabled ACP backend plus the
+// models/effort levels discovered for it. Rust builds it from the backend
+// registry and keeps it fresh (`acp::sync_catalog_with_registry`).
 export interface AcpAgentCatalogEntry {
   id: string;
   label: string;
   launchCommand: string;
-  modelOptions: unknown;
-  effortOptions: unknown;
+  modelOptions: AcpModelOptions | null;
+  effortOptions: AcpEffortOptions | null;
 }
 
 // One slash command an ACP agent advertises. `hint` is the agent's
@@ -242,10 +249,10 @@ export interface ConversationSummary {
   // frontend always reads it live (see `watchGitBranch`) instead of trusting
   // a stored value.
   worktreePath: string | null;
-  // Persisted provider/ACP choice and Ask/Bypass mode — see
-  // `store/acpSlice.ts`'s `decodeConversationBackend` and
-  // `store/permissionSlice.ts` for how these are read. `backend` is a JSON
-  // blob opaque to Rust; `model`/`effort` are meaningless without it.
+  // Persisted backend choice and Ask/Bypass mode — see
+  // `store/selectionSlice.ts` and `store/permissionSlice.ts`. `backend` is
+  // a backend id (`BackendConfig.id`); `model`/`effort` are meaningless
+  // without it.
   backend: string | null;
   model: string | null;
   effort: string | null;
@@ -368,10 +375,20 @@ export const api = {
   ptyResize: (id: string, cols: number, rows: number) =>
     invoke<void>("pty_resize", { id, cols, rows }),
   ptyKill: (id: string) => invoke<void>("pty_kill", { id }),
-  listProviderModels: (provider: ProviderConfigPayload) =>
-    invoke<ModelSummary[]>("list_provider_models", { provider }),
-  checkProviderConnection: (provider: ProviderConfigPayload) =>
-    invoke<boolean>("check_provider_connection", { provider }),
+  getBackends: () =>
+    invoke<BackendRegistry & { persisted: boolean }>("get_backends"),
+  importBackends: (registry: BackendRegistry) =>
+    invoke<BackendRegistry>("import_backends", { registry }),
+  saveBackend: (config: BackendConfig) =>
+    invoke<BackendRegistry>("save_backend", { config }),
+  deleteBackend: (id: string) =>
+    invoke<BackendRegistry>("delete_backend", { id }),
+  setDefaultBackend: (id: string) =>
+    invoke<BackendRegistry>("set_default_backend", { id }),
+  listBackendModels: (backendId: string) =>
+    invoke<ModelSummary[]>("list_backend_models", { backendId }),
+  checkBackendConnection: (backendId: string) =>
+    invoke<boolean>("check_backend_connection", { backendId }),
   loadConversationHistory: (sessionId: string) =>
     invoke<PersistedMessage[]>("load_conversation_history", { sessionId }),
   setMessageDuration: (sessionId: string, seconds: number) =>
@@ -398,22 +415,31 @@ export const api = {
     }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
-  compactConversation: (
-    sessionId: string,
-    provider: ProviderConfigPayload,
-    model: string,
-  ) => invoke<string>("compact_conversation", { sessionId, provider, model }),
+  // Every chat operation names the backend by id; Rust resolves it.
+  compactConversation: (sessionId: string, backendId: string, model: string) =>
+    invoke<string>("compact_conversation", { sessionId, backendId, model }),
   sendPrompt: (
     sessionId: string,
-    provider: ProviderConfigPayload,
+    backendId: string,
     model: string,
+    effort: string | null,
     message: string,
-  ) => invoke<void>("send_prompt", { sessionId, provider, model, message }),
+  ) =>
+    invoke<void>("send_prompt", {
+      sessionId,
+      backendId,
+      model,
+      effort,
+      message,
+    }),
   retryLast: (
     sessionId: string,
-    provider: ProviderConfigPayload,
+    backendId: string,
     model: string,
-  ) => invoke<void>("retry_last", { sessionId, provider, model }),
+    effort: string | null,
+  ) => invoke<void>("retry_last", { sessionId, backendId, model, effort }),
+  warmSession: (sessionId: string, backendId: string) =>
+    invoke<void>("warm_session", { sessionId, backendId }),
   cancelPrompt: (sessionId: string) =>
     invoke<void>("cancel_prompt", { sessionId }),
   // The `!command` chat-input escape — runs `command` as a shell command
@@ -424,32 +450,6 @@ export const api = {
   // in `ChatPanel.tsx` pick it up the same as a live agent turn would.
   runShellCommand: (sessionId: string, command: string) =>
     invoke<string>("run_shell_command", { sessionId, command }),
-  warmAcpSession: (
-    sessionId: string,
-    launchCommand: string,
-    provider: ProviderConfigPayload,
-    model: string,
-  ) =>
-    invoke<void>("warm_acp_session", {
-      sessionId,
-      launchCommand,
-      provider,
-      model,
-    }),
-  sendPromptAcp: (
-    sessionId: string,
-    launchCommand: string,
-    provider: ProviderConfigPayload,
-    model: string,
-    message: string,
-  ) =>
-    invoke<void>("send_prompt_acp", {
-      sessionId,
-      launchCommand,
-      provider,
-      model,
-      message,
-    }),
   getRateLimitResume: (sessionId: string) =>
     invoke<{ message: string; resetAt: number; armed: boolean } | null>(
       "get_rate_limit_resume",
@@ -461,14 +461,12 @@ export const api = {
     invoke<void>("dismiss_rate_limit_resume", { sessionId }),
   getAcpSessionOptions: (sessionId: string) =>
     invoke<AcpSessionOptions>("get_acp_session_options", { sessionId }),
-  setAcpModel: (sessionId: string, value: string) =>
-    invoke<void>("set_acp_model", { sessionId, value }),
-  setAcpEffort: (sessionId: string, value: string) =>
-    invoke<void>("set_acp_effort", { sessionId, value }),
-  fetchAcpModels: (launchCommand: string) =>
-    invoke<AcpAgentOptions>("fetch_acp_models", { launchCommand }),
-  syncAcpAgentCatalog: (agents: AcpAgentCatalogEntry[]) =>
-    invoke<void>("sync_acp_agent_catalog", { agents }),
+  // Picks a model/effort on the live connection (an ACP agent's own config
+  // options).
+  setSessionModel: (sessionId: string, value: string) =>
+    invoke<void>("set_session_model", { sessionId, value }),
+  setSessionEffort: (sessionId: string, value: string) =>
+    invoke<void>("set_session_effort", { sessionId, value }),
   getAcpAgentCatalog: () =>
     invoke<AcpAgentCatalogEntry[]>("get_acp_agent_catalog"),
   listSubAgents: (sessionId: string) =>

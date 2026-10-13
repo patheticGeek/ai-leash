@@ -2,8 +2,8 @@ import { QueryClient } from "@tanstack/react-query";
 
 // The one `QueryClient` instance for the app — a plain module export rather
 // than only living inside `main.tsx`'s `<QueryClientProvider>`, so
-// non-component code (Zustand store actions, e.g. `acpSlice.ts`'s
-// `pushAcpCatalog`) can also call `invalidateQueries`/`setQueryData`
+// non-component code (Zustand store actions, `data/backends.ts`'s
+// `saveBackend`) can also call `invalidateQueries`/`setQueryData`
 // directly, the same way a component would via `useQueryClient()`.
 //
 // Live/pushed data (git branch, actions, generating status, ...) is written

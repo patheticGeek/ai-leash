@@ -30,9 +30,10 @@ export const qk = {
   generating: (sessionId: string) => ["generating", sessionId] as const,
   gitBranch: (path: string) => ["git-branch", path] as const,
   preferences: ["preferences"] as const,
-  // Everything cached about one provider backend (an Ollama or
-  // OpenAI-compatible config id) sits under this prefix, so editing or
-  // deleting the config is one invalidate/remove.
+  // Everything cached about one backend (its registry id) sits under this
+  // prefix, so editing or deleting it is one invalidate/remove.
+  // The backend registry (`data/backends.ts`) — every configured backend.
+  backends: ["backends"] as const,
   backend: (id: string) => ["backend", id] as const,
   backendHealth: (id: string) => ["backend", id, "health"] as const,
   backendModels: (id: string) => ["backend", id, "models"] as const,

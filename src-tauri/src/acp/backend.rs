@@ -18,7 +18,7 @@ pub struct AcpBackend {
     pub launch_command: String,
     /// The agent's own model/effort config values to select for a
     /// sub-agent's task, if `spawn_sub_agent` asked for them. A top-level
-    /// conversation picks these live instead (`set_acp_model`/`set_acp_effort`).
+    /// conversation picks these live instead (`set_session_model`/`set_session_effort`).
     pub model_value: Option<String>,
     pub effort_value: Option<String>,
     /// See `Backend::native`.
@@ -54,6 +54,7 @@ impl Backend for AcpBackend {
             // Its context lives in the subprocess — nothing to compact from
             // out here; an agent's own `/compact` goes through as a prompt.
             compaction: false,
+            retry: false,
             slash_commands: true,
         }
     }

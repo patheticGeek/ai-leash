@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
-import { useProviderModels } from "../data/backends";
+import { useBackendModels, useBackendsListener } from "../data/backends";
 import { useConversationsListener } from "../data/conversations";
 import { useSubAgentsListener } from "../data/subAgents";
 import { useActionEvents } from "../features/actions/useActions";
@@ -10,7 +10,7 @@ import SidePanel from "../features/sidebar/SidePanel";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 import {
-  useAcpAgentCatalogQuery,
+  useAcpAgentCatalog,
   useAcpCatalogInvalidator,
 } from "../lib/acpCatalogQuery";
 import { BUILD_LABEL } from "../lib/buildChannel";
@@ -18,7 +18,6 @@ import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
-import { isEnabled } from "../store/backendSlice";
 import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
@@ -29,8 +28,6 @@ function App() {
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
-  const agentBackend = useAppStore((s) => s.agentBackend);
-  const fetchAcpModelsFor = useAppStore((s) => s.fetchAcpModelsFor);
 
   // Always on regardless of which sidebar tab is open — see its comment for
   // why this can't just live inside `FileTree`.
@@ -47,6 +44,8 @@ function App() {
   // Always on — keeps each conversation's ACP connection options live off
   // `acp://session-options`.
   useAcpSessionOptionsListener();
+  // Always on — keeps the backend registry live off `backends://changed`.
+  useBackendsListener();
   // Always on — keeps every checkout's Actions list live off `run://status`
   // and `action://defs-changed` (see `useActions.ts`); nothing polls it.
   useActionEvents();
@@ -64,43 +63,10 @@ function App() {
   // between the old conversation's unmount and the new one's mount and the
   // picker would flash empty for a tick each time, even though the
   // underlying data itself hasn't changed.
-  const acpCatalogQuery = useAcpAgentCatalogQuery();
-  // Same reasoning, for each provider's model list — keeps them warm across
+  useAcpAgentCatalog();
+  // Same reasoning, for each backend's model list — keeps them warm across
   // conversation switches.
-  useProviderModels();
-
-  // Rust's own background refresh (`acp::refresh_acp_catalog_in_background`)
-  // only re-discovers agents *already* in its catalog — nothing ever seeds
-  // an agent into it for the first time except an explicit Settings save
-  // with a changed launch command. That leaves every agent that's only ever
-  // existed on the frontend (most importantly, the two default presets —
-  // `DEFAULT_ACP_PRESETS` in `acpSlice.ts` — merged into `agentBackend`
-  // without ever going through `saveAcpAgentConfig`) permanently
-  // undiscovered: the picker shows their bare agent row forever, only ever
-  // "breaking down" into actual models for the rest of that live ACP
-  // session once the user selects one and a real connection happens to
-  // report its options back. Runs once per agent id that's missing from the
-  // catalog — a no-op for anything already known, so this doesn't repeat
-  // work Rust's own refresh already does. Gated on the query's first fetch
-  // having actually resolved (`isSuccess`, not just checking `data`, which
-  // is `[]` both before that first fetch *and* once it's genuinely empty) —
-  // otherwise every launch would misread "haven't checked yet" as "unknown
-  // agent" and fire a redundant discovery for something Rust's own refresh
-  // already has covered from disk.
-  useEffect(() => {
-    if (!acpCatalogQuery.isSuccess) return;
-    const catalog = acpCatalogQuery.data;
-    for (const agent of agentBackend.acpAgents.filter(isEnabled)) {
-      if (!catalog.some((entry) => entry.id === agent.id)) {
-        fetchAcpModelsFor(agent.id);
-      }
-    }
-  }, [
-    agentBackend.acpAgents,
-    acpCatalogQuery.isSuccess,
-    acpCatalogQuery.data,
-    fetchAcpModelsFor,
-  ]);
+  useBackendModels();
 
   const [leftBarWidth, leftBarResize] = useResizableWidth(
     LS_KEYS.leftBarWidth,
