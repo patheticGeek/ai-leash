@@ -176,7 +176,7 @@ fn v2_conversation_graph(conn: &Connection) {
 /// the transcript's own first user message.
 ///
 /// `result` needs one step of care: `chat::run_sub_agent`/
-/// `acp::run_sub_agent_acp` push it as a real assistant message going
+/// `AcpBackend::run_task` push it as a real assistant message going
 /// forward (so it's always just "the last message"), but that's a Rust
 /// change, not a schema one — it says nothing about sub-agents that already
 /// finished before this shipped. For those, this backfills the same message

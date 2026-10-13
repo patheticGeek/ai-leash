@@ -2,6 +2,7 @@ mod agent_loop;
 pub(crate) mod history;
 mod sub_agents;
 
+use crate::backend::{self, Backend, NativeBackend};
 use crate::db;
 use crate::provider::ProviderConfig;
 use crate::state::AppState;
@@ -17,9 +18,7 @@ use tauri::{AppHandle, State};
 // plain re-export is enough here since nothing needs to name these through
 // `generate_handler!`.
 pub(crate) use agent_loop::{push_message, remember_in_memory, start_streaming_message};
-pub(crate) use sub_agents::{
-    record_sub_agent_result, resume_after_background_subtask, run_sub_agent,
-};
+pub(crate) use sub_agents::{record_sub_agent_result, run_sub_agent};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -36,33 +35,9 @@ pub struct TurnResult {
     pub completion_tokens: Option<u64>,
 }
 
-/// Sets `session_id`'s cancellation flag (checked between tool-loop
-/// iterations in `agent_loop.rs`) and, if an ACP subprocess is attached,
-/// asks it to cancel too. Purely a signal — doesn't wait for an in-flight
-/// turn to actually notice and stop; see `cancel_and_await_idle` for the
-/// version that does.
-fn signal_cancel(state: &AppState, session_id: &str) {
-    if let Some(flag) = state.cancellations.lock().unwrap().get(session_id) {
-        flag.store(true, std::sync::atomic::Ordering::SeqCst);
-    }
-    if let Some(session) = state.acp_sessions.lock().unwrap().get(session_id) {
-        // The direct route: wakes `drive_acp_connection`'s
-        // `tokio::select!` (`acp/process.rs`) immediately even while a
-        // `Prompt` is in flight, unlike `sender` below — that channel is
-        // only drained between commands, and a `Prompt` typically occupies
-        // it for the agent's entire turn. `current_prompt_cancel` is `None`
-        // whenever nothing's running, so this stays a no-op then, same as
-        // this whole function's contract.
-        if let Some(notify) = session.current_prompt_cancel.lock().unwrap().as_ref() {
-            notify.notify_one();
-        }
-        let _ = session.sender.send(crate::acp::AcpCommand::Cancel);
-    }
-}
-
 #[tauri::command]
 pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), String> {
-    signal_cancel(state.inner(), &session_id);
+    backend::cancel(state.inner(), &session_id);
     Ok(())
 }
 
@@ -80,31 +55,10 @@ pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), S
 /// `INSERT ... ON CONFLICT DO UPDATE` would silently resurrect the row a
 /// moment after it was deleted.
 pub(crate) async fn cancel_and_await_idle(state: &AppState, session_id: &str) {
-    signal_cancel(state, session_id);
+    backend::cancel(state, session_id);
     let lock = state.session_locks.lock().unwrap().get(session_id).cloned();
     if let Some(lock) = lock {
         let _guard = lock.lock().await;
-    }
-}
-
-/// Removes `session_id`'s in-memory backend bookkeeping — the connection/
-/// history state that isn't itself SQLite-persisted, so a DB wipe alone
-/// doesn't reset it. Shared by `clear_conversation` ("/clear", the id
-/// survives to be reused — `forget_permission_mode` is `false` so the
-/// conversation's Ask/Bypass choice survives too) and
-/// `history::delete_conversation` (removed for good, so
-/// `forget_permission_mode` is `true`: this id will never be passed again).
-pub(crate) fn forget_session_runtime_state(
-    state: &AppState,
-    session_id: &str,
-    forget_permission_mode: bool,
-) {
-    state.chat_sessions.lock().unwrap().remove(session_id);
-    state.touched_dirs.lock().unwrap().remove(session_id);
-    state.acp_sessions.lock().unwrap().remove(session_id);
-    crate::acp::rate_limit::cancel_timer(state, session_id);
-    if forget_permission_mode {
-        state.permission_bypass.lock().unwrap().remove(session_id);
     }
 }
 
@@ -143,7 +97,7 @@ pub fn clear_conversation(
             .map(|s| s.id)
             .collect();
     for id in std::iter::once(session_id.clone()).chain(sub_agent_ids) {
-        forget_session_runtime_state(state.inner(), &id, false);
+        backend::close(state.inner(), &id, false);
     }
     db::clear_conversation(&state.db, &session_id);
     // The row itself stays (see `db::clear_conversation`), but its sub-agents
@@ -160,7 +114,7 @@ pub fn clear_conversation(
 /// that intercepting the name locally would otherwise shadow.
 ///
 /// Asks the model itself for a summary of the existing transcript — a
-/// plain one-shot completion (`Backend::complete`, no tools, no
+/// plain one-shot completion (`ModelClient::complete`, no tools, no
 /// streaming) — then wipes the on-disk/in-memory history exactly like
 /// `clear_conversation` does and reseeds it with a single synthetic `user`
 /// message carrying that summary, so the *next* real turn still has it as
@@ -200,7 +154,7 @@ pub async fn compact_conversation(
     });
 
     let summary = provider
-        .backend()
+        .client()
         .complete(&model, &prompt_history)
         .await
         .map_err(|e| e.message().to_string())?;
@@ -221,36 +175,34 @@ pub async fn compact_conversation(
     Ok(summary)
 }
 
+/// One turn of the native agent loop on a top-level conversation, holding
+/// its per-session lock — shared by a typed message, a retry and a
+/// finished sub-agent's result (`autonomous`).
+pub(crate) async fn run_turn(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    session_id: &str,
+    native: &NativeBackend,
+    autonomous: bool,
+) -> Result<(), String> {
+    agent_loop::run_with_cancellation(app, state, session_id, session_id, native, true, autonomous)
+        .await
+}
+
 #[tauri::command]
 pub async fn send_prompt(
     app: tauri::AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     provider: ProviderConfig,
     model: String,
     message: String,
 ) -> Result<(), String> {
-    push_message(
-        &state,
-        &session_id,
-        ChatMessage {
-            role: "user".into(),
-            content: message,
-            tool_calls: None,
-        },
-    );
-
-    agent_loop::run_with_cancellation(
-        &app,
-        &state,
-        &session_id,
-        &session_id,
-        &provider,
-        &model,
-        None,
-        true,
-        false,
-    )
+    NativeBackend {
+        provider,
+        model,
+        effort: None,
+    }
+    .send(&app, &session_id, message)
     .await
 }
 
@@ -277,18 +229,12 @@ pub async fn retry_last(
         }
     }
 
-    agent_loop::run_with_cancellation(
-        &app,
-        &state,
-        &session_id,
-        &session_id,
-        &provider,
-        &model,
-        None,
-        true,
-        false,
-    )
-    .await
+    let native = NativeBackend {
+        provider,
+        model,
+        effort: None,
+    };
+    run_turn(&app, &state, &session_id, &native, false).await
 }
 
 #[cfg(test)]
@@ -359,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn signal_cancel_sets_the_flag_for_a_known_session() {
+    fn cancel_sets_the_flag_for_a_known_session() {
         let state = test_state();
         let flag = Arc::new(AtomicBool::new(false));
         state
@@ -368,7 +314,7 @@ mod tests {
             .unwrap()
             .insert("sess".to_string(), flag.clone());
 
-        signal_cancel(&state, "sess");
+        backend::cancel(&state, "sess");
 
         assert!(flag.load(std::sync::atomic::Ordering::SeqCst));
     }

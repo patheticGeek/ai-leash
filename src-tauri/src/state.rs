@@ -1,9 +1,9 @@
 use crate::acp::AcpCommand;
+use crate::backend::NativeBackend;
 use crate::chat::ChatMessage;
 use crate::db::Db;
 use crate::mcp_bridge::McpBridgeInfo;
 use crate::preferences::Preferences;
-use crate::provider::ProviderConfig;
 use crate::pty::PtyHandle;
 use crate::run::RunRegistry;
 use agent_client_protocol::schema::v1::ElicitationAction;
@@ -39,14 +39,12 @@ pub struct AcpSession {
     /// turn that just finished can't immediately fire again at the start of
     /// the next, unrelated one.
     pub current_prompt_cancel: Arc<Mutex<Option<Arc<Notify>>>>,
-    /// The native provider/model this conversation is currently configured
-    /// with — refreshed on every `send_prompt_acp` call, same as
-    /// `launch_command`. Needed so a `spawn_sub_agent` call relayed through
-    /// `mcp_bridge` (arriving from the ACP subprocess asynchronously, with
-    /// no frontend-invoked command call site to attach a fresh
-    /// provider/model argument to) has something to run the sub-agent with.
-    pub provider: ProviderConfig,
-    pub model: String,
+    /// The native provider/model this conversation's sub-agents run on (see
+    /// `Backend::native`) — refreshed on every `send_prompt_acp` call, same
+    /// as `launch_command`. Needed so a `spawn_sub_agent` call relayed
+    /// through `mcp_bridge` (arriving from the ACP subprocess on its own,
+    /// with no frontend command to carry it) has something to run on.
+    pub native: NativeBackend,
     /// Identifies this connection among every one the app has opened, so
     /// the frontend can tell a fresh connection (which needs the remembered
     /// model/effort choice applied again) from the same one re-reported.

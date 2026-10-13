@@ -378,8 +378,7 @@ fn emit_tool_call_update(
 /// reconstructs tool entries from for the built-in loop, so ACP tool calls
 /// survive an app restart too instead of only ever being forwarded live.
 /// Empty `content` here matches how a tool-calls-only assistant turn is
-/// represented elsewhere (e.g. `resume_after_background_subtask` in
-/// `chat.rs`).
+/// represented elsewhere (e.g. `chat::record_sub_agent_result`).
 fn persist_tool_call(
     app: &AppHandle,
     session_id: &str,

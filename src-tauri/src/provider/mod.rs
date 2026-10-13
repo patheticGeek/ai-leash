@@ -1,8 +1,8 @@
-mod backend;
+mod client;
 mod ollama;
 mod openai_compat;
 
-pub use backend::{Backend, BackendError, TurnRequest};
+pub use client::{BackendError, ModelClient, TurnRequest};
 
 use crate::db;
 use crate::state::AppState;
@@ -37,14 +37,14 @@ pub enum ProviderConfig {
 
 impl ProviderConfig {
     /// The one place a provider kind is branched on — everything else talks
-    /// to the returned `Backend`.
-    pub fn backend(&self) -> Box<dyn Backend> {
+    /// to the returned `ModelClient`.
+    pub fn client(&self) -> Box<dyn ModelClient> {
         match self {
             ProviderConfig::Ollama { host } => {
-                Box::new(ollama::OllamaBackend { host: host.clone() })
+                Box::new(ollama::OllamaClient { host: host.clone() })
             }
             ProviderConfig::OpenAiCompatible { base_url, api_key } => {
-                Box::new(openai_compat::OpenAiCompatBackend {
+                Box::new(openai_compat::OpenAiCompatClient {
                     base_url: base_url.clone(),
                     api_key: api_key.clone(),
                 })
@@ -73,11 +73,11 @@ pub struct ModelSummary {
 /// there — see `Capabilities::model_listing`).
 #[tauri::command]
 pub async fn list_provider_models(provider: ProviderConfig) -> Result<Vec<ModelSummary>, String> {
-    let backend = provider.backend();
-    if !backend.capabilities().model_listing {
+    let client = provider.client();
+    if !client.capabilities().model_listing {
         return Ok(vec![]);
     }
-    backend
+    client
         .list_models()
         .await
         .map_err(|e| e.message().to_string())
@@ -88,7 +88,7 @@ pub async fn list_provider_models(provider: ProviderConfig) -> Result<Vec<ModelS
 /// counts as "connected": this checks the host, not the credentials.
 #[tauri::command]
 pub async fn check_provider_connection(provider: ProviderConfig) -> bool {
-    provider.backend().check_connection().await
+    provider.client().check_connection().await
 }
 
 /// Flushes the turn's accumulated content to disk on every chunk that

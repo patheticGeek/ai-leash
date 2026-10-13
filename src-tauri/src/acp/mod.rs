@@ -1,3 +1,4 @@
+mod backend;
 mod discovery;
 pub mod elicitation;
 mod events;
@@ -5,9 +6,8 @@ mod permissions;
 mod process;
 pub mod rate_limit;
 
-use crate::chat::{self, ChatMessage};
+use crate::backend::{Backend, NativeBackend};
 use crate::commands;
-use crate::db;
 use crate::paths;
 use crate::provider::ProviderConfig;
 use crate::state::{AcpAgentCatalogEntry, AppState};
@@ -20,15 +20,15 @@ use agent_client_protocol::{AcpAgent, Agent, Client, ConnectionTo};
 use std::path::PathBuf;
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::sync::oneshot;
 
 // `pub(crate)`, not `pub use`: `state.rs` and `tools/sub_agent_tools.rs`
 // reference this by its `crate::acp::AcpCommand` path directly, same
 // reasoning as the `tools::permissions`/`tools::shell_tools` re-exports in
 // `tools/mod.rs` — a plain re-export is enough here since, unlike those,
 // nothing needs to name `AcpCommand` through `generate_handler!`.
+pub(crate) use backend::AcpBackend;
 pub(crate) use process::AcpCommand;
-use process::{ensure_acp_session, AcpSessionOptions};
+use process::AcpSessionOptions;
 
 use discovery::{
     find_model_config_option, find_thought_level_config_option, format_acp_error,
@@ -46,47 +46,57 @@ use discovery::{
 #[tauri::command]
 pub async fn warm_acp_session(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     launch_command: String,
     provider: ProviderConfig,
     model: String,
 ) -> Result<(), String> {
-    ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
-    rate_limit::try_fire(&app, &session_id);
+    top_level(launch_command, provider, model).warm(&app, &session_id);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn send_prompt_acp(
     app: AppHandle,
-    state: State<'_, AppState>,
     session_id: String,
     launch_command: String,
     provider: ProviderConfig,
     model: String,
     message: String,
 ) -> Result<(), String> {
-    let sender = ensure_acp_session(&app, &state, &session_id, &launch_command, provider, model);
-    sender
-        .send(AcpCommand::Prompt(message.clone(), None))
-        .map_err(|_| {
-            "ACP agent process is no longer running; send another message to restart it."
-                .to_string()
-        })?;
-    // Persist at command acceptance time so title lookup and transcript
-    // updates do not race the ACP worker's asynchronous prompt handling.
-    chat::push_message(
-        &state,
-        &session_id,
-        ChatMessage {
-            role: "user".into(),
-            content: message,
-            tool_calls: None,
+    top_level(launch_command, provider, model)
+        .send(&app, &session_id, message)
+        .await
+}
+
+/// A top-level conversation's agent. `provider`/`model` are the native ones
+/// its sub-agents run on — see `Backend::native`.
+fn top_level(launch_command: String, provider: ProviderConfig, model: String) -> AcpBackend {
+    AcpBackend {
+        launch_command,
+        model_value: None,
+        effort_value: None,
+        native: NativeBackend {
+            provider,
+            model,
+            effort: None,
         },
-    );
-    rate_limit::clear(&app, &session_id);
-    Ok(())
+    }
+}
+
+/// The ACP half of `backend::cancel`: wakes `drive_acp_connection`'s
+/// `tokio::select!` (`process.rs`) immediately even while a `Prompt` is in
+/// flight — the command channel is only drained between commands, and a
+/// `Prompt` typically occupies it for the agent's entire turn — then queues
+/// a `Cancel` too. `current_prompt_cancel` is `None` whenever nothing's
+/// running, so this is a no-op then.
+pub(crate) fn cancel(state: &AppState, session_id: &str) {
+    if let Some(session) = state.acp_sessions.lock().unwrap().get(session_id) {
+        if let Some(notify) = session.current_prompt_cancel.lock().unwrap().as_ref() {
+            notify.notify_one();
+        }
+        let _ = session.sender.send(AcpCommand::Cancel);
+    }
 }
 
 /// What `session_id`'s live connection offers right now — the same snapshot
@@ -306,112 +316,4 @@ pub(crate) async fn refresh_acp_catalog_in_background(app: AppHandle) {
         *state.acp_agent_catalog.lock().unwrap() = refreshed.clone();
     }
     let _ = app.emit("acp://catalog-updated", &refreshed);
-}
-
-/// Runs a `spawn_sub_agent` subtask through an external ACP agent (e.g.
-/// Claude Code) instead of AI Leash's native provider loop — the
-/// ACP-backed counterpart to `chat::run_sub_agent`. Registers a fresh
-/// `AcpSession` under the sub-agent's own `sub_session_id` (so it gets its
-/// own `chat://{sub_session_id}/...` event stream the Sub Agents tab
-/// already knows how to render, and so the existing Stop button/
-/// `signal_cancel` — which already checks `acp_sessions` alongside
-/// `cancellations` — works for it for free), sends at most one
-/// `SetModel`/`SetEffort` pair, then exactly one prompt, and awaits its
-/// resolution via the `oneshot` threaded through `AcpCommand::Prompt`
-/// rather than a frontend listening for `done`/`error`.
-///
-/// Unlike `chat::run_sub_agent`, this never calls back into
-/// `tools::execute_tool`/`run_agent_loop`, so it has no recursive-cycle
-/// problem and can be a plain `async fn`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn run_sub_agent_acp(
-    app: &AppHandle,
-    state: &State<'_, AppState>,
-    sub_session_id: &str,
-    launch_command: &str,
-    provider: ProviderConfig,
-    model: String,
-    model_value: Option<String>,
-    effort_value: Option<String>,
-    prompt: &str,
-) -> Result<String, String> {
-    chat::push_message(
-        state,
-        sub_session_id,
-        ChatMessage {
-            role: "user".into(),
-            content: prompt.to_string(),
-            tool_calls: None,
-        },
-    );
-
-    let sender = ensure_acp_session(app, state, sub_session_id, launch_command, provider, model);
-
-    if let Some(value) = model_value {
-        let _ = sender.send(AcpCommand::SetModel(value));
-    }
-    if let Some(value) = effort_value {
-        let _ = sender.send(AcpCommand::SetEffort(value));
-    }
-
-    let (done_tx, done_rx) = oneshot::channel();
-    sender
-        .send(AcpCommand::Prompt(prompt.to_string(), Some(done_tx)))
-        .map_err(|_| "ACP agent process is no longer running.".to_string())?;
-    // Dropping this sender clone (the map's own clone is dropped just below,
-    // once the turn resolves) is what lets the connection actor's
-    // `commands.recv()` observe the channel as closed and exit, tearing the
-    // subprocess down — see `ensure_acp_session`'s doc comment.
-    drop(sender);
-
-    let turn_result = done_rx
-        .await
-        .map_err(|_| "ACP sub-agent connection closed before finishing.".to_string())
-        .and_then(|r| r);
-
-    // A one-shot sub-agent's session is never worth keeping warm the way a
-    // top-level conversation's is — tear it down as soon as its single
-    // prompt resolves, regardless of outcome.
-    state.acp_sessions.lock().unwrap().remove(sub_session_id);
-
-    // `db::get_sub_agent_for_parent`/`list_sub_agents_for_parent` read a
-    // sub-agent's result as "its last message" — push one here for any
-    // outcome that wouldn't otherwise leave a real assistant message behind
-    // (an error, same text the caller in `sub_agent_tools.rs` independently
-    // formats as this call's `result`; or a turn that resolved without ever
-    // producing one), same reasoning as `chat::run_sub_agent`'s doc comment.
-    if let Err(e) = &turn_result {
-        chat::push_message(
-            state,
-            sub_session_id,
-            ChatMessage {
-                role: "assistant".into(),
-                content: format!("Error: {e}"),
-                tool_calls: None,
-            },
-        );
-    }
-    turn_result?;
-
-    let final_text = db::load_messages(&state.db, sub_session_id)
-        .into_iter()
-        .rev()
-        .find(|m| m.role == "assistant" && !m.content.trim().is_empty())
-        .map(|m| m.content);
-    Ok(match final_text {
-        Some(text) => text,
-        None => {
-            let text = "Subtask finished without a final response.".to_string();
-            chat::push_message(
-                state,
-                sub_session_id,
-                ChatMessage {
-                    role: "assistant".into(),
-                    content: text.clone(),
-                    tool_calls: None,
-                },
-            );
-            text
-        }
-    })
 }

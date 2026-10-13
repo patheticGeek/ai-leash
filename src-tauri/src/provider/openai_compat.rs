@@ -2,8 +2,9 @@
 //! tool-call arguments arrive as incremental string fragments keyed by index
 //! and must be concatenated before parsing as JSON.
 
-use super::backend::{Backend, BackendError, BoxFuture, Capabilities, TurnRequest};
+use super::client::{BackendError, ModelClient, TurnRequest};
 use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary};
+use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
 use futures_util::StreamExt;
@@ -12,14 +13,14 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 
-pub(super) struct OpenAiCompatBackend {
+pub(super) struct OpenAiCompatClient {
     /// Full base URL, no `/chat/completions` suffix.
     pub base_url: String,
     /// Sent as a bearer token when non-empty.
     pub api_key: String,
 }
 
-impl Backend for OpenAiCompatBackend {
+impl ModelClient for OpenAiCompatClient {
     fn capabilities(&self) -> Capabilities {
         Capabilities {
             // Many hosts don't implement `GET /models` reliably (or gate it

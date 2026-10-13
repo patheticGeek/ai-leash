@@ -1,8 +1,8 @@
 use super::{paginate_lines, truncate, DEFAULT_READ_LIMIT};
-use crate::acp::AcpCommand;
-use crate::chat;
+use crate::acp::AcpBackend;
+use crate::backend::{Backend, NativeBackend, TaskResult};
 use crate::db;
-use crate::provider::{self, ProviderConfig, EFFORT_LEVELS};
+use crate::provider::{self, EFFORT_LEVELS};
 use crate::state::{AcpAgentCatalogEntry, AppState};
 use serde_json::{json, Value};
 use std::sync::atomic::AtomicBool;
@@ -177,14 +177,15 @@ fn resolve_acp_target(
     }))
 }
 
-#[allow(clippy::too_many_arguments)]
+/// `parent` is the conversation's own backend: its sub-agents run on its
+/// native provider unless `agent` names an ACP agent, and each one's result
+/// goes back through it (`Backend::deliver_task_result`).
 pub(super) fn spawn_sub_agent(
     app: &AppHandle,
     state: &State<'_, AppState>,
     session_id: &str,
     call_id: Option<&str>,
-    provider: &ProviderConfig,
-    model: &str,
+    parent: &Arc<dyn Backend>,
     args: &Value,
 ) -> Result<String, String> {
     const TASK_SHAPE_HINT: &str = "Each entry in `tasks` must be an object with exactly two string fields: `description` (a short label) and `prompt` (full self-contained instructions for the sub-agent). Example: {\"tasks\": [{\"description\": \"count rs files\", \"prompt\": \"Count how many .rs files exist in the project and report the number.\"}]}. Retry the `spawn_sub_agent` call with that exact shape.";
@@ -205,7 +206,7 @@ pub(super) fn spawn_sub_agent(
         .get("model")
         .and_then(Value::as_str)
         .filter(|model| !model.trim().is_empty())
-        .unwrap_or(model)
+        .unwrap_or(&parent.native().model)
         .to_string();
     let requested_effort = if acp_target.is_some() {
         None
@@ -229,6 +230,20 @@ pub(super) fn spawn_sub_agent(
             )
         }
         None => (requested_model.clone(), requested_effort.clone()),
+    };
+    // What this batch's sub-agents run on.
+    let task_backend: Arc<dyn Backend> = match acp_target {
+        Some(target) => Arc::new(AcpBackend {
+            launch_command: target.launch_command,
+            model_value: target.model_value,
+            effort_value: target.effort_value,
+            native: parent.native().clone(),
+        }),
+        None => Arc::new(NativeBackend {
+            provider: parent.native().provider.clone(),
+            model: requested_model,
+            effort: requested_effort,
+        }),
     };
 
     let mut specs = Vec::with_capacity(tasks.len());
@@ -305,68 +320,34 @@ pub(super) fn spawn_sub_agent(
         specs.push((description, prompt, sub_session_id, link));
     }
 
-    // Every sub-agent always runs fully detached — this call never
-    // waits on any of them. Each independently records its own
-    // finish and autonomously resumes the parent conversation (a
-    // brand new turn, not triggered by the user) as soon as it's
-    // ready — see `chat::resume_after_background_subtask`. Each gets
-    // its own fresh cancel flag rather than sharing the parent's,
-    // since nothing here awaits them together anymore.
+    // Every sub-agent always runs fully detached — this call never waits on
+    // any of them. Each independently records its own finish and hands its
+    // result back to the parent, which reacts with a new turn nobody typed
+    // (see `Backend::deliver_task_result`). Each gets its own fresh cancel
+    // flag rather than sharing the parent's, since nothing here awaits them
+    // together.
     let count = specs.len();
     let labels: Vec<String> = specs.iter().map(|(d, _, _, _)| d.clone()).collect();
 
     for (description, prompt, sub_session_id, link) in specs {
-        let app_owned = app.clone();
-        let session_id_owned = session_id.to_string();
-        let provider_owned = provider.clone();
-        let model_owned = requested_model.clone();
-        let effort_owned = requested_effort.clone();
-        let acp_target_owned = acp_target.clone();
+        let app = app.clone();
+        let session_id = session_id.to_string();
+        let parent = parent.clone();
+        let task_backend = task_backend.clone();
         tokio::spawn(async move {
-            let state = app_owned.state::<AppState>();
+            let state = app.state::<AppState>();
             let cancel_flag = Arc::new(AtomicBool::new(false));
-            // Registered under its own sub_session_id (not the
-            // parent's) so the Sub Agents tab's Stop button
-            // (`cancel_prompt`) can target this one task without
-            // touching the parent conversation or its siblings —
-            // see the Stop button in `SubAgentsTab.tsx`. For an
-            // ACP-backed sub-agent this flag is never actually polled
-            // (`crate::acp::run_sub_agent_acp` doesn't read it) — Stop
-            // still works for it via `signal_cancel`'s separate
-            // `acp_sessions` check, since `run_sub_agent_acp` registers
-            // this same `sub_session_id` there.
+            // Registered under its own sub_session_id (not the parent's) so
+            // the Sub Agents tab's Stop button (`cancel_prompt`) can target
+            // this one task without touching the parent or its siblings.
             state
                 .cancellations
                 .lock()
                 .unwrap()
                 .insert(sub_session_id.clone(), cancel_flag.clone());
-            let outcome = if let Some(target) = &acp_target_owned {
-                crate::acp::run_sub_agent_acp(
-                    &app_owned,
-                    &state,
-                    &sub_session_id,
-                    &target.launch_command,
-                    provider_owned.clone(),
-                    model_owned.clone(),
-                    target.model_value.clone(),
-                    target.effort_value.clone(),
-                    &prompt,
-                )
-                .await
-            } else {
-                chat::run_sub_agent(
-                    &app_owned,
-                    &state,
-                    &session_id_owned,
-                    &sub_session_id,
-                    &prompt,
-                    &provider_owned,
-                    &model_owned,
-                    effort_owned.as_deref(),
-                    &cancel_flag,
-                )
-                .await
-            };
+            let outcome = task_backend
+                .run_task(&app, &session_id, &sub_session_id, &prompt, &cancel_flag)
+                .await;
             state.cancellations.lock().unwrap().remove(&sub_session_id);
             let (status, result) = match outcome {
                 Ok(text) => ("done", text),
@@ -374,9 +355,9 @@ pub(super) fn spawn_sub_agent(
             };
             db::record_sub_agent_finished(&state.db, &sub_session_id, status);
             emit_agent_lifecycle(
-                &app_owned,
+                &app,
                 &sub_session_id,
-                &session_id_owned,
+                &session_id,
                 if status == "error" {
                     "failed"
                 } else {
@@ -384,64 +365,20 @@ pub(super) fn spawn_sub_agent(
                 },
             );
             // Nothing below resolves this sub-agent's root anymore — only the
-            // parent's, which resumes or is notified next.
+            // parent's, which is handed the result next.
             drop(link);
 
-            // If the parent session is currently an external ACP
-            // agent's conversation (not AI Leash's own native
-            // loop), its real "agent" is that subprocess, waiting
-            // on its own command channel — resuming via the native
-            // `resume_after_background_subtask` would instead spin
-            // up a second, parallel native agent loop talking in
-            // the same transcript, while the actual ACP subprocess
-            // never learns the sub-agent finished. Notify it over
-            // its existing channel instead, the same mechanism a
-            // real user message uses (`send_prompt_acp`). ACP has
-            // no equivalent of injecting a synthetic tool-call/
-            // tool-result pair into the *agent's own* context
-            // without generating a turn, so what's actually sent to
-            // it is necessarily a plain-text prompt —
-            // `record_sub_agent_result` separately gives AI Leash's
-            // own UI/history the same tool-call-shaped
-            // representation the native path gets, so the result
-            // lands as its own distinct block before the ACP agent's
-            // reaction streams in. Without this, nothing marks the
-            // previous assistant bubble as finished, and
-            // `appendChunk` (`chatEntries.ts`) silently tacks the
-            // reaction onto the end of it.
-            let acp_sender = state
-                .acp_sessions
-                .lock()
-                .unwrap()
-                .get(&session_id_owned)
-                .map(|s| s.sender.clone());
-
-            if let Some(sender) = acp_sender {
-                chat::record_sub_agent_result(
-                    &app_owned,
-                    &state,
-                    &session_id_owned,
-                    &sub_session_id,
-                    &description,
-                    &result,
-                );
-                let _ = sender.send(AcpCommand::Prompt(
-                    format!("[Sub-agent \"{description}\" finished]\n\n{result}"),
-                    None,
-                ));
-            } else {
-                chat::resume_after_background_subtask(
-                    app_owned,
-                    session_id_owned,
-                    provider_owned,
-                    model_owned,
-                    effort_owned,
-                    sub_session_id,
-                    description,
-                    result,
+            parent
+                .deliver_task_result(
+                    &app,
+                    &session_id,
+                    TaskResult {
+                        sub_session_id,
+                        description,
+                        result,
+                    },
                 )
                 .await;
-            }
         });
     }
 
@@ -470,12 +407,12 @@ fn emit_agent_lifecycle(app: &AppHandle, conversation_id: &str, owner_id: &str, 
 
 pub(super) async fn list_agent_options(
     state: &State<'_, AppState>,
-    provider: &ProviderConfig,
+    native: &NativeBackend,
 ) -> Result<String, String> {
     let mut output = String::from(
         "NATIVE PROVIDER — pass these to spawn_sub_agent WITHOUT an `agent` argument (omit `agent` entirely):\n",
     );
-    match provider::list_provider_models(provider.clone()).await {
+    match provider::list_provider_models(native.provider.clone()).await {
         Ok(models) if models.is_empty() => {
             output.push_str(
                 "  This OpenAI-compatible provider does not expose a model listing API — omit `model` too, to reuse the current model.",
@@ -494,8 +431,8 @@ pub(super) async fn list_agent_options(
         "\n  effort: {} (a fixed level, not a model list)",
         EFFORT_LEVELS.join(", ")
     ));
-    if matches!(provider, ProviderConfig::Ollama { .. }) {
-        output.push_str(" — ignored on Ollama");
+    if !native.capabilities().effort {
+        output.push_str(" — ignored by this provider");
     }
     // Guards against a common wrong guess: the provider's own name (e.g.
     // "ollama") is not a model id, and models calling this tool without

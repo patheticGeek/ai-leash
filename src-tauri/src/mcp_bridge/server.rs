@@ -1,7 +1,10 @@
 use super::{BridgeRequest, BridgeResponse, McpBridgeInfo};
+use crate::acp::AcpBackend;
+use crate::backend::Backend;
 use crate::state::AppState;
 use crate::tools;
 use std::io;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -113,13 +116,18 @@ async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
         };
     };
 
+    let backend: Arc<dyn Backend> = Arc::new(AcpBackend {
+        launch_command: session.launch_command,
+        model_value: None,
+        effort_value: None,
+        native: session.native,
+    });
     match tools::execute_tool(
         app,
         &state,
         &req.session_id,
         None,
-        &session.provider,
-        &session.model,
+        &backend,
         &req.name,
         &req.arguments,
     )
