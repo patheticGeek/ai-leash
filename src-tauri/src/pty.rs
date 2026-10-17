@@ -198,6 +198,15 @@ pub fn pty_resize(state: State<AppState>, id: String, cols: u16, rows: u16) -> R
         .map_err(|e| e.to_string())
 }
 
+/// Kills a pty's process but keeps its handle, so whoever reads its output
+/// can still collect the exit status (`wait_for_exit_code`) once the reader
+/// ends. The caller removes the handle afterwards (`pty_kill`).
+pub fn kill_child(state: &AppState, id: &str) {
+    if let Some(handle) = state.ptys.lock().unwrap().get_mut(id) {
+        let _ = handle.child.kill();
+    }
+}
+
 #[tauri::command]
 pub fn pty_kill(state: State<AppState>, id: String) -> Result<(), String> {
     let mut ptys = state.ptys.lock().unwrap();

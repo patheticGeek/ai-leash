@@ -44,8 +44,10 @@ the previous run's output right away.
 ## Stop an Action
 
 Select the stop button next to a running Action. The Action changes to
-**stopped**, and its command is ended. You can select the play button again
-later to start a fresh run.
+**stopped**, and its command is ended. Once the command has actually exited,
+its output ends with a line such as `[action stopped] exit code: 1`, so you
+can see how it went down. You can select the play button again later to
+start a fresh run.
 
 An Action whose command ends on its own shows **exited** instead. If the
 command failed (a non-zero exit code), the label shows the code, for example

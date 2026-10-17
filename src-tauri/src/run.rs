@@ -83,6 +83,10 @@ pub struct Run {
     pub ended_at: Option<i64>,
     pub exit_code: Option<u32>,
     pub status: RunStatus,
+    /// The process is gone and everything about the run is final — set by
+    /// `finish`/`finish_stopped`, not by `mark_stopped`, which happens before
+    /// the kill lands. What the output flusher waits for.
+    pub process_ended: bool,
     pub output: RunOutput,
 }
 
@@ -97,6 +101,7 @@ impl Run {
             ended_at: None,
             exit_code: None,
             status: RunStatus::Running,
+            process_ended: false,
             output: RunOutput::default(),
         }
     }
@@ -115,6 +120,23 @@ impl Run {
         self.status = RunStatus::Exited;
         self.exit_code = exit_code;
         self.ended_at = Some(at);
+        self.process_ended = true;
+        true
+    }
+
+    /// A stopped run's process has now actually ended: records its exit code
+    /// and ends the output with a line saying so, which is what the user
+    /// sees in the Action's terminal. Returns whether it changed anything
+    /// (false unless stopped and not already finished).
+    pub fn finish_stopped(&mut self, exit_code: Option<u32>) -> bool {
+        if self.status != RunStatus::Stopped || self.process_ended {
+            return false;
+        }
+        self.exit_code = exit_code;
+        self.process_ended = true;
+        let code = exit_code.map_or_else(|| "unknown".to_string(), |c| c.to_string());
+        self.output
+            .append(format!("\r\n[action stopped] exit code: {code}\r\n").as_bytes());
         true
     }
 
@@ -129,7 +151,8 @@ impl Run {
     pub fn describe_status(&self) -> String {
         match (self.status, self.exit_code) {
             (RunStatus::Running, _) => "running".to_string(),
-            (RunStatus::Stopped, _) => "stopped".to_string(),
+            (RunStatus::Stopped, Some(code)) => format!("stopped (exit code {code})"),
+            (RunStatus::Stopped, None) => "stopped".to_string(),
             (RunStatus::Exited, Some(code)) => format!("exited with code {code}"),
             (RunStatus::Exited, None) => "exited".to_string(),
         }
@@ -183,9 +206,10 @@ pub fn spawn_output_flusher(app: tauri::AppHandle, run: RunHandle) {
                 let chunk = (end > sent).then(|| run.chunk_since(Some(sent)));
                 sent = end;
                 // A stopped run is marked before its pty is killed, so its
-                // last few bytes can land after — only finish on a quiet
-                // tick once the run has ended.
-                let done = chunk.is_none() && !run.is_running();
+                // last few bytes (and the `[action stopped]` line) land
+                // after — only finish on a quiet tick once the process has
+                // actually ended.
+                let done = chunk.is_none() && run.process_ended;
                 (chunk, done)
             };
             if let Some(chunk) = chunk {
@@ -266,6 +290,22 @@ mod tests {
         assert_eq!(run.status, RunStatus::Stopped);
         assert_eq!(run.exit_code, None);
         assert_eq!(run.ended_at, Some(2));
+    }
+
+    #[test]
+    fn a_stopped_run_records_its_exit_code_and_says_so_in_its_output() {
+        let mut run = Run::new("r".into(), 1);
+        run.output.append(b"serving");
+        run.mark_stopped(2);
+        assert!(!run.process_ended);
+        assert!(run.finish_stopped(Some(137)));
+        assert_eq!(run.exit_code, Some(137));
+        assert_eq!(run.describe_status(), "stopped (exit code 137)");
+        assert_eq!(
+            run.output.since(None).1,
+            b"serving\r\n[action stopped] exit code: 137\r\n"
+        );
+        assert!(!run.finish_stopped(Some(1)), "only once");
     }
 
     #[test]
