@@ -95,7 +95,18 @@ pub fn set_conversation_title(
     Ok(())
 }
 
-/// Persists which provider/ACP agent (and its model/effort choice) a
+/// A conversation's backend choice, as `set_conversation_backend` receives
+/// it: the backend's id and its own model/effort/agent-mode picks.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendSelection {
+    backend: String,
+    model: Option<String>,
+    effort: Option<String>,
+    agent_mode: Option<String>,
+}
+
+/// Persists which provider/ACP agent (and its model/effort/mode choice) a
 /// conversation is using — see `db::ConversationSummary::backend`'s doc
 /// comment for the encoding. `backend` is opaque here, same as it is in the
 /// DB: only the frontend knows how to build and read it.
@@ -105,17 +116,16 @@ pub fn set_conversation_backend(
     state: State<'_, AppState>,
     session_id: String,
     project_root: String,
-    backend: String,
-    model: Option<String>,
-    effort: Option<String>,
+    selection: BackendSelection,
 ) -> Result<(), String> {
     db::set_conversation_backend(
         &state.db,
         &session_id,
         &project_root,
-        &backend,
-        model.as_deref(),
-        effort.as_deref(),
+        &selection.backend,
+        selection.model.as_deref(),
+        selection.effort.as_deref(),
+        selection.agent_mode.as_deref(),
     );
     emit_conversation_changed(&app, &session_id, "backend");
     Ok(())

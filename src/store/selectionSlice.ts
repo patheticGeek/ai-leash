@@ -9,12 +9,14 @@ import { localStorageJson } from "./localStorageJson";
 // Which backend a conversation talks to, and its own model/effort choice
 // there. `backendId` is a registry id (`data/backends.ts`); `model` is an
 // Ollama model name, a free-text OpenAI-compatible model id, or an ACP
-// agent's own model value ("" = the backend's default); `effort` is only
-// used by an ACP agent.
+// agent's own model value ("" = the backend's default); `effort` and
+// `agentMode` (the agent's own permission mode, e.g. "acceptEdits") are only
+// used by an ACP agent that offers them.
 export interface ConversationBackendSelection {
   backendId: string;
   model: string;
   effort: string | null;
+  agentMode: string | null;
 }
 
 // The pre-DB `LS_KEYS.conversationBackend` blob held one of these per
@@ -28,6 +30,7 @@ function fromLegacyEntry(value: unknown): ConversationBackendSelection | null {
       backendId: str(v.acpActiveId),
       model: str(v.acpModel),
       effort: str(v.acpEffort) || null,
+      agentMode: null,
     };
   }
   if (v.kind === "builtin" && str(v.providerActiveId)) {
@@ -35,6 +38,7 @@ function fromLegacyEntry(value: unknown): ConversationBackendSelection | null {
       backendId: str(v.providerActiveId),
       model: str(v.model),
       effort: null,
+      agentMode: null,
     };
   }
   return null;
@@ -42,7 +46,7 @@ function fromLegacyEntry(value: unknown): ConversationBackendSelection | null {
 
 export interface SelectionSlice {
   // Per-conversation backend choice, keyed by session id. Mirrors the
-  // conversation row's `backend`/`model`/`effort` columns, plus entries for
+  // conversation row's `backend`/`model`/`effort`/`agent_mode` columns, plus entries for
   // new, still-unsent threads (which have no row yet).
   conversationBackend: Record<string, ConversationBackendSelection>;
   setConversationBackend: (
@@ -81,6 +85,7 @@ export const selectionSlice: StateCreator<AppStore, [], [], SelectionSlice> = (
       selection.backendId,
       selection.model || null,
       selection.effort,
+      selection.agentMode,
     );
   },
 
@@ -106,6 +111,7 @@ export const selectionSlice: StateCreator<AppStore, [], [], SelectionSlice> = (
           backendId: row.backend,
           model: row.model ?? "",
           effort: row.effort,
+          agentMode: row.agentMode,
         };
         set((s) => ({
           conversationBackend: {

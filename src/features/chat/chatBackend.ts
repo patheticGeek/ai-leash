@@ -16,7 +16,8 @@ export interface ChatBackend {
   kind: BackendKind;
   caps: BackendCapabilities;
   // Everything needed to send is picked (a model, unless the backend runs
-  // its own loop) and the backend exists and is switched on.
+  // its own loop, and one still offered) and the backend exists and is
+  // switched on.
   ready: boolean;
   send(sessionId: string, message: string): Promise<void>;
   // Only when `caps.retry`.
@@ -32,11 +33,13 @@ function unsupported(what: string): () => Promise<never> {
 }
 
 // `config` is undefined when the conversation's backend was deleted in
-// Settings; the result is then never `ready`.
+// Settings; the result is then never `ready`. Nor is it when `modelOffered`
+// is false: the picked model has dropped out of the backend's model list.
 export function createChatBackend(
   config: BackendConfig | undefined,
   model: string,
   effort: string | null,
+  modelOffered = true,
 ): ChatBackend {
   const kind = config?.kind ?? "ollama";
   const caps = BACKEND_CAPABILITIES[kind];
@@ -45,7 +48,11 @@ export function createChatBackend(
     id,
     kind,
     caps,
-    ready: !!config && config.enabled && (caps.ownsAgentLoop || !!model),
+    ready:
+      !!config &&
+      config.enabled &&
+      modelOffered &&
+      (caps.ownsAgentLoop || !!model),
     send: (sessionId, message) =>
       api.sendPrompt(sessionId, id, model, effort, message),
     retry: caps.retry

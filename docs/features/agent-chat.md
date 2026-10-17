@@ -81,6 +81,12 @@ model list each agent reported and refreshes it in the background, so the
 list is available as soon as you open a conversation, and one agent failing
 to respond does not empty its list.
 
+If a conversation's model is no longer offered once the model list has
+loaded — for example, it was removed from Ollama or the agent stopped
+listing it — the picker turns red, an error explains what happened, and
+sending is blocked until you pick another model. The conversation keeps the
+old model selected rather than switching to another one on its own.
+
 ### Built-in providers
 
 The built-in agent can use either:
@@ -136,11 +142,17 @@ An external agent may expose additional controls:
 - **Effort**: choose a thinking or reasoning level when the agent supports
   one. Options and names come from the agent, so not every agent offers this
   picker.
+- **Mode**: the agent's own permission modes, such as Claude Code's
+  **Default**, **Accept Edits**, and **Plan Mode**. When an agent offers
+  modes, the permission picker shows them instead of Ask/Bypass (see
+  [Work with tools safely](#work-with-tools-safely)).
 
 These controls are next to the main model/agent picker. Changing one affects
 the current conversation. If the app has to reconnect an external agent, it
-restores the conversation's selected model and effort when the agent supports
-them.
+restores the conversation's selected model, effort, and mode when the agent
+supports them. When the agent changes its own mode, for example leaving plan
+mode once you approve a plan, the picker follows it and the conversation
+remembers the new mode.
 
 You can switch a conversation from one external agent to another, or to the
 built-in agent, at any time. While the new agent connects, the picker shows a
@@ -158,13 +170,19 @@ commands. In **Ask** permission mode, the chat input is replaced temporarily
 by a permission request when approval is needed. Review the title and details,
 then choose **Approve** or **Deny**.
 
-The permission mode picker in the chat bar has two choices:
+The permission mode picker in the chat bar offers the external agent's own
+modes when it has any (see above). Otherwise it has two choices:
 
 - **Ask**: request approval for edits, shell commands, and other actions that
   need permission.
 - **Bypass**: automatically approve permission requests for this
   conversation. Use this only when you understand and trust the work the
   agent is performing.
+
+While an agent's own modes are shown, Ask/Bypass is not in effect: the agent
+decides from its mode when to ask, and every request it does send waits for
+your answer. A conversation's Ask/Bypass choice is kept, and applies again if
+you switch it to an agent or model without modes.
 
 An external agent uses the same approval prompt when it asks AI Leash for
 permission. Stopping a turn sends a cancellation request to the external

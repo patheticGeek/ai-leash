@@ -168,6 +168,7 @@ pub fn run() {
             acp::get_acp_session_options,
             acp::set_session_model,
             acp::set_session_effort,
+            acp::set_session_mode,
             acp::get_acp_agent_catalog,
             actions::list_actions,
             actions::create_action,

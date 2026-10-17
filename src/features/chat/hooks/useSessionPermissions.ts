@@ -5,9 +5,11 @@ import type { PermissionMode } from "../../../store/permissionSlice";
 
 // This conversation's Ask/Bypass permission mode plus whichever permission
 // request (its own or a spawned sub-agent's) is currently waiting on an
-// answer.
+// answer. `agentModes`: the agent advertises modes of its own, which the
+// permission picker shows instead — Ask/Bypass is then not in effect.
 export function useSessionPermissions(
   sessionId: string,
+  agentModes: boolean,
   setError: (message: string | null) => void,
 ) {
   // Ask/Bypass permission mode — see `setPermissionMode`'s doc comment in
@@ -19,10 +21,18 @@ export function useSessionPermissions(
     (s) => s.permissionMode[sessionId] ?? "ask",
   );
   const setPermissionMode = useAppStore((s) => s.setPermissionMode);
+  // While the agent's own modes are in charge, a saved Bypass must not keep
+  // auto-approving behind a picker that no longer shows it — the backend
+  // flag goes to "ask" without touching the saved choice, which comes back
+  // if the conversation switches to a backend without modes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only re-sync (see comment above) — must not re-fire when permissionMode itself changes
   useEffect(() => {
-    setPermissionMode(sessionId, permissionMode);
-  }, [sessionId]);
+    if (agentModes) {
+      void api.setPermissionMode(sessionId, "", false, false);
+    } else {
+      setPermissionMode(sessionId, permissionMode);
+    }
+  }, [sessionId, agentModes]);
 
   // Resolves to a real request only while this project (or a sub-agent it
   // spawned) has one pending — see `permissionForSession`. Global listeners

@@ -350,6 +350,7 @@ export const conversationSlice: StateCreator<
         backend: null,
         model: null,
         effort: null,
+        agentMode: null,
         permissionMode: null,
         worktreePath,
       });

@@ -1,5 +1,5 @@
 use crate::mcp_bridge;
-use crate::state::AppState;
+use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
     AvailableCommand, AvailableCommandInput, EnvVariable, McpServer, McpServerStdio,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
@@ -60,6 +60,18 @@ pub(super) fn find_thought_level_config_option(
     })
 }
 
+/// The agent's own permission/approval modes (e.g. Claude Code's "Default",
+/// "Accept Edits", "Plan Mode") — the chat bar's permission picker shows
+/// these instead of AI Leash's Ask/Bypass when an agent advertises them.
+pub(super) fn find_mode_config_option(
+    options: &[SessionConfigOption],
+) -> Option<&SessionConfigOption> {
+    options.iter().find(|o| {
+        matches!(o.category, Some(SessionConfigOptionCategory::Mode))
+            && matches!(o.kind, SessionConfigKind::Select(_))
+    })
+}
+
 /// Flattens grouped options (`SessionConfigSelectOptions::Grouped`) into a
 /// single list, dropping group headers — the frontend just needs a picker,
 /// not nested categories.
@@ -70,12 +82,12 @@ pub(super) fn model_options_payload(option: &SessionConfigOption) -> serde_json:
     let flat: Vec<serde_json::Value> = match &select.options {
         SessionConfigSelectOptions::Ungrouped(opts) => opts
             .iter()
-            .map(|o| json!({ "value": o.value.to_string(), "name": o.name }))
+            .map(|o| json!({ "value": o.value.to_string(), "name": o.name, "description": o.description }))
             .collect(),
         SessionConfigSelectOptions::Grouped(groups) => groups
             .iter()
             .flat_map(|g| &g.options)
-            .map(|o| json!({ "value": o.value.to_string(), "name": o.name }))
+            .map(|o| json!({ "value": o.value.to_string(), "name": o.name, "description": o.description }))
             .collect(),
         // `#[non_exhaustive]` for forward compatibility with the protocol —
         // nothing else is defined today.
@@ -89,8 +101,85 @@ pub(super) fn model_options_payload(option: &SessionConfigOption) -> serde_json:
     })
 }
 
-pub(super) fn thought_level_options_payload(option: &SessionConfigOption) -> serde_json::Value {
-    model_options_payload(option)
+/// The session config options the chat bar exposes, each found by its ACP
+/// category (see the `find_*_config_option`s) and set the same way, with
+/// `SetSessionConfigOptionRequest`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConfigKind {
+    Model,
+    Effort,
+    Mode,
+}
+
+impl ConfigKind {
+    pub(super) const ALL: [ConfigKind; 3] =
+        [ConfigKind::Model, ConfigKind::Effort, ConfigKind::Mode];
+
+    pub(super) fn find(self, options: &[SessionConfigOption]) -> Option<&SessionConfigOption> {
+        match self {
+            ConfigKind::Model => find_model_config_option(options),
+            ConfigKind::Effort => find_thought_level_config_option(options),
+            ConfigKind::Mode => find_mode_config_option(options),
+        }
+    }
+
+    /// For error messages: "This ACP agent doesn't expose a {label} to select."
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            ConfigKind::Model => "model",
+            ConfigKind::Effort => "effort level",
+            ConfigKind::Mode => "mode",
+        }
+    }
+
+    /// The ACP Events tab's name for a request setting this option.
+    pub(super) fn debug_method(self) -> &'static str {
+        match self {
+            ConfigKind::Model => "session/set_model",
+            ConfigKind::Effort => "session/set_effort",
+            ConfigKind::Mode => "session/set_mode",
+        }
+    }
+
+    pub(super) fn slot(self, session: &mut AcpSession) -> &mut Option<serde_json::Value> {
+        match self {
+            ConfigKind::Model => &mut session.model_options,
+            ConfigKind::Effort => &mut session.effort_options,
+            ConfigKind::Mode => &mut session.mode_options,
+        }
+    }
+}
+
+/// Refreshes the cached options from an agent-sent list of config options
+/// (a `session/new` response, a set-option response, a
+/// `config_option_update`). Only kinds present in `options` are touched, so
+/// a partial or empty list never blanks a picker.
+pub(super) fn apply_config_options(session: &mut AcpSession, options: &[SessionConfigOption]) {
+    for kind in ConfigKind::ALL {
+        if let Some(option) = kind.find(options) {
+            *kind.slot(session) = Some(model_options_payload(option));
+        }
+    }
+}
+
+/// The agent switched mode on its own (`current_mode_update` — e.g. leaving
+/// plan mode) — moves the cached mode option's `currentValue` along with it,
+/// if that mode is one of its options. Returns whether it was.
+pub(super) fn apply_current_mode(session: &mut AcpSession, mode_id: &str) -> bool {
+    set_current_mode(&mut session.mode_options, mode_id)
+}
+
+fn set_current_mode(mode_options: &mut Option<serde_json::Value>, mode_id: &str) -> bool {
+    let Some(mode) = mode_options.as_mut() else {
+        return false;
+    };
+    let known = mode["options"]
+        .as_array()
+        .is_some_and(|opts| opts.iter().any(|o| o["value"] == mode_id));
+    if known {
+        mode["currentValue"] = json!(mode_id);
+    }
+    known
 }
 
 /// An agent can (re-)announce its slash commands at any point in a session
@@ -199,5 +288,23 @@ mod tests {
             serde_json::Value::String("Process exited with 1: boom".to_string()),
         );
         assert!(!format_acp_error(&err).contains("couldn't be found"));
+    }
+
+    #[test]
+    fn a_current_mode_update_moves_the_mode_only_to_a_known_option() {
+        let mut modes = Some(json!({
+            "id": "mode",
+            "name": "Mode",
+            "currentValue": "plan",
+            "options": [
+                { "value": "default", "name": "Default" },
+                { "value": "plan", "name": "Plan Mode" },
+            ],
+        }));
+        assert!(set_current_mode(&mut modes, "default"));
+        assert_eq!(modes.as_ref().unwrap()["currentValue"], "default");
+        assert!(!set_current_mode(&mut modes, "nope"));
+        assert_eq!(modes.as_ref().unwrap()["currentValue"], "default");
+        assert!(!set_current_mode(&mut None, "default"));
     }
 }

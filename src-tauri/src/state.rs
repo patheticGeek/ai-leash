@@ -52,13 +52,14 @@ pub struct AcpSession {
     /// The agent has answered `session/new`/`session/load` and its options
     /// below are what it offers; `false` while it's still starting up.
     pub ready: bool,
-    /// What this connection offers: its model and effort config options and
-    /// its slash commands, each `None` if the agent doesn't advertise one.
+    /// What this connection offers: its model, effort and mode config options
+    /// and its slash commands, each `None` if the agent doesn't advertise one.
     /// Published as a whole on `acp://session-options` whenever any of them
     /// changes and readable any time via `get_acp_session_options` — see
     /// `process::publish_session_options`.
     pub model_options: Option<serde_json::Value>,
     pub effort_options: Option<serde_json::Value>,
+    pub mode_options: Option<serde_json::Value>,
     pub available_commands: Option<serde_json::Value>,
 }
 
@@ -81,6 +82,9 @@ pub struct AcpAgentCatalogEntry {
     pub launch_command: String,
     pub model_options: Option<serde_json::Value>,
     pub effort_options: Option<serde_json::Value>,
+    /// Absent from a catalog cached before modes were discovered.
+    #[serde(default)]
+    pub mode_options: Option<serde_json::Value>,
 }
 
 /// A conversation's own effective checkout — set via

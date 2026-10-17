@@ -2,6 +2,7 @@
 //! runs its own agent loop in a subprocess; each conversation holds one
 //! connection to it in `AppState::acp_sessions` (see `process.rs`).
 
+use super::discovery::ConfigKind;
 use super::process::{ensure_acp_session, AcpCommand};
 use super::rate_limit;
 use crate::backend::{Backend, BoxFuture, Capabilities, NativeBackend, TaskResult};
@@ -102,7 +103,7 @@ impl Backend for AcpBackend {
     /// Registers a fresh connection under the sub-agent's own
     /// `sub_session_id` (its own `chat://{sub_session_id}/...` stream for the
     /// Sub Agents tab, and Stop works through `acp::cancel`), sends at most
-    /// one `SetModel`/`SetEffort` pair, then exactly one prompt, and awaits
+    /// one model/effort `SetConfig` pair, then exactly one prompt, and awaits
     /// its resolution via the `oneshot` threaded through
     /// `AcpCommand::Prompt`. `cancel_flag` isn't polled: the agent runs the
     /// loop, so Stop reaches it as an ACP cancel instead.
@@ -128,10 +129,10 @@ impl Backend for AcpBackend {
 
             let sender = self.connect(app, sub_session_id);
             if let Some(value) = &self.model_value {
-                let _ = sender.send(AcpCommand::SetModel(value.clone()));
+                let _ = sender.send(AcpCommand::SetConfig(ConfigKind::Model, value.clone()));
             }
             if let Some(value) = &self.effort_value {
-                let _ = sender.send(AcpCommand::SetEffort(value.clone()));
+                let _ = sender.send(AcpCommand::SetConfig(ConfigKind::Effort, value.clone()));
             }
 
             let (done_tx, done_rx) = oneshot::channel();

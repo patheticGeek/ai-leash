@@ -41,6 +41,9 @@ pub struct ConversationSummary {
     /// `backend`, so always read together.
     pub model: Option<String>,
     pub effort: Option<String>,
+    /// The ACP agent's own mode, when it advertises modes — see
+    /// `migrations::v5_agent_mode`.
+    pub agent_mode: Option<String>,
     /// Ask/Bypass tool-call permission choice ("ask" | "bypass") — see
     /// `tools::permissions::set_permission_mode`. Missing means "ask", same
     /// default as the in-memory enforcement side.
@@ -60,7 +63,7 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
         "SELECT id, project_id, project_root, title, updated_at, worktree_path, done, \
-                backend, model, effort, permission_mode \
+                backend, model, effort, permission_mode, agent_mode \
          FROM conversations \
          WHERE hidden = 0 ORDER BY updated_at DESC",
     ) else {
@@ -79,6 +82,7 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
             model: row.get(8)?,
             effort: row.get(9)?,
             permission_mode: row.get(10)?,
+            agent_mode: row.get(11)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
@@ -98,15 +102,16 @@ pub fn set_conversation_backend(
     backend: &str,
     model: Option<&str>,
     effort: Option<&str>,
+    agent_mode: Option<&str>,
 ) {
     let conn = db.0.lock().unwrap();
     let project_id = ensure_project_connection(&conn, project_root);
     let ts = now();
     let _ = conn.execute(
         "INSERT INTO conversations
-         (id, project_root, project_id, backend, model, effort, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
-         ON CONFLICT(id) DO UPDATE SET backend = ?4, model = ?5, effort = ?6",
+         (id, project_root, project_id, backend, model, effort, agent_mode, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+         ON CONFLICT(id) DO UPDATE SET backend = ?4, model = ?5, effort = ?6, agent_mode = ?7",
         params![
             conversation_id,
             project_root,
@@ -114,6 +119,7 @@ pub fn set_conversation_backend(
             backend,
             model,
             effort,
+            agent_mode,
             ts
         ],
     );
@@ -714,12 +720,14 @@ mod tests {
             "{\"kind\":\"acp\"}",
             Some("m"),
             Some("e"),
+            Some("acceptEdits"),
         );
         assert!(conversation_exists(&db, "new"));
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
         assert_eq!(row.model.as_deref(), Some("m"));
         assert_eq!(row.effort.as_deref(), Some("e"));
+        assert_eq!(row.agent_mode.as_deref(), Some("acceptEdits"));
 
         // The conversation's first real message upserts the same row
         // (`messages::save_message`) and must not clobber what was already
@@ -729,7 +737,15 @@ mod tests {
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
 
-        set_conversation_backend(&db, "new", "/proj", "{\"kind\":\"builtin\"}", None, None);
+        set_conversation_backend(
+            &db,
+            "new",
+            "/proj",
+            "{\"kind\":\"builtin\"}",
+            None,
+            None,
+            None,
+        );
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"builtin\"}"));
         assert_eq!(row.model, None);
@@ -744,7 +760,7 @@ mod tests {
         assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
         assert_eq!(row.backend, None);
 
-        set_conversation_backend(&db, "c1", "/proj", "{\"kind\":\"acp\"}", None, None);
+        set_conversation_backend(&db, "c1", "/proj", "{\"kind\":\"acp\"}", None, None, None);
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
@@ -755,7 +771,15 @@ mod tests {
         let db = temp_db();
         save_message(&db, "c1", "/proj", &user_message("hello"));
         set_conversation_title(&db, "c1", Some("My chat"));
-        set_conversation_backend(&db, "c1", "/proj", "{\"kind\":\"acp\"}", Some("m"), None);
+        set_conversation_backend(
+            &db,
+            "c1",
+            "/proj",
+            "{\"kind\":\"acp\"}",
+            Some("m"),
+            None,
+            None,
+        );
         record_sub_agent_started(&db, "sub", "c1", "d", "m", None);
 
         clear_conversation(&db, "c1");
