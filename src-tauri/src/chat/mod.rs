@@ -238,6 +238,7 @@ mod tests {
             touched_dirs: Mutex::new(HashMap::new()),
             session_locks: Mutex::new(HashMap::new()),
             fs_watcher: Mutex::new(None),
+            fs_watch_target: Mutex::new(None),
             git_watchers: Mutex::new(HashMap::new()),
             db: temp_db(),
             acp_sessions: Mutex::new(HashMap::new()),

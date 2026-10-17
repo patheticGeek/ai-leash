@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
@@ -11,6 +11,12 @@ import { useBackendWarmup } from "./hooks/useBackendWarmup";
 import { useChatSession } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 import { useTurnDurations } from "./hooks/useTurnDurations";
+
+// The composer's last measured height, carried across remounts (one per
+// conversation switch — `CenterPanel`'s `key`) so the transcript's first
+// paint already leaves the right room for it, instead of starting at 0 and
+// shifting the messages once it's measured.
+let lastComposerHeight = 0;
 
 export default function ChatPanel({
   sessionId,
@@ -62,7 +68,11 @@ export default function ChatPanel({
   const [chatError, setChatError] = useState<string | null>(null);
   // The composer floats over the bottom of the transcript; this is how much
   // room the transcript leaves for it (see `ChatComposer`'s `onHeightChange`).
-  const [composerHeight, setComposerHeight] = useState(0);
+  const [composerHeight, setComposerHeightState] = useState(lastComposerHeight);
+  const setComposerHeight = useCallback((height: number) => {
+    lastComposerHeight = height;
+    setComposerHeightState(height);
+  }, []);
   // Initialized from the global (backend-driven) state so a session that's
   // already generating shows correctly on first paint, not just after the
   // sync effect below runs. `submitPrompt`/`retry`/`stop` still set this
@@ -77,6 +87,7 @@ export default function ChatPanel({
   const {
     entries,
     setEntries,
+    historyLoaded,
     usage,
     setUsage,
     sessionTitle,
@@ -253,6 +264,7 @@ export default function ChatPanel({
               acpHistoryTruncated={acpHistoryTruncated}
               acpAgentLabel={backendConfig?.label}
               systemPrompt={systemPrompt}
+              historyLoaded={historyLoaded}
               sending={sending}
               allowRetry={backend.caps.retry}
               turnDurations={turnDurations}

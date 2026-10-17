@@ -167,7 +167,7 @@ pub fn set_conversation_root(
     if !cwd_path.is_dir() {
         return Err("not a directory".into());
     }
-    start_fs_watcher(app, &state, &cwd_path)?;
+    start_fs_watcher(app, &state, &cwd_path);
     let project_root_path = PathBuf::from(&project_root);
     let mut roots = state.conversation_roots.lock().unwrap();
     let changed = roots.get(&session_id).is_some_and(|r| r.cwd != cwd_path);
@@ -239,7 +239,45 @@ pub fn set_project_root(
 /// conversation's own cwd rather than the plain project root) drops the old
 /// watcher and its background thread exits on its own once the channel
 /// closes.
-fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Result<(), String> {
+///
+/// A recursive watch registers every directory under `root` up front (one
+/// inotify watch each on Linux), which takes a noticeable while on a large
+/// checkout — so it's skipped outright when `root` is already the one being
+/// watched (switching between conversations on the same checkout is the
+/// common case), and otherwise built on a background thread so the
+/// conversation switch that called this never waits on it.
+fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) {
+    {
+        let mut target = state.fs_watch_target.lock().unwrap();
+        if target.as_deref() == Some(root) {
+            return;
+        }
+        *target = Some(root.to_path_buf());
+    }
+    let root = root.to_path_buf();
+    std::thread::spawn(move || {
+        let state = app.state::<AppState>();
+        match build_fs_watcher(app.clone(), &root) {
+            Ok(watcher) => {
+                // Only install it if no newer switch has retargeted the
+                // watcher while this one was being built.
+                let target = state.fs_watch_target.lock().unwrap();
+                if target.as_deref() == Some(root.as_path()) {
+                    *state.fs_watcher.lock().unwrap() = Some(watcher);
+                }
+            }
+            Err(e) => {
+                eprintln!("fs watcher for {}: {e}", root.display());
+                let mut target = state.fs_watch_target.lock().unwrap();
+                if target.as_deref() == Some(root.as_path()) {
+                    *target = None;
+                }
+            }
+        }
+    });
+}
+
+fn build_fs_watcher(app: AppHandle, root: &Path) -> Result<notify::RecommendedWatcher, String> {
     let (tx, rx) = std::sync::mpsc::channel::<Vec<PathBuf>>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(event) = res {
@@ -250,8 +288,6 @@ fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Res
     watcher
         .watch(root, RecursiveMode::Recursive)
         .map_err(|e| e.to_string())?;
-
-    *state.fs_watcher.lock().unwrap() = Some(watcher);
 
     std::thread::spawn(move || {
         const DEBOUNCE: Duration = Duration::from_millis(300);
@@ -281,7 +317,7 @@ fn start_fs_watcher(app: AppHandle, state: &State<AppState>, root: &Path) -> Res
         }
     });
 
-    Ok(())
+    Ok(watcher)
 }
 
 #[tauri::command]

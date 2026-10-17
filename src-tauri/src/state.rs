@@ -134,6 +134,12 @@ pub struct AppState {
     /// Replacing it (opening a different folder) drops the old one, which
     /// stops it automatically.
     pub fs_watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    /// The checkout `fs_watcher` is (or is about to be) watching — set
+    /// synchronously by `commands::start_fs_watcher` before the watcher
+    /// itself is built on a background thread, so a switch back to the same
+    /// checkout is a no-op and a slow build for an abandoned switch can tell
+    /// it lost and discard itself.
+    pub fs_watch_target: Mutex<Option<PathBuf>>,
     /// One `HEAD`-file watcher per worktree path currently being observed by
     /// a `BranchBar` — see `git::watch_git_branch`. Unlike `fs_watcher`,
     /// several of these can be live at once (one per open conversation's

@@ -66,6 +66,9 @@ export interface ChatEntryListProps {
   acpHistoryTruncated?: boolean;
   acpAgentLabel?: string | null;
   systemPrompt?: string | null;
+  // False while a saved transcript is still loading, so an empty `entries`
+  // doesn't flash the empty state first. Defaults to `true`.
+  historyLoaded?: boolean;
   sending: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
@@ -91,6 +94,7 @@ export default function ChatEntryList({
   acpHistoryTruncated = false,
   acpAgentLabel = null,
   systemPrompt = null,
+  historyLoaded = true,
   sending,
   turnDurations,
   replyStartedAt,
@@ -151,7 +155,9 @@ export default function ChatEntryList({
               acpAgentLabel={acpAgentLabel}
             />
             {systemPrompt && <SystemPromptRow systemPrompt={systemPrompt} />}
-            {entries.length === 0 && !chatError && <EmptyTranscript />}
+            {entries.length === 0 && historyLoaded && !chatError && (
+              <EmptyTranscript />
+            )}
             {groupEntries(entries).map((item) =>
               item.kind === "activitygroup" ? (
                 <MessageScrollerItem

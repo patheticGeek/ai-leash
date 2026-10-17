@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 // Reports an element's rendered height — once on mount, then whenever it
 // changes (content growing, a banner appearing, …) — through `onChange`.
@@ -16,9 +16,13 @@ export function useElementHeight<T extends HTMLElement>(
     onChangeRef.current = onChange;
   });
 
-  useEffect(() => {
+  // A layout effect, measuring once up front rather than waiting on the
+  // observer's first callback: whatever `onChange` lays out then lands in the
+  // same frame as the element itself, not one painted frame later.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    onChangeRef.current(el.getBoundingClientRect().height);
     const observer = new ResizeObserver(() => {
       onChangeRef.current(el.getBoundingClientRect().height);
     });
