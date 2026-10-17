@@ -21,6 +21,7 @@ const MIGRATIONS: &[Migration] = &[
     v2_conversation_graph,
     v3_drop_sub_agents,
     v4_backend_ids,
+    v5_agent_mode,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -224,6 +225,15 @@ fn v3_drop_sub_agents(conn: &Connection) {
 /// (`backend::registry`) where every id is unique across kinds, so the
 /// column holds just the id. Anything unparseable is cleared, which makes
 /// that conversation start from the default backend.
+/// An ACP agent's own mode (its `mode` config option — e.g. Claude Code's
+/// "Accept Edits"), remembered per conversation next to `model`/`effort`.
+/// Separate from `permission_mode`, AI Leash's own Ask/Bypass, which still
+/// applies to backends that don't advertise modes.
+fn v5_agent_mode(conn: &Connection) {
+    conn.execute("ALTER TABLE conversations ADD COLUMN agent_mode TEXT", [])
+        .expect("failed to add conversations.agent_mode");
+}
+
 fn v4_backend_ids(conn: &Connection) {
     let rows: Vec<(String, String)> = conn
         .prepare("SELECT id, backend FROM conversations WHERE backend IS NOT NULL")

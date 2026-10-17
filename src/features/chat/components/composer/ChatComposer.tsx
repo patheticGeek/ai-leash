@@ -77,7 +77,11 @@ export default function ChatComposer({
   const dockRef = useElementHeight<HTMLDivElement>(onHeightChange);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
-  const permissions = useSessionPermissions(sessionId, onError);
+  const permissions = useSessionPermissions(
+    sessionId,
+    !!session.modeOptions,
+    onError,
+  );
   const elicitation = useSessionElicitation(sessionId, onError);
   const queue = useMessageQueue(sending, onSubmit);
   // "/help" shows an overlay over the messages area rather than adding an
@@ -265,7 +269,7 @@ export default function ChatComposer({
               backendOptions={session.backendOptions}
               activeBackendKey={session.activeBackendKey}
               activeBackendLabel={session.activeBackendLabel}
-              backendDisabledReason={session.backendDisabledReason}
+              sendBlockedReason={session.sendBlockedReason}
               onSelectBackend={session.selectBackendOption}
               modelSwitchPending={session.modelSwitchPending}
               modelPickerOpen={modelPickerOpen}
@@ -275,6 +279,9 @@ export default function ChatComposer({
               onSelectEffort={session.selectEffort}
               permissionMode={permissions.permissionMode}
               onSelectPermissionMode={permissions.setPermissionMode}
+              modeOptions={session.modeOptions}
+              modeChoice={session.modeChoice}
+              onSelectMode={session.selectMode}
               showModelIdInput={backend.caps.freeTextModel}
               model={model}
               onModelChange={session.setModel}

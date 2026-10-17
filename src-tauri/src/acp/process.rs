@@ -1,7 +1,4 @@
-use super::discovery::{
-    find_model_config_option, find_thought_level_config_option, format_acp_error, mcp_servers_for,
-    model_options_payload, thought_level_options_payload,
-};
+use super::discovery::{apply_config_options, format_acp_error, mcp_servers_for, ConfigKind};
 use super::elicitation::{bridge_acp_elicitation, cancel_pending_elicitations};
 use super::events::{
     close_segment, debug_json, emit_acp_debug, handle_session_notification, CurrentSegment,
@@ -43,14 +40,11 @@ pub(crate) enum AcpCommand {
     /// events.
     Prompt(String, Option<oneshot::Sender<Result<(), String>>>),
     Cancel,
-    /// Sets the agent's "model" session config option, if it exposes one
-    /// (see `find_model_config_option`) — a no-op (with a surfaced error) if
-    /// it doesn't. `String` is the `SessionConfigValueId` to select, as
-    /// offered in `AcpSessionOptions::model`.
-    SetModel(String),
-    /// Sets the agent's "thought level" session config option, if it exposes
-    /// one (see `find_thought_level_config_option`).
-    SetEffort(String),
+    /// Sets one of the agent's model/effort/mode session config options, if
+    /// it exposes that one (see `ConfigKind::find`) — a no-op (with a
+    /// surfaced error) if it doesn't. `String` is the `SessionConfigValueId`
+    /// to select, as offered in the matching `AcpSessionOptions` field.
+    SetConfig(ConfigKind, String),
 }
 
 /// `debug_json(&mcp_servers)`, but with the local MCP bridge's auth token
@@ -130,6 +124,7 @@ pub(super) fn ensure_acp_session(
             ready: false,
             model_options: None,
             effort_options: None,
+            mode_options: None,
             available_commands: None,
             current_prompt_cancel: Arc::new(StdMutex::new(None)),
         },
@@ -162,6 +157,7 @@ pub struct AcpSessionOptions {
     pub ready: bool,
     pub model: Option<serde_json::Value>,
     pub effort: Option<serde_json::Value>,
+    pub mode: Option<serde_json::Value>,
     pub commands: Option<serde_json::Value>,
 }
 
@@ -180,6 +176,7 @@ pub(super) fn session_options(state: &AppState, session_id: &str) -> AcpSessionO
         ready: s.ready,
         model: s.model_options.clone(),
         effort: s.effort_options.clone(),
+        mode: s.mode_options.clone(),
         commands: s.available_commands.clone(),
     }
 }
@@ -593,23 +590,20 @@ async fn drive_acp_connection(
                 history_truncated,
             );
 
-            // The model and effort levels this agent offers, if it exposes
-            // them as config options (most don't — the chat bar then shows
-            // nothing to pick). Published together with `ready` so the
-            // frontend sees the connection come up in one snapshot.
-            let model_option = config_options
-                .as_ref()
-                .and_then(|opts| find_model_config_option(opts));
-            let effort_option = config_options
-                .as_ref()
-                .and_then(|opts| find_thought_level_config_option(opts));
-            let model_config_id: Option<SessionConfigId> = model_option.map(|o| o.id.clone());
-            let effort_config_id: Option<SessionConfigId> = effort_option.map(|o| o.id.clone());
-            let model_payload = model_option.map(model_options_payload);
-            let effort_payload = effort_option.map(thought_level_options_payload);
+            // The model, effort levels and modes this agent offers, if it
+            // exposes them as config options (many don't — the chat bar then
+            // shows nothing to pick, or Ask/Bypass for the mode). Published
+            // together with `ready` so the frontend sees the connection come
+            // up in one snapshot.
+            let config_options = config_options.unwrap_or_default();
+            let config_id = |kind: ConfigKind| -> Option<SessionConfigId> {
+                kind.find(&config_options).map(|o| o.id.clone())
+            };
             cache_acp_config(&app, &session_id, |s| {
-                s.model_options = model_payload;
-                s.effort_options = effort_payload;
+                s.model_options = None;
+                s.effort_options = None;
+                s.mode_options = None;
+                apply_config_options(s, &config_options);
                 s.ready = true;
             });
 
@@ -713,18 +707,21 @@ async fn drive_acp_connection(
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
                     }
-                    AcpCommand::SetModel(value) => {
+                    AcpCommand::SetConfig(kind, value) => {
                         emit_acp_debug(
                             &app,
                             &session_id,
                             "sent",
-                            "session/set_model",
+                            kind.debug_method(),
                             json!({ "value": value }),
                         );
-                        let Some(config_id) = model_config_id.clone() else {
+                        let Some(config_id) = config_id(kind) else {
                             let _ = app.emit(
                                 &format!("chat://{session_id}/error"),
-                                "This ACP agent doesn't expose a model to select.".to_string(),
+                                format!(
+                                    "This ACP agent doesn't expose a {} to select.",
+                                    kind.label()
+                                ),
                             );
                             continue;
                         };
@@ -742,85 +739,30 @@ async fn drive_acp_connection(
                                     &app,
                                     &session_id,
                                     "received",
-                                    "session/set_model/response",
+                                    &format!("{}/response", kind.debug_method()),
                                     debug_json(&resp),
                                 );
-                                if let Some(option) = find_model_config_option(&resp.config_options)
-                                {
-                                    let payload = model_options_payload(option);
-                                    cache_acp_config(&app, &session_id, |s| {
-                                        s.model_options = Some(payload)
-                                    });
-                                }
+                                // The full option list: a changed model can
+                                // change what effort levels are offered too.
+                                cache_acp_config(&app, &session_id, |s| {
+                                    apply_config_options(s, &resp.config_options)
+                                });
                             }
                             Err(e) => {
                                 emit_acp_debug(
                                     &app,
                                     &session_id,
                                     "received",
-                                    "session/set_model/error",
+                                    &format!("{}/error", kind.debug_method()),
                                     json!({ "message": format_acp_error(&e) }),
                                 );
                                 let _ = app.emit(
                                     &format!("chat://{session_id}/error"),
-                                    format!("Failed to set model: {}", format_acp_error(&e)),
-                                );
-                            }
-                        }
-                    }
-                    AcpCommand::SetEffort(value) => {
-                        emit_acp_debug(
-                            &app,
-                            &session_id,
-                            "sent",
-                            "session/set_effort",
-                            json!({ "value": value }),
-                        );
-                        let Some(config_id) = effort_config_id.clone() else {
-                            let _ = app.emit(
-                                &format!("chat://{session_id}/error"),
-                                "This ACP agent doesn't expose an effort level to select."
-                                    .to_string(),
-                            );
-                            continue;
-                        };
-                        match connection
-                            .send_request(SetSessionConfigOptionRequest::new(
-                                acp_session_id.clone(),
-                                config_id,
-                                value.as_str(),
-                            ))
-                            .block_task()
-                            .await
-                        {
-                            Ok(resp) => {
-                                emit_acp_debug(
-                                    &app,
-                                    &session_id,
-                                    "received",
-                                    "session/set_effort/response",
-                                    debug_json(&resp),
-                                );
-                                if let Some(option) =
-                                    find_thought_level_config_option(&resp.config_options)
-                                {
-                                    let payload = thought_level_options_payload(option);
-                                    cache_acp_config(&app, &session_id, |s| {
-                                        s.effort_options = Some(payload)
-                                    });
-                                }
-                            }
-                            Err(e) => {
-                                emit_acp_debug(
-                                    &app,
-                                    &session_id,
-                                    "received",
-                                    "session/set_effort/error",
-                                    json!({ "message": format_acp_error(&e) }),
-                                );
-                                let _ = app.emit(
-                                    &format!("chat://{session_id}/error"),
-                                    format!("Failed to set effort: {}", format_acp_error(&e)),
+                                    format!(
+                                        "Failed to set {}: {}",
+                                        kind.label(),
+                                        format_acp_error(&e)
+                                    ),
                                 );
                             }
                         }

@@ -1,4 +1,4 @@
-use super::discovery::available_commands_payload;
+use super::discovery::{apply_config_options, apply_current_mode, available_commands_payload};
 use crate::chat::{self, ChatMessage};
 use crate::db;
 use crate::state::AppState;
@@ -246,6 +246,33 @@ pub(super) fn handle_session_notification(
                 s.available_commands = Some(payload)
             });
         }
+        // The agent changed an option itself — most visibly its mode (e.g.
+        // leaving plan mode once a plan is approved). Kept in the cached
+        // options so the chat bar follows it, and a mode change is announced
+        // on `chat://{id}/agent_mode` so the frontend can remember it as the
+        // conversation's choice (only from here: these are the agent's own
+        // changes, never an echo of one the user just picked and the
+        // frontend already knows about).
+        SessionUpdate::ConfigOptionUpdate(update) => {
+            let mut mode = None;
+            super::process::cache_acp_config(app, session_id, |s| {
+                apply_config_options(s, &update.config_options);
+                mode = s.mode_options.as_ref().map(|m| m["currentValue"].clone());
+            });
+            if let Some(mode) = mode {
+                let _ = app.emit(&format!("chat://{session_id}/agent_mode"), mode);
+            }
+        }
+        SessionUpdate::CurrentModeUpdate(update) => {
+            let mode_id = update.current_mode_id.to_string();
+            let mut known = false;
+            super::process::cache_acp_config(app, session_id, |s| {
+                known = apply_current_mode(s, &mode_id);
+            });
+            if known {
+                let _ = app.emit(&format!("chat://{session_id}/agent_mode"), mode_id);
+            }
+        }
         SessionUpdate::UsageUpdate(update) => {
             let _ = app.emit(
                 &format!("chat://{session_id}/usage"),
@@ -265,8 +292,8 @@ pub(super) fn handle_session_notification(
             let _ = app.emit(&format!("chat://{session_id}/title"), title);
         }
         // UserMessageChunk is just an echo of what we already persisted
-        // before sending the prompt; Plan/CurrentModeUpdate/ConfigOptionUpdate/
-        // anything else are out of scope for this phase.
+        // before sending the prompt; Plan/anything else are out of scope for
+        // this phase.
         _ => {}
     }
 }

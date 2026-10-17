@@ -95,6 +95,16 @@ export interface AcpEffortOptions {
   options: { value: string; name: string }[];
 }
 
+// An ACP agent's own modes (its "mode" session config option — e.g. Claude
+// Code's Default/Accept Edits/Plan Mode), shown in the permission picker in
+// place of Ask/Bypass when the agent advertises them.
+export interface AcpModeOptions {
+  id: string;
+  name: string;
+  currentValue: string;
+  options: { value: string; name: string; description: string | null }[];
+}
+
 // One entry of the ACP agent catalog — an enabled ACP backend plus the
 // models/effort levels discovered for it. Rust builds it from the backend
 // registry and keeps it fresh (`acp::sync_catalog_with_registry`).
@@ -104,6 +114,7 @@ export interface AcpAgentCatalogEntry {
   launchCommand: string;
   modelOptions: AcpModelOptions | null;
   effortOptions: AcpEffortOptions | null;
+  modeOptions: AcpModeOptions | null;
 }
 
 // One slash command an ACP agent advertises. `hint` is the agent's
@@ -128,6 +139,7 @@ export interface AcpSessionOptions {
   ready: boolean;
   model: AcpModelOptions | null;
   effort: AcpEffortOptions | null;
+  mode: AcpModeOptions | null;
   commands: AcpCommandInfo[] | null;
 }
 
@@ -257,11 +269,12 @@ export interface ConversationSummary {
   worktreePath: string | null;
   // Persisted backend choice and Ask/Bypass mode — see
   // `store/selectionSlice.ts` and `store/permissionSlice.ts`. `backend` is
-  // a backend id (`BackendConfig.id`); `model`/`effort` are meaningless
-  // without it.
+  // a backend id (`BackendConfig.id`); `model`/`effort`/`agentMode` are
+  // meaningless without it.
   backend: string | null;
   model: string | null;
   effort: string | null;
+  agentMode: string | null;
   permissionMode: string | null;
 }
 
@@ -411,13 +424,12 @@ export const api = {
     backend: string,
     model: string | null,
     effort: string | null,
+    agentMode: string | null,
   ) =>
     invoke<void>("set_conversation_backend", {
       sessionId,
       projectRoot,
-      backend,
-      model,
-      effort,
+      selection: { backend, model, effort, agentMode },
     }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
@@ -467,12 +479,14 @@ export const api = {
     invoke<void>("dismiss_rate_limit_resume", { sessionId }),
   getAcpSessionOptions: (sessionId: string) =>
     invoke<AcpSessionOptions>("get_acp_session_options", { sessionId }),
-  // Picks a model/effort on the live connection (an ACP agent's own config
-  // options).
+  // Picks a model/effort/mode on the live connection (an ACP agent's own
+  // config options).
   setSessionModel: (sessionId: string, value: string) =>
     invoke<void>("set_session_model", { sessionId, value }),
   setSessionEffort: (sessionId: string, value: string) =>
     invoke<void>("set_session_effort", { sessionId, value }),
+  setSessionMode: (sessionId: string, value: string) =>
+    invoke<void>("set_session_mode", { sessionId, value }),
   getAcpAgentCatalog: () =>
     invoke<AcpAgentCatalogEntry[]>("get_acp_agent_catalog"),
   listSubAgents: (sessionId: string) =>

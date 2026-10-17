@@ -29,10 +29,7 @@ pub(crate) use backend::AcpBackend;
 pub(crate) use process::AcpCommand;
 use process::AcpSessionOptions;
 
-use discovery::{
-    find_model_config_option, find_thought_level_config_option, format_acp_error,
-    model_options_payload, thought_level_options_payload,
-};
+use discovery::{format_acp_error, model_options_payload, ConfigKind};
 
 /// The ACP half of `backend::cancel`: wakes `drive_acp_connection`'s
 /// `tokio::select!` (`process.rs`) immediately even while a `Prompt` is in
@@ -70,16 +67,7 @@ pub async fn set_session_model(
     session_id: String,
     value: String,
 ) -> Result<(), String> {
-    let sender = {
-        let sessions = state.acp_sessions.lock().unwrap();
-        sessions.get(&session_id).map(|s| s.sender.clone())
-    };
-    let sender = sender.ok_or_else(|| {
-        "ACP agent process is no longer running; send a message first to start it.".to_string()
-    })?;
-    sender
-        .send(AcpCommand::SetModel(value))
-        .map_err(|_| "ACP agent process is no longer running.".to_string())
+    send_set_config(&state, &session_id, ConfigKind::Model, value)
 }
 
 #[tauri::command]
@@ -88,25 +76,46 @@ pub async fn set_session_effort(
     session_id: String,
     value: String,
 ) -> Result<(), String> {
+    send_set_config(&state, &session_id, ConfigKind::Effort, value)
+}
+
+/// The agent's own mode (see `find_mode_config_option`) — what the chat
+/// bar's permission picker sets when the agent advertises modes.
+#[tauri::command]
+pub async fn set_session_mode(
+    state: State<'_, AppState>,
+    session_id: String,
+    value: String,
+) -> Result<(), String> {
+    send_set_config(&state, &session_id, ConfigKind::Mode, value)
+}
+
+fn send_set_config(
+    state: &AppState,
+    session_id: &str,
+    kind: ConfigKind,
+    value: String,
+) -> Result<(), String> {
     let sender = {
         let sessions = state.acp_sessions.lock().unwrap();
-        sessions.get(&session_id).map(|s| s.sender.clone())
+        sessions.get(session_id).map(|s| s.sender.clone())
     };
     let sender = sender.ok_or_else(|| {
         "ACP agent process is no longer running; send a message first to start it.".to_string()
     })?;
     sender
-        .send(AcpCommand::SetEffort(value))
+        .send(AcpCommand::SetConfig(kind, value))
         .map_err(|_| "ACP agent process is no longer running.".to_string())
 }
 
-/// `discover_acp_options`'s result — both fields independently `None` when
+/// `discover_acp_options`'s result — each field independently `None` when
 /// the agent connects fine but simply doesn't expose that config option.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AcpDiscoveredOptions {
     pub model: Option<serde_json::Value>,
     pub effort: Option<serde_json::Value>,
+    pub mode: Option<serde_json::Value>,
 }
 
 /// Spawns a throwaway ACP subprocess purely to ask "what models/effort
@@ -153,14 +162,12 @@ async fn discover_acp_options(
                 .send_request(NewSessionRequest::new(root))
                 .block_task()
                 .await?;
-            let options = new_session.config_options.as_ref();
+            let options = new_session.config_options.unwrap_or_default();
+            let payload = |kind: ConfigKind| kind.find(&options).map(model_options_payload);
             Ok(AcpDiscoveredOptions {
-                model: options
-                    .and_then(|opts| find_model_config_option(opts))
-                    .map(model_options_payload),
-                effort: options
-                    .and_then(|opts| find_thought_level_config_option(opts))
-                    .map(thought_level_options_payload),
+                model: payload(ConfigKind::Model),
+                effort: payload(ConfigKind::Effort),
+                mode: payload(ConfigKind::Mode),
             })
         })
         .await
@@ -197,11 +204,21 @@ pub(crate) fn sync_catalog_with_registry(app: &AppHandle) {
                 let known = catalog
                     .iter()
                     .find(|e| e.id == id && e.launch_command == launch_command);
-                let (model_options, effort_options) = match known {
-                    Some(e) => (e.model_options.clone(), e.effort_options.clone()),
-                    None => {
+                // An entry cached before modes were discovered has none —
+                // discover it again rather than never showing its modes.
+                let (model_options, effort_options, mode_options) = match known {
+                    Some(e) if e.mode_options.is_some() => (
+                        e.model_options.clone(),
+                        e.effort_options.clone(),
+                        e.mode_options.clone(),
+                    ),
+                    _ => {
                         undiscovered.push((id.clone(), launch_command.clone()));
-                        (None, None)
+                        (
+                            known.and_then(|e| e.model_options.clone()),
+                            known.and_then(|e| e.effort_options.clone()),
+                            None,
+                        )
                     }
                 };
                 AcpAgentCatalogEntry {
@@ -210,6 +227,7 @@ pub(crate) fn sync_catalog_with_registry(app: &AppHandle) {
                     launch_command,
                     model_options,
                     effort_options,
+                    mode_options,
                 }
             })
             .collect();
@@ -253,6 +271,7 @@ fn record_discovered(
         };
         entry.model_options = options.model;
         entry.effort_options = options.effort;
+        entry.mode_options = options.mode;
         catalog.clone()
     };
     save_acp_catalog_to_disk(&catalog);

@@ -598,6 +598,7 @@ mod tests {
                     { "value": "high", "name": "High" },
                 ],
             })),
+            mode_options: None,
         }
     }
 

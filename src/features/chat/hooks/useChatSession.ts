@@ -16,9 +16,11 @@ import { useAcpAgentCatalog } from "../../../lib/acpCatalogQuery";
 import {
   type AcpCommandInfo,
   type AcpEffortOptions,
+  type AcpModeOptions,
   api,
   type BackendConfig,
 } from "../../../lib/tauriApi";
+import { useTauriEvent } from "../../../lib/useTauriEvent";
 import { type ConversationBackendSelection, useAppStore } from "../../../store";
 import { type ChatBackend, createChatBackend } from "../chatBackend";
 import type { PickerOption } from "../components/popovers/ModelPickerPopover";
@@ -77,6 +79,7 @@ function initialSelection(sessionId: string): ConversationBackendSelection {
     backendId: defaultBackendId,
     model: rememberedModel(backends.find((b) => b.id === defaultBackendId)),
     effort: null,
+    agentMode: null,
   };
 }
 
@@ -97,7 +100,7 @@ export function useChatSession(
   // `App.tsx`'s `key={activeSessionId}`), then this conversation's own
   // source of truth — picking something here never changes another one.
   const [selection, setSelection] = useState(() => initialSelection(sessionId));
-  const { backendId, model, effort } = selection;
+  const { backendId, model, effort, agentMode } = selection;
   const config = backends.find((b) => b.id === backendId);
   const caps = BACKEND_CAPABILITIES[config?.kind ?? "ollama"];
 
@@ -113,18 +116,6 @@ export function useChatSession(
     : !config.enabled
       ? `${config.label} is turned off in Settings > Agents. Turn it back on, or pick another agent from the chat bar.`
       : null;
-  useEffect(() => {
-    if (!backendDisabledReason) return;
-    setError(backendDisabledReason);
-    return () => setError(null);
-  }, [backendDisabledReason, setError]);
-
-  // Reachability, for a backend that's checked (`caps.healthCheck`).
-  const connected = useBackendHealth(config);
-  useEffect(() => {
-    if (!config || backendDisabledReason || connected === null) return;
-    setError(connected ? null : unreachableMessage(config));
-  }, [connected, config, backendDisabledReason, setError]);
 
   // A backend that lists its models may have no model picked yet (a new
   // conversation on a backend nothing was ever used on) — fill one in once
@@ -159,6 +150,42 @@ export function useChatSession(
   // which ends this too.
   const modelSwitchPending = !!live && !live.ready && !!model;
 
+  // The picked model is no longer offered (removed from Ollama, or the
+  // agent dropped it) — judged only against a list that has actually loaded:
+  // an ACP agent's live options once it's ready, or a native backend's
+  // listing (empty until it loads, or when it can't be reached, which the
+  // health check below reports instead). "" (the agent's default) is never
+  // missing. Like a disabled backend it stays selected, but blocks sending.
+  const offeredModels =
+    config?.kind === "acp"
+      ? live?.ready && live.model
+        ? live.model.options.map((o) => o.value)
+        : null
+      : listedModels?.length
+        ? listedModels.map((m) => m.name)
+        : null;
+  const modelMissing =
+    !!model && !!offeredModels && !offeredModels.includes(model);
+  const modelUnavailableReason =
+    config && modelMissing
+      ? `${model} is no longer offered by ${config.label}. Pick another model from the chat bar.`
+      : null;
+  // Why nothing can be sent right now, if anything — shown as the error
+  // banner and on the model picker.
+  const sendBlockedReason = backendDisabledReason ?? modelUnavailableReason;
+  useEffect(() => {
+    if (!sendBlockedReason) return;
+    setError(sendBlockedReason);
+    return () => setError(null);
+  }, [sendBlockedReason, setError]);
+
+  // Reachability, for a backend that's checked (`caps.healthCheck`).
+  const connected = useBackendHealth(config);
+  useEffect(() => {
+    if (!config || sendBlockedReason || connected === null) return;
+    setError(connected ? null : unreachableMessage(config));
+  }, [connected, config, sendBlockedReason, setError]);
+
   // Sends this conversation's remembered model/effort choice to the agent
   // once per connection (a fresh one after an agent switch, `/clear` or an
   // app restart starts on the agent's defaults), and again whenever the
@@ -169,7 +196,8 @@ export function useChatSession(
     connection: number | null;
     model: string | null;
     effort: string | null;
-  }>({ connection: null, model: null, effort: null });
+    agentMode: string | null;
+  }>({ connection: null, model: null, effort: null, agentMode: null });
   useEffect(() => {
     if (!live?.ready || live.connection === null) return;
     if (appliedRef.current.connection !== live.connection) {
@@ -177,10 +205,13 @@ export function useChatSession(
         connection: live.connection,
         model: null,
         effort: null,
+        agentMode: null,
       };
     }
     const applied = appliedRef.current;
-    if (live.model && model && applied.model !== model) {
+    // A missing model is reported instead (`modelUnavailableReason`) —
+    // sending it would only get an error back from the agent.
+    if (live.model && model && !modelMissing && applied.model !== model) {
       applied.model = model;
       if (live.model.currentValue !== model) {
         patchAcpSessionOptions(sessionId, (o) =>
@@ -202,7 +233,28 @@ export function useChatSession(
           .catch((e) => setError(String(e)));
       }
     }
-  }, [live, model, effort, sessionId, setError]);
+    if (live.mode && agentMode && applied.agentMode !== agentMode) {
+      applied.agentMode = agentMode;
+      if (live.mode.currentValue !== agentMode) {
+        patchAcpSessionOptions(sessionId, (o) =>
+          o.mode ? { ...o, mode: { ...o.mode, currentValue: agentMode } } : o,
+        );
+        api
+          .setSessionMode(sessionId, agentMode)
+          .catch((e) => setError(String(e)));
+      }
+    }
+  }, [live, model, modelMissing, effort, agentMode, sessionId, setError]);
+
+  // The agent changed its own mode (e.g. left plan mode once a plan was
+  // approved) — that becomes this conversation's remembered mode, so a
+  // reconnect restores where the agent actually is rather than re-applying
+  // the old one. Rust only sends this for the agent's own changes, never as
+  // an echo of a pick made here.
+  useTauriEvent<string>(`chat://${sessionId}/agent_mode`, (mode) => {
+    appliedRef.current.agentMode = mode;
+    setSelection((s) => (s.agentMode === mode ? s : { ...s, agentMode: mode }));
+  });
 
   // Every enabled backend in one picker, grouped by backend (`section`):
   // one row per model where its models are known — an Ollama connection's
@@ -281,6 +333,7 @@ export function useChatSession(
         backendId: id,
         model: pickedModel ?? rememberedModel(target),
         effort: null,
+        agentMode: null,
       });
     } else if (pickedModel !== null) {
       setSelection((s) => ({ ...s, model: pickedModel }));
@@ -293,8 +346,8 @@ export function useChatSession(
   // Whoever answers this conversation — see `chatBackend.ts`. Everything
   // outside this hook uses it (and its `caps`) instead of branching on kind.
   const backend: ChatBackend = useMemo(
-    () => createChatBackend(config, model, effort),
-    [config, model, effort],
+    () => createChatBackend(config, model, effort, !modelMissing),
+    [config, model, effort, modelMissing],
   );
 
   // What the effort picker shows: the live connection's options when it has
@@ -306,14 +359,27 @@ export function useChatSession(
     ? (live?.effort ?? catalogEntry?.effortOptions ?? null)
     : null;
 
+  // The agent's own modes, when it advertises them (live connection first,
+  // else the catalog's cached ones, same as effort) — the permission picker
+  // shows these instead of Ask/Bypass. A choice made against the cached
+  // list is sent once the connection is ready (the apply effect above).
+  const modeOptions: AcpModeOptions | null =
+    config?.kind === "acp"
+      ? (live?.mode ?? catalogEntry?.modeOptions ?? null)
+      : null;
+
   return {
     backend,
     backendConfig: config,
-    backendDisabledReason,
+    sendBlockedReason,
     effortOptions,
     effortChoice: effort,
     selectEffort: (value: string) =>
       setSelection((s) => ({ ...s, effort: value })),
+    modeOptions,
+    modeChoice: agentMode ?? modeOptions?.currentValue ?? null,
+    selectMode: (value: string) =>
+      setSelection((s) => ({ ...s, agentMode: value })),
     agentCommands,
     model,
     // The free-text model box (`caps.freeTextModel`).
