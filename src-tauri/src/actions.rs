@@ -171,6 +171,13 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
             let mut run = on_exit_run.lock().unwrap();
             if run.finish(code, now()) {
                 emit_run_status(&on_exit_app, &on_exit_key, &run);
+            } else if run.finish_stopped(code) {
+                emit_run_status(&on_exit_app, &on_exit_key, &run);
+                // `stop_action` left the handle in place so `code` could be
+                // read — done with it now.
+                let pty_id = run.pty_id.clone();
+                drop(run);
+                let _ = pty::pty_kill(on_exit_app.state::<AppState>(), pty_id);
             }
         }),
     )?;
@@ -186,8 +193,15 @@ pub fn run_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, Str
     Ok(format!("Started action `{}` (run {run_id}).", def.name))
 }
 
+const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// Kills the running process but keeps the run (now `stopped`), so its
-/// output stays readable with `read_action`.
+/// output stays readable with `read_action`. The pty handle stays until the
+/// process has actually ended, so `run_action`'s exit callback can record
+/// its exit code and end the output with an `[action stopped]` line (see
+/// `Run::finish_stopped`); if the output never ends (something still holds
+/// the pty open), the handle is dropped after `STOP_GRACE` and the line
+/// gets an unknown code instead.
 pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, String> {
     let defs = load_actions(root);
     let def = find_def(&defs, key)?;
@@ -206,7 +220,17 @@ pub fn stop_action(app: &AppHandle, root: &Path, key: &str) -> Result<String, St
         emit_run_status(app, &key, &run);
         run.pty_id.clone()
     };
-    pty::pty_kill(state.clone(), pty_id)?;
+    pty::kill_child(&state, &pty_id);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(STOP_GRACE);
+        let mut run = run.lock().unwrap();
+        if run.finish_stopped(None) {
+            emit_run_status(&app, &key, &run);
+            drop(run);
+            let _ = pty::pty_kill(app.state::<AppState>(), pty_id);
+        }
+    });
     Ok(format!("Stopped action `{}`.", def.name))
 }
 
