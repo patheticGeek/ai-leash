@@ -21,6 +21,10 @@ export const qk = {
   // `src/data/acpSessionOptions.ts`.
   acpSessionOptions: (sessionId: string) =>
     ["conversation", sessionId, "acp-options"] as const,
+  // A conversation's saved transcript, prefetched while switching to it —
+  // see `src/data/conversationHistory.ts`.
+  conversationHistory: (sessionId: string) =>
+    ["conversation", sessionId, "history"] as const,
   // Prefix of every `fsDir` key — for predicate-based invalidation.
   fsDirs: ["fs-dir"] as const,
   // The path slot is always a real absolute path (the checkout root listing

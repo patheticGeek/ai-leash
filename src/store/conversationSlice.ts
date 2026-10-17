@@ -1,5 +1,9 @@
 import type { StateCreator } from "zustand";
 import {
+  forgetPrefetchedConversationHistory,
+  prefetchConversationHistory,
+} from "../data/conversationHistory";
+import {
   fetchConversations,
   getConversations,
   insertConversation,
@@ -145,15 +149,24 @@ export const conversationSlice: StateCreator<
     const { projectRoot } = conversation;
     const checkoutPath = conversationCheckoutPath(conversation);
     const token = ++latestSwitchToken;
+    // Loaded alongside the round trips below rather than after the switch,
+    // so the transcript is ready the moment `ChatPanel` mounts — see
+    // `data/conversationHistory.ts`. A failure just leaves `useChatStream`
+    // to load it itself, as it does for any other mount.
+    const history = prefetchConversationHistory(id).catch(() => {});
     const projectId = await api.setProjectRoot(projectRoot);
     // Restores this conversation's own checkout (primary or worktree) —
     // separate from the global `project_root` above, which only drives the
     // file tree / terminal's "focused" project. See `BranchBar`.
     await api.setConversationRoot(id, projectRoot, checkoutPath);
+    await history;
     // A newer switch (another click, or `startNewConversation`) started
     // while this one was awaiting the backend round trip — let it win
     // instead of overwriting whatever it already committed.
-    if (token !== latestSwitchToken) return;
+    if (token !== latestSwitchToken) {
+      forgetPrefetchedConversationHistory(id);
+      return;
+    }
 
     // Read fresh, not before the `await` above — otherwise this could be
     // stamping a panel-state snapshot for a `prevSessionId` that's already

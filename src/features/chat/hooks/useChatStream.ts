@@ -1,6 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import {
+  forgetPrefetchedConversationHistory,
+  getPrefetchedConversationHistory,
+} from "../../../data/conversationHistory";
+import {
   appendChunk,
   appendThinking,
   appendToolCall,
@@ -113,7 +117,17 @@ export function useChatStream(
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
 
-  const [entries, setEntries] = useState<PanelEntry[]>([]);
+  // The transcript `openConversation` already fetched while switching here,
+  // if any — read once, so the first paint already shows it.
+  const [prefetched] = useState(() =>
+    getPrefetchedConversationHistory(sessionId),
+  );
+  const [entries, setEntries] = useState<PanelEntry[]>(() =>
+    prefetched ? messagesToEntries(prefetched) : [],
+  );
+  // Until this is true an empty `entries` means "not loaded yet", not "no
+  // messages" — `ChatEntryList` holds off on its empty state until then.
+  const [historyLoaded, setHistoryLoaded] = useState(prefetched !== undefined);
   const [usage, setUsage] = useState<{
     prompt: number;
     completion: number;
@@ -159,15 +173,30 @@ export function useChatStream(
   }, [sessionId]);
 
   useEffect(() => {
-    api.loadConversationHistory(sessionId).then((messages) => {
-      const loaded = messagesToEntries(messages);
-      if (loaded.length === 0) return;
-      // Guards against clobbering a live event that already arrived while
-      // this load was in flight (shouldn't happen in practice — nothing can
-      // send a message before the UI has mounted — but it's a cheap check).
-      setEntries((prev) => (prev.length === 0 ? loaded : prev));
-    });
-  }, [sessionId]);
+    if (prefetched) {
+      // Consumed — a later mount must read fresh, not this copy.
+      forgetPrefetchedConversationHistory(sessionId);
+      return;
+    }
+    let cancelled = false;
+    api
+      .loadConversationHistory(sessionId)
+      .then((messages) => {
+        if (cancelled) return;
+        const loaded = messagesToEntries(messages);
+        if (loaded.length === 0) return;
+        // Guards against clobbering a live event that already arrived while
+        // this load was in flight (shouldn't happen in practice — nothing can
+        // send a message before the UI has mounted — but it's a cheap check).
+        setEntries((prev) => (prev.length === 0 ? loaded : prev));
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, prefetched]);
 
   useEffect(() => {
     const unlistens: Promise<() => void>[] = [];
@@ -387,6 +416,7 @@ export function useChatStream(
   return {
     entries,
     setEntries,
+    historyLoaded,
     usage,
     setUsage,
     sessionTitle,
