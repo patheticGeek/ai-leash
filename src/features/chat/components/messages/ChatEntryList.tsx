@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 import {
@@ -8,7 +9,6 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
-  useMessageScroller,
 } from "@/ui/message-scroller";
 import {
   groupEntries,
@@ -23,23 +23,19 @@ import ChatEntryRenderer from "./ChatEntryRenderer";
 import SystemPromptRow from "./SystemPromptRow";
 import WorkingForIndicator from "./WorkingForIndicator";
 
-// Sending a message always jumps to the bottom, even if the transcript was
-// scrolled up (or the scroller had stopped following it) — the scroller's own
-// auto-follow only applies while you're already at the bottom. Lives inside
-// the provider because `useMessageScroller` needs its context.
-function ScrollToEndOnUserMessage({ entries }: { entries: PanelEntry[] }) {
-  const { scrollToEnd } = useMessageScroller();
+// Sending a message always jumps to the bottom and resumes following, even if
+// the transcript was scrolled up.
+function useStickOnUserMessage(entries: PanelEntry[], stick: () => void) {
   const userMessages = entries.filter(
     (e) => e.kind === "text" && e.role === "user",
   ).length;
   const previous = useRef<number | null>(null);
   useEffect(() => {
     if (previous.current !== null && userMessages > previous.current) {
-      scrollToEnd({ behavior: "auto" });
+      stick();
     }
     previous.current = userMessages;
-  }, [userMessages, scrollToEnd]);
-  return null;
+  }, [userMessages, stick]);
 }
 
 export interface ChatEntryListProps {
@@ -107,6 +103,11 @@ export default function ChatEntryList({
     {},
   );
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
+  // Following the end is ours, not the scroller's `autoScroll` — see
+  // `useStickToEnd`. The scroller still does the initial jump to the end and
+  // the "Latest" button.
+  const { viewportRef, contentRef, stick } = useStickToEnd();
+  useStickOnUserMessage(entries, stick);
 
   function toggle(i: number) {
     setExpandOverride((prev) => ({ ...prev, [i]: !prev[i] }));
@@ -136,11 +137,11 @@ export default function ChatEntryList({
   }
 
   return (
-    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-      <ScrollToEndOnUserMessage entries={entries} />
+    <MessageScrollerProvider defaultScrollPosition="end">
       <MessageScroller>
-        <MessageScrollerViewport>
+        <MessageScrollerViewport ref={viewportRef}>
           <MessageScrollerContent
+            ref={contentRef}
             className={cn(
               "mx-auto w-full max-w-4xl gap-3 p-3 text-sm",
               className,
@@ -189,6 +190,7 @@ export default function ChatEntryList({
         <MessageScrollerButton
           variant="outline"
           size="md"
+          onClick={stick}
           // 1rem clear of the inset, matching the button's default `bottom-4`.
           style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
         />
