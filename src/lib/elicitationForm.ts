@@ -184,6 +184,44 @@ export function elicitationFields(
   );
 }
 
+// One screen of the form: a question, plus — for a choice question — the
+// free-text box that rides along under its options. Agents can't put an
+// "Other" escape hatch inside an enum, so they send it as its own optional
+// string property right after the choice (the Claude adapter's
+// `question_<n>_custom`, for one); shown as a step of its own it reads as an
+// unrelated question. Grouping is purely layout: `other` still has its own
+// name and its own key in the submitted `content`.
+export interface ElicitationStep {
+  field: ElicitationField;
+  other?: InputField;
+}
+
+function isFreeText(field: ElicitationField | undefined): field is InputField {
+  return (
+    field?.kind === "input" &&
+    field.valueType === "string" &&
+    field.inputType === "text" &&
+    !field.required
+  );
+}
+
+export function elicitationSteps(
+  fields: ElicitationField[],
+): ElicitationStep[] {
+  const steps: ElicitationStep[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
+    const next = fields[i + 1];
+    if (field.kind === "choice" && isFreeText(next)) {
+      steps.push({ field, other: next });
+      i++;
+    } else {
+      steps.push({ field });
+    }
+  }
+  return steps;
+}
+
 export type CollectedAnswers =
   | { ok: true; content: Record<string, ElicitationContentValue> }
   | { ok: false; errors: Record<string, string> };
