@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/ui/select";
 import { useConversations } from "../data/conversations";
+import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
 import type {
   ElicitationRequestPayload,
@@ -46,6 +47,25 @@ import DeleteConversationDialog from "./DeleteConversationDialog";
 // Sentinel for "no project filter" — Radix `Select` doesn't allow an empty
 // string item value (that's reserved to mean "no selection").
 const ALL_PROJECTS = "all";
+
+// How long the row's turn has been running, next to its spinner. Ticks its
+// own clock (like `WorkingForIndicator`) so only this label re-renders each
+// second, and reads the same cross-remount `startedAtMs` the chat's "Working
+// for" footer does, so the two agree.
+function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="text-xs tabular-nums">
+      {formatDuration((now - startedAtMs) / 1000)}
+    </span>
+  );
+}
 
 // Right-click menu shared by both conversation row kinds.
 function ConversationContextMenu({
@@ -83,7 +103,7 @@ function ConversationRow({
   onDelete: () => void;
   onMarkDone: () => void;
 }) {
-  const generating = useGenerating(conversation.id).active;
+  const { active: generating, startedAtMs } = useGenerating(conversation.id);
   const pendingPermissions = useAppStore((s) => s.pendingPermissions);
   const awaitingApproval = !!permissionForSession(
     pendingPermissions,
@@ -164,7 +184,13 @@ function ConversationRow({
                   <MessageCircleQuestion size={12} />
                 </span>
               ) : generating ? (
-                <span title="Working" className="shrink-0 text-blue-400">
+                <span
+                  title="Working"
+                  className="flex shrink-0 items-center gap-1 text-blue-400"
+                >
+                  {startedAtMs != null && (
+                    <ElapsedTime startedAtMs={startedAtMs} />
+                  )}
                   <Loader size={12} className="animate-spin" />
                 </span>
               ) : hovering ? (
