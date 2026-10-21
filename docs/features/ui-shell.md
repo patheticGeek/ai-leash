@@ -40,7 +40,8 @@ conversation, or mark it as active again. To delete a conversation, open its
 context menu from the conversation entry.
 
 The sidebar can show activity while you are viewing another conversation. A
-working indicator means the agent is still processing that conversation. An
+working indicator means the agent is still processing that conversation; the
+time next to it is how long the current turn has been running. An
 approval indicator means that conversation is waiting for you to approve a
 requested action. Switch to it to review the request; see
 [Permissions](./tools.md#why-permission-prompts-appear) for more about approvals.
