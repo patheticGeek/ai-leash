@@ -129,11 +129,42 @@ pub fn get_session_root(state: &AppState, session_id: &str) -> Result<PathBuf, S
     Ok(get_conversation_root(state, session_id)?.cwd)
 }
 
-/// Locks in `session_id`'s checkout — called once right after a conversation
-/// is created (as the primary checkout by default, before `ChatPanel` can
-/// warm an ACP subprocess against the wrong cwd), again whenever a worktree
-/// is picked for it (at any point in its lifetime — see `git.rs`'s
-/// `checkout_git_branch` doc comment on why switching is always safe), or an
+/// The checkout currently shown (see `AppState::view_root`), falling back
+/// to the global `project_root` before anything has set one.
+pub fn get_view_root(state: &AppState) -> Result<PathBuf, String> {
+    if let Some(root) = state.view_root.lock().unwrap().clone() {
+        return Ok(root);
+    }
+    get_root_path(state)
+}
+
+/// `session_id`'s checkout, or the one currently shown when there's no
+/// session — the file editor and terminal in a still-unsent new thread.
+fn get_session_or_view_root(state: &AppState, session_id: Option<&str>) -> Result<PathBuf, String> {
+    match session_id {
+        Some(id) => get_session_root(state, id),
+        None => get_view_root(state),
+    }
+}
+
+/// Shows `cwd` — points the file-tree watcher at it and makes it what
+/// session-less file/terminal commands resolve against — without any
+/// conversation behind it: how a still-unsent new thread (which has no
+/// session id yet) picks its checkout. Nothing is persisted.
+#[tauri::command]
+pub fn set_view_root(app: AppHandle, state: State<AppState>, cwd: String) -> Result<(), String> {
+    let cwd_path = PathBuf::from(&cwd);
+    if !cwd_path.is_dir() {
+        return Err("not a directory".into());
+    }
+    start_fs_watcher(app, &state, &cwd_path);
+    *state.view_root.lock().unwrap() = Some(cwd_path);
+    Ok(())
+}
+
+/// Locks in `session_id`'s checkout — called when a new thread's first
+/// message is sent (with whichever checkout it had picked, before that send
+/// can start an ACP subprocess against the wrong cwd), or an
 /// already-started conversation is reopened (restoring whatever was
 /// persisted). Idempotent: only drops an already-warmed ACP subprocess for
 /// this session if `cwd` is *actually* changing — reopening a conversation
@@ -143,11 +174,9 @@ pub fn get_session_root(state: &AppState, session_id: &str) -> Result<PathBuf, S
 ///
 /// Only `worktree_path` is ever persisted (`cwd` when it differs from
 /// `project_root`, else `None`) — never a branch name, which can drift out
-/// from under the app at any time (see `git.rs`'s module doc). Skips the DB
-/// write entirely for a still-fresh conversation defaulting to its primary
-/// checkout (no row exists yet and there's no worktree to remember), so
-/// picking a project for a new thread doesn't leave a stray empty
-/// conversation behind if the user never actually sends a message.
+/// from under the app at any time (see `git.rs`'s module doc). A new thread
+/// never calls this before its first message (it uses `set_view_root`), so
+/// this always belongs to a real conversation.
 ///
 /// Also (re)points the file-tree/editor watcher at `cwd` — see
 /// `start_fs_watcher`'s doc comment. Every call site represents this
@@ -168,6 +197,7 @@ pub fn set_conversation_root(
         return Err("not a directory".into());
     }
     start_fs_watcher(app, &state, &cwd_path);
+    *state.view_root.lock().unwrap() = Some(cwd_path.clone());
     let project_root_path = PathBuf::from(&project_root);
     let mut roots = state.conversation_roots.lock().unwrap();
     let changed = roots.get(&session_id).is_some_and(|r| r.cwd != cwd_path);
@@ -183,9 +213,7 @@ pub fn set_conversation_root(
         crate::backend::disconnect(&state, &session_id);
     }
     let worktree_path = (cwd != project_root).then_some(cwd.as_str());
-    if worktree_path.is_some() || db::conversation_exists(&state.db, &session_id) {
-        db::set_conversation_worktree(&state.db, &session_id, &project_root, worktree_path);
-    }
+    db::set_conversation_worktree(&state.db, &session_id, &project_root, worktree_path);
     Ok(())
 }
 
@@ -234,9 +262,9 @@ pub fn set_project_root(
 /// entry's own path) as the event payload, so the frontend can invalidate
 /// just those cached directory listings instead of every open one across
 /// every project. Replacing `state.fs_watcher` (on the next call — see
-/// `set_conversation_root`, the sole caller: it always runs right after
-/// `set_project_root` when a conversation becomes active, pointed at that
-/// conversation's own cwd rather than the plain project root) drops the old
+/// `set_conversation_root`/`set_view_root`, the callers: one runs right
+/// after `set_project_root` whenever a conversation or new thread becomes
+/// active, pointed at its own cwd rather than the plain project root) drops the old
 /// watcher and its background thread exits on its own once the channel
 /// closes.
 ///
@@ -367,10 +395,10 @@ pub fn list_dir(checkout_path: String, path: Option<String>) -> Result<Vec<DirEn
 #[tauri::command]
 pub fn read_file_text(
     state: State<AppState>,
-    session_id: String,
+    session_id: Option<String>,
     path: String,
 ) -> Result<String, String> {
-    let root = get_session_root(state.inner(), &session_id)?;
+    let root = get_session_or_view_root(state.inner(), session_id.as_deref())?;
     let resolved = resolve_within_root(&root, &path)?;
     std::fs::read_to_string(resolved).map_err(|e| e.to_string())
 }
@@ -378,11 +406,11 @@ pub fn read_file_text(
 #[tauri::command]
 pub fn write_file_text(
     state: State<AppState>,
-    session_id: String,
+    session_id: Option<String>,
     path: String,
     contents: String,
 ) -> Result<(), String> {
-    let root = get_session_root(state.inner(), &session_id)?;
+    let root = get_session_or_view_root(state.inner(), session_id.as_deref())?;
     let resolved = resolve_within_root(&root, &path)?;
     std::fs::write(resolved, contents).map_err(|e| e.to_string())
 }

@@ -39,6 +39,7 @@ export function createChatBackend(
   config: BackendConfig | undefined,
   model: string,
   effort: string | null,
+  agentMode: string | null,
   modelOffered = true,
 ): ChatBackend {
   const kind = config?.kind ?? "ollama";
@@ -54,7 +55,7 @@ export function createChatBackend(
       modelOffered &&
       (caps.ownsAgentLoop || !!model),
     send: (sessionId, message) =>
-      api.sendPrompt(sessionId, id, model, effort, message),
+      api.sendPrompt(sessionId, id, model, effort, agentMode, message),
     retry: caps.retry
       ? (sessionId) => api.retryLast(sessionId, id, model, effort)
       : unsupported("retry"),

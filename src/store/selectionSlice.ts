@@ -46,8 +46,9 @@ function fromLegacyEntry(value: unknown): ConversationBackendSelection | null {
 
 export interface SelectionSlice {
   // Per-conversation backend choice, keyed by session id. Mirrors the
-  // conversation row's `backend`/`model`/`effort`/`agent_mode` columns, plus entries for
-  // new, still-unsent threads (which have no row yet).
+  // conversation row's `backend`/`model`/`effort`/`agent_mode` columns. A
+  // still-unsent new thread has no id and keeps its choice in
+  // `draft.selection` instead.
   conversationBackend: Record<string, ConversationBackendSelection>;
   setConversationBackend: (
     sessionId: string,
@@ -71,12 +72,9 @@ export const selectionSlice: StateCreator<AppStore, [], [], SelectionSlice> = (
     set((s) => ({
       conversationBackend: { ...s.conversationBackend, [sessionId]: selection },
     }));
-    // Only persist once this is a real, listed conversation —
-    // `useChatSession.ts` re-runs this on every backend/model change,
-    // including for a still-unsent "new thread", and that must not leave a
-    // row behind just from opening the model picker.
-    // `conversationSlice.markConversationStarted` flushes the entry once the
-    // thread becomes real.
+    // Only persist a listed conversation — `promoteDraft` puts the entry in
+    // place just before listing it, and `markConversationStarted` flushes it
+    // right after.
     const listed = getConversations().find((c) => c.id === sessionId);
     if (!listed || !selection.backendId) return;
     void api.setConversationBackend(

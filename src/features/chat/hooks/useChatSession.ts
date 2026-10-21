@@ -70,9 +70,15 @@ function rememberedModel(config: BackendConfig | undefined): string {
   return config && config.kind !== "acp" ? config.model : "";
 }
 
-// A new conversation starts on the registry's default backend.
-function initialSelection(sessionId: string): ConversationBackendSelection {
-  const saved = useAppStore.getState().conversationBackend[sessionId];
+// A new conversation starts on the registry's default backend. A still-unsent
+// new thread (`sessionId` null) reads its draft's pick, if it has one.
+function initialSelection(
+  sessionId: string | null,
+): ConversationBackendSelection {
+  const state = useAppStore.getState();
+  const saved = sessionId
+    ? state.conversationBackend[sessionId]
+    : state.draft?.selection;
   if (saved) return saved;
   const { backends, defaultBackendId } = getRegistry();
   return {
@@ -87,7 +93,7 @@ function initialSelection(sessionId: string): ConversationBackendSelection {
 // model and effort there, and persisting that choice per conversation. See
 // `docs/features/agent-chat.md` for what "backend" means here.
 export function useChatSession(
-  sessionId: string,
+  sessionId: string | null,
   setError: (message: string | null) => void,
 ) {
   const backends = useBackends();
@@ -95,18 +101,22 @@ export function useChatSession(
   // Rust-owned catalog of discovered ACP models/effort levels.
   const acpCatalog = useAcpAgentCatalog();
   const setConversationBackend = useAppStore((s) => s.setConversationBackend);
+  const setDraftSelection = useAppStore((s) => s.setDraftSelection);
 
   // Read once at mount (this component remounts per conversation, via
-  // `App.tsx`'s `key={activeSessionId}`), then this conversation's own
+  // `App.tsx`'s `key={viewEpoch}`), then this conversation's own
   // source of truth — picking something here never changes another one.
   const [selection, setSelection] = useState(() => initialSelection(sessionId));
   const { backendId, model, effort, agentMode } = selection;
   const config = backends.find((b) => b.id === backendId);
   const caps = BACKEND_CAPABILITIES[config?.kind ?? "ollama"];
 
+  // A new thread's pick stays in its draft until its first message — see
+  // `conversationSlice.promoteDraft`.
   useEffect(() => {
-    setConversationBackend(sessionId, selection);
-  }, [sessionId, selection, setConversationBackend]);
+    if (sessionId) setConversationBackend(sessionId, selection);
+    else setDraftSelection(selection);
+  }, [sessionId, selection, setConversationBackend, setDraftSelection]);
 
   // Its backend was deleted or switched off in Settings > Agents after it
   // was picked — it stays selected (nothing silently swaps it), but nothing
@@ -199,7 +209,7 @@ export function useChatSession(
     agentMode: string | null;
   }>({ connection: null, model: null, effort: null, agentMode: null });
   useEffect(() => {
-    if (!live?.ready || live.connection === null) return;
+    if (!sessionId || !live?.ready || live.connection === null) return;
     if (appliedRef.current.connection !== live.connection) {
       appliedRef.current = {
         connection: live.connection,
@@ -251,10 +261,15 @@ export function useChatSession(
   // reconnect restores where the agent actually is rather than re-applying
   // the old one. Rust only sends this for the agent's own changes, never as
   // an echo of a pick made here.
-  useTauriEvent<string>(`chat://${sessionId}/agent_mode`, (mode) => {
-    appliedRef.current.agentMode = mode;
-    setSelection((s) => (s.agentMode === mode ? s : { ...s, agentMode: mode }));
-  });
+  useTauriEvent<string>(
+    sessionId && `chat://${sessionId}/agent_mode`,
+    (mode) => {
+      appliedRef.current.agentMode = mode;
+      setSelection((s) =>
+        s.agentMode === mode ? s : { ...s, agentMode: mode },
+      );
+    },
+  );
 
   // Every enabled backend in one picker, grouped by backend (`section`):
   // one row per model where its models are known — an Ollama connection's
@@ -346,15 +361,15 @@ export function useChatSession(
   // Whoever answers this conversation — see `chatBackend.ts`. Everything
   // outside this hook uses it (and its `caps`) instead of branching on kind.
   const backend: ChatBackend = useMemo(
-    () => createChatBackend(config, model, effort, !modelMissing),
-    [config, model, effort, modelMissing],
+    () => createChatBackend(config, model, effort, agentMode, !modelMissing),
+    [config, model, effort, agentMode, modelMissing],
   );
 
   // What the effort picker shows: the live connection's options when it has
-  // reported in, else the catalog's cached ones, so a brand-new thread shows
-  // the picker immediately instead of after the warmup handshake. A choice
-  // made against the cached list is sent once the connection is ready (the
-  // apply effect above).
+  // reported in, else the catalog's cached ones — all a new thread ever has,
+  // since it never connects before its first message. A choice made against
+  // the cached list goes with that first send (see `AcpBackend::send`), or
+  // is sent once the connection is ready (the apply effect above).
   const effortOptions: AcpEffortOptions | null = caps.effortPicker
     ? (live?.effort ?? catalogEntry?.effortOptions ?? null)
     : null;

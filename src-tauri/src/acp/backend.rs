@@ -3,7 +3,7 @@
 //! connection to it in `AppState::acp_sessions` (see `process.rs`).
 
 use super::discovery::ConfigKind;
-use super::process::{ensure_acp_session, AcpCommand};
+use super::process::{ensure_acp_session, session_ready, AcpCommand};
 use super::rate_limit;
 use crate::backend::{Backend, BoxFuture, Capabilities, NativeBackend, TaskResult};
 use crate::chat::{self, ChatMessage};
@@ -17,11 +17,14 @@ use tokio::sync::oneshot;
 #[derive(Clone)]
 pub struct AcpBackend {
     pub launch_command: String,
-    /// The agent's own model/effort config values to select for a
-    /// sub-agent's task, if `spawn_sub_agent` asked for them. A top-level
-    /// conversation picks these live instead (`set_session_model`/`set_session_effort`).
+    /// The agent's own model/effort/mode config values to select — for a
+    /// sub-agent's task, whatever `spawn_sub_agent` asked for; for a
+    /// top-level conversation, its remembered picks, applied by `send` only
+    /// when the connection isn't up yet (a live one picks them via
+    /// `set_session_model`/`set_session_effort`/`set_session_mode` instead).
     pub model_value: Option<String>,
     pub effort_value: Option<String>,
+    pub mode_value: Option<String>,
     /// See `Backend::native`.
     pub native: NativeBackend,
 }
@@ -76,7 +79,26 @@ impl Backend for AcpBackend {
         message: String,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
-            self.connect(app, session_id)
+            // Not up yet — a new thread's first message, or the first one
+            // after an agent switch, `/clear` or a restart. The frontend
+            // applies picks only to a live connection, so this one would
+            // otherwise answer its first prompt on the agent's defaults.
+            let fresh = !session_ready(&app.state::<AppState>(), session_id);
+            let sender = self.connect(app, session_id);
+            if fresh {
+                let picks: Vec<_> = [
+                    (ConfigKind::Model, &self.model_value),
+                    (ConfigKind::Effort, &self.effort_value),
+                    (ConfigKind::Mode, &self.mode_value),
+                ]
+                .into_iter()
+                .filter_map(|(kind, value)| Some((kind, value.clone()?)))
+                .collect();
+                if !picks.is_empty() {
+                    let _ = sender.send(AcpCommand::ApplyPicks(picks));
+                }
+            }
+            sender
                 .send(AcpCommand::Prompt(message.clone(), None))
                 .map_err(|_| {
                     "ACP agent process is no longer running; send another message to restart it."

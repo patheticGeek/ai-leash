@@ -183,9 +183,8 @@ pub(super) fn upsert_conversation(
 /// (`worktree_path: None`) or a worktree path — independent of any message
 /// having been sent yet, so a reload can restore the same cwd (see
 /// `commands::set_conversation_root`) and the sidebar can show which one it
-/// is. Upserts like `upsert_conversation` since this can be called before
-/// the conversation's first message (right after a worktree is picked),
-/// when no row exists yet.
+/// is. Upserts like `upsert_conversation` since this runs as a new thread's
+/// first message is sent, before that message's own row lands.
 pub fn set_conversation_worktree(
     db: &Db,
     conversation_id: &str,
@@ -204,10 +203,8 @@ pub fn set_conversation_worktree(
     );
 }
 
-/// Whether `conversation_id` already has a `conversations` row — used by
-/// `commands::set_conversation_root` to avoid inserting a stray empty
-/// conversation for a still-fresh thread defaulting to its primary checkout
-/// (nothing worth persisting yet if the user never sends a message).
+/// Whether `conversation_id` already has a `conversations` row.
+#[cfg(test)]
 pub fn conversation_exists(db: &Db, conversation_id: &str) -> bool {
     let conn = db.0.lock().unwrap();
     conn.query_row(

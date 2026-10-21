@@ -8,13 +8,15 @@ import { qk } from "./keys";
 // slash commands), or null before the first fetch. Rust owns this — the
 // `AcpSession` entry in `acp_sessions` — so a chat panel that mounts after
 // the connection came up just reads it; `useAcpSessionOptionsListener`
-// keeps it current.
+// keeps it current. Always null with no session (a still-unsent new
+// thread, which never connects).
 export function useAcpSessionOptions(
-  sessionId: string,
+  sessionId: string | null,
 ): AcpSessionOptions | null {
   const { data } = useQuery({
-    queryKey: qk.acpSessionOptions(sessionId),
-    queryFn: () => api.getAcpSessionOptions(sessionId),
+    queryKey: qk.acpSessionOptions(sessionId ?? ""),
+    queryFn: () => api.getAcpSessionOptions(sessionId ?? ""),
+    enabled: !!sessionId,
   });
   return data ?? null;
 }

@@ -12,13 +12,20 @@ import type { ChatBackend } from "../chatBackend";
 // `reconnect()` re-triggers the same connect — after a resume failure
 // ("Start new session" in `TranscriptNotices`; the backend's already dropped
 // the stale session id by then, see `drive_acp_connection`, so this goes
-// straight to a fresh `session/new`), after `/clear`, and after a worktree
-// is picked.
-export function useBackendWarmup(sessionId: string, backend: ChatBackend) {
+// straight to a fresh `session/new`) and after `/clear`.
+//
+// Never for a still-unsent new thread (`sessionId` null): connecting would
+// start an agent session for a thread that may never be used. Its pickers
+// read the cached catalog instead, and its first send connects (applying its
+// picks — see `AcpBackend::send`).
+export function useBackendWarmup(
+  sessionId: string | null,
+  backend: ChatBackend,
+) {
   const [nonce, setNonce] = useState(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: nonce isn't read in the body, it's a trigger-only dep to force a retry — see doc comment above
   useEffect(() => {
-    if (!backend.caps.warmup || !backend.ready) return;
+    if (!sessionId || !backend.caps.warmup || !backend.ready) return;
     backend.warm(sessionId).catch(() => {});
   }, [backend, sessionId, nonce]);
 

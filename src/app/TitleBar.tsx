@@ -103,9 +103,9 @@ export default function TitleBar({
   const activeConversation = conversations.find(
     (c) => c.id === activeSessionId,
   );
-  // A conversation not yet in `conversations` has never had a message sent
-  // — see `ChatPanel.tsx`'s identical `isNewThread` derivation.
-  const isNewThread = !activeConversation;
+  // A new thread (no id until its first message) — see `ChatPanel.tsx`'s
+  // `isNewThread`.
+  const isNewThread = useAppStore((s) => s.draft !== null);
   const activeChatTab = chatTabs.find((t) => t.id === activeChatTabId);
   const conversationTitle =
     activeChatTab?.kind === "subagent"

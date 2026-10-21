@@ -6,17 +6,17 @@ import { elicitationForSession, useAppStore } from "../../../store";
 // that populate `pendingElicitations` live in `LeftBar.tsx`, same as
 // `useSessionPermissions`.
 export function useSessionElicitation(
-  sessionId: string,
+  sessionId: string | null,
   setError: (message: string | null) => void,
 ) {
   const pendingElicitations = useAppStore((s) => s.pendingElicitations);
   const resolvePendingElicitation = useAppStore(
     (s) => s.resolvePendingElicitation,
   );
-  const pendingElicitation = elicitationForSession(
-    pendingElicitations,
-    sessionId,
-  );
+  // Nothing can ask a new thread (no session yet) anything.
+  const pendingElicitation = sessionId
+    ? elicitationForSession(pendingElicitations, sessionId)
+    : null;
 
   // Optimistic like `respondPermission`: close the form now, and let the
   // backend's own `elicitation://resolved` be a harmless second removal.

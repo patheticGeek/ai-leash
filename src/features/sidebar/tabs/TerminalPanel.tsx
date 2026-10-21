@@ -34,11 +34,14 @@ export default function TerminalPanel({
   initialCommand?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Null in a new thread — the shell then opens in the checkout it's
+  // showing (see `pty_spawn`).
   const sessionId = useAppStore((s) => s.activeSessionId);
+  const hasDraft = useAppStore((s) => s.draft !== null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once — spawns one PTY for this tab's lifetime. sessionId can't actually change under a mounted TerminalPanel: switching conversations replaces panelTabs wholesale (see openConversation/startNewConversation in conversationSlice.ts), which unmounts every terminal tab via its key rather than updating this one in place.
   useEffect(() => {
-    if (!containerRef.current || !sessionId) return;
+    if (!containerRef.current || (!sessionId && !hasDraft)) return;
 
     const term = new Terminal({
       convertEol: true,

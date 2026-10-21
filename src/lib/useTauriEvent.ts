@@ -45,12 +45,17 @@ function subscribe<T>(eventName: string, handler: Handler<T>): () => void {
 // Used by `useCurrentGitBranch` (one listener instead of one per sidebar row
 // and per open `CheckoutBar`) and `FileTree` (one listener instead of one
 // per expanded tree node). Callers still get a fresh closure every render
-// (handler is read via a ref), so no dependency array footguns.
-export function useTauriEvent<T>(eventName: string, handler: Handler<T>): void {
+// (handler is read via a ref), so no dependency array footguns. A null
+// `eventName` listens to nothing (e.g. a per-session event with no session).
+export function useTauriEvent<T>(
+  eventName: string | null,
+  handler: Handler<T>,
+): void {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
   useEffect(() => {
+    if (eventName === null) return;
     return subscribe<T>(eventName, (payload) => handlerRef.current(payload));
   }, [eventName]);
 }
