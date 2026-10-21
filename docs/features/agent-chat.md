@@ -203,6 +203,9 @@ if you're in another conversation.
 
 - Pick an option, enter a value, or select several, depending on the question.
   Use **Skip** on optional questions, and **Previous**/**Next** to move around.
+- When a question comes with a free-text box (an "Other" answer, or a note on
+  your pick), it sits under that question's options rather than on a page of
+  its own.
 - **Submit** sends your answers to the agent.
 - **Decline** tells the agent you don't want to answer. The close button (or
   `Esc`) dismisses the form without answering, and so does stopping the turn.
