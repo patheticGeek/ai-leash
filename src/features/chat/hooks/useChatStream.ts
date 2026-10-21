@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   forgetPrefetchedConversationHistory,
   getPrefetchedConversationHistory,
@@ -110,8 +110,12 @@ function updateSubtaskThread(
 // stream — see its own doc comment) or the error banner text (reported up
 // via `setError` instead, since plenty of other, non-streaming actions in
 // `ChatPanel.tsx` set it too).
+//
+// `sessionId` is null for a still-unsent new thread: nothing to load or
+// listen to. When its first message gives it an id, the listeners attach
+// then — `whenListening` is how the send waits for that.
 export function useChatStream(
-  sessionId: string,
+  sessionId: string | null,
   setError: (message: string) => void,
 ) {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
@@ -120,14 +124,24 @@ export function useChatStream(
   // The transcript `openConversation` already fetched while switching here,
   // if any — read once, so the first paint already shows it.
   const [prefetched] = useState(() =>
-    getPrefetchedConversationHistory(sessionId),
+    sessionId ? getPrefetchedConversationHistory(sessionId) : undefined,
   );
+  // Began as a new thread: there's no history to load, then or after its
+  // first message gives it an id (that message is already in `entries`).
+  const [startedAsNewThread] = useState(sessionId === null);
   const [entries, setEntries] = useState<PanelEntry[]>(() =>
     prefetched ? messagesToEntries(prefetched) : [],
   );
   // Until this is true an empty `entries` means "not loaded yet", not "no
   // messages" — `ChatEntryList` holds off on its empty state until then.
-  const [historyLoaded, setHistoryLoaded] = useState(prefetched !== undefined);
+  const [historyLoaded, setHistoryLoaded] = useState(
+    prefetched !== undefined || startedAsNewThread,
+  );
+  // Per session id: resolves once the `chat://{id}/...` listeners below are
+  // registered with Tauri (`listening`), or the resolver for a
+  // `whenListening` call made before they were (`waiting`).
+  const listening = useRef(new Map<string, Promise<void>>());
+  const waiting = useRef(new Map<string, () => void>());
   const [usage, setUsage] = useState<{
     prompt: number;
     completion: number;
@@ -163,6 +177,7 @@ export function useChatStream(
   } | null>(null);
 
   useEffect(() => {
+    if (!sessionId) return;
     let cancelled = false;
     api.getRateLimitResume(sessionId).then((pending) => {
       if (!cancelled) setRateLimit((prev) => prev ?? pending);
@@ -173,6 +188,7 @@ export function useChatStream(
   }, [sessionId]);
 
   useEffect(() => {
+    if (!sessionId || startedAsNewThread) return;
     if (prefetched) {
       // Consumed — a later mount must read fresh, not this copy.
       forgetPrefetchedConversationHistory(sessionId);
@@ -196,9 +212,10 @@ export function useChatStream(
     return () => {
       cancelled = true;
     };
-  }, [sessionId, prefetched]);
+  }, [sessionId, prefetched, startedAsNewThread]);
 
   useEffect(() => {
+    if (!sessionId) return;
     const unlistens: Promise<() => void>[] = [];
 
     unlistens.push(
@@ -296,6 +313,12 @@ export function useChatStream(
         setAcpHistoryTruncated(e.payload);
       }),
     );
+    // A title the agent itself picked (ACP `session_info_update`).
+    unlistens.push(
+      listen<string | null>(`chat://${sessionId}/title`, (e) => {
+        setSessionTitle(e.payload);
+      }),
+    );
 
     // A `spawn_sub_agent` tool call spawns an isolated sub-agent with its own
     // chat://{subSessionId}/... event stream, one per concurrently spawned
@@ -338,11 +361,6 @@ export function useChatStream(
               updateSubtaskThread(prev, callId, subSessionId, (sub) =>
                 appendThinking(sub, ev.payload),
               ),
-            );
-            unlistens.push(
-              listen<string | null>(`chat://${sessionId}/title`, (e) => {
-                setSessionTitle(e.payload);
-              }),
             );
             setSubAgentEntries(subSessionId, (prev) =>
               appendThinking(prev, ev.payload),
@@ -406,12 +424,33 @@ export function useChatStream(
       }),
     );
 
+    // Only the top-level listeners above — the per-sub-agent ones are added
+    // later, from inside `subtask_start`.
+    const ready = Promise.all(unlistens).then(() => {});
+    listening.current.set(sessionId, ready);
+    ready.then(() => {
+      waiting.current.get(sessionId)?.();
+      waiting.current.delete(sessionId);
+    });
+
     return () => {
+      listening.current.delete(sessionId);
       unlistens.forEach((u) => {
         u.then((f) => f());
       });
     };
   }, [sessionId, openPanelTab, setSubAgentEntries, setError]);
+
+  // Resolves once `id`'s listeners are registered — awaited by a new
+  // thread's first send, made in the same tick its id is minted, before
+  // this hook has even re-rendered with it. Without it, the first chunks of
+  // the reply could be emitted before anything listens for them.
+  function whenListening(id: string): Promise<void> {
+    return (
+      listening.current.get(id) ??
+      new Promise((resolve) => waiting.current.set(id, resolve))
+    );
+  }
 
   return {
     entries,
@@ -426,7 +465,10 @@ export function useChatStream(
     acpHistoryTruncated,
     claudeRateLimit: rateLimit,
     claudeAutoResumeArmed: rateLimit?.armed ?? false,
-    armClaudeAutoResume: () => api.armRateLimitResume(sessionId),
-    dismissClaudeRateLimit: () => api.dismissRateLimitResume(sessionId),
+    armClaudeAutoResume: () =>
+      sessionId ? api.armRateLimitResume(sessionId) : Promise.resolve(),
+    dismissClaudeRateLimit: () =>
+      sessionId ? api.dismissRateLimitResume(sessionId) : Promise.resolve(),
+    whenListening,
   };
 }

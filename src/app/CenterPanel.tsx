@@ -56,6 +56,7 @@ function NoProjectState() {
 export default function CenterPanel() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const hasDraft = useAppStore((s) => s.draft !== null);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
@@ -76,7 +77,7 @@ export default function CenterPanel() {
     [openPanelTab],
   );
 
-  if (!projectRoot || !activeSessionId) {
+  if (!projectRoot || (!activeSessionId && !hasDraft)) {
     return (
       <div className="flex h-full flex-col bg-background">
         <NoProjectState />

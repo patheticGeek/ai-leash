@@ -107,15 +107,13 @@ export const permissionSlice: StateCreator<
     set((s) => ({
       permissionMode: { ...s.permissionMode, [sessionId]: mode },
     }));
-    // The in-memory bypass flag must always flip (enforcement can't wait),
-    // but persisting is gated on this being a real, listed conversation —
-    // `useSessionPermissions.ts` re-sends this on every mount, including a
-    // still-unsent "new thread", and that must not leave a row behind just
-    // from opening it. `conversations` (not a DB round trip) is the right
-    // check here: `conversationSlice.markConversationStarted` flips a
-    // thread from unsent to real *before* its first message actually lands
-    // in SQLite, and flushes this map's current entry right after — a
-    // DB-existence check at that moment would still say "not yet".
+    // The in-memory bypass flag must always flip (enforcement can't wait);
+    // persisting needs a listed conversation. `conversations` (not a DB
+    // round trip) is the right check here: `markConversationStarted` lists
+    // a new thread *before* its first message lands in SQLite, and flushes
+    // this map's entry right after — a DB-existence check at that moment
+    // would still say "not yet". A still-unsent new thread never gets here
+    // (no id): its pick lives in `draft.permissionMode`.
     const listed = getConversations().find((c) => c.id === sessionId);
     const persist = !!listed;
     const projectRoot = listed?.projectRoot ?? get().projectRoot ?? "";

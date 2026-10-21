@@ -24,7 +24,7 @@ import LeftBar from "./LeftBar";
 import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
-  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const viewEpoch = useAppStore((s) => s.viewEpoch);
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
@@ -57,7 +57,7 @@ function App() {
   useAcpCatalogInvalidator();
   // Keeps the catalog query warm here too, not just inside `ChatPanel`'s
   // `useChatSession` (its only other caller) — that one lives under
-  // `CenterPanel`'s `key={activeSessionId}`, so it fully unmounts and
+  // `CenterPanel`'s `key={viewEpoch}`, so it fully unmounts and
   // remounts on every conversation switch. Without a subscriber that
   // survives the switch, the query would otherwise drop to zero observers
   // between the old conversation's unmount and the new one's mount and the
@@ -133,7 +133,9 @@ function App() {
         </div>
         <ResizeHandle width={leftBarWidth} {...leftBarResize} />
         <div className="flex-1 min-w-0">
-          <CenterPanel key={activeSessionId ?? "none"} />
+          {/* Per switch, not per id: a new thread getting its id on its
+              first message must not remount the panel — see `viewEpoch`. */}
+          <CenterPanel key={viewEpoch} />
         </div>
         <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
         <div style={{ width: rightPanelWidth }} className="shrink-0">

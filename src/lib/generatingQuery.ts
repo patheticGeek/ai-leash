@@ -14,7 +14,7 @@ export interface GeneratingState {
   // at the moment `useGeneratingListener` saw `active: true`), or `null`
   // while idle. Lets `ChatPanel.tsx`'s "Working for <time>" clock anchor to
   // a value that survives that component remounting (switching away from
-  // and back to a conversation via `App.tsx`'s `key={activeSessionId}`)
+  // and back to a conversation via `App.tsx`'s `key={viewEpoch}`)
   // instead of resetting every time — this cache entry lives outside any
   // component's lifecycle.
   startedAtMs: number | null;

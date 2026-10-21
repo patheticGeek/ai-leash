@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { chatDraftKey as chatDraftKeyFor } from "../../../lib/chatDraft";
 
-function loadChatDraft(key: string): string {
+function loadChatDraft(key: string | null): string {
+  if (!key) return "";
   try {
     return localStorage.getItem(key) ?? "";
   } catch {
@@ -10,11 +11,13 @@ function loadChatDraft(key: string): string {
 }
 
 // The message box's text: seeded from and persisted to this conversation's
-// localStorage draft, plus the textarea ref that programmatic edits need.
-export function useChatInput(sessionId: string) {
-  const chatDraftKey = chatDraftKeyFor(sessionId);
+// localStorage draft, plus the textarea ref that programmatic edits need. A
+// still-unsent new thread (`sessionId` null) keeps its text in memory only.
+export function useChatInput(sessionId: string | null) {
+  const chatDraftKey = sessionId ? chatDraftKeyFor(sessionId) : null;
   const [input, setInput] = useState(() => loadChatDraft(chatDraftKey));
   useEffect(() => {
+    if (!chatDraftKey) return;
     try {
       if (input) {
         localStorage.setItem(chatDraftKey, input);

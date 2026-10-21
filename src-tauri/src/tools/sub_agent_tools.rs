@@ -237,6 +237,7 @@ pub(super) fn spawn_sub_agent(
             launch_command: target.launch_command,
             model_value: target.model_value,
             effort_value: target.effort_value,
+            mode_value: None,
             native: parent.native().clone(),
         }),
         None => Arc::new(NativeBackend {

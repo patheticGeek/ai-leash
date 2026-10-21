@@ -6,7 +6,6 @@ import BranchPicker from "./BranchPicker";
 import WorktreePicker, { worktreeLabel } from "./WorktreePicker";
 
 export interface CheckoutBarProps {
-  sessionId: string;
   projectRoot: string;
   // The conversation's currently-active checkout — the primary root, or a
   // worktree path.
@@ -16,7 +15,9 @@ export interface CheckoutBarProps {
   // that cwd is fixed for the conversation's lifetime. The branch picker has
   // no such restriction: what's checked out inside a given worktree can
   // change at any time without moving the conversation to a different
-  // directory. Mirrors `ChatPanel.tsx`'s `isNewThread`.
+  // directory. Mirrors `ChatPanel.tsx`'s `isNewThread` — so a worktree is
+  // only ever picked for a new thread, which has no session yet: picking
+  // one just shows it (`set_view_root`), and the first message locks it in.
   editable: boolean;
   // `null` means the primary checkout.
   onWorktreeSelected: (worktreePath: string | null) => void;
@@ -37,7 +38,6 @@ export interface CheckoutBarProps {
 // outside the app entirely, which is why the branch side is never read from
 // storage, only watched live (see `git.rs`'s module doc).
 export default function CheckoutBar({
-  sessionId,
   projectRoot,
   cwd,
   editable,
@@ -60,7 +60,7 @@ export default function CheckoutBar({
 
   async function selectWorktree(path: string, isPrimary: boolean) {
     const worktreePath = isPrimary ? projectRoot : path;
-    await api.setConversationRoot(sessionId, projectRoot, worktreePath);
+    await api.setViewRoot(worktreePath);
     onWorktreeSelected(isPrimary ? null : worktreePath);
   }
 
@@ -70,7 +70,7 @@ export default function CheckoutBar({
       branchName,
       baseBranch,
     );
-    await api.setConversationRoot(sessionId, projectRoot, worktreePath);
+    await api.setViewRoot(worktreePath);
     setWorktrees((prev) => [
       ...prev,
       { path: worktreePath, branch: branchName, isPrimary: false },

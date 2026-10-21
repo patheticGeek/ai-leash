@@ -55,6 +55,10 @@ you want to work on. You can have multiple conversations for the same
 project—for example, one for investigating a bug and another for planning a
 feature.
 
+Nothing is saved for a new thread until you send its first message: it isn't
+listed in the sidebar, no agent session is started for it, and its text,
+model and worktree choices are dropped if you leave without sending.
+
 AI Leash gives conversations a title based on the beginning of your first
 message. Some agents can provide a more specific title. The title helps you
 recognize the conversation in the sidebar; it does not change the transcript.
