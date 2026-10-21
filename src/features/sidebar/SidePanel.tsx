@@ -1,35 +1,28 @@
 import { Plus } from "lucide-react";
-import { useState } from "react";
-import { useSubAgents } from "@/data/subAgents";
-import { Badge } from "@/ui/badge";
+import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { type PanelTabKind, useAppStore } from "../../store";
+import { TabBody } from "../tabs/TabContent";
+import { useTabDropArea } from "../tabs/TabDnd";
+import TabStrip from "../tabs/TabStrip";
 import TabPicker from "./TabPicker";
-import { PANEL_TAB_KINDS } from "./tabKinds";
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
   const activePanelTabId = useAppStore((s) => s.activePanelTabId);
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const closePanelTab = useAppStore((s) => s.closePanelTab);
-  const setActivePanelTab = useAppStore((s) => s.setActivePanelTab);
-  const openFiles = useAppStore((s) => s.openFiles);
-  // Scoped to the active conversation, same as `SubAgentsTab.tsx` itself —
-  // otherwise this would count another conversation's still-running
-  // sub-agents too, once more than one has ever been loaded into memory
-  // this session.
-  const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const runningSubAgents = useSubAgents(activeSessionId).filter(
-    (t) => t.status === "running",
-  ).length;
+  const activateTab = useAppStore((s) => s.activateTab);
+  const dropRef = useTabDropArea("side");
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const activeTab = panelTabs.find((t) => t.id === activePanelTabId) ?? null;
-  const keepMountedTabs = panelTabs.filter(
-    (t) => PANEL_TAB_KINDS[t.kind].mountMode === "keep-mounted-per-tab",
-  );
   const showPicker = pickerOpen || panelTabs.length === 0;
+
+  // A tab activated from anywhere else (dropped in from the centre, a file
+  // opened from the tree, an Action run) replaces the picker.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activePanelTabId is the trigger
+  useEffect(() => {
+    setPickerOpen(false);
+  }, [activePanelTabId]);
 
   function pick(kind: PanelTabKind) {
     openPanelTab(kind);
@@ -37,42 +30,17 @@ export default function SidePanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-sunken">
+    <div ref={dropRef} className="flex h-full flex-col bg-sunken">
       <div className="flex shrink-0 items-center pr-1.5">
-        <Tabs
+        <TabStrip
+          tabs={panelTabs}
           value={showPicker ? "" : (activePanelTabId ?? "")}
-          onValueChange={(id) => {
-            setActivePanelTab(id);
+          onSelect={(id) => {
+            activateTab(id);
             setPickerOpen(false);
           }}
-          className="min-w-0 flex-1 gap-0"
-        >
-          <TabsList variant="strip">
-            {panelTabs.map((tab) => {
-              const dirty =
-                tab.kind === "file" &&
-                !!openFiles.find((f) => f.path === tab.path)?.dirty;
-              return (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  onClose={() => closePanelTab(tab.id)}
-                  className="gap-1.5"
-                >
-                  <span className="max-w-[10rem] truncate">{tab.label}</span>
-                  {tab.kind === "subagents" && runningSubAgents > 0 && (
-                    <Badge size="count" className="h-4 min-w-4 px-1.5">
-                      {runningSubAgents}
-                    </Badge>
-                  )}
-                  {dirty && (
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
-                  )}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
+          className="flex-1"
+        />
         <Button
           variant="ghost"
           size="icon"
@@ -84,20 +52,11 @@ export default function SidePanel() {
         </Button>
       </div>
       <div className="relative flex-1 min-h-0">
-        {keepMountedTabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={
-              tab.id === activePanelTabId && !showPicker ? "h-full" : "hidden"
-            }
-          >
-            {PANEL_TAB_KINDS[tab.kind].render(tab)}
-          </div>
-        ))}
-        {!showPicker &&
-          activeTab &&
-          PANEL_TAB_KINDS[activeTab.kind].mountMode === "active-only" &&
-          PANEL_TAB_KINDS[activeTab.kind].render(activeTab)}
+        <TabBody
+          tabs={panelTabs}
+          activeId={activePanelTabId}
+          hidden={showPicker}
+        />
         {showPicker && <TabPicker onPick={pick} />}
       </div>
     </div>

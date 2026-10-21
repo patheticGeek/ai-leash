@@ -73,7 +73,7 @@ export interface ProjectSlice {
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
-  saveActive: () => Promise<void>;
+  saveFile: (path: string) => Promise<void>;
 }
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
@@ -147,9 +147,9 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
       ),
     })),
 
-  saveActive: async () => {
-    const { activePath, openFiles, activeSessionId, draft } = get();
-    const file = openFiles.find((f) => f.path === activePath);
+  saveFile: async (path) => {
+    const { openFiles, activeSessionId, draft } = get();
+    const file = openFiles.find((f) => f.path === path);
     if (!file || (!activeSessionId && !draft)) return;
     await api.writeFileText(activeSessionId, file.path, file.content);
     set((s) => ({

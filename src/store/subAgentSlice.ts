@@ -5,6 +5,7 @@ import type { Entry } from "../lib/chatEntries";
 import { queryClient } from "../lib/queryClient";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
+import { withoutTabs } from "./panelSlice";
 
 export type { SubAgentTask } from "../data/subAgents";
 
@@ -18,7 +19,7 @@ export interface SubAgentSlice {
   // called alongside `/clear` (`ChatPanel.tsx`) and a conversation delete,
   // since the backend deletes their rows too. Empties the cached list right
   // away (the `conversation://changed` refetch confirms it), and when the
-  // parent is the open conversation also closes their `chatTabs` (a stale
+  // parent is the open conversation also closes their tabs (a stale
   // tab pointing at a deleted transcript would 404 on its next load) and
   // drops their live `subAgentThreads`.
   clearSubAgentTasksForParent: (parentSessionId: string) => void;
@@ -47,8 +48,10 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
       getSubAgents(parentSessionId).map((t) => t.subSessionId),
     );
     if (ownsOpenTabs) {
-      for (const t of get().chatTabs) {
-        if (t.kind === "subagent") removedIds.add(t.subSessionId);
+      for (const t of [...get().chatTabs, ...get().panelTabs]) {
+        if (t.kind === "subagent" && t.subSessionId) {
+          removedIds.add(t.subSessionId);
+        }
       }
     }
     setSubAgents(parentSessionId, () => []);
@@ -58,14 +61,18 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
         Object.entries(s.subAgentThreads).filter(([id]) => !removedIds.has(id)),
       );
       if (!ownsOpenTabs) return { subAgentThreads };
-      const chatTabs = s.chatTabs.filter(
-        (t) => t.kind !== "subagent" || !removedIds.has(t.subSessionId),
-      );
-      const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
-        ? s.activeChatTabId
-        : "primary";
-      return { subAgentThreads, chatTabs, activeChatTabId };
+      return {
+        subAgentThreads,
+        ...withoutTabs(
+          s,
+          (t) =>
+            t.kind === "subagent" &&
+            !!t.subSessionId &&
+            removedIds.has(t.subSessionId),
+        ),
+      };
     });
+    if (ownsOpenTabs) get().persistActiveSessionTabState();
   },
 
   deleteSubAgentTask: async (parentSessionId, subSessionId) => {
@@ -77,16 +84,17 @@ export const subAgentSlice: StateCreator<AppStore, [], [], SubAgentSlice> = (
       queryKey: qk.subAgents(parentSessionId),
     });
     set((s) => {
-      const chatTabs = s.chatTabs.filter(
-        (t) => t.kind !== "subagent" || t.subSessionId !== subSessionId,
-      );
-      const activeChatTabId = chatTabs.some((t) => t.id === s.activeChatTabId)
-        ? s.activeChatTabId
-        : "primary";
       const subAgentThreads = { ...s.subAgentThreads };
       delete subAgentThreads[subSessionId];
-      return { subAgentThreads, chatTabs, activeChatTabId };
+      return {
+        subAgentThreads,
+        ...withoutTabs(
+          s,
+          (t) => t.kind === "subagent" && t.subSessionId === subSessionId,
+        ),
+      };
     });
+    get().persistActiveSessionTabState();
   },
 
   setSubAgentEntries: (subSessionId, updater) =>

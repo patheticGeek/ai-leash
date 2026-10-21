@@ -13,7 +13,7 @@ import { useChatStream } from "./hooks/useChatStream";
 import { useTurnDurations } from "./hooks/useTurnDurations";
 
 // The composer's last measured height, carried across remounts (one per
-// conversation switch — `CenterPanel`'s `key`) so the transcript's first
+// conversation switch — `TabContentHost`'s `viewEpoch` key) so the transcript's first
 // paint already leaves the right room for it, instead of starting at 0 and
 // shifting the messages once it's measured.
 let lastComposerHeight = 0;
@@ -35,7 +35,7 @@ export default function ChatPanel({
   );
   // No id yet: a new thread that has never had a message sent — the
   // centered layout below, rather than the normal bottom-pinned one. Flips
-  // (without a remount — `CenterPanel` is keyed on `viewEpoch`, not the id)
+  // (without a remount — `TabContentHost` keys it on `viewEpoch`, not the id)
   // the instant `submitPrompt` calls `promoteDraft`.
   const isNewThread = sessionId === null;
   const conversation = conversations.find((c) => c.id === sessionId);

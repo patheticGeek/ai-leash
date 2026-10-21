@@ -8,6 +8,8 @@ import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
+import { TabContentHost } from "../features/tabs/TabContent";
+import { TabDndProvider } from "../features/tabs/TabDnd";
 import { useResizableWidth } from "../hooks/useResizableWidth";
 import {
   useAcpAgentCatalog,
@@ -56,8 +58,8 @@ function App() {
   // background refresh (or an on-demand discovery) updates the catalog.
   useAcpCatalogInvalidator();
   // Keeps the catalog query warm here too, not just inside `ChatPanel`'s
-  // `useChatSession` (its only other caller) — that one lives under
-  // `CenterPanel`'s `key={viewEpoch}`, so it fully unmounts and
+  // `useChatSession` (its only other caller) — that one is keyed on
+  // `viewEpoch` (see `TabContentHost`), so it fully unmounts and
   // remounts on every conversation switch. Without a subscriber that
   // survives the switch, the query would otherwise drop to zero observers
   // between the old conversation's unmount and the new one's mount and the
@@ -132,16 +134,19 @@ function App() {
           <LeftBar />
         </div>
         <ResizeHandle width={leftBarWidth} {...leftBarResize} />
-        <div className="flex-1 min-w-0">
-          {/* Per switch, not per id: a new thread getting its id on its
-              first message must not remount the panel — see `viewEpoch`. */}
-          <CenterPanel key={viewEpoch} />
-        </div>
-        <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
-        <div style={{ width: rightPanelWidth }} className="shrink-0">
-          <SidePanel />
-        </div>
+        <TabDndProvider>
+          <div className="flex-1 min-w-0">
+            {/* Per switch, not per id: a new thread getting its id on its
+                first message must not remount the panel — see `viewEpoch`. */}
+            <CenterPanel key={viewEpoch} />
+          </div>
+          <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
+          <div style={{ width: rightPanelWidth }} className="shrink-0">
+            <SidePanel />
+          </div>
+        </TabDndProvider>
       </div>
+      <TabContentHost />
     </div>
   );
 }

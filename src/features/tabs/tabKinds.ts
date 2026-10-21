@@ -1,21 +1,39 @@
 import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { createElement } from "react";
-import type { PanelTab, PanelTabKind } from "../../store";
-import ActionsTab from "./tabs/ActionsTab";
-import ActionTerminalTab from "./tabs/ActionTerminalTab";
-import FileEditorTab from "./tabs/FileEditorTab";
-import FileTree from "./tabs/FileTree";
-import SubAgentsTab from "./tabs/SubAgentsTab";
-import TerminalPanel from "./tabs/TerminalPanel";
+import {
+  type PanelTabKind,
+  type TabKind,
+  useAppStore,
+  type WorkspaceTab,
+} from "../../store";
+import ChatPanel from "../chat/ChatPanel";
+import SubAgentChatTab from "../chat/SubAgentChatTab";
+import ActionsTab from "../sidebar/tabs/ActionsTab";
+import ActionTerminalTab from "../sidebar/tabs/ActionTerminalTab";
+import FileEditorTab from "../sidebar/tabs/FileEditorTab";
+import FileTree from "../sidebar/tabs/FileTree";
+import SubAgentsTab from "../sidebar/tabs/SubAgentsTab";
+import TerminalPanel from "../sidebar/tabs/TerminalPanel";
 
-// How SidePanel.tsx should mount a tab kind's content:
+function PrimaryChatTab() {
+  const sessionId = useAppStore((s) => s.activeSessionId);
+  const projectRoot = useAppStore((s) => s.projectRoot);
+  return projectRoot
+    ? createElement(ChatPanel, { sessionId, projectRoot })
+    : null;
+}
+
+// How a tab kind's content is mounted, in whichever area (centre or side)
+// the tab is in — see `TabContent.tsx`:
 //  - "keep-mounted-per-tab": rendered for every open tab of this kind,
-//    kept in the DOM (hidden via CSS) even while inactive. Required for
-//    kinds whose component holds live state that an unmount would kill
-//    (terminal/action: xterm + PTY stream; filetree: no live state today,
-//    but kept mounted for the same "don't rebuild on every tab switch"
-//    treatment it's always had). terminal/action can have multiple
+//    kept in the DOM (hidden via CSS) even while inactive, and carried
+//    across areas without remounting when the tab is dragged between
+//    them. Required for kinds whose component holds live state that an
+//    unmount would kill (terminal/action: xterm + PTY stream; primary/
+//    subagent: a streaming transcript and its scroll position; filetree:
+//    no live state today, but kept mounted for the same "don't rebuild on
+//    every tab switch" treatment it's always had). terminal/action can have multiple
 //    simultaneous tab instances; filetree only ever has one, but is
 //    looked up the same way (`panelTabs.filter(...)` naturally yields at
 //    most one filetree tab, since `panelTabIdFor` gives it a fixed id).
@@ -26,10 +44,10 @@ import TerminalPanel from "./tabs/TerminalPanel";
 //    remounting on tab-switch is harmless.
 export type PanelMountMode = "keep-mounted-per-tab" | "active-only";
 
-export interface PanelTabKindDef {
-  kind: PanelTabKind;
+export interface TabKindDef {
+  kind: TabKind;
   /** Tab content for one open tab of this kind. */
-  render: (tab: PanelTab) => ReactNode;
+  render: (tab: WorkspaceTab) => ReactNode;
   mountMode: PanelMountMode;
   /** Whether this kind should appear as a tile in TabPicker's "+" menu.
    * false for kinds only ever opened programmatically (clicking a file,
@@ -41,7 +59,22 @@ export interface PanelTabKindDef {
   icon?: ComponentType<{ size?: number; className?: string }>;
 }
 
-export const PANEL_TAB_KINDS: Record<PanelTabKind, PanelTabKindDef> = {
+export const TAB_KINDS: Record<TabKind, TabKindDef> = {
+  primary: {
+    kind: "primary",
+    render: () => createElement(PrimaryChatTab),
+    mountMode: "keep-mounted-per-tab",
+    openableFromPicker: false,
+  },
+  subagent: {
+    kind: "subagent",
+    render: (tab) =>
+      tab.subSessionId
+        ? createElement(SubAgentChatTab, { subSessionId: tab.subSessionId })
+        : null,
+    mountMode: "keep-mounted-per-tab",
+    openableFromPicker: false,
+  },
   filetree: {
     kind: "filetree",
     render: () => createElement(FileTree),
@@ -81,7 +114,8 @@ export const PANEL_TAB_KINDS: Record<PanelTabKind, PanelTabKindDef> = {
   },
   file: {
     kind: "file",
-    render: () => createElement(FileEditorTab),
+    render: (tab) =>
+      tab.path ? createElement(FileEditorTab, { path: tab.path }) : null,
     mountMode: "active-only",
     openableFromPicker: false,
   },
@@ -97,6 +131,6 @@ export const PANEL_TAB_KINDS: Record<PanelTabKind, PanelTabKindDef> = {
 };
 
 /** Kinds shown as tiles in TabPicker, in registry-declaration order. */
-export const PICKER_TAB_KINDS: PanelTabKindDef[] = Object.values(
-  PANEL_TAB_KINDS,
-).filter((def) => def.openableFromPicker);
+export const PICKER_TAB_KINDS = Object.values(TAB_KINDS).filter(
+  (def) => def.openableFromPicker,
+) as (TabKindDef & { kind: PanelTabKind })[];
