@@ -296,6 +296,12 @@ export function useChatStream(
         setAcpHistoryTruncated(e.payload);
       }),
     );
+    // A title the agent itself picked (ACP `session_info_update`).
+    unlistens.push(
+      listen<string | null>(`chat://${sessionId}/title`, (e) => {
+        setSessionTitle(e.payload);
+      }),
+    );
 
     // A `spawn_sub_agent` tool call spawns an isolated sub-agent with its own
     // chat://{subSessionId}/... event stream, one per concurrently spawned
@@ -338,11 +344,6 @@ export function useChatStream(
               updateSubtaskThread(prev, callId, subSessionId, (sub) =>
                 appendThinking(sub, ev.payload),
               ),
-            );
-            unlistens.push(
-              listen<string | null>(`chat://${sessionId}/title`, (e) => {
-                setSessionTitle(e.payload);
-              }),
             );
             setSubAgentEntries(subSessionId, (prev) =>
               appendThinking(prev, ev.payload),
