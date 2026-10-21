@@ -81,6 +81,10 @@ model list each agent reported and refreshes it in the background, so the
 list is available as soon as you open a conversation, and one agent failing
 to respond does not empty its list.
 
+A new thread does not start the agent. Its model, effort and mode choices come
+from that remembered list, and the agent is started only when you send the
+first message. The agent then picks up what you chose before it answers.
+
 If a conversation's model is no longer offered once the model list has
 loaded — for example, it was removed from Ollama or the agent stopped
 listing it — the picker turns red, an error explains what happened, and
@@ -148,9 +152,9 @@ An external agent may expose additional controls:
   [Work with tools safely](#work-with-tools-safely)).
 
 These controls are next to the main model/agent picker. Changing one affects
-the current conversation. If the app has to reconnect an external agent, it
-restores the conversation's selected model, effort, and mode when the agent
-supports them. When the agent changes its own mode, for example leaving plan
+the current conversation. If the app has to reconnect an external agent, or
+starts it for a new thread's first message, it applies the conversation's
+selected model, effort, and mode when the agent supports them. When the agent changes its own mode, for example leaving plan
 mode once you approve a plan, the picker follows it and the conversation
 remembers the new mode.
 

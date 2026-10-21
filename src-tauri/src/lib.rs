@@ -115,6 +115,7 @@ pub fn run() {
             commands::set_project_root,
             commands::get_project_root,
             commands::set_conversation_root,
+            commands::set_view_root,
             commands::list_dir,
             commands::read_file_text,
             commands::write_file_text,

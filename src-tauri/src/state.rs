@@ -88,8 +88,8 @@ pub struct AcpAgentCatalogEntry {
 }
 
 /// A conversation's own effective checkout — set via
-/// `commands::set_conversation_root` once the conversation is created (as
-/// the primary checkout by default) or a worktree is picked for it. `cwd` is
+/// `commands::set_conversation_root` when its first message is sent (with
+/// whichever checkout the new thread had picked) and whenever it's reopened. `cwd` is
 /// what the agent's tools/shell/ACP subprocess actually run in; `project_root`
 /// stays the primary repo root regardless, so a worktree conversation is
 /// still grouped under the same project rather than fragmenting into its own
@@ -144,6 +144,12 @@ pub struct AppState {
     /// checkout is a no-op and a slow build for an abandoned switch can tell
     /// it lost and discard itself.
     pub fs_watch_target: Mutex<Option<PathBuf>>,
+    /// The checkout currently shown — the open conversation's cwd, or the
+    /// one a still-unsent new thread is set to (which has no session id
+    /// yet). Set by `commands::set_view_root`/`set_conversation_root`; what
+    /// session-less file and terminal commands resolve against (see
+    /// `commands::get_view_root`).
+    pub view_root: Mutex<Option<PathBuf>>,
     /// One `HEAD`-file watcher per worktree path currently being observed by
     /// a `BranchBar` — see `git::watch_git_branch`. Unlike `fs_watcher`,
     /// several of these can be live at once (one per open conversation's

@@ -120,6 +120,7 @@ async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
         launch_command: session.launch_command,
         model_value: None,
         effort_value: None,
+        mode_value: None,
         native: session.native,
     });
     match tools::execute_tool(

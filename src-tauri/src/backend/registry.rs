@@ -363,6 +363,7 @@ pub fn resolve(
     id: &str,
     model: &str,
     effort: Option<&str>,
+    agent_mode: Option<&str>,
 ) -> Result<Arc<dyn Backend>, String> {
     let registry = state.backends.lock().unwrap();
     let config = registry.get(id).ok_or_else(|| {
@@ -378,8 +379,10 @@ pub fn resolve(
     Ok(match &config.kind {
         BackendKind::Acp { launch_command } => Arc::new(AcpBackend {
             launch_command: launch_command.clone(),
-            model_value: None,
-            effort_value: None,
+            // "" is the agent's own default — nothing to select.
+            model_value: (!model.is_empty()).then(|| model.to_string()),
+            effort_value: effort.map(str::to_string),
+            mode_value: agent_mode.map(str::to_string),
             native: registry.default_native(),
         }),
         _ => Arc::new(NativeBackend {

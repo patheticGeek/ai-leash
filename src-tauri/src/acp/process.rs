@@ -45,6 +45,12 @@ pub(crate) enum AcpCommand {
     /// surfaced error) if it doesn't. `String` is the `SessionConfigValueId`
     /// to select, as offered in the matching `AcpSessionOptions` field.
     SetConfig(ConfigKind, String),
+    /// A conversation's remembered picks, queued ahead of its first prompt on
+    /// a connection that isn't up yet (see `AcpBackend::send`) — applied once
+    /// `session/new`/`session/load` has answered, before that prompt runs.
+    /// Unlike `SetConfig`, a kind the agent doesn't expose is skipped
+    /// silently: these weren't asked for one by one.
+    ApplyPicks(Vec<(ConfigKind, String)>),
 }
 
 /// `debug_json(&mcp_servers)`, but with the local MCP bridge's auth token
@@ -132,14 +138,30 @@ pub(super) fn ensure_acp_session(
     drop(sessions);
     publish_session_options(app, session_id);
 
+    // Read now, before the caller saves whatever message this connection
+    // was opened to send — see `drive_acp_connection`'s `history_truncated`.
+    let had_history = has_replayable_history(&db::load_messages(&state.db, session_id));
+
     // Not `tokio::spawn`: this can be reached from outside the runtime.
     tauri::async_runtime::spawn(run_acp_session(
         app.clone(),
         session_id.to_string(),
         launch_command.to_string(),
+        had_history,
         rx,
     ));
     tx
+}
+
+/// Whether `session_id`'s connection has answered `session/new`/
+/// `session/load` — false too when it has none at all.
+pub(super) fn session_ready(state: &AppState, session_id: &str) -> bool {
+    state
+        .acp_sessions
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .is_some_and(|s| s.ready)
 }
 
 /// Source of `AcpSession::connection`.
@@ -270,6 +292,7 @@ async fn run_acp_session(
     app: AppHandle,
     session_id: String,
     launch_command: String,
+    had_history: bool,
     mut commands: mpsc::UnboundedReceiver<AcpCommand>,
 ) {
     let root = {
@@ -324,6 +347,7 @@ async fn run_acp_session(
         launch_command.clone(),
         root,
         agent,
+        had_history,
         &mut commands,
     )
     .await
@@ -356,6 +380,7 @@ async fn drive_acp_connection(
     launch_command: String,
     cwd: std::path::PathBuf,
     agent: AcpAgent,
+    had_history: bool,
     commands: &mut mpsc::UnboundedReceiver<AcpCommand>,
 ) -> Result<(), agent_client_protocol::Error> {
     // Shared between the notification handler (which streams
@@ -580,11 +605,11 @@ async fn drive_acp_connection(
 
             // Emitted on every connect, true or false, so switching back to
             // an agent that *can* resume natively clears a stale banner left
-            // over from an earlier switch to one that couldn't.
-            let history_truncated = is_fresh_session && {
-                let state = app.state::<AppState>();
-                has_replayable_history(&db::load_messages(&state.db, &session_id))
-            };
+            // over from an earlier switch to one that couldn't. Judged by the
+            // transcript as it was when this connection was opened, not now:
+            // a new thread's first send opens it and saves its own message
+            // straight after, which this agent is about to receive, not lose.
+            let history_truncated = is_fresh_session && had_history;
             let _ = app.emit(
                 &format!("chat://{session_id}/acp_history_truncated"),
                 history_truncated,
@@ -608,7 +633,10 @@ async fn drive_acp_connection(
             });
 
             while let Some(cmd) = commands.recv().await {
-                match cmd {
+                // Prompt and Cancel are handled in place; the two config
+                // commands fall through to one shared loop below as
+                // `(kind, value, report_missing)`.
+                let configs: Vec<(ConfigKind, String, bool)> = match cmd {
                     AcpCommand::Prompt(text, done_tx) => {
                         emit_acp_debug(
                             &app,
@@ -694,6 +722,7 @@ async fn drive_acp_connection(
                                 }
                             }
                         }
+                        continue;
                     }
                     AcpCommand::Cancel => {
                         emit_acp_debug(
@@ -706,65 +735,73 @@ async fn drive_acp_connection(
                         cancel_pending_elicitations(&app, &session_id);
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
+                        continue;
                     }
-                    AcpCommand::SetConfig(kind, value) => {
-                        emit_acp_debug(
-                            &app,
-                            &session_id,
-                            "sent",
-                            kind.debug_method(),
-                            json!({ "value": value }),
+                    AcpCommand::SetConfig(kind, value) => vec![(kind, value, true)],
+                    AcpCommand::ApplyPicks(picks) => {
+                        picks.into_iter().map(|(kind, value)| (kind, value, false)).collect()
+                    }
+                };
+                for (kind, value, report_missing) in configs {
+                    if !report_missing && config_id(kind).is_none() {
+                        continue;
+                    }
+                    emit_acp_debug(
+                        &app,
+                        &session_id,
+                        "sent",
+                        kind.debug_method(),
+                        json!({ "value": value }),
+                    );
+                    let Some(config_id) = config_id(kind) else {
+                        let _ = app.emit(
+                            &format!("chat://{session_id}/error"),
+                            format!(
+                                "This ACP agent doesn't expose a {} to select.",
+                                kind.label()
+                            ),
                         );
-                        let Some(config_id) = config_id(kind) else {
+                        continue;
+                    };
+                    match connection
+                        .send_request(SetSessionConfigOptionRequest::new(
+                            acp_session_id.clone(),
+                            config_id,
+                            value.as_str(),
+                        ))
+                        .block_task()
+                        .await
+                    {
+                        Ok(resp) => {
+                            emit_acp_debug(
+                                &app,
+                                &session_id,
+                                "received",
+                                &format!("{}/response", kind.debug_method()),
+                                debug_json(&resp),
+                            );
+                            // The full option list: a changed model can
+                            // change what effort levels are offered too.
+                            cache_acp_config(&app, &session_id, |s| {
+                                apply_config_options(s, &resp.config_options)
+                            });
+                        }
+                        Err(e) => {
+                            emit_acp_debug(
+                                &app,
+                                &session_id,
+                                "received",
+                                &format!("{}/error", kind.debug_method()),
+                                json!({ "message": format_acp_error(&e) }),
+                            );
                             let _ = app.emit(
                                 &format!("chat://{session_id}/error"),
                                 format!(
-                                    "This ACP agent doesn't expose a {} to select.",
-                                    kind.label()
+                                    "Failed to set {}: {}",
+                                    kind.label(),
+                                    format_acp_error(&e)
                                 ),
                             );
-                            continue;
-                        };
-                        match connection
-                            .send_request(SetSessionConfigOptionRequest::new(
-                                acp_session_id.clone(),
-                                config_id,
-                                value.as_str(),
-                            ))
-                            .block_task()
-                            .await
-                        {
-                            Ok(resp) => {
-                                emit_acp_debug(
-                                    &app,
-                                    &session_id,
-                                    "received",
-                                    &format!("{}/response", kind.debug_method()),
-                                    debug_json(&resp),
-                                );
-                                // The full option list: a changed model can
-                                // change what effort levels are offered too.
-                                cache_acp_config(&app, &session_id, |s| {
-                                    apply_config_options(s, &resp.config_options)
-                                });
-                            }
-                            Err(e) => {
-                                emit_acp_debug(
-                                    &app,
-                                    &session_id,
-                                    "received",
-                                    &format!("{}/error", kind.debug_method()),
-                                    json!({ "message": format_acp_error(&e) }),
-                                );
-                                let _ = app.emit(
-                                    &format!("chat://{session_id}/error"),
-                                    format!(
-                                        "Failed to set {}: {}",
-                                        kind.label(),
-                                        format_acp_error(&e)
-                                    ),
-                                );
-                            }
                         }
                     }
                 }

@@ -96,17 +96,11 @@ pub fn respond_permission(
 /// through SQLite) and always flips, regardless of `persist`.
 ///
 /// The choice is also persisted to `conversations.permission_mode`, but only
-/// when `persist` is true — the frontend passes `false` for a still-unsent
-/// "new thread" conversation (mirrors `commands::set_conversation_root`'s
-/// own `conversation_exists` guard, same reasoning: a thread nobody's typed
-/// into yet shouldn't leave a row behind just because this re-sends on every
-/// mount — see `useSessionPermissions.ts`). Whether that row exists yet is
-/// decided by the frontend, not re-derived here from `conversation_exists`:
-/// `conversationSlice.markConversationStarted` — which flips a thread from
-/// unsent to real — runs *before* the row lands (it's optimistic, ahead of
-/// `save_message`'s own round trip), so a same-moment DB-existence check
-/// here would still see "not yet" and this choice would never get flushed at
-/// all.
+/// when `persist` is true — the frontend passes `false` when it's only
+/// forcing the flag off without touching the saved choice (the agent's own
+/// modes are in charge — see `useSessionPermissions.ts`). A still-unsent new
+/// thread never calls this at all: it has no session id until its first
+/// message, when `conversationSlice.promoteDraft` flushes its pick.
 #[tauri::command]
 pub fn set_permission_mode(
     app: AppHandle,

@@ -15,6 +15,8 @@ import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
 import type { PanelTab } from "./panelSlice";
 import { PRIMARY_CHAT_TAB } from "./panelSlice";
+import type { PermissionMode } from "./permissionSlice";
+import type { ConversationBackendSelection } from "./selectionSlice";
 
 // The canonical shape now lives in `lib/tauriApi.ts` (the wire type) and is
 // re-exported via `data/conversations.ts` — this file only owns the actions
@@ -38,6 +40,19 @@ export function conversationCheckoutPath(
   return c.worktreePath ?? c.projectRoot;
 }
 
+// A "new thread" that hasn't sent its first message yet: what it will start
+// with once it does. Lives only here, in memory — it has no id, no row, and
+// nothing about it exists in Rust or on disk (`promoteDraft` is where all of
+// that starts). `selection`/`permissionMode` are null until something picks
+// them, falling back to the app's defaults.
+export interface NewThreadDraft {
+  projectRoot: string;
+  // `null` means the primary checkout.
+  worktreePath: string | null;
+  selection: ConversationBackendSelection | null;
+  permissionMode: PermissionMode | null;
+}
+
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -55,31 +70,38 @@ function nowSeconds(): number {
 let latestSwitchToken = 0;
 
 export interface ConversationSlice {
-  // The conversation currently shown in the center pane. Minted up front
-  // the moment a project is picked (`startNewConversation`/
-  // `openConversation`/`initializeStartupSession`) rather than deferred to
-  // first send, so `App.tsx`'s `key={activeSessionId}` remount boundary
-  // never has to fire mid-turn — see `conversationSlice.ts`'s module doc.
-  // Only null before any project has ever been known.
+  // The conversation currently shown in the center pane — null while a new
+  // thread (`draft`) is shown instead, or before any project is known. A
+  // new thread gets its id only when its first message is sent
+  // (`promoteDraft`).
   //
   // The list itself (`conversations`) is no longer Zustand state — see
   // `data/conversations.ts`'s `useConversations()`/`getConversations()` —
   // this slice keeps only what's genuinely per-session UI state, plus the
   // actions that drive both.
   activeSessionId: string | null;
-  // The checkout each known session is currently pinned to. Unlike
-  // `conversations[*].worktreePath`, this also covers still-new threads that
-  // have not sent their first message yet and therefore do not have a
-  // conversation row to read from.
+  // The new thread being shown, if that's what's shown — see
+  // `NewThreadDraft`.
+  draft: NewThreadDraft | null;
+  // Bumped by every switch (`openConversation`/`startNewConversation`) but
+  // not by `promoteDraft` — `App.tsx` keys `CenterPanel` on it, so a new
+  // thread turning into a real conversation keeps the same mounted panel
+  // (and the composer's state) while a real switch still remounts.
+  viewEpoch: number;
+  // The checkout each known session is currently pinned to — mirrors
+  // `conversations[*].worktreePath`, set ahead of the row itself landing.
   checkoutPathBySession: Record<string, string>;
   loadAllConversations: () => Promise<void>;
   initializeStartupSession: () => Promise<void>;
   openConversation: (id: string) => Promise<void>;
   startNewConversation: (projectRoot: string) => Promise<void>;
-  setConversationCheckoutPath: (
-    sessionId: string,
-    checkoutPath: string,
-  ) => void;
+  setDraftSelection: (selection: ConversationBackendSelection) => void;
+  setDraftPermissionMode: (mode: PermissionMode) => void;
+  setDraftWorktree: (worktreePath: string | null) => void;
+  // Turns the shown new thread into a real conversation as its first
+  // message is sent: mints its id, carries the draft's picks over to it and
+  // lists it. Returns the id, or null if no new thread is shown.
+  promoteDraft: () => string | null;
   markConversationStarted: (
     id: string,
     projectRoot: string,
@@ -98,6 +120,8 @@ export const conversationSlice: StateCreator<
   ConversationSlice
 > = (set, get) => ({
   activeSessionId: null,
+  draft: null,
+  viewEpoch: 0,
   checkoutPathBySession: {},
 
   // Backend is the source of truth (SQLite, kept indefinitely) — a plain
@@ -204,6 +228,8 @@ export const conversationSlice: StateCreator<
         projectRoot,
         projectId,
         activeSessionId: id,
+        draft: null,
+        viewEpoch: s.viewEpoch + 1,
         checkoutPathBySession,
         openFiles: [],
         activePath:
@@ -239,33 +265,27 @@ export const conversationSlice: StateCreator<
     }
   },
 
-  // Mints a brand new conversation id up front for `projectRoot` — before
-  // it becomes `activeSessionId`, seeds its backend/model choice and
-  // permission mode from that project's most-recently-used conversation
-  // (if any), so a new conversation for a project you've already talked to
-  // starts from the same settings instead of the app's global default.
-  // This must happen before `ChatPanel`/`useChatSession` mount and read
-  // those maps via their lazy `useState` initializers.
+  // Shows a new thread for `projectRoot` — nothing is created for it (see
+  // `NewThreadDraft`). Its backend/model choice and permission mode start
+  // from that project's most-recently-used conversation (if any), so a new
+  // thread in a project you've already talked to starts from the same
+  // settings instead of the app's global default. Set before
+  // `ChatPanel`/`useChatSession` mount and read it via their lazy
+  // `useState` initializers.
   startNewConversation: async (projectRoot) => {
-    const id = crypto.randomUUID();
     const prior = [...getConversations()]
       .filter((c) => c.projectRoot === projectRoot)
       .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    if (prior) {
-      const backend = get().conversationBackend[prior.id];
-      if (backend) get().setConversationBackend(id, backend);
-      const mode = get().permissionMode[prior.id];
-      if (mode) get().setPermissionMode(id, mode);
-    }
+    const draft: NewThreadDraft = {
+      projectRoot,
+      worktreePath: null,
+      selection: prior ? (get().conversationBackend[prior.id] ?? null) : null,
+      permissionMode: prior ? (get().permissionMode[prior.id] ?? null) : null,
+    };
 
     const token = ++latestSwitchToken;
     const projectId = await api.setProjectRoot(projectRoot);
-    // Locks in the primary checkout as this conversation's default cwd
-    // right away — before `ChatPanel`/`BranchBar` even mount — so an ACP
-    // subprocess warmed ahead of any worktree choice never starts against
-    // the wrong directory. `BranchBar` overwrites this if the user picks a
-    // worktree before sending the first message.
-    await api.setConversationRoot(id, projectRoot, projectRoot);
+    await api.setViewRoot(projectRoot);
     // See `openConversation`'s identical guard — a newer switch already won.
     if (token !== latestSwitchToken) return;
 
@@ -278,10 +298,6 @@ export const conversationSlice: StateCreator<
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
       const chatStateByConversation = { ...s.chatStateByConversation };
-      const checkoutPathBySession = {
-        ...s.checkoutPathBySession,
-        [id]: projectRoot,
-      };
       if (prevSessionId) {
         panelStateByConversation[prevSessionId] = {
           panelTabs: prevPanelTabs,
@@ -295,8 +311,9 @@ export const conversationSlice: StateCreator<
       return {
         projectRoot,
         projectId,
-        activeSessionId: id,
-        checkoutPathBySession,
+        activeSessionId: null,
+        draft,
+        viewEpoch: s.viewEpoch + 1,
         openFiles: [],
         activePath: null,
         panelTabs: [],
@@ -309,23 +326,37 @@ export const conversationSlice: StateCreator<
     });
   },
 
-  setConversationCheckoutPath: (sessionId, checkoutPath) =>
-    set((s) => ({
-      checkoutPathBySession: {
-        ...s.checkoutPathBySession,
-        [sessionId]: checkoutPath,
-      },
-    })),
+  setDraftSelection: (selection) =>
+    set((s) => (s.draft ? { draft: { ...s.draft, selection } } : s)),
 
-  // Optimistic insert the moment a new conversation's first message is
-  // actually sent (called from `ChatPanel.submitPrompt`, before the
-  // backend round trip) — this is what flips a conversation from "new
-  // thread" to a real, listed row in the sidebar without waiting on
-  // anything async. No-op if already present: this runs on every send, and
-  // callers only know the worktree picked during a still-new thread
-  // (`ChatPanel`'s `pendingWorktree`, `null` again after a remount), so
-  // re-stamping `checkoutPathBySession` here would reset an existing
-  // worktree conversation back to the primary root.
+  setDraftPermissionMode: (permissionMode) =>
+    set((s) => (s.draft ? { draft: { ...s.draft, permissionMode } } : s)),
+
+  setDraftWorktree: (worktreePath) =>
+    set((s) => (s.draft ? { draft: { ...s.draft, worktreePath } } : s)),
+
+  promoteDraft: () => {
+    const { draft } = get();
+    if (!draft) return null;
+    const id = crypto.randomUUID();
+    set((s) => ({
+      activeSessionId: id,
+      draft: null,
+      conversationBackend: draft.selection
+        ? { ...s.conversationBackend, [id]: draft.selection }
+        : s.conversationBackend,
+      permissionMode: draft.permissionMode
+        ? { ...s.permissionMode, [id]: draft.permissionMode }
+        : s.permissionMode,
+    }));
+    get().markConversationStarted(id, draft.projectRoot, draft.worktreePath);
+    return id;
+  },
+
+  // Optimistic insert the moment a new thread's first message is actually
+  // sent (via `promoteDraft`, before the backend round trip) — this is what
+  // lists it in the sidebar without waiting on anything async. No-op if
+  // already present.
   markConversationStarted: (id, projectRoot, worktreePath = null) => {
     const alreadyListed = getConversations().some((c) => c.id === id);
     if (!alreadyListed) {
@@ -344,9 +375,8 @@ export const conversationSlice: StateCreator<
         updatedAt: nowSeconds(),
         done: false,
         // Not yet known — this placeholder row is only for the sidebar
-        // list; `conversationBackend`/`permissionMode` (already seeded,
-        // possibly for this very id — see `startNewConversation`'s
-        // copy-forward) are what everything else actually reads.
+        // list; `conversationBackend`/`permissionMode` (seeded from the
+        // draft by `promoteDraft`) are what everything else actually reads.
         backend: null,
         model: null,
         effort: null,
@@ -361,15 +391,13 @@ export const conversationSlice: StateCreator<
         },
       }));
     }
-    // Catches any tabs opened while this was still a new/unsent thread —
-    // `persistActiveSessionTabState` skipped them until now, since the id
-    // wasn't in the list yet.
+    // Catches any tabs opened while this was still a new thread —
+    // `persistActiveSessionTabState` skipped them until now, since there
+    // was no id to save them under.
     get().persistActiveSessionTabState();
-    // This conversation just became real — flush whatever it already
-    // picked while `setConversationBackend`/`setPermissionMode` were
-    // suppressing the DB write (see their own comments). Only on the
-    // transition itself: a re-send in an already-listed conversation is a
-    // no-op above and has nothing new to flush.
+    // This conversation just became real — persist the picks it carried
+    // over from its draft. Only on the transition itself: an
+    // already-listed conversation is a no-op above.
     if (!alreadyListed) {
       const backend = get().conversationBackend[id];
       if (backend) get().setConversationBackend(id, backend);

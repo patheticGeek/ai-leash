@@ -22,32 +22,28 @@ export default function ChatPanel({
   sessionId,
   projectRoot,
 }: {
-  sessionId: string;
+  sessionId: string | null;
   projectRoot: string;
 }) {
   const conversations = useConversations();
-  const markConversationStarted = useAppStore((s) => s.markConversationStarted);
-  const setConversationCheckoutPath = useAppStore(
-    (s) => s.setConversationCheckoutPath,
-  );
+  const promoteDraft = useAppStore((s) => s.promoteDraft);
+  const setDraftWorktree = useAppStore((s) => s.setDraftWorktree);
+  const draftWorktree = useAppStore((s) => s.draft?.worktreePath ?? null);
   const setConversationTitle = useAppStore((s) => s.setConversationTitle);
   const clearSubAgentTasksForParent = useAppStore(
     (s) => s.clearSubAgentTasksForParent,
   );
-  // A conversation not yet in `conversations` has never had a message
-  // sent — the centered "new thread" layout below, rather than the normal
-  // bottom-pinned one. Flips (without a remount: `sessionId` itself never
-  // changes) the instant `submitPrompt` calls `markConversationStarted`.
-  const isNewThread = !conversations.some((c) => c.id === sessionId);
+  // No id yet: a new thread that has never had a message sent — the
+  // centered layout below, rather than the normal bottom-pinned one. Flips
+  // (without a remount — `CenterPanel` is keyed on `viewEpoch`, not the id)
+  // the instant `submitPrompt` calls `promoteDraft`.
+  const isNewThread = sessionId === null;
   const conversation = conversations.find((c) => c.id === sessionId);
-  // A worktree picked via `CheckoutBar` before this still-new thread's first
-  // message — `null` means the primary checkout (the default set by
-  // `startNewConversation`). Once the conversation has a real row, its own
-  // `worktreePath` takes over instead — fixed for the rest of its life, so
-  // there's no analogous "update" path needed for an already-started one.
-  const [pendingWorktree, setPendingWorktree] = useState<string | null>(null);
+  // The worktree a new thread has picked via `CheckoutBar` (`null` is the
+  // primary checkout), else the conversation's own — fixed for the rest of
+  // its life once it has started.
   const worktreeCwd = isNewThread
-    ? (pendingWorktree ?? projectRoot)
+    ? (draftWorktree ?? projectRoot)
     : (conversation?.worktreePath ?? projectRoot);
   const projectName = useAppStore(
     (s) =>
@@ -62,7 +58,7 @@ export default function ChatPanel({
   // *autonomous* turns (the model reacting to a finished background
   // sub-agent) — the user isn't waiting on those, so they shouldn't show
   // the Stop button or block a new send.
-  const generatingState = useGenerating(sessionId);
+  const generatingState = useGenerating(sessionId ?? "");
   const generating = generatingState.active && !generatingState.autonomous;
 
   const [chatError, setChatError] = useState<string | null>(null);
@@ -99,9 +95,10 @@ export default function ChatPanel({
     claudeAutoResumeArmed,
     armClaudeAutoResume,
     dismissClaudeRateLimit,
+    whenListening,
   } = useChatStream(sessionId, setChatError);
   useEffect(() => {
-    if (sessionTitle !== null) {
+    if (sessionId && sessionTitle !== null) {
       setConversationTitle(sessionId, sessionTitle);
     }
   }, [sessionId, sessionTitle, setConversationTitle]);
@@ -122,6 +119,8 @@ export default function ChatPanel({
   // "/clear" and "/compact" — the composer decided the user typed one (and
   // that it's allowed right now); this is what they do to the conversation.
   async function runCommand(name: string) {
+    // A new thread has nothing to clear or compact.
+    if (!sessionId) return;
     if (name === "clear") {
       setChatError(null);
       try {
@@ -178,9 +177,12 @@ export default function ChatPanel({
   // survives a reload).
   async function runShellEscape(command: string) {
     setChatError(null);
+    // In a new thread this is its first message too.
+    const id = sessionId ?? (await startConversation());
+    if (!id) return;
     setSending(true);
     try {
-      await api.runShellCommand(sessionId, command);
+      await api.runShellCommand(id, command);
     } catch (e) {
       setChatError(String(e));
     } finally {
@@ -197,29 +199,60 @@ export default function ChatPanel({
     // off — the composer's own `backend.ready` check only gates typed sends.
     if (!backend.ready) return;
     setChatError(null);
-    markConversationStarted(sessionId, projectRoot, pendingWorktree);
-    setEntries((prev) => [
-      ...prev,
-      { kind: "text", role: "user", content: text, time: Date.now() },
-    ]);
-    setSending(true);
+    const id = sessionId ?? (await startConversation(text));
+    if (!id) return;
+    if (sessionId) {
+      setEntries((prev) => [
+        ...prev,
+        { kind: "text", role: "user", content: text, time: Date.now() },
+      ]);
+      setSending(true);
+    }
     try {
-      await backend.send(sessionId, text);
-      const title = await api.getConversationTitle(sessionId);
-      setConversationTitle(sessionId, title);
+      await backend.send(id, text);
+      const title = await api.getConversationTitle(id);
+      setConversationTitle(id, title);
     } catch (e) {
       setChatError(String(e));
       setSending(false);
     }
   }
 
+  // A new thread's first message: this is where it gets an id and becomes a
+  // real conversation (`promoteDraft`), with the checkout it picked locked
+  // in on the backend before anything can run in it. `text` (a prompt, not
+  // a shell escape) shows straight away while that happens. Resolves to the
+  // new id once its stream listeners are up, or null if that failed.
+  async function startConversation(text?: string): Promise<string | null> {
+    const cwd = worktreeCwd;
+    const id = promoteDraft();
+    if (!id) return null;
+    if (text !== undefined) {
+      setEntries((prev) => [
+        ...prev,
+        { kind: "text", role: "user", content: text, time: Date.now() },
+      ]);
+      setSending(true);
+    }
+    try {
+      await api.setConversationRoot(id, projectRoot, cwd);
+      await whenListening(id);
+      return id;
+    } catch (e) {
+      setChatError(String(e));
+      setSending(false);
+      return null;
+    }
+  }
+
   async function stop() {
+    if (!sessionId) return;
     await api.cancelPrompt(sessionId);
     setSending(false);
   }
 
   async function retry() {
-    if (sending || !backend.caps.retry || !backend.ready) return;
+    if (!sessionId || sending || !backend.caps.retry || !backend.ready) return;
     setChatError(null);
     setEntries((prev) => {
       for (let idx = prev.length - 1; idx >= 0; idx--) {
@@ -288,27 +321,14 @@ export default function ChatPanel({
             onDismiss: dismissClaudeRateLimit,
           }}
           checkout={{
-            sessionId,
             projectRoot,
             cwd: worktreeCwd,
             editable: isNewThread,
-            onWorktreeSelected: (worktreePath) => {
-              // Only reachable while `editable` (a still-new thread) — the
-              // worktree is fixed for the rest of the conversation's life
-              // once it's started (see `CheckoutBarProps.editable`'s doc
-              // comment).
-              setPendingWorktree(worktreePath);
-              setConversationCheckoutPath(
-                sessionId,
-                worktreePath ?? projectRoot,
-              );
-              // `backend.warm` may have already connected against the
-              // primary checkout before this worktree was picked —
-              // re-trigger it now that `set_conversation_root` (called by
-              // `CheckoutBar` itself) has updated this session's cwd, same
-              // retry path a resume failure uses.
-              reconnect();
-            },
+            // Only reachable while `editable` (a new thread) — the worktree
+            // is fixed for the rest of the conversation's life once it's
+            // started (see `CheckoutBarProps.editable`'s doc comment).
+            // Nothing has connected yet, so there's nothing to redo.
+            onWorktreeSelected: setDraftWorktree,
           }}
           onSubmit={submitPrompt}
           onRunShell={runShellEscape}

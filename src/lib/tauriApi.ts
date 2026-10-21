@@ -337,6 +337,9 @@ export const api = {
   // root either way (project identity). See `BranchBar`.
   setConversationRoot: (sessionId: string, projectRoot: string, cwd: string) =>
     invoke<void>("set_conversation_root", { sessionId, projectRoot, cwd }),
+  // Shows `cwd` (file tree, session-less file/terminal commands) with no
+  // conversation behind it — a still-unsent new thread's checkout.
+  setViewRoot: (cwd: string) => invoke<void>("set_view_root", { cwd }),
   listGitBranches: (rootPath: string) =>
     invoke<GitBranch[]>("list_git_branches", { rootPath }),
   listGitWorktrees: (rootPath: string) =>
@@ -375,9 +378,10 @@ export const api = {
   // `commands.rs`'s `list_dir` doc comment.
   listDir: (checkoutPath: string, path?: string) =>
     invoke<DirEntryInfo[]>("list_dir", { checkoutPath, path }),
-  readFileText: (sessionId: string, path: string) =>
+  // `sessionId` null: the checkout currently shown (a new thread's).
+  readFileText: (sessionId: string | null, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),
-  writeFileText: (sessionId: string, path: string, contents: string) =>
+  writeFileText: (sessionId: string | null, path: string, contents: string) =>
     invoke<void>("write_file_text", { sessionId, path, contents }),
   openInIde: (command: string, path: string) =>
     invoke<void>("open_in_ide", { command, path }),
@@ -386,8 +390,9 @@ export const api = {
   setPreferences: (patch: Partial<Preferences>) =>
     invoke<Preferences>("set_preferences", { patch }),
   // Opens in whichever checkout `sessionId`'s conversation is pinned to
-  // (primary or worktree) — see `pty.rs`'s doc comment.
-  ptySpawn: (sessionId: string, cols: number, rows: number) =>
+  // (primary or worktree), or with none (a new thread) the checkout
+  // currently shown — see `pty.rs`'s doc comment.
+  ptySpawn: (sessionId: string | null, cols: number, rows: number) =>
     invoke<string>("pty_spawn", { sessionId, cols, rows }),
   ptyWrite: (id: string, data: string) =>
     invoke<void>("pty_write", { id, data }),
@@ -441,6 +446,7 @@ export const api = {
     backendId: string,
     model: string,
     effort: string | null,
+    agentMode: string | null,
     message: string,
   ) =>
     invoke<void>("send_prompt", {
@@ -448,6 +454,7 @@ export const api = {
       backendId,
       model,
       effort,
+      agentMode,
       message,
     }),
   retryLast: (
@@ -499,9 +506,9 @@ export const api = {
     invoke<void>("delete_conversation", { sessionId }),
   respondPermission: (id: string, approved: boolean) =>
     invoke<void>("respond_permission", { id, approved }),
-  // `persist: false` for a still-unsent "new thread" — see
-  // `set_permission_mode`'s doc comment in permissions.rs. The bypass flag
-  // itself always flips in memory either way.
+  // `persist: false` only forces the flag off without touching the saved
+  // choice — see `set_permission_mode`'s doc comment in permissions.rs. The
+  // bypass flag itself always flips in memory either way.
   setPermissionMode: (
     sessionId: string,
     projectRoot: string,

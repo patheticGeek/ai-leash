@@ -25,19 +25,24 @@ pub(crate) type PtyExitCallback = Box<dyn FnOnce(Option<u32>) + Send + 'static>;
 
 /// Opens in whichever checkout `session_id`'s conversation is pinned to
 /// (primary or worktree) — same resolution tools/shell/ACP and Actions
-/// already use, via `commands::get_session_root`.
+/// already use, via `commands::get_session_root` — or, with no session (a
+/// still-unsent new thread), the checkout currently shown.
 #[tauri::command]
 pub fn pty_spawn(
     app: AppHandle,
     state: State<AppState>,
-    session_id: String,
+    session_id: Option<String>,
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
     let mut cmd = CommandBuilder::new(shell);
     cmd.env("TERM", "xterm-256color");
-    if let Ok(dir) = commands::get_session_root(state.inner(), &session_id) {
+    let dir = match &session_id {
+        Some(id) => commands::get_session_root(state.inner(), id),
+        None => commands::get_view_root(state.inner()),
+    };
+    if let Ok(dir) = dir {
         cmd.cwd(dir);
     }
     spawn_pty(&app, &state, cmd, cols, rows, None, None)

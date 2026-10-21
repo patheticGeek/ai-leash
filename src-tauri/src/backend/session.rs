@@ -6,9 +6,12 @@ use crate::state::AppState;
 use tauri::{AppHandle, State};
 
 /// Runs the user's `message` on `session_id` with backend `backend_id`.
-/// `model`/`effort` are the conversation's choice; a native backend also
-/// remembers `model` as the one to start with next time.
+/// `model`/`effort`/`agent_mode` are the conversation's choice — an ACP
+/// agent applies them itself if this send is what starts its connection
+/// (see `AcpBackend::send`); a native backend also remembers `model` as the
+/// one to start with next time.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn send_prompt(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -16,9 +19,16 @@ pub async fn send_prompt(
     backend_id: String,
     model: String,
     effort: Option<String>,
+    agent_mode: Option<String>,
     message: String,
 ) -> Result<(), String> {
-    let backend = registry::resolve(&state, &backend_id, &model, effort.as_deref())?;
+    let backend = registry::resolve(
+        &state,
+        &backend_id,
+        &model,
+        effort.as_deref(),
+        agent_mode.as_deref(),
+    )?;
     registry::remember_model(&app, &backend_id, &model);
     backend.send(&app, &session_id, message).await
 }
@@ -34,7 +44,7 @@ pub async fn retry_last(
     model: String,
     effort: Option<String>,
 ) -> Result<(), String> {
-    let backend = registry::resolve(&state, &backend_id, &model, effort.as_deref())?;
+    let backend = registry::resolve(&state, &backend_id, &model, effort.as_deref(), None)?;
     backend.retry(&app, &session_id).await
 }
 
@@ -48,7 +58,7 @@ pub async fn compact_conversation(
     backend_id: String,
     model: String,
 ) -> Result<String, String> {
-    let backend = registry::resolve(&state, &backend_id, &model, None)?;
+    let backend = registry::resolve(&state, &backend_id, &model, None, None)?;
     backend.compact(&app, &session_id).await
 }
 
@@ -62,6 +72,6 @@ pub async fn warm_session(
     session_id: String,
     backend_id: String,
 ) -> Result<(), String> {
-    registry::resolve(&state, &backend_id, "", None)?.warm(&app, &session_id);
+    registry::resolve(&state, &backend_id, "", None, None)?.warm(&app, &session_id);
     Ok(())
 }

@@ -21,7 +21,8 @@ import ContextUsageRing from "./ContextUsageRing";
 import CheckoutBar, { type CheckoutBarProps } from "./checkout/CheckoutBar";
 
 interface ChatComposerProps {
-  sessionId: string;
+  // null for a new thread that hasn't sent its first message yet.
+  sessionId: string | null;
   // Pinned to the bottom of the panel over the transcript (a started
   // conversation) rather than flowing in place (the centered "new thread"
   // layout).

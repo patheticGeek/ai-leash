@@ -112,6 +112,8 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         projectRoot: null,
         projectId: null,
         activeSessionId: null,
+        draft: null,
+        viewEpoch: s.viewEpoch + 1,
         openFiles: [],
         activePath: null,
         panelTabs: [],
@@ -123,8 +125,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   },
 
   openFile: async (path, name) => {
-    const sessionId = get().activeSessionId;
-    if (!sessionId) return;
+    // No session in a new thread — Rust then reads from the checkout it's
+    // showing (`set_view_root`).
+    const { activeSessionId: sessionId, draft } = get();
+    if (!sessionId && !draft) return;
     if (!get().openFiles.some((f) => f.path === path)) {
       const content = await api.readFileText(sessionId, path);
       set((s) => ({
@@ -144,9 +148,9 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
     })),
 
   saveActive: async () => {
-    const { activePath, openFiles, activeSessionId } = get();
+    const { activePath, openFiles, activeSessionId, draft } = get();
     const file = openFiles.find((f) => f.path === activePath);
-    if (!file || !activeSessionId) return;
+    if (!file || (!activeSessionId && !draft)) return;
     await api.writeFileText(activeSessionId, file.path, file.content);
     set((s) => ({
       openFiles: s.openFiles.map((f) =>
