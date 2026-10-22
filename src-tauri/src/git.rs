@@ -47,6 +47,41 @@ fn list_branches(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
+/// Branches in the order they were last checked out in `root`, most recent
+/// first, read from `HEAD`'s reflog (`checkout: moving from A to B` entries,
+/// which `git switch` writes too). The reflog is per-worktree, so this is the
+/// history of whichever worktree `root` is. An empty or missing reflog (a
+/// fresh repo) just yields no history.
+fn recently_checked_out(root: &Path) -> Vec<String> {
+    let out = run_git(root, &["reflog", "show", "--format=%gs", "HEAD"]).unwrap_or_default();
+    let mut seen: Vec<String> = Vec::new();
+    for line in out.lines() {
+        let Some(rest) = line.strip_prefix("checkout: moving from ") else {
+            continue;
+        };
+        let Some((_, to)) = rest.rsplit_once(" to ") else {
+            continue;
+        };
+        if !seen.iter().any(|b| b == to) {
+            seen.push(to.to_string());
+        }
+    }
+    seen
+}
+
+/// Current branch first, then by most recent checkout, then branches never
+/// checked out here in their original (`for-each-ref`, alphabetical) order —
+/// a stable sort keeps that order among the ties.
+fn sort_by_recent_checkout(branches: &mut [GitBranch], recent: &[String]) {
+    branches.sort_by_key(|b| {
+        let rank = recent
+            .iter()
+            .position(|r| *r == b.name)
+            .unwrap_or(usize::MAX);
+        (!b.is_current, rank)
+    });
+}
+
 /// `None` for a detached HEAD (`--abbrev-ref` prints the literal `HEAD`).
 fn current_branch(root: &Path) -> Result<Option<String>, String> {
     let branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
@@ -197,18 +232,21 @@ pub struct WorktreeInfo {
 /// branch. Takes an explicit `root_path` (a worktree's own path, not
 /// necessarily the primary checkout) rather than reading the app's global
 /// project root, since the branch bar operates on whichever worktree is
-/// currently selected.
+/// currently selected. Sorted by most recently checked out (see
+/// `sort_by_recent_checkout`).
 #[tauri::command]
 pub fn list_git_branches(root_path: String) -> Result<Vec<GitBranch>, String> {
     let root = PathBuf::from(root_path);
     let current = current_branch(&root)?;
-    Ok(list_branches(&root)?
+    let mut branches: Vec<GitBranch> = list_branches(&root)?
         .into_iter()
         .map(|name| {
             let is_current = current.as_deref() == Some(name.as_str());
             GitBranch { name, is_current }
         })
-        .collect())
+        .collect();
+    sort_by_recent_checkout(&mut branches, &recently_checked_out(&root));
+    Ok(branches)
 }
 
 /// Every worktree for the repo containing `root_path` — the primary
@@ -404,6 +442,21 @@ mod tests {
         assert!(is_head_change(&event(modify, "/r/.git/HEAD.lock")));
         assert!(!is_head_change(&event(modify, "/r/.git/index")));
         assert!(!is_head_change(&event(modify, "/r/.git/ORIG_HEAD")));
+    }
+
+    #[test]
+    fn branches_sort_current_first_then_by_last_checkout() {
+        let mut branches: Vec<GitBranch> = ["a", "b", "c", "d", "main"]
+            .into_iter()
+            .map(|name| GitBranch {
+                name: name.to_string(),
+                is_current: name == "main",
+            })
+            .collect();
+        let recent = ["main", "c", "a"].map(String::from);
+        sort_by_recent_checkout(&mut branches, &recent);
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, ["main", "c", "a", "b", "d"]);
     }
 
     #[test]
