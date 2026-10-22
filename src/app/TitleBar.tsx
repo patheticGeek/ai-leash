@@ -6,6 +6,7 @@ import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
@@ -105,6 +106,7 @@ export default function TitleBar({
   const activeConversation = conversations.find(
     (c) => c.id === activeSessionId,
   );
+  const boardView = activeConversation?.role === "project";
   // A new thread (no id until its first message) — see `ChatPanel.tsx`'s
   // `isNewThread`.
   const isNewThread = useAppStore((s) => s.draft !== null);
@@ -205,6 +207,7 @@ export default function TitleBar({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
+          {boardView && <BoardLayoutSwitch />}
           <OpenInIdeButton />
           <TitleBarActions />
         </div>

@@ -1,6 +1,5 @@
-import { MessageSquare } from "lucide-react";
-import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
-import { Button } from "@/ui/button";
+import { useDefaultLayout } from "react-resizable-panels";
+import { cn } from "@/lib/utils";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,9 +7,13 @@ import {
 } from "@/ui/resizable";
 import ChatPanel from "../chat/ChatPanel";
 import BoardView from "./BoardView";
+import { useBoardLayout } from "./boardLayout";
 
 // What a project's board chat (`role: "project"`) shows in place of a plain
-// chat: the board, with that chat docked on its right.
+// chat: the board, its chat, or both side by side (`BoardLayoutSwitch` in
+// the title bar). Panels are keyed so the chat stays mounted — and keeps
+// streaming — as the layout changes. The chat never has a checkout bar:
+// it always works in the project's main checkout.
 export default function ProjectBoardView({
   sessionId,
   projectRoot,
@@ -18,10 +21,16 @@ export default function ProjectBoardView({
   sessionId: string;
   projectRoot: string;
 }) {
-  const chatPanel = usePanelRef();
+  const layout = useBoardLayout();
+  const showBoard = layout !== "chat";
+  const showChat = layout !== "board";
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "ai-leash:project-board",
     storage: localStorage,
+    panelIds: [
+      ...(showBoard ? ["board"] : []),
+      ...(showChat ? ["project-chat"] : []),
+    ],
   });
 
   return (
@@ -30,40 +39,36 @@ export default function ProjectBoardView({
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
     >
-      <ResizablePanel id="board" minSize="30">
-        <BoardView
-          projectRoot={projectRoot}
-          toolbarEnd={
-            <Button
-              variant="ghost"
-              size="sm"
-              title="Show or hide the project chat"
-              onClick={() => {
-                const panel = chatPanel.current;
-                if (!panel) return;
-                if (panel.isCollapsed()) panel.expand();
-                else panel.collapse();
-              }}
-            >
-              <MessageSquare size={13} />
-              Chat
-            </Button>
-          }
-        />
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel
-        id="project-chat"
-        panelRef={chatPanel}
-        defaultSize="33"
-        minSize={280}
-        collapsible
-        collapsedSize="0"
-      >
-        <div className="h-full min-w-0 border-l border-white/5">
-          <ChatPanel sessionId={sessionId} projectRoot={projectRoot} compact />
-        </div>
-      </ResizablePanel>
+      {showBoard && (
+        <ResizablePanel key="board" id="board" minSize="30">
+          <BoardView projectRoot={projectRoot} />
+        </ResizablePanel>
+      )}
+      {showBoard && showChat && <ResizableHandle key="handle" />}
+      {showChat && (
+        <ResizablePanel
+          key="project-chat"
+          id="project-chat"
+          defaultSize={showBoard ? "33" : "100"}
+          minSize={280}
+        >
+          <div
+            className={cn(
+              "h-full min-w-0",
+              showBoard && "border-l border-white/5",
+            )}
+          >
+            {/* Beside the board it's a narrow column; on its own, a
+                normal centered chat. */}
+            <ChatPanel
+              sessionId={sessionId}
+              projectRoot={projectRoot}
+              compact={showBoard}
+              showCheckout={false}
+            />
+          </div>
+        </ResizablePanel>
+      )}
     </ResizablePanelGroup>
   );
 }

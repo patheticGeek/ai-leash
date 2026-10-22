@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { Layers, Plus, Rows3 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
@@ -135,14 +135,7 @@ type Editing =
 // One project's Kanban board: Backlog → Todo → In progress → Review (→ Done,
 // hidden until asked for). Cards drag between columns, and between epic
 // swimlanes when grouped.
-export default function BoardView({
-  projectRoot,
-  toolbarEnd,
-}: {
-  projectRoot: string;
-  // Extra controls at the right end of the toolbar.
-  toolbarEnd?: ReactNode;
-}) {
+export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [showDone, setShowDone] = useState(false);
   const [includeOlderDone, setIncludeOlderDone] = useState(false);
   const [groupByEpic, setGroupByEpic] = useState(false);
@@ -312,7 +305,6 @@ export default function BoardView({
           <Plus size={13} />
           New task
         </Button>
-        {toolbarEnd}
       </div>
       <DndContext
         sensors={sensors}

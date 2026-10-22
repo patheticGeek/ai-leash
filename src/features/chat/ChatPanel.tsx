@@ -22,13 +22,17 @@ export default function ChatPanel({
   sessionId,
   projectRoot,
   compact = false,
+  showCheckout = true,
 }: {
   sessionId: string | null;
   projectRoot: string;
-  // A slim chat for a narrow column — the board's project chat: fills its
-  // column instead of a centered max width, and has no checkout bar (it
-  // always works in the project's main checkout).
+  // A slim chat for a narrow column — the board's project chat beside the
+  // board: fills its column instead of a centered max width, with a flush
+  // message box.
   compact?: boolean;
+  // The worktree/branch bar under the message box. Off for the project
+  // chat, which always works in the project's main checkout.
+  showCheckout?: boolean;
 }) {
   const conversations = useConversations();
   const promoteDraft = useAppStore((s) => s.promoteDraft);
@@ -328,6 +332,7 @@ export default function ChatPanel({
             onDismiss: dismissClaudeRateLimit,
           }}
           compact={compact}
+          showCheckout={showCheckout}
           checkout={{
             projectRoot,
             cwd: worktreeCwd,
