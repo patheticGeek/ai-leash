@@ -173,6 +173,11 @@ export const conversationSlice: StateCreator<
   openConversation: async (id) => {
     const conversation = getConversations().find((c) => c.id === id);
     if (!conversation) return;
+    // A conversation created in Rust after startup (a started board task)
+    // hasn't had its backend/permission picks loaded yet. A no-op for any
+    // already known.
+    get().hydrateConversationBackendFromRows([conversation]);
+    get().hydratePermissionModeFromRows([conversation]);
     const { projectRoot } = conversation;
     const checkoutPath = conversationCheckoutPath(conversation);
     const token = ++latestSwitchToken;

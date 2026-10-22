@@ -66,6 +66,7 @@ export default function TaskDialog({
   epics,
   task,
   defaults = {},
+  onFinish,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -73,6 +74,9 @@ export default function TaskDialog({
   epics: Epic[];
   task: Task | null;
   defaults?: Partial<Draft>;
+  // Moving an existing task to Done goes through here instead of a plain
+  // status change — see `useFinishTask`.
+  onFinish: (task: Task) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFor(task, defaults));
   const [saving, setSaving] = useState(false);
@@ -96,7 +100,11 @@ export default function TaskDialog({
     setSaving(true);
     setError(null);
     try {
-      if (task) {
+      if (task && draft.status === "done" && task.status !== "done") {
+        const { status: _, ...rest } = draft;
+        const updated = await api.updateTask(task.id, rest);
+        await onFinish(updated);
+      } else if (task) {
         await api.updateTask(task.id, draft);
       } else {
         await api.createTask(projectRoot, draft);

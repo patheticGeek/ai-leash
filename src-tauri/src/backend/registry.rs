@@ -188,6 +188,22 @@ impl Registry {
         self
     }
 
+    /// The backend a conversation starts on when nothing picks one, with the
+    /// model last used on it ("" for an ACP agent: its own default).
+    pub fn default_selection(&self) -> (String, String) {
+        let model = self
+            .get(&self.default_backend_id)
+            .map(|b| b.remembered_model().to_string())
+            .unwrap_or_default();
+        (self.default_backend_id.clone(), model)
+    }
+
+    /// Whether `id` is one of our own providers rather than an ACP agent —
+    /// only those take the native `low`/`medium`/`high` effort levels.
+    pub fn is_native(&self, id: &str) -> bool {
+        self.get(id).is_some_and(BackendConfig::is_native)
+    }
+
     /// What an ACP conversation's sub-agents run on when `spawn_sub_agent`
     /// names no agent: the default backend if it's native, else the first
     /// enabled native one, with the model last used on it.

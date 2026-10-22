@@ -47,6 +47,15 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
 
 export const TASK_EFFORTS: TaskEffort[] = ["xs", "s", "m", "l", "xl"];
 
+// The reasoning effort a task of this size starts with on one of our own
+// providers — same mapping as Rust's `board::lifecycle::effort_for_size`.
+export function effortForSize(size: TaskEffort | null): string | null {
+  if (size === "xs" || size === "s") return "low";
+  if (size === "m") return "medium";
+  if (size === "l" || size === "xl") return "high";
+  return null;
+}
+
 // One project's board. `includeOlderDone` pulls in Done tasks older than the
 // last 30 days too. Kept live by `useBoardListener`; the previous variant
 // stays on screen while the other one loads, so toggling "load older"

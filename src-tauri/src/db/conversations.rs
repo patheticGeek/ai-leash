@@ -241,6 +241,19 @@ pub fn set_conversation_worktree(
     );
 }
 
+/// The worktree a conversation runs in, if it isn't the primary checkout —
+/// see `set_conversation_worktree`.
+pub fn conversation_worktree(db: &Db, conversation_id: &str) -> Option<String> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT worktree_path FROM conversations WHERE id = ?1",
+        params![conversation_id],
+        |row| row.get(0),
+    )
+    .ok()
+    .flatten()
+}
+
 /// Whether `conversation_id` already has a `conversations` row.
 #[cfg(test)]
 pub fn conversation_exists(db: &Db, conversation_id: &str) -> bool {

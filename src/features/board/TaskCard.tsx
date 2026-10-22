@@ -1,8 +1,9 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader, MessageSquare } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Loader, MessageSquare, Play } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { Button, revealOnGroupHover } from "@/ui/button";
 import { formatDuration } from "../../lib/format";
 import { useGenerating } from "../../lib/generatingQuery";
 import type { Epic, Task } from "../../lib/tauriApi";
@@ -27,10 +28,13 @@ export function TaskCardBody({
   task,
   epic,
   dragging = false,
+  actions,
 }: {
   task: Task;
   epic: Epic | undefined;
   dragging?: boolean;
+  // Buttons at the end of the card's bottom row.
+  actions?: ReactNode;
 }) {
   const { active: generating, startedAtMs } = useGenerating(
     task.conversationId ?? "",
@@ -38,7 +42,7 @@ export function TaskCardBody({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 rounded-md bg-raised px-3 py-2.5 text-left text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition-shadow hover:shadow-[0_0_0_1px_var(--primary)]",
+        "flex flex-col gap-1.5 rounded-md bg-raised px-3 py-2.5 text-left text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition-shadow group-hover:shadow-[0_0_0_1px_var(--primary)]",
         dragging && "cursor-grabbing shadow-[0_0_0_1px_var(--primary)]",
         task.status === "done" && "opacity-60",
       )}
@@ -47,7 +51,7 @@ export function TaskCardBody({
         <span className="min-w-0 flex-1 break-words text-zinc-200">
           {task.title}
         </span>
-        {generating ? (
+        {generating && (
           <span
             title="Working"
             className="flex shrink-0 items-center gap-1 text-xs text-blue-400"
@@ -55,12 +59,6 @@ export function TaskCardBody({
             {startedAtMs != null && <Elapsed startedAtMs={startedAtMs} />}
             <Loader size={12} className="animate-spin" />
           </span>
-        ) : (
-          task.conversationId && (
-            <span title="Has a chat" className="shrink-0 text-zinc-500">
-              <MessageSquare size={12} />
-            </span>
-          )
         )}
       </div>
       <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -68,6 +66,11 @@ export function TaskCardBody({
         <PriorityIcon priority={task.priority} />
         {task.effort && <EffortBadge effort={task.effort} />}
         {epic && <EpicChip epic={epic} />}
+        {actions && (
+          <span className="ml-auto flex shrink-0 items-center gap-0.5">
+            {actions}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -81,37 +84,67 @@ export default function TaskCard({
   epic,
   lane,
   onOpen,
+  onStart,
+  onOpenChat,
 }: {
   task: Task;
   epic: Epic | undefined;
   lane: string;
   onOpen: () => void;
+  onStart: () => void;
+  onOpenChat: () => void;
 }) {
-  const {
-    setNodeRef,
-    attributes,
-    listeners,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: task.id,
-    data: { type: "task", lane, status: task.status },
-  });
+  const { setNodeRef, listeners, transform, transition, isDragging } =
+    useSortable({
+      id: task.id,
+      data: { type: "task", lane, status: task.status },
+    });
+  const startable = !task.conversationId && task.status !== "done";
   return (
-    <button
-      type="button"
+    <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(
-        "block w-full cursor-pointer touch-none text-left outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring/50",
-        isDragging && "opacity-30",
-      )}
-      {...attributes}
+      className={cn("group relative touch-none", isDragging && "opacity-30")}
       {...listeners}
-      onClick={onOpen}
     >
-      <TaskCardBody task={task} epic={epic} />
-    </button>
+      <TaskCardBody
+        task={task}
+        epic={epic}
+        actions={
+          <>
+            {startable && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Start: give it a chat (and worktree) and get going"
+                onClick={onStart}
+                className={cn("relative z-10", revealOnGroupHover)}
+              >
+                <Play />
+              </Button>
+            )}
+            {task.conversationId && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Open its chat"
+                onClick={onOpenChat}
+                className="relative z-10"
+              >
+                <MessageSquare />
+              </Button>
+            )}
+          </>
+        }
+      />
+      {/* Covers the whole card under the action buttons, so the card itself
+          is one button for keyboard and screen readers. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        title={`Edit #${task.number}`}
+        className="absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      />
+    </div>
   );
 }

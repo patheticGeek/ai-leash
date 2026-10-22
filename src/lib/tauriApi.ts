@@ -418,6 +418,26 @@ export type EpicPatch = Partial<
   Pick<Epic, "title" | "description" | "color" | "archived">
 >;
 
+// How to start a board task — all optional (Rust's `StartOptions`).
+export interface StartTaskOptions {
+  backendId?: string;
+  model?: string;
+  effort?: string | null;
+  agentMode?: string | null;
+  bypassPermissions?: boolean;
+  engagedWithProject?: boolean;
+}
+
+// What removing a task's worktree would lose.
+export interface WorktreeChanges {
+  uncommitted: string[];
+  unmergedCommits: string[];
+}
+
+export type FinishTaskOutcome =
+  | { outcome: "done"; task: Task }
+  | { outcome: "needsConfirmation"; changes: WorktreeChanges };
+
 export const api = {
   // Returns the project's stable UUID (`db::ensure_project`'s id), created
   // the first time this path is opened and stable across renames of the
@@ -543,6 +563,14 @@ export const api = {
   moveTask: (taskId: string, status: TaskStatus, beforeTaskId: string | null) =>
     invoke<Task>("move_task", { taskId, status, beforeTaskId }),
   deleteTask: (taskId: string) => invoke<void>("delete_task", { taskId }),
+  // Gives the task its own worktree (git projects) and chat, and sends the
+  // task as its first message. Resolves to the chat's conversation id.
+  startTask: (taskId: string, options: StartTaskOptions) =>
+    invoke<string>("start_task", { taskId, options }),
+  // Moves the task to Done and removes its worktree — or, without `force`,
+  // reports what that would lose instead of doing anything.
+  finishTask: (taskId: string, beforeTaskId: string | null, force: boolean) =>
+    invoke<FinishTaskOutcome>("finish_task", { taskId, beforeTaskId, force }),
   createEpic: (projectRoot: string, epic: NewEpic) =>
     invoke<Epic>("create_epic", { projectRoot, epic }),
   updateEpic: (epicId: string, patch: EpicPatch) =>
