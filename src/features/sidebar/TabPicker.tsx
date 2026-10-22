@@ -2,7 +2,7 @@ import { useSubAgents } from "@/data/subAgents";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
-import { PICKER_TAB_KINDS } from "./tabKinds";
+import { PICKER_TAB_KINDS } from "../tabs/tabKinds";
 
 export default function TabPicker({
   onPick,

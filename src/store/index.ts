@@ -32,10 +32,10 @@ export type { ConversationSummary } from "./conversationSlice";
 export type { AcpDebugEvent } from "./debugSlice";
 export { elicitationForSession } from "./elicitationSlice";
 export type {
-  ChatTab,
-  ChatTabKind,
-  PanelTab,
   PanelTabKind,
+  TabArea,
+  TabKind,
+  WorkspaceTab,
 } from "./panelSlice";
 export type { PermissionMode } from "./permissionSlice";
 export { permissionForSession } from "./permissionSlice";

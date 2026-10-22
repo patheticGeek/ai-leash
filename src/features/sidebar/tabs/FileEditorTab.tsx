@@ -7,7 +7,7 @@ import { rust } from "@codemirror/lang-rust";
 import { EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { basicSetup, EditorView } from "codemirror";
-import { useEffect, useRef } from "react";
+import { type KeyboardEvent, useEffect, useRef } from "react";
 import { useAppStore } from "../../../store";
 
 function languageFor(name: string): Extension {
@@ -33,17 +33,20 @@ function languageFor(name: string): Extension {
   }
 }
 
-export default function FileEditorTab() {
+// One open file's editor — `path` is the tab's own file, not the store's
+// `activePath`, since a file tab in each area can be showing at once.
+export default function FileEditorTab({ path }: { path: string }) {
   const openFiles = useAppStore((s) => s.openFiles);
-  const activePath = useAppStore((s) => s.activePath);
   const updateContent = useAppStore((s) => s.updateContent);
-  const saveActive = useAppStore((s) => s.saveActive);
+  const saveFile = useAppStore((s) => s.saveFile);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const activeFile = openFiles.find((f) => f.path === activePath);
+  const activeFile = openFiles.find((f) => f.path === path);
+  // A restored tab mounts before its file's content has been read in.
+  const loaded = !!activeFile;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only recreates the CodeMirror view on file switch (activePath). activeFile.* / updateContent must NOT be deps — activeFile.content changes on every keystroke via updateContent's own updateListener callback below, and depending on it would destroy+recreate the editor (losing cursor, selection, undo history) on every character typed. updateContent is a stable Zustand action reference anyway.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only recreates the CodeMirror view on file switch (path) or once its content first loads. activeFile.* / updateContent must NOT be deps — activeFile.content changes on every keystroke via updateContent's own updateListener callback below, and depending on it would destroy+recreate the editor (losing cursor, selection, undo history) on every character typed. updateContent is a stable Zustand action reference anyway.
   useEffect(() => {
     viewRef.current?.destroy();
     viewRef.current = null;
@@ -75,24 +78,24 @@ export default function FileEditorTab() {
     });
     viewRef.current = view;
     return () => view.destroy();
-  }, [activePath]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        saveActive();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [saveActive]);
+  }, [path, loaded]);
 
   if (!activeFile) return null;
 
+  // Scoped to this editor rather than the window, so with a file tab open
+  // in each area Ctrl+S saves the one being typed in.
+  function onKeyDown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      e.preventDefault();
+      saveFile(path);
+    }
+  }
+
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches Ctrl+S bubbling up from the CodeMirror editor inside
     <div
       ref={containerRef}
+      onKeyDown={onKeyDown}
       className="h-full min-h-0 overflow-hidden bg-background"
     />
   );

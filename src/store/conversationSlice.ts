@@ -13,7 +13,7 @@ import {
 import { chatDraftKey } from "../lib/chatDraft";
 import { api } from "../lib/tauriApi";
 import type { AppStore } from "./index";
-import type { PanelTab } from "./panelSlice";
+import type { WorkspaceTab } from "./panelSlice";
 import { PRIMARY_CHAT_TAB } from "./panelSlice";
 import type { PermissionMode } from "./permissionSlice";
 import type { ConversationBackendSelection } from "./selectionSlice";
@@ -202,10 +202,11 @@ export const conversationSlice: StateCreator<
     const prevActiveChatTabId = get().activeChatTabId;
 
     const restored = get().panelStateByConversation[id];
-    const restoredActiveTab = restored?.panelTabs.find(
-      (t) => t.id === restored.activePanelTabId,
-    );
     const restoredChat = get().chatStateByConversation[id];
+    const restoredActiveFile = [
+      restored?.panelTabs.find((t) => t.id === restored.activePanelTabId),
+      restoredChat?.chatTabs.find((t) => t.id === restoredChat.activeChatTabId),
+    ].find((t) => t?.kind === "file");
 
     set((s) => {
       const panelStateByConversation = { ...s.panelStateByConversation };
@@ -232,10 +233,7 @@ export const conversationSlice: StateCreator<
         viewEpoch: s.viewEpoch + 1,
         checkoutPathBySession,
         openFiles: [],
-        activePath:
-          restoredActiveTab?.kind === "file"
-            ? (restoredActiveTab.path ?? null)
-            : null,
+        activePath: restoredActiveFile?.path ?? null,
         panelTabs: restored?.panelTabs ?? [],
         activePanelTabId: restored?.activePanelTabId ?? null,
         panelStateByConversation,
@@ -245,8 +243,12 @@ export const conversationSlice: StateCreator<
       };
     });
 
-    const fileTabs = (restored?.panelTabs ?? []).filter(
-      (t): t is PanelTab & { path: string } => t.kind === "file" && !!t.path,
+    const fileTabs = [
+      ...(restored?.panelTabs ?? []),
+      ...(restoredChat?.chatTabs ?? []),
+    ].filter(
+      (t): t is WorkspaceTab & { path: string } =>
+        t.kind === "file" && !!t.path,
     );
     for (const tab of fileTabs) {
       try {
@@ -260,7 +262,7 @@ export const conversationSlice: StateCreator<
               ],
         }));
       } catch {
-        get().closePanelTab(tab.id);
+        get().closeTab(tab.id);
       }
     }
   },

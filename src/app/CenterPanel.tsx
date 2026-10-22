@@ -1,14 +1,9 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
-import { useCallback } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
-import { RunCommandContext } from "@/ui/Markdown";
-import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
-import { useSubAgents } from "../data/subAgents";
-import ChatPanel from "../features/chat/ChatPanel";
-import SubAgentChatTab from "../features/chat/SubAgentChatTab";
-import { useGenerating } from "../lib/generatingQuery";
+import { TabBody } from "../features/tabs/TabContent";
+import { useTabDropArea } from "../features/tabs/TabDnd";
+import TabStrip from "../features/tabs/TabStrip";
 import { useAppStore } from "../store";
 
 function NoProjectState() {
@@ -59,23 +54,8 @@ export default function CenterPanel() {
   const hasDraft = useAppStore((s) => s.draft !== null);
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
-  const setActiveChatTab = useAppStore((s) => s.setActiveChatTab);
-  const closeChatTab = useAppStore((s) => s.closeChatTab);
-  // Backend-driven per-session activity — the primary tab is covered by the
-  // always-mounted `useGeneratingListener` (`App.tsx`), `useSubAgents`
-  // covers sub-agent tabs (no `generating` event of its own; `status` is
-  // already tracked for the Sub Agents sidebar). Queried even before the
-  // `activeSessionId` null-check below since hooks can't be conditional;
-  // an empty-string fallback session id is harmless (never actually shown).
-  const primaryGenerating = useGenerating(activeSessionId ?? "").active;
-  const subAgentTasks = useSubAgents(activeSessionId);
-  const openPanelTab = useAppStore((s) => s.openPanelTab);
-  // The run button on a transcript's shell code blocks: a new terminal tab
-  // with the command typed at the prompt, waiting for Enter.
-  const openInTerminal = useCallback(
-    (command: string) => openPanelTab("terminal", { command }),
-    [openPanelTab],
-  );
+  const activateTab = useAppStore((s) => s.activateTab);
+  const dropRef = useTabDropArea("center");
 
   if (!projectRoot || (!activeSessionId && !hasDraft)) {
     return (
@@ -86,71 +66,16 @@ export default function CenterPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <Tabs
+    <div ref={dropRef} className="flex h-full flex-col">
+      <TabStrip
+        tabs={chatTabs}
         value={activeChatTabId}
-        onValueChange={setActiveChatTab}
-        className="shrink-0 gap-0 bg-background"
-      >
-        <TabsList variant="strip">
-          {chatTabs.map((tab) => {
-            const running =
-              tab.kind === "primary"
-                ? primaryGenerating
-                : subAgentTasks.find((t) => t.subSessionId === tab.subSessionId)
-                    ?.status === "running";
-            // Only shine while this tab isn't the one you're already looking
-            // at — the active tab's own content already shows its running
-            // state (the "Working for…"/"Waiting" indicator), so shining the
-            // tab title too would just be redundant right where it matters
-            // least.
-            const shine = running && tab.id !== activeChatTabId;
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                onClose={
-                  tab.kind === "subagent"
-                    ? () => closeChatTab(tab.id)
-                    : undefined
-                }
-              >
-                <span
-                  className={cn(
-                    "max-w-[12rem] truncate",
-                    shine && "shine-text",
-                  )}
-                >
-                  {tab.label}
-                </span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
-      <RunCommandContext.Provider value={openInTerminal}>
-        <div className="relative flex-1 min-h-0">
-          <div
-            className={
-              activeChatTabId === "primary" ? "h-full bg-background" : "hidden"
-            }
-          >
-            <ChatPanel sessionId={activeSessionId} projectRoot={projectRoot} />
-          </div>
-          {chatTabs
-            .filter((tab) => tab.kind === "subagent")
-            .map((tab) => (
-              <div
-                key={tab.id}
-                className={
-                  tab.id === activeChatTabId ? "h-full bg-background" : "hidden"
-                }
-              >
-                <SubAgentChatTab subSessionId={tab.subSessionId} />
-              </div>
-            ))}
-        </div>
-      </RunCommandContext.Provider>
+        onSelect={activateTab}
+        className="shrink-0 bg-background"
+      />
+      <div className="relative flex-1 min-h-0 bg-background">
+        <TabBody tabs={chatTabs} activeId={activeChatTabId} />
+      </div>
     </div>
   );
 }

@@ -56,6 +56,20 @@ are useful for following the work without interrupting it.
 You can switch between the Agent tab and any open sub-agent tabs at the top of
 the chat area. Sub-agent tabs can be closed when you no longer need them.
 
+### Moving tabs between the chat area and the tool panel
+
+Drag a tab sideways in its row to reorder it. Drag it into the other area
+to move it there: drop it onto a tab to place it beside that tab, or
+anywhere else in that area to add it at the end. Any tab can move either
+way (a terminal, a file, the File Tree, a sub-agent's conversation)
+except the **Agent** tab, which always stays in the chat area, though you
+can still reorder it there.
+
+A moved tab carries on where it was: a terminal keeps its shell and
+scrollback, and a sub-agent conversation keeps streaming. An open file
+reloads its editor, so its undo history starts over. **Ctrl+S**
+(**Command+S** on macOS) saves the file whose editor you are typing in.
+
 Code blocks in the conversation have a header showing the language and a copy
 button. Shell code blocks also have an **Open in a new terminal** button. It
 opens a terminal tab with the command typed at the prompt but not run, so you
@@ -88,12 +102,17 @@ fully merged, the picker shows git's message and offers **Force delete**.
 
 The right-hand panel has its own tabs. Click a tab to switch tools, click its
 close button to remove it, and use the **+** button to open another tab. If no
-tab is open, AI Leash displays the tab chooser automatically.
+tab is open, AI Leash displays the tab chooser automatically. New tabs open
+here, but you can drag them into the chat area; see
+[Moving tabs](#moving-tabs-between-the-chat-area-and-the-tool-panel).
+Opening something that is already open, such as a file, takes you to its
+tab in whichever area it is in.
 
 ### Tabs are remembered per conversation
 
 Each conversation keeps its own set of open tabs, both in the right-hand panel
-and in the chat area (its sub-agent tabs), along with which one was active.
+and in the chat area, in the order and area you left them, along with which
+one was active in each.
 Switching to another conversation shows that conversation's tabs, and they
 are restored the next time you open it, even after restarting the app.
 Terminal tabs reopen with a fresh shell rather than the previous session. A
