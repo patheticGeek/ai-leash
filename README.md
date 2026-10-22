@@ -31,6 +31,11 @@ backend, not a bundled Chromium.
 - **You stay in control** — tool calls show inline, and destructive ones
   (`shell`, file edits) ask before running. All file access is checked
   against the project root.
+- **Project boards** — a Kanban board per project (backlog → todo → in
+  progress → review → done, with epics, priority and T-shirt sizing).
+  Starting a task gives it its own chat in its own git worktree; the
+  project chat docked beside the board plans work by chatting and talks to
+  task chats in both directions.
 - **Sub-agents** — delegate independent chunks of work to isolated,
   concurrent agents, shown as nested threads or their own tabs.
 - **`AGENTS.md`, memory & skills** — project and global instructions, notes,
