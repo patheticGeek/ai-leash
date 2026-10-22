@@ -26,7 +26,6 @@ export default function ToolEntry({
       : Wrench;
   return (
     <ActivityRow
-      fullWidth
       icon={<Icon />}
       label={entry.name}
       summary={JSON.stringify(entry.args)}

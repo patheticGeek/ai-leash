@@ -140,6 +140,7 @@ function FontRow({
 export default function PreferencesSettingsTab() {
   const composeMode = usePreference("composeMode");
   const composerMaxRows = usePreference("composerMaxRows");
+  const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const uiFontFamily = usePreference("uiFontFamily");
   const uiFontSize = usePreference("uiFontSize");
   const codeFontFamily = usePreference("codeFontFamily");
@@ -158,6 +159,16 @@ export default function PreferencesSettingsTab() {
             the message instead."
           checked={composeMode}
           onChange={(composeMode) => setPreferences({ composeMode })}
+        />
+        <ToggleRow
+          label="Collapse finished turns"
+          hint="Once the agent finishes, its thinking, tool calls and messages
+            before the final reply fold into one expandable “Worked
+            for” row."
+          checked={collapseFinishedTurns}
+          onChange={(collapseFinishedTurns) =>
+            setPreferences({ collapseFinishedTurns })
+          }
         />
         <div className="space-y-1.5 rounded-md bg-raised px-3 py-2.5">
           <Label htmlFor="composer-max-rows" className="text-sm text-zinc-200">

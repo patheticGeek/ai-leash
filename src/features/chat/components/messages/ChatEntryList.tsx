@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
@@ -11,9 +12,12 @@ import {
   MessageScrollerViewport,
 } from "@/ui/message-scroller";
 import {
+  type ActivityItem,
+  groupActivity,
   groupEntries,
   hasTurnActivity,
   isVisibleFinalChunk,
+  type RenderItem,
 } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import TranscriptNotices from "../banners/TranscriptNotices";
@@ -22,6 +26,14 @@ import ActivityGroup from "./ActivityGroup";
 import ChatEntryRenderer from "./ChatEntryRenderer";
 import SystemPromptRow from "./SystemPromptRow";
 import WorkingForIndicator from "./WorkingForIndicator";
+import WorkSummary from "./WorkSummary";
+
+// Keyed on an item's first index, which stays stable as long as `entries`
+// only ever grows (it does).
+function itemKey(item: RenderItem): string {
+  if (item.kind === "single") return String(item.index);
+  return `${item.kind}-${item.indices[0]}`;
+}
 
 // Sending a message always jumps to the bottom and resumes following, even if
 // the transcript was scrolled up.
@@ -78,7 +90,8 @@ export interface ChatEntryListProps {
 // Renders a conversation's whole `entries` array inside the message
 // scroller: the notices and system prompt up top (`TranscriptNotices`,
 // `SystemPromptRow`), the empty state, each entry via `ChatEntryRenderer.tsx`
-// (runs of thinking/tool activity grouped by `ActivityGroup`), and the
+// (runs of thinking/tool activity grouped by `ActivityGroup`, a finished
+// turn's work folded behind `WorkSummary`), and the
 // "Working for…" footer. Owns the per-entry UI-only state that's purely
 // about *how* an already-loaded transcript is displayed (expand/collapse,
 // copy feedback) — none of it is read anywhere outside this component.
@@ -102,6 +115,7 @@ export default function ChatEntryList({
   const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
     {},
   );
+  const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
   // Following the end is ours, not the scroller's `autoScroll` — see
   // `useStickToEnd`. The scroller still does the initial jump to the end and
@@ -112,6 +126,13 @@ export default function ChatEntryList({
   function toggle(i: number) {
     setExpandOverride((prev) => ({ ...prev, [i]: !prev[i] }));
   }
+
+  const items = groupEntries(entries, sending, collapseFinishedTurns);
+  // Replies whose turn time is already shown on their `WorkSummary` row, so
+  // the footer doesn't repeat it.
+  const summarizedReplies = new Set(
+    items.flatMap((item) => (item.kind === "work" ? [item.replyIndex] : [])),
+  );
 
   function renderEntry(i: number) {
     const entry = entries[i];
@@ -129,10 +150,22 @@ export default function ChatEntryList({
         copied={copiedIndex === i}
         onCopy={() => copy(entry.kind === "text" ? entry.content : "", i)}
         onRetry={onRetry}
-        turnDuration={turnDurations[i]}
+        turnDuration={summarizedReplies.has(i) ? undefined : turnDurations[i]}
         showFooter={showFooter}
         allowRetry={allowRetry}
       />
+    );
+  }
+
+  function renderItem(item: ActivityItem) {
+    return item.kind === "activitygroup" ? (
+      <ActivityGroup
+        entries={entries}
+        indices={item.indices}
+        renderEntry={renderEntry}
+      />
+    ) : (
+      renderEntry(item.index)
     );
   }
 
@@ -159,26 +192,33 @@ export default function ChatEntryList({
             {entries.length === 0 && historyLoaded && !chatError && (
               <EmptyTranscript />
             )}
-            {groupEntries(entries).map((item) =>
-              item.kind === "activitygroup" ? (
-                <MessageScrollerItem
-                  // Keyed on the run's first index, which stays stable as
-                  // long as `entries` only ever grows (it does).
-                  key={`activity-${item.indices[0]}`}
-                  className="space-y-1.5"
-                >
-                  <ActivityGroup
+            {items.map((item) => (
+              <MessageScrollerItem
+                key={itemKey(item)}
+                className={item.kind === "activitygroup" ? "space-y-1.5" : ""}
+              >
+                {item.kind === "work" ? (
+                  <WorkSummary
                     entries={entries}
                     indices={item.indices}
-                    renderEntry={renderEntry}
-                  />
-                </MessageScrollerItem>
-              ) : (
-                <MessageScrollerItem key={item.index}>
-                  {renderEntry(item.index)}
-                </MessageScrollerItem>
-              ),
-            )}
+                    turnDuration={turnDurations[item.replyIndex]}
+                  >
+                    {groupActivity(entries, item.indices).map((inner) => (
+                      <div
+                        key={itemKey(inner)}
+                        className={
+                          inner.kind === "activitygroup" ? "space-y-1.5" : ""
+                        }
+                      >
+                        {renderItem(inner)}
+                      </div>
+                    ))}
+                  </WorkSummary>
+                ) : (
+                  renderItem(item)
+                )}
+              </MessageScrollerItem>
+            ))}
             {sending && (
               <WorkingForIndicator
                 hasActivity={hasTurnActivity(entries)}

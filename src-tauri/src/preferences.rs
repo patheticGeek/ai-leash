@@ -25,6 +25,9 @@ pub struct Preferences {
     pub compose_mode: bool,
     /// Most lines the chat box grows to before it scrolls.
     pub composer_max_rows: u32,
+    /// Folds a finished turn's thinking/tool calls/intermediate text into
+    /// one "Worked for" row above its final reply.
+    pub collapse_finished_turns: bool,
     /// CLI launcher the title bar's "Open in IDE" button runs.
     pub ide_command: String,
     /// Gates ACP event capture and the floating devtools icon.
@@ -44,6 +47,7 @@ impl Default for Preferences {
         Self {
             compose_mode: false,
             composer_max_rows: 6,
+            collapse_finished_turns: true,
             ide_command: "code".to_string(),
             debug_mode_enabled: false,
             debug_show_ids: false,
