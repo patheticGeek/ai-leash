@@ -89,7 +89,9 @@ pickers have a search box; use the arrow keys to move through the list and
   existing branch that is not already checked out elsewhere. The worktree is
   fixed once you send the conversation's first message; after that the list
   can still be browsed but not changed.
-- **Branch** lists the branches of the current worktree. Choose one to switch
+- **Branch** lists the branches of the current worktree, the checked-out one
+  first and the rest by when they were last checked out in that worktree
+  (most recent first; never-checked-out branches last). Choose one to switch
   to it, or select **New branch…** to create a branch from a base branch and
   switch to it. The branch can be changed at any time.
 
