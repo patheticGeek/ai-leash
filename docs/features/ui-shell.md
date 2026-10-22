@@ -21,14 +21,24 @@ project tools such as files and terminals.
 
 ## Choosing a project and conversation
 
-The left sidebar lists your conversations. Each entry shows its conversation
-title and the project or workspace it belongs to. The active conversation is
-highlighted.
+The left sidebar has three sections:
+
+- **Project boards**: one entry per project. Click it to open that
+  project's [board](./project-board.md) and project chat.
+- **Chats**: your conversations. Each entry shows its title and the project
+  or workspace it belongs to. A chat started for a board task shows the
+  task's number, such as **#12**.
+- **Done**: conversations you've marked as done (see below).
+
+The active entry is highlighted.
 
 Use the project menu at the top of the sidebar to switch between:
 
 - **All projects**, which shows conversations from every project.
 - An individual project, which shows only conversations for that project.
+
+The filter button next to it chooses how task chats are listed: mixed in
+with the rest, grouped at the top, or hidden.
 
 To add another project, click the **+** button and choose a folder. You can
 then open one of its existing conversations from the sidebar or start a new

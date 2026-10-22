@@ -48,6 +48,14 @@ pub struct ConversationSummary {
     /// `tools::permissions::set_permission_mode`. Missing means "ask", same
     /// default as the in-memory enforcement side.
     pub permission_mode: Option<String>,
+    /// What the conversation is for, when it's special: `"project"` for a
+    /// project's board chat (see `ensure_project_chat`). Sub-agents are
+    /// `"sub-agent"` but never listed here.
+    pub role: Option<String>,
+    /// The board task this conversation was started for, if any — see
+    /// `db/tasks.rs`.
+    pub task_id: Option<String>,
+    pub task_number: Option<i64>,
 }
 
 /// Every top-level conversation across every known project — the
@@ -62,10 +70,11 @@ pub struct ConversationSummary {
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
     let Ok(mut stmt) = conn.prepare(
-        "SELECT id, project_id, project_root, title, updated_at, worktree_path, done, \
-                backend, model, effort, permission_mode, agent_mode \
-         FROM conversations \
-         WHERE hidden = 0 ORDER BY updated_at DESC",
+        "SELECT c.id, c.project_id, c.project_root, c.title, c.updated_at, c.worktree_path, \
+                c.done, c.backend, c.model, c.effort, c.permission_mode, c.agent_mode, c.role, \
+                t.id, t.number \
+         FROM conversations c LEFT JOIN tasks t ON t.conversation_id = c.id \
+         WHERE c.hidden = 0 ORDER BY c.updated_at DESC",
     ) else {
         return vec![];
     };
@@ -83,10 +92,39 @@ pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
             effort: row.get(9)?,
             permission_mode: row.get(10)?,
             agent_mode: row.get(11)?,
+            role: row.get(12)?,
+            task_id: row.get(13)?,
+            task_number: row.get(14)?,
         })
     })
     .map(|rows| rows.filter_map(Result::ok).collect())
     .unwrap_or_default()
+}
+
+/// The id of `project_root`'s board chat, creating it the first time. One
+/// per project: it's an ordinary listed conversation with `role =
+/// 'project'`, which the frontend shows as the board (with the chat docked
+/// beside it) instead of in the sidebar's chat list.
+pub fn ensure_project_chat(db: &Db, project_root: &str) -> String {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    if let Ok(id) = conn.query_row(
+        "SELECT id FROM conversations WHERE project_id = ?1 AND role = 'project'
+         ORDER BY created_at LIMIT 1",
+        params![project_id],
+        |row| row.get::<_, String>(0),
+    ) {
+        return id;
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    let ts = now();
+    let _ = conn.execute(
+        "INSERT INTO conversations
+         (id, project_root, project_id, title, role, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'Board', 'project', ?4, ?4)",
+        params![id, project_root, project_id, ts],
+    );
+    id
 }
 
 /// Persists which backend/model this conversation is using — see
@@ -762,6 +800,20 @@ mod tests {
         let row = list_all_conversations(&db).into_iter().next().unwrap();
         assert_eq!(row.permission_mode.as_deref(), Some("bypass"));
         assert_eq!(row.backend.as_deref(), Some("{\"kind\":\"acp\"}"));
+    }
+
+    #[test]
+    fn each_project_gets_one_board_chat() {
+        let db = temp_db();
+        let a = ensure_project_chat(&db, "/proj");
+        assert_eq!(ensure_project_chat(&db, "/proj"), a);
+        assert_ne!(ensure_project_chat(&db, "/other"), a);
+        let row = list_all_conversations(&db)
+            .into_iter()
+            .find(|c| c.id == a)
+            .unwrap();
+        assert_eq!(row.role.as_deref(), Some("project"));
+        assert_eq!(row.task_number, None);
     }
 
     #[test]

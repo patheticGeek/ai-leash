@@ -103,6 +103,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
     // list needs no further filtering here — only this slice's own state.
     const toDelete = getConversations().filter((c) => c.projectRoot === root);
     await Promise.all(toDelete.map((c) => get().deleteConversation(c.id)));
+    await api.deleteProjectBoard(root);
     set((s) => {
       const recentProjects = s.recentProjects.filter((p) => p.path !== root);
       saveRecentProjects(recentProjects);

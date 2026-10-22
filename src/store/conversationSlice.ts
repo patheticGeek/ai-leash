@@ -8,6 +8,7 @@ import {
   getConversations,
   insertConversation,
   patchConversation,
+  refreshConversations,
   removeConversation,
 } from "../data/conversations";
 import { chatDraftKey } from "../lib/chatDraft";
@@ -94,6 +95,8 @@ export interface ConversationSlice {
   loadAllConversations: () => Promise<void>;
   initializeStartupSession: () => Promise<void>;
   openConversation: (id: string) => Promise<void>;
+  // Opens `projectRoot`'s board — its board chat, created on first use.
+  openProjectBoard: (projectRoot: string) => Promise<void>;
   startNewConversation: (projectRoot: string) => Promise<void>;
   setDraftSelection: (selection: ConversationBackendSelection) => void;
   setDraftPermissionMode: (mode: PermissionMode) => void;
@@ -267,6 +270,14 @@ export const conversationSlice: StateCreator<
     }
   },
 
+  openProjectBoard: async (projectRoot) => {
+    const id = await api.openProjectChat(projectRoot);
+    if (!getConversations().some((c) => c.id === id)) {
+      await refreshConversations();
+    }
+    await get().openConversation(id);
+  },
+
   // Shows a new thread for `projectRoot` — nothing is created for it (see
   // `NewThreadDraft`). Its backend/model choice and permission mode start
   // from that project's most-recently-used conversation (if any), so a new
@@ -384,6 +395,9 @@ export const conversationSlice: StateCreator<
         effort: null,
         agentMode: null,
         permissionMode: null,
+        role: null,
+        taskId: null,
+        taskNumber: null,
         worktreePath,
       });
       set((s) => ({

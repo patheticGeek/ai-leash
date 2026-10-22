@@ -110,7 +110,9 @@ export default function TitleBar({
   const conversationTitle =
     activeChatTab?.kind === "subagent"
       ? activeChatTab.label
-      : activeConversation?.title;
+      : activeConversation?.role === "project"
+        ? "Board"
+        : activeConversation?.title;
   // Only meaningful once debug mode has captured at least one
   // `session/new`/`session/load` event for this conversation — see
   // `latestAcpSessionId`'s doc comment for why this can't just be read off

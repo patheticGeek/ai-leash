@@ -213,6 +213,58 @@ pub fn count_done_tasks(db: &Db, project_root: &str) -> i64 {
     .unwrap_or(0)
 }
 
+/// How many tasks one project has in each column — the sidebar's Project
+/// boards rows show the in-progress and review counts.
+#[derive(Serialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardSummary {
+    pub project_root: String,
+    pub backlog: i64,
+    pub todo: i64,
+    pub in_progress: i64,
+    pub review: i64,
+    pub done: i64,
+}
+
+/// A `BoardSummary` for every project that has any tasks.
+pub fn board_summaries(db: &Db) -> Vec<BoardSummary> {
+    let conn = db.0.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT p.root_path, t.status, count(*) FROM tasks t
+         JOIN projects p ON p.id = t.project_id
+         GROUP BY p.root_path, t.status",
+    ) else {
+        return vec![];
+    };
+    let rows: Vec<(String, String, i64)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .map(|rows| rows.filter_map(Result::ok).collect())
+        .unwrap_or_default();
+    let mut summaries: Vec<BoardSummary> = Vec::new();
+    for (root, status, count) in rows {
+        let index = match summaries.iter().position(|s| s.project_root == root) {
+            Some(index) => index,
+            None => {
+                summaries.push(BoardSummary {
+                    project_root: root,
+                    ..Default::default()
+                });
+                summaries.len() - 1
+            }
+        };
+        let summary = &mut summaries[index];
+        match status.as_str() {
+            "backlog" => summary.backlog = count,
+            "todo" => summary.todo = count,
+            "in_progress" => summary.in_progress = count,
+            "review" => summary.review = count,
+            "done" => summary.done = count,
+            _ => {}
+        }
+    }
+    summaries
+}
+
 pub fn create_task(db: &Db, project_root: &str, new: NewTask) -> Result<Task, String> {
     let title = new.title.trim();
     if title.is_empty() {
@@ -705,6 +757,22 @@ mod tests {
 
         assert!(list_tasks(&db, "/proj", None).is_empty());
         assert_eq!(list_tasks(&db, "/other", None).len(), 1);
+    }
+
+    #[test]
+    fn board_summaries_count_each_column_per_project() {
+        let db = temp_db();
+        let a = create_task(&db, "/proj", new("a")).unwrap();
+        create_task(&db, "/proj", new("b")).unwrap();
+        create_task(&db, "/other", new("c")).unwrap();
+        move_task(&db, &a.id, "review", None).unwrap();
+
+        let mut summaries = board_summaries(&db);
+        summaries.sort_by(|x, y| x.project_root.cmp(&y.project_root));
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries[1].project_root, "/proj");
+        assert_eq!((summaries[1].todo, summaries[1].review), (1, 1));
+        assert_eq!(summaries[0].todo, 1);
     }
 
     #[test]

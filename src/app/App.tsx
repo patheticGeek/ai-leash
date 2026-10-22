@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useBackendModels, useBackendsListener } from "../data/backends";
+import { useBoardListener } from "../data/board";
 import { useConversationsListener } from "../data/conversations";
 import { useSubAgentsListener } from "../data/subAgents";
 import { useActionEvents } from "../features/actions/useActions";
@@ -41,6 +42,9 @@ function App() {
   // Always on — keeps the conversation list query live off the backend's
   // `conversation://changed` event (see its comment).
   useConversationsListener();
+  // Always on — keeps every open board and the sidebar's board counts live
+  // off `board://changed`.
+  useBoardListener();
   // Always on — keeps every open sub-agent list live off `agent://lifecycle`.
   useSubAgentsListener();
   // Always on — keeps each conversation's ACP connection options live off
