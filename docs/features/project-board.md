@@ -3,8 +3,11 @@
 Every project has a Kanban board for planning work as tasks. Open it from
 the **Project boards** section at the top of the sidebar.
 
-The board fills the chat area, with the **project chat** docked on its
-right. The project chat is an ordinary conversation for the whole project:
+The board takes over the window next to the sidebar — there's no tab
+strip or side panel while it's open — with the **project chat** docked on
+its right, a third of the width by default. The project chat is a plain
+chat: it always works in the project's main checkout, so it has no
+worktree or branch picker. The project chat is an ordinary conversation for the whole project:
 use it to plan, break work into tasks, or ask about the board. Drag the
 divider to resize it, or use **Chat** in the board's toolbar to hide and
 show it.

@@ -21,9 +21,13 @@ let lastComposerHeight = 0;
 export default function ChatPanel({
   sessionId,
   projectRoot,
+  compact = false,
 }: {
   sessionId: string | null;
   projectRoot: string;
+  // A slim chat for a narrow column — the board's project chat: no
+  // checkout bar (it always works in the project's main checkout).
+  compact?: boolean;
 }) {
   const conversations = useConversations();
   const promoteDraft = useAppStore((s) => s.promoteDraft);
@@ -320,6 +324,7 @@ export default function ChatPanel({
             onArmAutoResume: armClaudeAutoResume,
             onDismiss: dismissClaudeRateLimit,
           }}
+          showCheckout={!compact}
           checkout={{
             projectRoot,
             cwd: worktreeCwd,

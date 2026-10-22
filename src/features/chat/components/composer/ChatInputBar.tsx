@@ -146,7 +146,9 @@ export default function ChatInputBar({
         />
       </div>
       <div className="flex items-center justify-between gap-1.5 px-2 pb-2">
-        <div className="flex min-w-0 items-center gap-1.5">{toolbarLeft}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {toolbarLeft}
+        </div>
         <div className="flex items-center gap-1.5">
           {contextUsage}
           {showQueue && (

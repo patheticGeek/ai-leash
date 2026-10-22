@@ -82,7 +82,9 @@ export default function TitleBar({
   rightPanelWidth,
 }: {
   leftBarWidth: number;
-  rightPanelWidth: number;
+  // Null while there's no side panel (the board): its corner then just
+  // fits the window controls.
+  rightPanelWidth: number | null;
 }) {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const projectId = useAppStore((s) => s.projectId);
@@ -209,7 +211,9 @@ export default function TitleBar({
       </div>
       <div
         data-tauri-drag-region
-        style={{ width: rightPanelWidth }}
+        style={
+          rightPanelWidth === null ? undefined : { width: rightPanelWidth }
+        }
         className="flex shrink-0 items-center justify-end"
       >
         {debugModeEnabled && (

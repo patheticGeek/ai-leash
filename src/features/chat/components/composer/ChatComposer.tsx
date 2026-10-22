@@ -39,6 +39,8 @@ interface ChatComposerProps {
     onDismiss: () => void;
   };
   checkout: CheckoutBarProps;
+  // Off for the board's project chat (see `ChatPanel`'s `compact`).
+  showCheckout: boolean;
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
   // or "/compact" — is its own; what those actually do to the conversation
   // (talk to the backend, rewrite the transcript) is `ChatPanel`'s.
@@ -67,6 +69,7 @@ export default function ChatComposer({
   usage,
   claudeRateLimit,
   checkout,
+  showCheckout,
   onSubmit,
   onRunShell,
   onCommand,
@@ -297,7 +300,7 @@ export default function ChatComposer({
             )
           }
         />
-        <CheckoutBar {...checkout} />
+        {showCheckout && <CheckoutBar {...checkout} />}
       </div>
     </div>
   );

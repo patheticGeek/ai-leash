@@ -55,13 +55,13 @@ export default function ProjectBoardView({
       <ResizablePanel
         id="project-chat"
         panelRef={chatPanel}
-        defaultSize="32"
-        minSize="20"
+        defaultSize="33"
+        minSize="24"
         collapsible
         collapsedSize="0"
       >
         <div className="h-full min-w-0 border-l border-white/5">
-          <ChatPanel sessionId={sessionId} projectRoot={projectRoot} />
+          <ChatPanel sessionId={sessionId} projectRoot={projectRoot} compact />
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
