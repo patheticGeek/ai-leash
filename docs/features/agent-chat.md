@@ -40,8 +40,17 @@ readable. Expand an activity group to inspect all of the steps, or expand an
 individual tool entry to see its inputs and output. A failed tool call is
 marked as failed and its output remains available for inspection.
 
+Once a reply is complete, everything the agent did before its closing
+message — thinking, tool calls and any text in between — folds into a single
+**Worked for** row showing how long the turn took, so only your message and
+the agent's final summary stay on show. Expand the row to see every step.
+While the agent is still working, its steps stay visible as they happen. To
+keep every step on show instead, turn off **Collapse finished turns** in
+Settings > Preferences > Chat.
+
 Every message has a timestamp and a copy button. The final assistant message
-also shows how long the agent spent working once the reply is complete. The
+also shows how long the agent spent working once the reply is complete, when
+there is no **Worked for** row above it already showing that. The
 timing stays accurate if you switch to another conversation while the agent
 works.
 

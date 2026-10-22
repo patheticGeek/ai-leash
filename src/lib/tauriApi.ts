@@ -16,6 +16,7 @@ export interface FontFamilyInfo {
 export interface Preferences {
   composeMode: boolean;
   composerMaxRows: number;
+  collapseFinishedTurns: boolean;
   ideCommand: string;
   debugModeEnabled: boolean;
   debugShowIds: boolean;

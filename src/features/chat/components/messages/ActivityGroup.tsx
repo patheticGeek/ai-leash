@@ -45,7 +45,7 @@ export default function ActivityGroup({
           variant="quiet"
           size="xs"
           onClick={() => setExpanded((v) => !v)}
-          className="rounded-md"
+          className="rounded-md pl-0"
         >
           <ChevronDown
             size={11}

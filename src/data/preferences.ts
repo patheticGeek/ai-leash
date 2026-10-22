@@ -102,7 +102,8 @@ export function subscribePreferences(
 }
 
 // The localStorage keys preferences used before they moved to Rust. Only
-// read here, once, to carry an existing user's values over.
+// read here, once, to carry an existing user's values over. Preferences
+// added since then never lived in localStorage, so they have no key here.
 const LEGACY_KEYS = {
   composeMode: "ai-leash:composeMode",
   composerMaxRows: "ai-leash:composerMaxRows",
@@ -113,7 +114,7 @@ const LEGACY_KEYS = {
   uiFontSize: "ai-leash:uiFontSize",
   codeFontFamily: "ai-leash:codeFontFamily",
   codeFontSize: "ai-leash:codeFontSize",
-} as const satisfies Record<keyof Preferences, string>;
+} as const satisfies Partial<Record<keyof Preferences, string>>;
 
 function readLegacyPreferences(): Partial<Preferences> | null {
   const patch: Record<string, string | number | boolean> = {};

@@ -108,8 +108,10 @@ function ActivityRow({
           <Button
             variant="quiet"
             size="xs"
+            // No left padding, so the chevron lines up with the start of
+            // the transcript's text.
             className={cn(
-              "justify-start rounded-md",
+              "justify-start rounded-md pl-0",
               fullWidth && "w-full min-w-0 text-left",
             )}
           >
@@ -117,13 +119,24 @@ function ActivityRow({
           </Button>
         </CollapsibleTrigger>
       ) : (
-        <div className="inline-flex items-center gap-1.5 px-1 py-0.5 text-zinc-600">
+        <div className="inline-flex items-center gap-1.5 py-0.5 pr-1 text-zinc-600">
           {header}
         </div>
       )}
       {expandable && children && (
-        <CollapsibleContent className="mt-1 ml-4 space-y-2 border-l-2 border-border pl-3 text-zinc-600">
-          {children}
+        <CollapsibleContent className="relative mt-1 pl-5 text-zinc-600">
+          {/* The rule doubles as a collapse control. Its hit area is as
+              wide as the chevron (12px) so the 2px line sits under the
+              chevron's center. */}
+          <button
+            type="button"
+            aria-label="Collapse"
+            onClick={onToggle}
+            className="group/rule absolute inset-y-0 left-0 flex w-4.5 cursor-pointer justify-center"
+          >
+            <span className="w-0.5 bg-border transition-colors duration-200 ease-out group-hover/rule:bg-zinc-500" />
+          </button>
+          <div className="space-y-2">{children}</div>
         </CollapsibleContent>
       )}
     </Collapsible>
