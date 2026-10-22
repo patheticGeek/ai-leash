@@ -174,6 +174,7 @@ pub fn run() {
             board::delete_project_board,
             board::lifecycle::start_task,
             board::lifecycle::finish_task,
+            board::messaging::set_task_engaged,
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
             acp::elicitation::respond_elicitation,

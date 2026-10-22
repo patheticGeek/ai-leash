@@ -62,7 +62,9 @@ The agent can read and change the project's
 status, and start a task. Ask it to "plan this as tasks" or "add a task for
 …" and the tasks show up on the board. In a task's own chat it can update
 that task without naming it, and is asked to move it to Review when its
-work is done.
+work is done. It can also message the project chat from a task's chat, or
+a task from the project chat — see
+[The project chat and task chats](./project-board.md#the-project-chat-and-task-chats).
 
 These don't need an approval prompt: they change the board, not your
 files. Moving a task to Done removes its worktree, so the agent can only do

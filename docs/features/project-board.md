@@ -64,8 +64,9 @@ the agent, model and effort to use.
 Hover a card that hasn't been started and click its **▶ Start** button.
 Pick the agent, model and effort its chat should use (the effort starts
 from the task's size: XS and S are low, M medium, L and XL high), whether
-it may run tools without asking, and whether to open its chat straight
-away. Then click **Start**.
+it may run tools without asking, whether the project chat follows it (see
+[below](#the-project-chat-and-task-chats)), and whether to open its chat
+straight away. Then click **Start**.
 
 Starting a task:
 
@@ -82,6 +83,41 @@ Starting a task:
 A started card has a chat button that opens its chat. The chat is a normal
 conversation: you can read along, answer questions, approve tool use and
 send messages of your own.
+
+## The project chat and task chats
+
+The project chat and a task's chat can message each other. A task's chat
+sends progress, questions or blockers to the project chat; the project
+chat sends instructions or answers to a task by its number. A message from
+another chat shows in the transcript with **From …** above it (click it to
+open the sender). Ask the project chat things like "tell #12 to use the
+new API" or "what's #9 waiting on?".
+
+Whenever a task's turn ends, the project chat hears about it, with the
+task's status and its last reply. Whether that wakes the project chat
+depends on whether it's **following** the task:
+
+- It follows a task it started or has sent a message to, and one you
+  start from the board with **The project chat follows it** ticked (the
+  default). Then the task's
+  updates and messages wake it, so it can react: answer a question, send
+  the next instruction, or start the next task.
+- Once you write in a task's chat yourself, you've taken it over, and the
+  project chat stops following it — even for a quick answer. Its updates
+  still reach the project chat, but as **notes**: collapsed rows in its
+  transcript that it reads the next time it runs, without starting a turn
+  (or spending tokens) for each one.
+
+A task chat the project chat isn't following shows a banner above its
+message box; click **Hand back to project chat** to have it follow again.
+Messaging the task from the project chat does the same.
+
+Messages to a task always wake it. A chat that's busy gets a message once
+its current turn ends.
+
+So two agents can't keep answering each other forever, a chat that's had
+8 messages from other chats in a row, with nothing from you in between,
+gets further ones as notes instead. Writing in that chat resumes it.
 
 ### Projects that aren't git repositories
 

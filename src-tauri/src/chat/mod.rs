@@ -263,6 +263,7 @@ mod tests {
             pending_elicitations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
             generating: Mutex::new(HashSet::new()),
+            mailroom: Default::default(),
             touched_dirs: Mutex::new(HashMap::new()),
             session_locks: Mutex::new(HashMap::new()),
             fs_watcher: Mutex::new(None),

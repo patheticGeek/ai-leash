@@ -303,6 +303,42 @@ export function useChatStream(
         ]);
       }),
     );
+    // Another chat's message to this one (`board::messaging`): a turn
+    // answering it follows on its own.
+    unlistens.push(
+      listen<{ from: string; content: string }>(
+        `chat://${sessionId}/agent_message`,
+        (e) => {
+          setEntries((prev) => [
+            ...prev,
+            {
+              kind: "text",
+              role: "user",
+              content: e.payload.content,
+              time: Date.now(),
+              from: e.payload.from,
+            },
+          ]);
+        },
+      ),
+    );
+    // A note another chat left without starting a turn here.
+    unlistens.push(
+      listen<{ from: string; content: string }>(
+        `chat://${sessionId}/board_note`,
+        (e) => {
+          setEntries((prev) => [
+            ...prev,
+            {
+              kind: "note",
+              from: e.payload.from,
+              content: e.payload.content,
+              time: Date.now(),
+            },
+          ]);
+        },
+      ),
+    );
     unlistens.push(
       listen<string>(`chat://${sessionId}/acp_session_restore_failed`, (e) => {
         setAcpRestoreFailed(e.payload);

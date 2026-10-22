@@ -80,6 +80,9 @@ export interface PersistedMessage {
   toolCalls: PersistedToolCall[] | null;
   createdAt: number;
   durationSeconds: number | null;
+  // Set when another conversation sent it (`board::messaging`): a message
+  // from a task's chat or the project chat, or a note (`role: "event"`).
+  fromConversationId: string | null;
 }
 
 // An ACP agent's "model" session config option (see
@@ -576,6 +579,10 @@ export const api = {
   updateEpic: (epicId: string, patch: EpicPatch) =>
     invoke<Epic>("update_epic", { epicId, patch }),
   deleteEpic: (epicId: string) => invoke<void>("delete_epic", { epicId }),
+  // Whether the project chat is woken by this task's updates — the task
+  // chat's "Hand back to project chat".
+  setTaskEngaged: (taskId: string, engaged: boolean) =>
+    invoke<void>("set_task_engaged", { taskId, engaged }),
   setParallelMainCheckoutTasks: (projectRoot: string, allowed: boolean) =>
     invoke<void>("set_parallel_main_checkout_tasks", { projectRoot, allowed }),
   deleteProjectBoard: (projectRoot: string) =>

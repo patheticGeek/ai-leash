@@ -9,6 +9,18 @@ export interface TextEntry {
   // `messagesToEntries`) — a turn just-finished live gets its duration from
   // `ChatPanel`'s own timer instead (see `turnDurations` there).
   durationSeconds?: number;
+  // A user-role message another conversation sent (a task's chat or the
+  // project chat), rather than one the user typed.
+  from?: string;
+}
+
+// A note another conversation left without waking this one — a task's
+// update the project chat isn't following, say. See `board::messaging`.
+export interface NoteEntry {
+  kind: "note";
+  from: string | null;
+  content: string;
+  time: number;
 }
 
 export interface ThinkingEntry {
@@ -25,7 +37,7 @@ export interface ToolEntry {
   result?: string;
 }
 
-export type Entry = TextEntry | ThinkingEntry | ToolEntry;
+export type Entry = TextEntry | ThinkingEntry | ToolEntry | NoteEntry;
 
 export interface ToolCallPayload {
   id: string | null;
@@ -148,6 +160,16 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
       entries.push({
         kind: "text",
         role: "user",
+        content: message.content,
+        time: message.createdAt * 1000,
+        ...(message.fromConversationId
+          ? { from: message.fromConversationId }
+          : {}),
+      });
+    } else if (message.role === "event") {
+      entries.push({
+        kind: "note",
+        from: message.fromConversationId,
         content: message.content,
         time: message.createdAt * 1000,
       });

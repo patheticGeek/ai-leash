@@ -78,6 +78,7 @@ export default function StartTaskDialog({
   const [effort, setEffort] = useState(DEFAULT);
   const [bypass, setBypass] = useState(false);
   const [openAfter, setOpenAfter] = useState(false);
+  const [follow, setFollow] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,6 +105,7 @@ export default function StartTaskDialog({
     if (task) {
       setBackendId(defaultBackendId);
       setBypass(false);
+      setFollow(true);
       setError(null);
     }
   }, [task, defaultBackendId]);
@@ -118,6 +120,7 @@ export default function StartTaskDialog({
         model,
         effort: effort === DEFAULT ? null : effort,
         bypassPermissions: bypass,
+        engagedWithProject: follow,
       });
       onClose();
       if (openAfter) await openConversation(conversationId);
@@ -226,6 +229,11 @@ export default function StartTaskDialog({
             label="Run tools without asking (Bypass)"
             checked={bypass}
             onChange={setBypass}
+          />
+          <CheckRow
+            label="The project chat follows it (its updates wake the project chat)"
+            checked={follow}
+            onChange={setFollow}
           />
           <CheckRow
             label="Open its chat after starting"

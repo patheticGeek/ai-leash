@@ -1,7 +1,9 @@
+import { Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Markdown from "../../../../ui/Markdown";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { ActivityRow } from "./ActivityRow";
+import FromChat, { useChatLabel } from "./FromChat";
 import MessageFooter from "./MessageFooter";
 import ToolEntry from "./ToolEntry";
 
@@ -30,6 +32,35 @@ export interface ChatEntryRendererProps {
 // shows tool calls/thinking identically to a top-level conversation's, just
 // with `allowRetry` forced off and no system-prompt/provider-error/ACP-restore
 // banners.
+// A note another chat left (`board::messaging`) — collapsed to its sender
+// and first line until opened.
+function NoteRow({
+  from,
+  content,
+  expanded,
+  onToggle,
+}: {
+  from: string | null;
+  content: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const label = useChatLabel(from);
+  return (
+    <ActivityRow
+      icon={<Inbox />}
+      label={`Note from ${label}`}
+      summary={content.split("\n")[0]}
+      expanded={expanded}
+      onToggle={onToggle}
+    >
+      <div className="select-text">
+        <Markdown content={content} />
+      </div>
+    </ActivityRow>
+  );
+}
+
 export default function ChatEntryRenderer({
   entry,
   isLast,
@@ -51,6 +82,17 @@ export default function ChatEntryRenderer({
     );
   }
 
+  if (entry.kind === "note") {
+    return (
+      <NoteRow
+        from={entry.from}
+        content={entry.content}
+        expanded={expanded}
+        onToggle={onToggleExpand}
+      />
+    );
+  }
+
   if (entry.kind === "text") {
     const isUser = entry.role === "user";
     return (
@@ -60,12 +102,14 @@ export default function ChatEntryRenderer({
           isUser ? "items-end text-zinc-200" : "items-start text-zinc-300",
         )}
       >
+        {entry.from && <FromChat id={entry.from} />}
         <div
           className={cn(
             "select-text",
             isUser
               ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5"
               : "min-w-0 max-w-full",
+            entry.from && "shadow-[0_0_0_1px_var(--primary)] bg-primary/5",
           )}
         >
           <Markdown content={entry.content} />

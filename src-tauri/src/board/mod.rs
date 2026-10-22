@@ -5,6 +5,7 @@
 //! refresh.
 
 pub mod lifecycle;
+pub mod messaging;
 
 use crate::db::{self, BoardSummary, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;

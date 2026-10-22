@@ -69,16 +69,32 @@ pub struct ConversationSummary {
 /// conversation) instead.
 pub fn list_all_conversations(db: &Db) -> Vec<ConversationSummary> {
     let conn = db.0.lock().unwrap();
-    let Ok(mut stmt) = conn.prepare(
+    query_conversations(&conn, "c.hidden = 0", params![])
+}
+
+/// One conversation's row, hidden or not.
+pub fn get_conversation(db: &Db, conversation_id: &str) -> Option<ConversationSummary> {
+    let conn = db.0.lock().unwrap();
+    query_conversations(&conn, "c.id = ?1", params![conversation_id])
+        .into_iter()
+        .next()
+}
+
+fn query_conversations(
+    conn: &Connection,
+    filter: &str,
+    params: &[&dyn rusqlite::ToSql],
+) -> Vec<ConversationSummary> {
+    let Ok(mut stmt) = conn.prepare(&format!(
         "SELECT c.id, c.project_id, c.project_root, c.title, c.updated_at, c.worktree_path, \
                 c.done, c.backend, c.model, c.effort, c.permission_mode, c.agent_mode, c.role, \
                 t.id, t.number \
          FROM conversations c LEFT JOIN tasks t ON t.conversation_id = c.id \
-         WHERE c.hidden = 0 ORDER BY c.updated_at DESC",
-    ) else {
+         WHERE {filter} ORDER BY c.updated_at DESC"
+    )) else {
         return vec![];
     };
-    stmt.query_map([], |row| {
+    stmt.query_map(params, |row| {
         Ok(ConversationSummary {
             id: row.get(0)?,
             project_id: row.get(1)?,

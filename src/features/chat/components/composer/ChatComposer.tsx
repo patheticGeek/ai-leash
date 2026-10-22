@@ -15,6 +15,7 @@ import { useSessionPermissions } from "../../hooks/useSessionPermissions";
 import { useSlashCommands } from "../../hooks/useSlashCommands";
 import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
+import TaskLinkBanner from "../banners/TaskLinkBanner";
 import ChatInputBar from "./ChatInputBar";
 import ChatToolbar from "./ChatToolbar";
 import ContextUsageRing from "./ContextUsageRing";
@@ -240,6 +241,7 @@ export default function ChatComposer({
       className={cn("w-full", floating && "absolute bottom-0")}
     >
       <div className={cn(compact ? "mt-3" : "mx-auto my-3 max-w-4xl")}>
+        <TaskLinkBanner sessionId={sessionId} />
         <ChatBanners
           helpOpen={helpOpen}
           commands={allCommands}

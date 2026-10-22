@@ -515,6 +515,15 @@ pub fn set_task_conversation(
     );
 }
 
+/// Whether the project chat is woken by this task's updates.
+pub fn set_task_engaged(db: &Db, task_id: &str, engaged: bool) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE tasks SET engaged_with_project = ?2 WHERE id = ?1",
+        params![task_id, engaged],
+    );
+}
+
 /// Other tasks in `project_root` that are in progress with a chat — in a
 /// project that isn't a git repo they all share its one checkout.
 pub fn running_tasks(db: &Db, project_root: &str, except_task_id: &str) -> Vec<Task> {

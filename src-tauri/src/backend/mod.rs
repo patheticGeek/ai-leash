@@ -74,6 +74,19 @@ pub trait Backend: Send + Sync {
         message: String,
     ) -> BoxFuture<'a, Result<(), String>>;
 
+    /// Takes a turn on what's already been added to `session_id`'s history —
+    /// a message another agent's chat sent it (`board::messaging`), which
+    /// that code persisted itself. Nobody typed it, so it's `autonomous`.
+    /// `prompt` is that message as the agent should get it: an ACP agent
+    /// keeps its own history, so it's sent there as a prompt; our own loop
+    /// already has it in history.
+    fn continue_turn<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        session_id: &'a str,
+        prompt: String,
+    ) -> BoxFuture<'a, Result<(), String>>;
+
     /// Runs a sub-agent's one task under its own `sub_session_id` and
     /// resolves to its final text. `cancel_flag` is the sub-agent's Stop.
     fn run_task<'a>(
