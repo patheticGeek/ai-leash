@@ -18,8 +18,6 @@ interface ActivityRowProps {
   italic?: boolean;
   /** Animated shimmer on the label, for something still in progress. */
   shine?: boolean;
-  /** Stretch the header across its parent (label + summary truncate). */
-  fullWidth?: boolean;
   expanded?: boolean;
   /** Omit for a static marker with no chevron and no detail. */
   onToggle?: () => void;
@@ -43,7 +41,6 @@ function ActivityRow({
   status,
   italic,
   shine,
-  fullWidth,
   expanded = false,
   onToggle,
   children,
@@ -75,7 +72,7 @@ function ActivityRow({
       <span
         className={cn(
           "truncate",
-          fullWidth && "shrink-0 max-w-4/5",
+          "shrink-0 max-w-4/5",
           italic && "italic",
           shine && "shine-text",
           failed && "text-red-400",
@@ -110,10 +107,7 @@ function ActivityRow({
             size="xs"
             // No left padding, so the chevron lines up with the start of
             // the transcript's text.
-            className={cn(
-              "justify-start rounded-md pl-0",
-              fullWidth && "w-full min-w-0 text-left",
-            )}
+            className="w-full min-w-0 justify-start rounded-md pl-0 text-left"
           >
             {header}
           </Button>
