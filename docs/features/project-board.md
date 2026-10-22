@@ -9,7 +9,8 @@ an ordinary conversation for the whole project: use it to plan, break work
 into tasks, or ask about the board. It always works in the project's main
 checkout, so it has no worktree or branch picker.
 
-Switch between **Board**, **Both** and **Chat** in the title bar to see
+The title bar's **Open** and Actions buttons are hidden here. Switch
+between **Board**, **Both** and **Chat** in the title bar to see
 just the board, the board with the chat docked on its right (a third of
 the width by default; drag the divider to resize it), or just the chat.
 The choice is remembered.

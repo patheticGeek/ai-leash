@@ -207,9 +207,16 @@ export default function TitleBar({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
-          {boardView && <BoardLayoutSwitch />}
-          <OpenInIdeButton />
-          <TitleBarActions />
+          {/* A project's board has no checkout of its own to open or run
+              Actions in — just its layout switch. */}
+          {boardView ? (
+            <BoardLayoutSwitch />
+          ) : (
+            <>
+              <OpenInIdeButton />
+              <TitleBarActions />
+            </>
+          )}
         </div>
       </div>
       <div
