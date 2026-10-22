@@ -1,5 +1,5 @@
 use crate::context;
-use crate::tools::{action_tools, memory_tools, sub_agent_tools};
+use crate::tools::{action_tools, board_tools, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -142,6 +142,10 @@ pub fn tool_definitions(
     // defined for this project" when there are none.
     if let Value::Array(arr) = &mut tools {
         for definition in action_tools::action_defs() {
+            arr.push(json!({ "type": "function", "function": definition }));
+        }
+        // The project's board — always on, same reasoning as Actions.
+        for definition in board_tools::board_defs() {
             arr.push(json!({ "type": "function", "function": definition }));
         }
     }

@@ -646,10 +646,7 @@ async fn drive_acp_connection(
                             json!({ "text": text }),
                         );
                         *current_segment.lock().unwrap() = None;
-                        let _ = app.emit(
-                            "chat://generating",
-                            json!({ "sessionId": session_id, "active": true, "autonomous": false }),
-                        );
+                        crate::chat::set_generating(&app, &session_id, true, false);
 
                         // Registered for the duration of this one request so
                         // `backend::cancel` can wake the
@@ -682,10 +679,7 @@ async fn drive_acp_connection(
                         set_prompt_cancel(&app, &session_id, None);
                         cancel_pending_elicitations(&app, &session_id);
 
-                        let _ = app.emit(
-                            "chat://generating",
-                            json!({ "sessionId": session_id, "active": false, "autonomous": false }),
-                        );
+                        crate::chat::set_generating(&app, &session_id, false, false);
 
                         match result {
                             Ok(_response) => {
@@ -725,22 +719,17 @@ async fn drive_acp_connection(
                         continue;
                     }
                     AcpCommand::Cancel => {
-                        emit_acp_debug(
-                            &app,
-                            &session_id,
-                            "sent",
-                            "session/cancel",
-                            json!({}),
-                        );
+                        emit_acp_debug(&app, &session_id, "sent", "session/cancel", json!({}));
                         cancel_pending_elicitations(&app, &session_id);
                         let _ = connection
                             .send_notification(CancelNotification::new(acp_session_id.clone()));
                         continue;
                     }
                     AcpCommand::SetConfig(kind, value) => vec![(kind, value, true)],
-                    AcpCommand::ApplyPicks(picks) => {
-                        picks.into_iter().map(|(kind, value)| (kind, value, false)).collect()
-                    }
+                    AcpCommand::ApplyPicks(picks) => picks
+                        .into_iter()
+                        .map(|(kind, value)| (kind, value, false))
+                        .collect(),
                 };
                 for (kind, value, report_missing) in configs {
                     if !report_missing && config_id(kind).is_none() {
@@ -796,11 +785,7 @@ async fn drive_acp_connection(
                             );
                             let _ = app.emit(
                                 &format!("chat://{session_id}/error"),
-                                format!(
-                                    "Failed to set {}: {}",
-                                    kind.label(),
-                                    format_acp_error(&e)
-                                ),
+                                format!("Failed to set {}: {}", kind.label(), format_acp_error(&e)),
                             );
                         }
                     }

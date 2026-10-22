@@ -8,7 +8,8 @@ use crate::state::AppState;
 use crate::tools::ToolCall;
 use history::{emit_conversation_changed, load_conversation_history};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use serde_json::json;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // `pub(crate)`, not `pub use`: `tools/shell_tools.rs`, `tools/sub_agent_tools.rs`,
 // and `acp/events.rs`/`acp/process.rs` reference these by their
@@ -32,6 +33,32 @@ pub struct TurnResult {
     pub tool_calls: Option<Vec<ToolCall>>,
     pub prompt_tokens: Option<u64>,
     pub completion_tokens: Option<u64>,
+}
+
+/// Marks a turn starting (`active`) or ending on `session_id` and tells the
+/// frontend (`chat://generating`, one global event with the id in its
+/// payload). Every turn, native or ACP, goes through here, so
+/// `AppState::generating` always says what's running. `autonomous`: nobody
+/// typed this turn (see `agent_loop::run_with_cancellation`).
+pub(crate) fn set_generating(app: &AppHandle, session_id: &str, active: bool, autonomous: bool) {
+    {
+        let state = app.state::<AppState>();
+        let mut generating = state.generating.lock().unwrap();
+        if active {
+            generating.insert(session_id.to_string());
+        } else {
+            generating.remove(session_id);
+        }
+    }
+    let _ = app.emit(
+        "chat://generating",
+        json!({ "sessionId": session_id, "active": active, "autonomous": autonomous }),
+    );
+}
+
+/// Whether `session_id` has a turn in flight.
+pub(crate) fn is_generating(state: &AppState, session_id: &str) -> bool {
+    state.generating.lock().unwrap().contains(session_id)
 }
 
 #[tauri::command]
@@ -235,6 +262,7 @@ mod tests {
             pending_permissions: Mutex::new(HashMap::new()),
             pending_elicitations: Mutex::new(HashMap::new()),
             cancellations: Mutex::new(HashMap::new()),
+            generating: Mutex::new(HashSet::new()),
             touched_dirs: Mutex::new(HashMap::new()),
             session_locks: Mutex::new(HashMap::new()),
             fs_watcher: Mutex::new(None),

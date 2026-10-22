@@ -1,4 +1,5 @@
 pub(crate) mod action_tools;
+pub(crate) mod board_tools;
 mod fs_tools;
 pub(crate) mod guidance;
 pub(crate) mod memory_tools;
@@ -138,6 +139,9 @@ pub async fn execute_tool(
         "stop_action" => action_tools::stop_action(app, &root, args),
         "list_actions" => action_tools::list_actions(app, &root),
         "read_action" => action_tools::read_action(app, &root, args),
+        board if board_tools::BOARD_TOOLS.contains(&board) => {
+            board_tools::execute(app, session_id, board, args).await
+        }
         other => Err(format!("unknown tool `{other}`")),
     }
 }

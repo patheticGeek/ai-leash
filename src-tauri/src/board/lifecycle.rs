@@ -97,8 +97,10 @@ fn task_prompt(task: &Task, epic: Option<&str>, branch: Option<&str>) -> String 
         ),
         None => "You're in the project's main checkout.".to_string(),
     });
-    prompt
-        .push_str("\n\nWhen you're done, summarise what you changed and anything left for review.");
+    prompt.push_str(
+        "\n\nWhen you're done, move the task to review with `update_task` (status \"review\"), \
+             then summarise what you changed and anything left for the reviewer.",
+    );
     prompt
 }
 
@@ -371,5 +373,6 @@ mod tests {
         assert!(prompt.contains("Use the existing tokens."));
         assert!(prompt.contains("`task/7-add-dark-mode`"));
         assert!(task_prompt(&t, None, None).contains("main checkout"));
+        assert!(prompt.contains("`update_task`"));
     }
 }

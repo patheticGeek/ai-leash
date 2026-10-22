@@ -88,6 +88,15 @@ pub fn list_epics(db: &Db, project_root: &str) -> Vec<Epic> {
         .unwrap_or_default()
 }
 
+/// Finds an epic by id or (case-insensitively) by title — agents name epics
+/// by title.
+pub fn find_epic(db: &Db, project_root: &str, reference: &str) -> Option<Epic> {
+    let reference = reference.trim();
+    list_epics(db, project_root)
+        .into_iter()
+        .find(|e| e.id == reference || e.title.eq_ignore_ascii_case(reference))
+}
+
 pub fn create_epic(db: &Db, project_root: &str, new: NewEpic) -> Result<Epic, String> {
     let title = new.title.trim();
     if title.is_empty() {
@@ -193,6 +202,15 @@ mod tests {
             .collect();
         assert_eq!(titles, ["a", "b"]);
         assert!(list_epics(&db, "/other").is_empty());
+    }
+
+    #[test]
+    fn find_epic_matches_id_or_title_case_insensitively() {
+        let db = temp_db();
+        let a = create_epic(&db, "/proj", new("Onboarding")).unwrap();
+        assert_eq!(find_epic(&db, "/proj", "onboarding").unwrap().id, a.id);
+        assert_eq!(find_epic(&db, "/proj", &a.id).unwrap().id, a.id);
+        assert!(find_epic(&db, "/other", "onboarding").is_none());
     }
 
     #[test]

@@ -54,6 +54,20 @@ permission rules.
 
 For more about this, see [agent-chat.md](./agent-chat.md#sub-agents).
 
+### Plan and track work on the board
+
+The agent can read and change the project's
+[board](./project-board.md): list tasks and epics, read a task, add tasks
+(several at once, creating any epic they name), change a task's fields or
+status, and start a task. Ask it to "plan this as tasks" or "add a task for
+…" and the tasks show up on the board. In a task's own chat it can update
+that task without naming it, and is asked to move it to Review when its
+work is done.
+
+These don't need an approval prompt: they change the board, not your
+files. Moving a task to Done removes its worktree, so the agent can only do
+that when nothing would be lost; otherwise it's left for you.
+
 ### Use project skills
 
 Projects may provide optional skills with specialized instructions. The
@@ -73,13 +87,13 @@ out of sight. Every conversation starts with built-in guidance about when to
 reach for each one: look through the
 project before answering, run long-lived commands such as a development
 server as an Action instead of a one-off command, save lasting preferences to
-memory when you state them, and split independent parts of a request across
-sub-agents. The agent is also shown which Actions and skills already exist, so it can
+memory when you state them, split independent parts of a request across
+sub-agents, and put planned work on the board as tasks. The agent is also shown which Actions and skills already exist, so it can
 reuse them without having to look them up first. Your own `AGENTS.md`
 instructions are added after this guidance, so they can refine or override it.
 
 External agents connected over ACP get the same kind of guidance for the AI
-Leash tools they can reach (Actions, memory, and sub-agents) when they
+Leash tools they can reach (Actions, memory, sub-agents and the board) when they
 connect, along with the Actions and skills that exist at that point (they can
 call `list_actions` for the current set), including a preference for those over their own built-in equivalents
 so the work shows up in the app. They keep their own tools for files and

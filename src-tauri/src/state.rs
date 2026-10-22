@@ -126,6 +126,9 @@ pub struct AppState {
     /// a closed connection can dismiss just its own forms.
     pub pending_elicitations: Mutex<HashMap<String, PendingElicitation>>,
     pub cancellations: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    /// Sessions with a turn in flight right now, either backend — kept by
+    /// `chat::set_generating`, the one place `chat://generating` is sent.
+    pub generating: Mutex<HashSet<String>>,
     /// Directories each session's agent has touched via its tools (read_file,
     /// edit_file, write_file, list_dir, grep), used to scope AGENTS.md/skills
     /// discovery to subfolders the agent is actually working in.
