@@ -25,8 +25,9 @@ export default function ChatPanel({
 }: {
   sessionId: string | null;
   projectRoot: string;
-  // A slim chat for a narrow column — the board's project chat: no
-  // checkout bar (it always works in the project's main checkout).
+  // A slim chat for a narrow column — the board's project chat: fills its
+  // column instead of a centered max width, and has no checkout bar (it
+  // always works in the project's main checkout).
   compact?: boolean;
 }) {
   const conversations = useConversations();
@@ -307,7 +308,7 @@ export default function ChatPanel({
               turnDurations={turnDurations}
               replyStartedAt={replyStartedAt}
               onRetry={retry}
-              className="justify-end"
+              className={cn("justify-end", compact && "mx-0 max-w-none")}
               bottomInset={composerHeight}
             />
           </div>
@@ -324,7 +325,7 @@ export default function ChatPanel({
             onArmAutoResume: armClaudeAutoResume,
             onDismiss: dismissClaudeRateLimit,
           }}
-          showCheckout={!compact}
+          compact={compact}
           checkout={{
             projectRoot,
             cwd: worktreeCwd,

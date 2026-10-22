@@ -30,7 +30,7 @@ export default function ProjectBoardView({
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
     >
-      <ResizablePanel id="board" minSize="35">
+      <ResizablePanel id="board" minSize="30">
         <BoardView
           projectRoot={projectRoot}
           toolbarEnd={
@@ -56,7 +56,7 @@ export default function ProjectBoardView({
         id="project-chat"
         panelRef={chatPanel}
         defaultSize="33"
-        minSize="24"
+        minSize={280}
         collapsible
         collapsedSize="0"
       >
