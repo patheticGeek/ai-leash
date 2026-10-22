@@ -1,6 +1,7 @@
 mod acp;
 mod actions;
 mod backend;
+mod board;
 mod chat;
 mod commands;
 mod context;
@@ -159,6 +160,16 @@ pub fn run() {
             chat::history::list_conversations,
             chat::history::list_projects,
             chat::history::delete_conversation,
+            board::get_board,
+            board::create_task,
+            board::update_task,
+            board::move_task,
+            board::delete_task,
+            board::create_epic,
+            board::update_epic,
+            board::delete_epic,
+            board::set_parallel_main_checkout_tasks,
+            board::delete_project_board,
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
             acp::elicitation::respond_elicitation,

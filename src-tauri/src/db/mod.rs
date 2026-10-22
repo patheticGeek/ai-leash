@@ -15,11 +15,13 @@ use std::sync::Mutex;
 mod acp_sessions;
 mod action_last_run;
 mod conversations;
+mod epics;
 mod messages;
 mod migrations;
 mod projects;
 mod rate_limit;
 mod sub_agents;
+mod tasks;
 
 pub use acp_sessions::{
     delete_acp_agent_session_id, get_acp_agent_session_id, set_acp_agent_session_id, AgentSessionId,
@@ -30,17 +32,25 @@ pub use conversations::{
     set_conversation_backend, set_conversation_done, set_conversation_permission_mode,
     set_conversation_title, set_conversation_worktree, ConversationSummary,
 };
+pub use epics::{create_epic, delete_epic, list_epics, update_epic, Epic, EpicPatch, NewEpic};
 pub use messages::{
     finish_streaming_message, load_messages, save_message, set_message_duration,
     start_streaming_message, update_streaming_message, update_tool_call_args, PersistedMessage,
 };
-pub use projects::{ensure_project, list_projects, touch_project, ProjectSummary};
+pub use projects::{
+    ensure_project, list_projects, project_root_for_id, touch_project, ProjectSummary,
+};
 pub use rate_limit::{
     armed_rate_limit_conversations, get_rate_limit_choice, last_message, set_rate_limit_choice,
 };
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent_for_parent, list_sub_agents_for_parent,
     record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
+};
+pub use tasks::{
+    count_done_tasks, create_task, delete_project_board, delete_task, list_tasks, move_task,
+    parallel_main_checkout_tasks, set_parallel_main_checkout_tasks, update_task, NewTask, Task,
+    TaskPatch,
 };
 
 pub struct Db(Mutex<Connection>);

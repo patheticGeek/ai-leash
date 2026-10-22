@@ -327,6 +327,7 @@ fn wipe_rows(conn: &Connection, id: &str, include_row: bool) {
     }
     if include_row {
         let _ = conn.execute("DELETE FROM conversations WHERE id = ?1", params![id]);
+        super::tasks::unlink_conversation(conn, id);
     }
 }
 
