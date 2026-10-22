@@ -237,7 +237,7 @@ export default function ChatComposer({
       ref={dockRef}
       className={cn("w-full", floating && "absolute bottom-0")}
     >
-      <div className={cn("my-3", compact ? "px-1" : "mx-auto max-w-4xl")}>
+      <div className={cn(!compact && "mx-auto my-3 max-w-4xl")}>
         <ChatBanners
           helpOpen={helpOpen}
           commands={allCommands}
@@ -250,6 +250,7 @@ export default function ChatComposer({
           onCancelQueued={queue.remove}
         />
         <ChatInputBar
+          flush={compact}
           input={input}
           onChange={setInput}
           onKeyDown={onKeyDown}

@@ -285,7 +285,9 @@ export default function ChatPanel({
   return (
     <div
       className={cn(
-        "flex h-full",
+        // The floating composer is positioned against this, so it's as
+        // wide as the panel, not whatever holds it.
+        "relative flex h-full",
         isNewThread ? "items-center justify-center px-6" : "flex-col",
       )}
     >
