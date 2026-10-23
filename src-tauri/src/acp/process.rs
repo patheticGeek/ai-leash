@@ -493,11 +493,20 @@ async fn drive_acp_connection(
             // Only worth a lookup at all if the agent can actually resume
             // from it — an agent that never advertises `loadSession` would
             // just reject the id anyway.
-            let stored_agent_session_id = if init_response.agent_capabilities.load_session {
+            //
+            // Nor if this conversation has no messages yet: there's nothing
+            // to restore, so a failed `session/load` would only show the
+            // user an error about a session they never used. The stale id
+            // is dropped and a fresh one started instead.
+            let stored_agent_session_id = if !init_response.agent_capabilities.load_session {
+                None
+            } else if !had_history {
+                let state = app.state::<AppState>();
+                db::delete_acp_agent_session_id(&state.db, &session_id, &launch_command);
+                None
+            } else {
                 let state = app.state::<AppState>();
                 db::get_acp_agent_session_id(&state.db, &session_id, &launch_command)
-            } else {
-                None
             };
             // No `session/load` to fall back on for this connection (either
             // this agent never advertised the capability, or it's simply
@@ -510,6 +519,11 @@ async fn drive_acp_connection(
             // `chat://{session_id}/acp_history_truncated` below).
             let is_fresh_session = stored_agent_session_id.is_none();
 
+            // A new session's id, saved once it's sent its first prompt
+            // rather than on connect: warming up a conversation nobody has
+            // talked in yet (a project's board chat exists before its first
+            // message) shouldn't leave a session id behind for it.
+            let mut unsaved_session_id: Option<db::AgentSessionId> = None;
             let (acp_session_id, config_options): (SessionId, Option<Vec<SessionConfigOption>>) =
                 if let Some(stored_id) = stored_agent_session_id {
                     emit_acp_debug(
@@ -593,13 +607,8 @@ async fn drive_acp_connection(
                         "session/new/response",
                         debug_json(&new_session),
                     );
-                    let state = app.state::<AppState>();
-                    db::set_acp_agent_session_id(
-                        &state.db,
-                        &session_id,
-                        &launch_command,
-                        &db::AgentSessionId::new(new_session.session_id.to_string()),
-                    );
+                    unsaved_session_id =
+                        Some(db::AgentSessionId::new(new_session.session_id.to_string()));
                     (new_session.session_id, new_session.config_options)
                 };
 
@@ -645,6 +654,15 @@ async fn drive_acp_connection(
                             "session/prompt",
                             json!({ "text": text }),
                         );
+                        if let Some(id) = unsaved_session_id.take() {
+                            let state = app.state::<AppState>();
+                            db::set_acp_agent_session_id(
+                                &state.db,
+                                &session_id,
+                                &launch_command,
+                                &id,
+                            );
+                        }
                         *current_segment.lock().unwrap() = None;
                         crate::chat::set_generating(&app, &session_id, true, false);
 
