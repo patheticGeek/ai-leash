@@ -18,13 +18,6 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/ui/dropdown-menu";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +34,7 @@ import {
 import { api, type Epic, type Task, type TaskStatus } from "../../lib/tauriApi";
 import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { useAppStore } from "../../store";
+import BoardSettingsDialog from "./BoardSettingsDialog";
 import EpicsDialog from "./EpicsDialog";
 import StartTaskDialog from "./StartTaskDialog";
 import TaskCard, { TaskCardBody } from "./TaskCard";
@@ -159,6 +153,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [epicFilter, setEpicFilter] = useState(ALL_EPICS);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [epicsOpen, setEpicsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragging, setDragging] = useState<Task | null>(null);
   const [starting, setStarting] = useState<Task | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
@@ -321,32 +316,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           </Button>
         )}
         <div className="flex-1" />
-        {sharedCheckout && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" title="Board settings">
-                <Settings2 />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-w-72">
-              <DropdownMenuLabel>
-                This project isn't a git repository, so started tasks share its
-                one checkout.
-              </DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={board?.parallelMainCheckoutTasks ?? false}
-                onCheckedChange={(allowed) =>
-                  void api.setParallelMainCheckoutTasks(
-                    projectRoot,
-                    allowed === true,
-                  )
-                }
-              >
-                Allow several tasks in progress at once
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Board settings"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings2 />
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}>
           <Layers size={13} />
           Epics
@@ -495,8 +472,19 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         }
         onFinish={(task) => finish(task, null)}
       />
-      <StartTaskDialog task={starting} onClose={() => setStarting(null)} />
+      <StartTaskDialog
+        task={starting}
+        boardDefaults={board?.agentDefaults ?? {}}
+        onClose={() => setStarting(null)}
+      />
       {finishDialog}
+      <BoardSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        projectRoot={projectRoot}
+        board={board}
+        sharedCheckout={sharedCheckout}
+      />
       <EpicsDialog
         open={epicsOpen}
         onOpenChange={setEpicsOpen}

@@ -29,6 +29,56 @@ const POSITION_STEP: f64 = 1024.0;
 /// Below this, two neighbours are renumbered before a card goes between.
 const MIN_GAP: f64 = 1e-6;
 
+/// The agent a task's chat starts with, any part of which may be unset
+/// (falling back to the project's, then the app's default — see
+/// `board::lifecycle::start`). `model`, `thinking` and `agent_mode` are
+/// that backend's own values, so they only apply along with `backend_id`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AgentDefaults {
+    /// A backend's registry id (one of our providers, or an ACP agent).
+    pub backend_id: Option<String>,
+    pub model: Option<String>,
+    /// Reasoning effort.
+    pub thinking: Option<String>,
+    /// AI Leash's own Ask/Bypass: `"ask"` or `"bypass"`.
+    pub permission_mode: Option<String>,
+    /// An ACP agent's own mode, for agents that offer modes.
+    pub agent_mode: Option<String>,
+}
+
+impl AgentDefaults {
+    /// Empty strings dropped, and `permission_mode` checked.
+    pub fn cleaned(self) -> Result<Self, String> {
+        let keep = |v: Option<String>| v.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let cleaned = Self {
+            backend_id: keep(self.backend_id),
+            model: keep(self.model),
+            thinking: keep(self.thinking),
+            permission_mode: keep(self.permission_mode),
+            agent_mode: keep(self.agent_mode),
+        };
+        if let Some(mode) = cleaned.permission_mode.as_deref() {
+            check(mode, &["ask", "bypass"], "permission mode")?;
+        }
+        Ok(cleaned)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+
+    fn to_column(&self) -> Option<String> {
+        (!self.is_empty()).then(|| serde_json::to_string(self).unwrap_or_default())
+    }
+
+    fn from_column(value: Option<String>) -> Self {
+        value
+            .and_then(|v| serde_json::from_str(&v).ok())
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
@@ -53,11 +103,13 @@ pub struct Task {
     pub updated_at: i64,
     pub started_at: Option<i64>,
     pub completed_at: Option<i64>,
+    /// Which agent its chat starts with, where it differs from the board's.
+    pub agent: AgentDefaults,
 }
 
 const TASK_COLUMNS: &str = "id, project_id, epic_id, number, title, description, status, \
      priority, effort, position, conversation_id, engaged_with_project, created_at, \
-     updated_at, started_at, completed_at";
+     updated_at, started_at, completed_at, agent_defaults";
 
 fn task_from_row(row: &Row) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -77,6 +129,7 @@ fn task_from_row(row: &Row) -> rusqlite::Result<Task> {
         updated_at: row.get(13)?,
         started_at: row.get(14)?,
         completed_at: row.get(15)?,
+        agent: AgentDefaults::from_column(row.get(16)?),
     })
 }
 
@@ -93,6 +146,8 @@ pub struct TaskPatch {
     pub effort: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub epic_id: Option<Option<String>>,
+    /// Replaces the task's agent defaults as a whole.
+    pub agent: Option<AgentDefaults>,
 }
 
 /// Tells "field absent" (`None`, via `#[serde(default)]`) apart from
@@ -116,6 +171,8 @@ pub struct NewTask {
     pub priority: Option<String>,
     pub effort: Option<String>,
     pub epic_id: Option<String>,
+    #[serde(default)]
+    pub agent: AgentDefaults,
 }
 
 fn check(value: &str, allowed: &[&str], what: &str) -> Result<(), String> {
@@ -315,6 +372,7 @@ pub fn create_task(db: &Db, project_root: &str, new: NewTask) -> Result<Task, St
     if let Some(effort) = new.effort.as_deref() {
         check(effort, TASK_EFFORTS, "effort")?;
     }
+    let agent = new.agent.clone().cleaned()?;
 
     let conn = db.0.lock().unwrap();
     let project_id = ensure_project_connection(&conn, project_root);
@@ -354,6 +412,11 @@ pub fn create_task(db: &Db, project_root: &str, new: NewTask) -> Result<Task, St
     )
     .map_err(|e| e.to_string())?;
     status_timestamps(&tx, &id, status, ts);
+    tx.execute(
+        "UPDATE tasks SET agent_defaults = ?2 WHERE id = ?1",
+        params![id, agent.to_column()],
+    )
+    .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     get_task_connection(&conn, &id).ok_or_else(|| "task vanished after insert".into())
 }
@@ -363,6 +426,11 @@ pub fn create_task(db: &Db, project_root: &str, new: NewTask) -> Result<Task, St
 pub fn update_task(db: &Db, task_id: &str, patch: TaskPatch) -> Result<Task, String> {
     let conn = db.0.lock().unwrap();
     let current = get_task_connection(&conn, task_id).ok_or("no such task")?;
+    let agent = patch
+        .agent
+        .clone()
+        .map(AgentDefaults::cleaned)
+        .transpose()?;
     if let Some(status) = patch.status.as_deref() {
         check(status, TASK_STATUSES, "status")?;
     }
@@ -409,6 +477,13 @@ pub fn update_task(db: &Db, task_id: &str, patch: TaskPatch) -> Result<Task, Str
     .map_err(|e| e.to_string())?;
     if status != current.status {
         status_timestamps(&conn, task_id, &status, ts);
+    }
+    if let Some(agent) = agent {
+        conn.execute(
+            "UPDATE tasks SET agent_defaults = ?2 WHERE id = ?1",
+            params![task_id, agent.to_column()],
+        )
+        .map_err(|e| e.to_string())?;
     }
     get_task_connection(&conn, task_id).ok_or_else(|| "no such task".into())
 }
@@ -570,6 +645,38 @@ pub fn delete_project_board(db: &Db, project_root: &str) {
     ] {
         let _ = conn.execute(sql, params![project_id]);
     }
+}
+
+/// The agent `project_root`'s board starts tasks with, where a task
+/// doesn't say otherwise.
+pub fn board_agent_defaults(db: &Db, project_root: &str) -> AgentDefaults {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    AgentDefaults::from_column(
+        conn.query_row(
+            "SELECT board_agent_defaults FROM projects WHERE id = ?1",
+            params![project_id],
+            |r| r.get(0),
+        )
+        .ok()
+        .flatten(),
+    )
+}
+
+pub fn set_board_agent_defaults(
+    db: &Db,
+    project_root: &str,
+    defaults: AgentDefaults,
+) -> Result<AgentDefaults, String> {
+    let defaults = defaults.cleaned()?;
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    conn.execute(
+        "UPDATE projects SET board_agent_defaults = ?2 WHERE id = ?1",
+        params![project_id, defaults.to_column()],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(defaults)
 }
 
 /// Whether `project_root` lets several tasks be in progress at once in its
@@ -880,6 +987,49 @@ mod tests {
             .map(|t| t.title)
             .collect();
         assert_eq!(others, ["b"]);
+    }
+
+    #[test]
+    fn agent_defaults_round_trip_on_tasks_and_boards() {
+        let db = temp_db();
+        let agent = AgentDefaults {
+            backend_id: Some("claude".into()),
+            model: Some(" ".into()),
+            thinking: Some("high".into()),
+            permission_mode: Some("bypass".into()),
+            agent_mode: None,
+        };
+        let a = create_task(
+            &db,
+            "/proj",
+            NewTask {
+                agent: agent.clone(),
+                ..new("a")
+            },
+        )
+        .unwrap();
+        assert_eq!(a.agent.backend_id.as_deref(), Some("claude"));
+        assert_eq!(a.agent.model, None, "blank values are dropped");
+
+        let patch: TaskPatch = serde_json::from_str(r#"{"title":"b"}"#).unwrap();
+        let a = update_task(&db, &a.id, patch).unwrap();
+        assert_eq!(a.agent.thinking.as_deref(), Some("high"), "untouched");
+        let patch: TaskPatch = serde_json::from_str(r#"{"agent":{}}"#).unwrap();
+        assert!(update_task(&db, &a.id, patch).unwrap().agent.is_empty());
+
+        let bad = AgentDefaults {
+            permission_mode: Some("yolo".into()),
+            ..Default::default()
+        };
+        assert!(set_board_agent_defaults(&db, "/proj", bad).is_err());
+        set_board_agent_defaults(&db, "/proj", agent).unwrap();
+        assert_eq!(
+            board_agent_defaults(&db, "/proj")
+                .permission_mode
+                .as_deref(),
+            Some("bypass")
+        );
+        assert!(board_agent_defaults(&db, "/other").is_empty());
     }
 
     #[test]

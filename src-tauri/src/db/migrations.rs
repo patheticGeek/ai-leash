@@ -23,6 +23,7 @@ const MIGRATIONS: &[Migration] = &[
     v4_backend_ids,
     v5_agent_mode,
     v6_project_boards,
+    v7_agent_defaults,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -298,6 +299,19 @@ fn v6_project_boards(conn: &Connection) {
         ",
     )
     .expect("failed to create project board tables");
+}
+
+/// Which agent a board task's chat starts with — per task, and per project
+/// as the board's default. A small JSON object (`db::AgentDefaults`), since
+/// its parts only mean anything together (a model belongs to a backend).
+fn v7_agent_defaults(conn: &Connection) {
+    conn.execute_batch(
+        "
+        ALTER TABLE tasks ADD COLUMN agent_defaults TEXT;
+        ALTER TABLE projects ADD COLUMN board_agent_defaults TEXT;
+        ",
+    )
+    .expect("failed to add agent defaults");
 }
 
 fn v4_backend_ids(conn: &Connection) {

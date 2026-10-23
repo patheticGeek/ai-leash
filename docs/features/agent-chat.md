@@ -176,6 +176,12 @@ resuming a previous session and can't see the conversation's earlier history.
 The messages stay visible for you; they are just not part of what the new
 agent knows.
 
+A conversation keeps its external agent's session only once something has
+been sent in it. Opening a chat that has no messages yet, such as a
+project's board chat, connects the agent but doesn't save the session, and
+a conversation with no messages never tries to resume one, so it never
+shows a "couldn't restore its previous session" error.
+
 ## Work with tools safely
 
 Agents can use project tools to inspect and modify files or run shell

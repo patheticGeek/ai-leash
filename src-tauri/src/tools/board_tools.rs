@@ -8,7 +8,7 @@
 
 use crate::board::{emit_board_changed, lifecycle, messaging};
 use crate::commands;
-use crate::db::{self, Epic, NewEpic, NewTask, Task, TaskPatch};
+use crate::db::{self, AgentDefaults, Epic, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
@@ -50,7 +50,7 @@ pub(crate) fn board_defs() -> Vec<Value> {
         }),
         json!({
             "name": "create_tasks",
-            "description": "Add one or more tasks to this project's board. Use it to break work down into tasks the user can see, prioritise and start. New tasks go to Todo unless `status` says otherwise.",
+            "description": "Add one or more tasks to this project's board. Use it to break work down into tasks the user can see, prioritise and start. New tasks go to Todo unless `status` says otherwise. Each can name the agent, model, thinking and permission its chat starts with; leave them out to use the board's defaults.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -64,6 +64,11 @@ pub(crate) fn board_defs() -> Vec<Value> {
                                 "status": status.clone(),
                                 "priority": priority.clone(),
                                 "effort": { "type": "string", "enum": db::TASK_EFFORTS, "description": "T-shirt size of the work" },
+                                "agent": { "type": "string", "description": "Which agent its chat starts with: a backend's id or label from list_agent_options. Omit to use the board's default" },
+                                "model": { "type": "string", "description": "A model id that agent offers" },
+                                "thinking": { "type": "string", "description": "A reasoning effort that agent offers" },
+                                "permission": { "type": "string", "enum": ["ask", "bypass"], "description": "Whether its tools ask before running (ask) or not (bypass)" },
+                                "agent_mode": { "type": "string", "description": "For agents with their own modes: one of those modes" },
                                 "epic": { "type": "string", "description": "Epic title to group it under; created if it doesn't exist yet" }
                             },
                             "required": ["title"]
@@ -85,7 +90,12 @@ pub(crate) fn board_defs() -> Vec<Value> {
                     "status": status,
                     "priority": priority,
                     "effort": effort,
-                    "epic": { "type": ["string", "null"], "description": "Epic title (created if new); null removes it from its epic" }
+                    "epic": { "type": ["string", "null"], "description": "Epic title (created if new); null removes it from its epic" },
+                    "agent": { "type": "string", "description": "Which agent its chat starts with (backend id or label). Giving any of agent/model/thinking/permission/agent_mode replaces all of them" },
+                    "model": { "type": "string" },
+                    "thinking": { "type": "string", "description": "Reasoning effort" },
+                    "permission": { "type": "string", "enum": ["ask", "bypass"] },
+                    "agent_mode": { "type": "string" }
                 },
                 "required": []
             }
@@ -287,6 +297,23 @@ fn read_task(
             .map_or("unsized".into(), str::to_uppercase),
         epic_title(&epics, task.epic_id.as_deref()).unwrap_or_else(|| "none".into()),
     );
+    let agent = &task.agent;
+    if !agent.is_empty() {
+        let parts: Vec<String> = [
+            agent.backend_id.as_deref().map(|b| format!("agent {b}")),
+            agent.model.as_deref().map(|m| format!("model {m}")),
+            agent.thinking.as_deref().map(|t| format!("thinking {t}")),
+            agent
+                .permission_mode
+                .as_deref()
+                .map(|p| format!("permission {p}")),
+            agent.agent_mode.as_deref().map(|m| format!("mode {m}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        out.push_str(&format!("Starts with: {}\n", parts.join(", ")));
+    }
     out.push_str(match (&task.conversation_id, is_working(state, &task)) {
         (Some(_), true) => "Chat: working\n",
         (Some(_), false) => "Chat: idle\n",
@@ -297,6 +324,35 @@ fn read_task(
         out.push_str(task.description.trim());
     }
     Ok(out)
+}
+
+/// A backend's id from what an agent named it by: its id or its label.
+fn backend_named(state: &AppState, agent: &str) -> Result<String, String> {
+    let backends = state.backends.lock().unwrap();
+    backends
+        .backends
+        .iter()
+        .find(|b| b.id == agent || b.label.eq_ignore_ascii_case(agent))
+        .map(|b| b.id.clone())
+        .ok_or_else(|| format!("No agent `{agent}`; list_agent_options shows the configured ones."))
+}
+
+/// The agent a task's chat should start with, from `create_tasks`/
+/// `update_task` arguments — `None` if none of them were given.
+fn agent_args(state: &AppState, args: &Value) -> Result<Option<AgentDefaults>, String> {
+    let keys = ["agent", "model", "thinking", "permission", "agent_mode"];
+    if !keys.iter().any(|k| args.get(k).is_some()) {
+        return Ok(None);
+    }
+    Ok(Some(AgentDefaults {
+        backend_id: str_arg(args, "agent")
+            .map(|a| backend_named(state, a))
+            .transpose()?,
+        model: str_arg(args, "model").map(str::to_string),
+        thinking: str_arg(args, "thinking").map(str::to_string),
+        permission_mode: str_arg(args, "permission").map(str::to_string),
+        agent_mode: str_arg(args, "agent_mode").map(str::to_string),
+    }))
 }
 
 fn create_tasks(
@@ -326,6 +382,7 @@ fn create_tasks(
                 priority: str_arg(item, "priority").map(str::to_string),
                 effort: str_arg(item, "effort").map(str::to_string),
                 epic_id,
+                agent: agent_args(state, item)?.unwrap_or_default(),
             },
         )?;
         emit_board_changed(app, root, Some(&task.id), "created");
@@ -364,6 +421,7 @@ async fn update_task(
         priority: str_arg(args, "priority").map(str::to_string),
         effort,
         epic_id,
+        agent: agent_args(state, args)?,
     };
     let mut task = db::update_task(&state.db, &task.id, patch)?;
     emit_board_changed(app, root, Some(&task.id), "updated");
@@ -395,20 +453,9 @@ fn start_task(
     args: &Value,
 ) -> Result<String, String> {
     let task = resolve_task(state, session_id, root, args)?;
-    let backend_id = match str_arg(args, "agent") {
-        Some(agent) => {
-            let backends = state.backends.lock().unwrap();
-            let found = backends
-                .backends
-                .iter()
-                .find(|b| b.id == agent || b.label.eq_ignore_ascii_case(agent))
-                .map(|b| b.id.clone());
-            Some(found.ok_or_else(|| {
-                format!("No agent `{agent}`; list_agent_options shows the configured ones.")
-            })?)
-        }
-        None => None,
-    };
+    let backend_id = str_arg(args, "agent")
+        .map(|a| backend_named(state, a))
+        .transpose()?;
     let caller = commands::top_level_session_id(state, session_id);
     let from_project_chat = db::list_all_conversations(&state.db)
         .iter()

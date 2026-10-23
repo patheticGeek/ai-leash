@@ -60,7 +60,8 @@ The agent can read and change the project's
 [board](./project-board.md): list tasks and epics, read a task, add tasks
 (several at once, creating any epic they name), change a task's fields or
 status, and start a task. Ask it to "plan this as tasks" or "add a task for
-…" and the tasks show up on the board. In a task's own chat it can update
+…" and the tasks show up on the board; it can also give each task the
+agent, model, thinking level and permission it should start with. In a task's own chat it can update
 that task without naming it, and is asked to move it to Review when its
 work is done. It can also message the project chat from a task's chat, or
 a task from the project chat — see

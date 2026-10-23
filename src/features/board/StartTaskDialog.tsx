@@ -10,25 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { Field, FieldLabel } from "@/ui/field";
-import { Input } from "@/ui/input";
 import { Label } from "@/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
-import {
-  useBackendModels,
-  useBackends,
-  useDefaultBackendId,
-} from "../../data/backends";
 import { effortForSize } from "../../data/board";
-import { useAcpAgentCatalog } from "../../lib/acpCatalogQuery";
-import { api, type Task } from "../../lib/tauriApi";
+import { type AgentDefaults, api, type Task } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
+import AgentFields, { resolveAgent } from "./AgentFields";
 
 function CheckRow({
   label,
@@ -55,60 +41,34 @@ function CheckRow({
   );
 }
 
-// Radix `Select` reserves "" — this stands for "the agent's own default".
-const DEFAULT = "default";
-const NATIVE_EFFORTS = ["low", "medium", "high"];
-
-// Picks how to start a task — which agent, model, effort and permission
-// mode its chat runs with — then starts it (`api.startTask`).
+// Picks how to start a task — which agent, model, thinking level and
+// permission its chat runs with, prefilled from the task's own defaults
+// over the board's — then starts it (`api.startTask`).
 export default function StartTaskDialog({
   task,
+  boardDefaults,
   onClose,
 }: {
   task: Task | null;
+  boardDefaults: AgentDefaults;
   onClose: () => void;
 }) {
-  const backends = useBackends().filter((b) => b.enabled);
-  const defaultBackendId = useDefaultBackendId();
-  const modelsByBackend = useBackendModels();
-  const catalog = useAcpAgentCatalog();
   const openConversation = useAppStore((s) => s.openConversation);
-  const [backendId, setBackendId] = useState(defaultBackendId);
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState(DEFAULT);
-  const [bypass, setBypass] = useState(false);
+  const [agent, setAgent] = useState<AgentDefaults>({});
   const [openAfter, setOpenAfter] = useState(false);
   const [follow, setFollow] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const backend = backends.find((b) => b.id === backendId);
-  const acp =
-    backend?.kind === "acp"
-      ? catalog.find((c) => c.id === backendId)
-      : undefined;
-
-  // Each backend starts from its own default: the model last used on a
-  // native one, the agent's own pick for ACP, and the size-based effort.
-  useEffect(() => {
-    if (!task) return;
-    setModel(backend && backend.kind !== "acp" ? backend.model : "");
-    setEffort(
-      backend?.kind === "acp"
-        ? DEFAULT
-        : (effortForSize(task.effort) ?? DEFAULT),
-    );
-  }, [task, backend]);
-
   // Fresh choices every time it opens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on open
   useEffect(() => {
     if (task) {
-      setBackendId(defaultBackendId);
-      setBypass(false);
+      setAgent(resolveAgent(task.agent, boardDefaults));
       setFollow(true);
       setError(null);
     }
-  }, [task, defaultBackendId]);
+  }, [task]);
 
   async function start() {
     if (!task || starting) return;
@@ -116,10 +76,13 @@ export default function StartTaskDialog({
     setError(null);
     try {
       const conversationId = await api.startTask(task.id, {
-        backendId,
-        model,
-        effort: effort === DEFAULT ? null : effort,
-        bypassPermissions: bypass,
+        backendId: agent.backendId ?? undefined,
+        model: agent.model ?? undefined,
+        effort: agent.thinking ?? null,
+        agentMode: agent.agentMode ?? null,
+        bypassPermissions: agent.permissionMode
+          ? agent.permissionMode === "bypass"
+          : undefined,
         engagedWithProject: follow,
       });
       onClose();
@@ -131,21 +94,11 @@ export default function StartTaskDialog({
     }
   }
 
-  const modelOptions =
-    backend?.kind === "ollama"
-      ? (modelsByBackend[backend.id] ?? []).map((m) => ({
-          value: m.name,
-          name: m.name,
-        }))
-      : (acp?.modelOptions?.options ?? null);
-  const effortOptions =
-    backend?.kind === "acp"
-      ? (acp?.effortOptions?.options ?? null)
-      : NATIVE_EFFORTS.map((e) => ({ value: e, name: e }));
+  const sizeThinking = effortForSize(task?.effort ?? null);
 
   return (
     <Dialog open={task !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             Start #{task?.number} {task?.title}
@@ -156,80 +109,14 @@ export default function StartTaskDialog({
             <code>task/{task?.number}-…</code> branch.
           </DialogDescription>
         </DialogHeader>
-        <Field>
-          <FieldLabel>Agent</FieldLabel>
-          <Select value={backendId} onValueChange={setBackendId}>
-            <SelectTrigger size="sm" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {backends.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel>Model</FieldLabel>
-            {modelOptions ? (
-              <Select
-                value={model || DEFAULT}
-                onValueChange={(v) => setModel(v === DEFAULT ? "" : v)}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {backend?.kind === "acp" && (
-                    <SelectItem value={DEFAULT}>Agent default</SelectItem>
-                  )}
-                  {modelOptions.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={
-                  backend?.kind === "acp" ? "Agent default" : "Model id"
-                }
-              />
-            )}
-          </Field>
-          <Field>
-            <FieldLabel>Effort</FieldLabel>
-            <Select
-              value={effort}
-              onValueChange={setEffort}
-              disabled={!effortOptions}
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT}>Default</SelectItem>
-                {effortOptions?.map((e) => (
-                  <SelectItem key={e.value} value={e.value}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+        <AgentFields value={agent} onChange={setAgent} inheritLabel="Default" />
+        {!agent.thinking && sizeThinking && (
+          <p className="text-xs text-zinc-500">
+            Our own providers think at <strong>{sizeThinking}</strong> effort
+            for a task this size unless you pick otherwise.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
-          <CheckRow
-            label="Run tools without asking (Bypass)"
-            checked={bypass}
-            onChange={setBypass}
-          />
           <CheckRow
             label="The project chat follows it (its updates wake the project chat)"
             checked={follow}
@@ -249,7 +136,7 @@ export default function StartTaskDialog({
           <Button
             variant="primary"
             size="md"
-            disabled={!backend || starting}
+            disabled={starting}
             onClick={start}
           >
             <Play size={14} />
