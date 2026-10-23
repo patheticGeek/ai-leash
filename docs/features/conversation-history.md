@@ -69,6 +69,24 @@ later. To remove a conversation permanently, open its context menu in the
 sidebar and choose **Delete conversation**. Deleting removes its transcript
 and its related sub-agent records as well.
 
+## Board and task chats
+
+Each project's [board](./project-board.md) is backed by its own project
+chat, saved like any other conversation but opened from **Project boards**
+in the sidebar rather than listed under **Chats**. Removing a project from
+AI Leash deletes its board and its project chat with the rest of its
+conversations.
+
+A started task's chat is a normal conversation, listed under **Chats** with
+the task's number (or grouped or hidden there — see the filter next to the
+project menu). Moving the task to Done marks its chat done too. Deleting a
+task leaves its chat; deleting the chat leaves the task on the board, where
+it can be started again.
+
+Messages and notes from other chats are saved in a conversation's
+transcript with their sender, so they come back after a restart like
+everything else.
+
 ## Sub-agent work
 
 When the main agent delegates a task, the sub-agent appears in the **Sub

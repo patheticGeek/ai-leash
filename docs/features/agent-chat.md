@@ -261,6 +261,13 @@ agent's follow-up reply is attached to it rather than to the previous
 message. Sub-agent results are saved with the conversation. Clearing the
 parent conversation also clears its sub-agent history.
 
+Sub-agents are for short, self-contained pieces of one request; you can
+watch them but not talk to them. For longer work you want to steer
+yourself, put it on the [project board](./project-board.md) as a task
+instead: a started task gets a full chat of its own (in its own git
+worktree), which you can write in like any other, and which reports back
+to the project chat.
+
 ## Send, stop, and queue messages
 
 While the agent is working, **Stop** cancels the current user-initiated turn.
