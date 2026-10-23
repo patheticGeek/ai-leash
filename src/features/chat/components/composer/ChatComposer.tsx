@@ -239,7 +239,7 @@ export default function ChatComposer({
       ref={dockRef}
       className={cn("w-full", floating && "absolute bottom-0")}
     >
-      <div className={cn(!compact && "mx-auto my-3 max-w-4xl")}>
+      <div className={cn(compact ? "mt-3" : "mx-auto my-3 max-w-4xl")}>
         <ChatBanners
           helpOpen={helpOpen}
           commands={allCommands}
