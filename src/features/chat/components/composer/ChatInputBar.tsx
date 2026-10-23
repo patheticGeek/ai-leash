@@ -27,6 +27,9 @@ const getPlaceholderText = (composeMode: boolean) => {
 };
 
 export interface ChatInputBarProps {
+  // Square, edge to edge and without the floating shadow — the board's
+  // narrow project chat (see `ChatPanel`'s `compact`).
+  flush?: boolean;
   input: string;
   onChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -61,6 +64,7 @@ export interface ChatInputBarProps {
 // The textarea + send/stop button + its anchored popovers (permission ask,
 // the agent's questions, slash-command autocomplete) — the bottom third of `ChatComposer.tsx`.
 export default function ChatInputBar({
+  flush = false,
   input,
   onChange,
   onKeyDown,
@@ -92,10 +96,13 @@ export default function ChatInputBar({
     <div
       ref={boxRef}
       className={cn(
-        "relative flex flex-col rounded-xl bg-raised transition-shadow duration-150 mx-3",
-        shellMode
-          ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
-          : "shadow-[var(--al-shadow-floating),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]",
+        "relative flex flex-col bg-raised transition-shadow duration-150",
+        flush ? "border-t border-white/5" : "mx-3 rounded-xl",
+        flush
+          ? shellMode && "shadow-[inset_0_1px_0_rgba(16,185,129,0.6)]"
+          : shellMode
+            ? "shadow-[0_0_0_1px_rgba(16,185,129,0.6),0_6px_18px_-6px_rgba(0,0,0,0.6)]"
+            : "shadow-[var(--al-shadow-floating),0_6px_18px_-6px_rgba(0,0,0,0.6)] focus-within:shadow-[0_0_0_1px_rgba(94,146,255,0.5),0_0_0_3px_rgba(59,130,246,0.1),0_6px_18px_-6px_rgba(0,0,0,0.6)]",
       )}
     >
       {pendingPermission ? (
@@ -146,7 +153,9 @@ export default function ChatInputBar({
         />
       </div>
       <div className="flex items-center justify-between gap-1.5 px-2 pb-2">
-        <div className="flex min-w-0 items-center gap-1.5">{toolbarLeft}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {toolbarLeft}
+        </div>
         <div className="flex items-center gap-1.5">
           {contextUsage}
           {showQueue && (

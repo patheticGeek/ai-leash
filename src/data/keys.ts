@@ -25,6 +25,15 @@ export const qk = {
   // see `src/data/conversationHistory.ts`.
   conversationHistory: (sessionId: string) =>
     ["conversation", sessionId, "history"] as const,
+  // One project's board — tasks, epics and settings (`data/board.ts`). Under
+  // `boardOf(projectRoot)` so a `board://changed` for that project
+  // invalidates both the recent-Done and the full-Done variants.
+  boardOf: (projectRoot: string) => ["board", projectRoot] as const,
+  board: (projectRoot: string, includeOlderDone: boolean) =>
+    ["board", projectRoot, includeOlderDone] as const,
+  // Per-column counts for every project's board — the sidebar's Project
+  // boards rows.
+  boardSummaries: ["board-summaries"] as const,
   // Prefix of every `fsDir` key — for predicate-based invalidation.
   fsDirs: ["fs-dir"] as const,
   // The path slot is always a real absolute path (the checkout root listing

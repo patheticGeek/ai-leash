@@ -1,10 +1,12 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import { Button } from "@/ui/button";
+import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TabBody } from "../features/tabs/TabContent";
 import { useTabDropArea } from "../features/tabs/TabDnd";
 import TabStrip from "../features/tabs/TabStrip";
 import { useAppStore } from "../store";
+import { PRIMARY_TAB_ID } from "../store/panelSlice";
 
 function NoProjectState() {
   const addProject = useAppStore((s) => s.addProject);
@@ -56,6 +58,8 @@ export default function CenterPanel() {
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
   const activateTab = useAppStore((s) => s.activateTab);
   const dropRef = useTabDropArea("center");
+  // The board is one view, not a set of tabs: only its primary tab shows.
+  const boardView = useIsBoardView();
 
   if (!projectRoot || (!activeSessionId && !hasDraft)) {
     return (
@@ -67,14 +71,19 @@ export default function CenterPanel() {
 
   return (
     <div ref={dropRef} className="flex h-full flex-col">
-      <TabStrip
-        tabs={chatTabs}
-        value={activeChatTabId}
-        onSelect={activateTab}
-        className="shrink-0 bg-background"
-      />
+      {!boardView && (
+        <TabStrip
+          tabs={chatTabs}
+          value={activeChatTabId}
+          onSelect={activateTab}
+          className="shrink-0 bg-background"
+        />
+      )}
       <div className="relative flex-1 min-h-0 bg-background">
-        <TabBody tabs={chatTabs} activeId={activeChatTabId} />
+        <TabBody
+          tabs={chatTabs}
+          activeId={boardView ? PRIMARY_TAB_ID : activeChatTabId}
+        />
       </div>
     </div>
   );

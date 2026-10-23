@@ -161,6 +161,8 @@ pub fn run() {
             chat::history::list_projects,
             chat::history::delete_conversation,
             board::get_board,
+            board::list_board_summaries,
+            board::open_project_chat,
             board::create_task,
             board::update_task,
             board::move_task,

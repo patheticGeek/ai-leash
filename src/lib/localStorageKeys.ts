@@ -20,6 +20,12 @@ export const LS_KEYS = {
   // migration into `recentProjects` (see `projectSlice.ts`), never written.
   lastProjectRoot: "ai-leash:lastProjectRoot",
   leftBarWidth: "ai-leash:leftBarWidth",
+  // Which of the left sidebar's sections are collapsed, as a list of
+  // `SidebarSection`s — see `sidebarSlice.ts`.
+  sidebarCollapsedSections: "ai-leash:sidebarCollapsedSections",
+  // What a project's board view shows: "board", "chat", or "both" — see
+  // `features/board/boardLayout.ts`.
+  boardLayout: "ai-leash:boardLayout",
   rightPanelWidth: "ai-leash:rightPanelWidth",
   // Per-session draft text — not a standalone key, see `chatDraftKey` in
   // `chatDraft.ts` for how a session id is appended to this.

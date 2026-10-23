@@ -4,7 +4,7 @@
 //! the UI or from an agent's tool call — goes through so open boards
 //! refresh.
 
-use crate::db::{self, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch};
+use crate::db::{self, BoardSummary, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;
 use serde::Serialize;
 use serde_json::json;
@@ -75,6 +75,26 @@ pub fn get_board(
         done_count: db::count_done_tasks(&state.db, &project_root),
         parallel_main_checkout_tasks: db::parallel_main_checkout_tasks(&state.db, &project_root),
     })
+}
+
+/// Per-column counts for every project with a board — see
+/// `db::board_summaries`.
+#[tauri::command]
+pub fn list_board_summaries(state: State<AppState>) -> Result<Vec<BoardSummary>, String> {
+    Ok(db::board_summaries(&state.db))
+}
+
+/// The id of `project_root`'s board chat, created on first use — opening a
+/// project's board is opening this conversation.
+#[tauri::command]
+pub fn open_project_chat(
+    app: AppHandle,
+    state: State<AppState>,
+    project_root: String,
+) -> Result<String, String> {
+    let id = db::ensure_project_chat(&state.db, &project_root);
+    crate::chat::history::emit_conversation_changed(&app, &id, "created");
+    Ok(id)
 }
 
 #[tauri::command]

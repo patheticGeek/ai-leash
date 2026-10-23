@@ -6,6 +6,7 @@ import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
@@ -82,7 +83,9 @@ export default function TitleBar({
   rightPanelWidth,
 }: {
   leftBarWidth: number;
-  rightPanelWidth: number;
+  // Null while there's no side panel (the board): its corner then just
+  // fits the window controls.
+  rightPanelWidth: number | null;
 }) {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const projectId = useAppStore((s) => s.projectId);
@@ -103,6 +106,7 @@ export default function TitleBar({
   const activeConversation = conversations.find(
     (c) => c.id === activeSessionId,
   );
+  const boardView = activeConversation?.role === "project";
   // A new thread (no id until its first message) — see `ChatPanel.tsx`'s
   // `isNewThread`.
   const isNewThread = useAppStore((s) => s.draft !== null);
@@ -110,7 +114,9 @@ export default function TitleBar({
   const conversationTitle =
     activeChatTab?.kind === "subagent"
       ? activeChatTab.label
-      : activeConversation?.title;
+      : activeConversation?.role === "project"
+        ? "Board"
+        : activeConversation?.title;
   // Only meaningful once debug mode has captured at least one
   // `session/new`/`session/load` event for this conversation — see
   // `latestAcpSessionId`'s doc comment for why this can't just be read off
@@ -201,13 +207,23 @@ export default function TitleBar({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
-          <OpenInIdeButton />
-          <TitleBarActions />
+          {/* A project's board has no checkout of its own to open or run
+              Actions in — just its layout switch. */}
+          {boardView ? (
+            <BoardLayoutSwitch />
+          ) : (
+            <>
+              <OpenInIdeButton />
+              <TitleBarActions />
+            </>
+          )}
         </div>
       </div>
       <div
         data-tauri-drag-region
-        style={{ width: rightPanelWidth }}
+        style={
+          rightPanelWidth === null ? undefined : { width: rightPanelWidth }
+        }
         className="flex shrink-0 items-center justify-end"
       >
         {debugModeEnabled && (

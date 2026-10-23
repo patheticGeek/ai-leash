@@ -9,6 +9,8 @@ The guides below explain what each part of the app does and how to use it:
 
 - [The AI Leash workspace](./ui-shell.md): switch projects and
   conversations, manage side-panel tabs, and resize the workspace.
+- [Project boards](./project-board.md): plan work as tasks on a Kanban
+  board per project, alongside a project-wide chat.
 - [Agent chat](./agent-chat.md): start conversations, select a provider or
   external agent, work with sub-agents, and use chat controls.
 - [Tools and permissions](./tools.md): understand what an agent can do and

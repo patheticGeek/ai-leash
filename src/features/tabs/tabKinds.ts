@@ -1,12 +1,14 @@
 import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { createElement } from "react";
+import { useConversation } from "../../data/conversations";
 import {
   type PanelTabKind,
   type TabKind,
   useAppStore,
   type WorkspaceTab,
 } from "../../store";
+import ProjectBoardView from "../board/ProjectBoardView";
 import ChatPanel from "../chat/ChatPanel";
 import SubAgentChatTab from "../chat/SubAgentChatTab";
 import ActionsTab from "../sidebar/tabs/ActionsTab";
@@ -16,12 +18,16 @@ import FileTree from "../sidebar/tabs/FileTree";
 import SubAgentsTab from "../sidebar/tabs/SubAgentsTab";
 import TerminalPanel from "../sidebar/tabs/TerminalPanel";
 
+// A project's board chat shows as its board, with the chat docked beside
+// it; every other conversation is just its chat.
 function PrimaryChatTab() {
   const sessionId = useAppStore((s) => s.activeSessionId);
   const projectRoot = useAppStore((s) => s.projectRoot);
-  return projectRoot
-    ? createElement(ChatPanel, { sessionId, projectRoot })
-    : null;
+  const isBoard = useConversation(sessionId)?.role === "project";
+  if (!projectRoot) return null;
+  return isBoard && sessionId
+    ? createElement(ProjectBoardView, { sessionId, projectRoot })
+    : createElement(ChatPanel, { sessionId, projectRoot });
 }
 
 // How a tab kind's content is mounted, in whichever area (centre or side)

@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useBackendModels, useBackendsListener } from "../data/backends";
+import { useBoardListener } from "../data/board";
 import { useConversationsListener } from "../data/conversations";
 import { useSubAgentsListener } from "../data/subAgents";
 import { useActionEvents } from "../features/actions/useActions";
+import { useIsBoardView } from "../features/board/useIsBoardView";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
@@ -27,6 +29,8 @@ import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
 
 function App() {
   const viewEpoch = useAppStore((s) => s.viewEpoch);
+  // The board and its project chat take the whole width: no side panel.
+  const boardView = useIsBoardView();
   const initializeStartupSession = useAppStore(
     (s) => s.initializeStartupSession,
   );
@@ -41,6 +45,9 @@ function App() {
   // Always on — keeps the conversation list query live off the backend's
   // `conversation://changed` event (see its comment).
   useConversationsListener();
+  // Always on — keeps every open board and the sidebar's board counts live
+  // off `board://changed`.
+  useBoardListener();
   // Always on — keeps every open sub-agent list live off `agent://lifecycle`.
   useSubAgentsListener();
   // Always on — keeps each conversation's ACP connection options live off
@@ -123,7 +130,10 @@ function App() {
       {BUILD_LABEL && (
         <div className="pointer-events-none fixed inset-0 z-[999] border border-amber-500/50" />
       )}
-      <TitleBar leftBarWidth={leftBarWidth} rightPanelWidth={rightPanelWidth} />
+      <TitleBar
+        leftBarWidth={leftBarWidth}
+        rightPanelWidth={boardView ? null : rightPanelWidth}
+      />
       <SettingsModal />
       <DebugDevtoolsOverlay />
       <div
@@ -140,10 +150,14 @@ function App() {
                 first message must not remount the panel — see `viewEpoch`. */}
             <CenterPanel key={viewEpoch} />
           </div>
-          <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
-          <div style={{ width: rightPanelWidth }} className="shrink-0">
-            <SidePanel />
-          </div>
+          {!boardView && (
+            <>
+              <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
+              <div style={{ width: rightPanelWidth }} className="shrink-0">
+                <SidePanel />
+              </div>
+            </>
+          )}
         </TabDndProvider>
       </div>
       <TabContentHost />

@@ -2,13 +2,16 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  ChevronDown,
   Folder,
   FolderPlus,
   GitBranch,
+  ListFilter,
   Loader,
   MessageCircleQuestion,
   SettingsIcon,
   ShieldAlert,
+  SquareKanban,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -16,11 +19,24 @@ import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/ui/collapsible";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -28,18 +44,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
+import { type BoardSummary, useBoardSummaries } from "../data/board";
 import { useConversations } from "../data/conversations";
+import { usePreference, useSetPreferences } from "../data/preferences";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
 import type {
   ElicitationRequestPayload,
   PermissionRequestPayload,
+  Preferences,
 } from "../lib/tauriApi";
 import { useCurrentGitBranch } from "../lib/useCurrentGitBranch";
 import {
   type ConversationSummary,
   elicitationForSession,
   permissionForSession,
+  type SidebarSection,
   useAppStore,
 } from "../store";
 import DeleteConversationDialog from "./DeleteConversationDialog";
@@ -164,6 +184,14 @@ function ConversationRow({
           className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
         >
           <span className="flex w-full items-center gap-1.5 mb-1.5 relative h-7">
+            {conversation.taskNumber != null && (
+              <span
+                title="Board task"
+                className="shrink-0 rounded bg-white/[0.06] px-1 text-[11px] tabular-nums text-zinc-400"
+              >
+                #{conversation.taskNumber}
+              </span>
+            )}
             <span className="min-w-0 flex-1 truncate text-zinc-200">
               {conversation.title || "New conversation"}
             </span>
@@ -232,7 +260,7 @@ function ConversationRow({
 }
 
 // Done conversations only show their title and a way back — see `LeftBar`'s
-// collapsed "Done" section.
+// "Done" section.
 function DoneConversationRow({
   conversation,
   active,
@@ -282,11 +310,109 @@ function DoneConversationRow({
   );
 }
 
+// A collapsible sidebar section. Its open state lives in the store
+// (`sidebarSlice`) so it survives restarts and project-filter switches.
+function SidebarSectionCollapsible({
+  section,
+  label,
+  className,
+  children,
+}: {
+  section: SidebarSection;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const collapsed = useAppStore((s) => s.sidebarCollapsed[section]);
+  const setCollapsed = useAppStore((s) => s.setSidebarSectionCollapsed);
+  return (
+    <Collapsible
+      open={!collapsed}
+      onOpenChange={(open) => setCollapsed(section, !open)}
+      className={className}
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="unstyled"
+          size="none"
+          className="group/section mx-1.5 my-1.5 flex w-[calc(100%-0.75rem)] items-center justify-start gap-1.5 rounded-md px-3 text-xs font-medium text-zinc-600 hover:text-zinc-400"
+        >
+          <ChevronDown
+            size={12}
+            className="shrink-0 transition-transform group-data-[state=closed]/section:-rotate-90"
+          />
+          <span>{label}</span>
+          <div className="h-px flex-1 bg-white/[0.06]" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{children}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// One project in the Project boards section. Its board is its board chat
+// (`chatId`, once it exists), so the row lights up while that chat works.
+function ProjectBoardRow({
+  name,
+  summary,
+  chatId,
+  active,
+  onClick,
+}: {
+  name: string;
+  summary: BoardSummary | undefined;
+  chatId: string | undefined;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const { active: generating } = useGenerating(chatId ?? "");
+  return (
+    <Button
+      variant="unstyled"
+      size="none"
+      onClick={onClick}
+      title={`${name} board`}
+      className={cn(
+        "mx-1.5 mb-1 flex w-[calc(100%-0.75rem)] items-center justify-start gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+        active
+          ? "bg-white/10 text-zinc-100"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+      )}
+    >
+      <SquareKanban size={14} className="shrink-0 text-zinc-500" />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {generating && (
+        <Loader size={12} className="shrink-0 animate-spin text-blue-400" />
+      )}
+      {!!summary?.inProgress && (
+        <span
+          title={`${summary.inProgress} in progress`}
+          className="shrink-0 rounded bg-blue-400/10 px-1 text-[11px] tabular-nums text-blue-400"
+        >
+          {summary.inProgress}
+        </span>
+      )}
+      {!!summary?.review && (
+        <span
+          title={`${summary.review} in review`}
+          className="shrink-0 rounded bg-warning/10 px-1 text-[11px] tabular-nums text-warning"
+        >
+          {summary.review}
+        </span>
+      )}
+    </Button>
+  );
+}
+
 export default function LeftBar() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const conversations = useConversations();
   const recentProjects = useAppStore((s) => s.recentProjects);
   const openConversation = useAppStore((s) => s.openConversation);
+  const openProjectBoard = useAppStore((s) => s.openProjectBoard);
+  const boardSummaries = useBoardSummaries();
+  const taskChats = usePreference("sidebarTaskChats");
+  const setPreferences = useSetPreferences();
   const deleteConversation = useAppStore((s) => s.deleteConversation);
   const [pendingDelete, setPendingDelete] =
     useState<ConversationSummary | null>(null);
@@ -305,8 +431,8 @@ export default function LeftBar() {
   // projects, all conversations," matching the flat list this sidebar
   // already showed before this filter existed.
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
-  // Collapsed by default — only the 3 most recently-done conversations show
-  // until expanded, so a long "done" backlog doesn't push active
+  // "Show all"/"Show less" inside the open Done section — only the 3 most
+  // recently-done conversations show until expanded, so a long "done" backlog doesn't push active
   // conversations out of view.
   const [doneExpanded, setDoneExpanded] = useState(false);
   const DEFAULT_VISIBLE_DONE = 3;
@@ -354,15 +480,33 @@ export default function LeftBar() {
   const filteredConversations = conversations.filter(
     (c) => !projectFilter || c.projectRoot === projectFilter,
   );
-  const sortedConversations = filteredConversations
-    .filter((c) => !c.done)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  const doneConversations = filteredConversations
-    .filter((c) => c.done)
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+  // Board chats show as their board (Project boards, below), never as a
+  // chat row.
+  const chats = filteredConversations.filter((c) => c.role !== "project");
+  const isTaskChat = (c: ConversationSummary) => c.taskId !== null;
+  const byRecency = (a: ConversationSummary, b: ConversationSummary) =>
+    b.updatedAt - a.updatedAt;
+  const openChats = chats
+    .filter((c) => !c.done && !(taskChats === "hide" && isTaskChat(c)))
+    .sort(byRecency);
+  const sortedConversations =
+    taskChats === "top"
+      ? [
+          ...openChats.filter(isTaskChat),
+          ...openChats.filter((c) => !isTaskChat(c)),
+        ]
+      : openChats;
+  const doneConversations = chats
+    .filter((c) => c.done && !(taskChats === "hide" && isTaskChat(c)))
+    .sort(byRecency);
   const visibleDoneConversations = doneExpanded
     ? doneConversations
     : doneConversations.slice(0, DEFAULT_VISIBLE_DONE);
+  const boardProjects = recentProjects.filter(
+    (p) => !projectFilter || p.path === projectFilter,
+  );
+  const boardChatFor = (root: string) =>
+    conversations.find((c) => c.role === "project" && c.projectRoot === root);
 
   return (
     <div className="relative flex h-full flex-col bg-sunken">
@@ -394,6 +538,42 @@ export default function LeftBar() {
             ))}
           </SelectContent>
         </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              title="Filters"
+              className={cn(
+                "shrink-0 text-zinc-500 hover:text-zinc-200",
+                taskChats !== "all" && "text-primary-hover",
+              )}
+            >
+              <ListFilter size={17} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Task chats</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={taskChats}
+              onValueChange={(value) =>
+                setPreferences({
+                  sidebarTaskChats: value as Preferences["sidebarTaskChats"],
+                })
+              }
+            >
+              <DropdownMenuRadioItem value="all">
+                Show all chats
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="top">
+                Group task chats at top
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="hide">
+                Hide task chats
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="icon-lg"
@@ -405,59 +585,80 @@ export default function LeftBar() {
         </Button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
-        {sortedConversations.length === 0 && doneConversations.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-zinc-600">
-            {projectFilter
-              ? "No conversations for this project"
-              : "No conversations yet"}
-          </div>
-        ) : (
-          <>
-            {sortedConversations.map((c) => (
-              <ConversationRow
+        {boardProjects.length > 0 && (
+          <SidebarSectionCollapsible section="boards" label="Project boards">
+            {boardProjects.map((p) => {
+              const chat = boardChatFor(p.path);
+              return (
+                <ProjectBoardRow
+                  key={p.path}
+                  name={p.name}
+                  summary={boardSummaries.find((b) => b.projectRoot === p.path)}
+                  chatId={chat?.id}
+                  active={!!chat && chat.id === activeSessionId}
+                  onClick={() => void openProjectBoard(p.path)}
+                />
+              );
+            })}
+          </SidebarSectionCollapsible>
+        )}
+        <SidebarSectionCollapsible
+          section="chats"
+          label="Chats"
+          className="mt-3"
+        >
+          {sortedConversations.length === 0 &&
+            doneConversations.length === 0 && (
+              <div className="px-3 py-6 text-center text-xs text-zinc-600">
+                {projectFilter
+                  ? "No conversations for this project"
+                  : "No conversations yet"}
+              </div>
+            )}
+          {sortedConversations.map((c) => (
+            <ConversationRow
+              key={c.id}
+              conversation={c}
+              projectName={
+                recentProjects.find((p) => p.path === c.projectRoot)?.name ??
+                c.projectRoot
+              }
+              active={c.id === activeSessionId}
+              onClick={() => openConversation(c.id)}
+              onDelete={() => setPendingDelete(c)}
+              onMarkDone={() => setConversationDone(c.id, true)}
+            />
+          ))}
+        </SidebarSectionCollapsible>
+        {doneConversations.length > 0 && (
+          <SidebarSectionCollapsible
+            section="done"
+            label="Done"
+            className="mt-3"
+          >
+            {visibleDoneConversations.map((c) => (
+              <DoneConversationRow
                 key={c.id}
                 conversation={c}
-                projectName={
-                  recentProjects.find((p) => p.path === c.projectRoot)?.name ??
-                  c.projectRoot
-                }
                 active={c.id === activeSessionId}
                 onClick={() => openConversation(c.id)}
                 onDelete={() => setPendingDelete(c)}
-                onMarkDone={() => setConversationDone(c.id, true)}
+                onUndo={() => setConversationDone(c.id, false)}
               />
             ))}
-            {doneConversations.length > 0 && (
-              <>
-                <div className="mx-1.5 mt-3 my-1.5 px-3 text-xs font-medium text-zinc-600 flex items-center gap-2">
-                  <span>Done</span>
-                  <div className="h-px flex-1 bg-white/[0.06]" />
-                </div>
-                {visibleDoneConversations.map((c) => (
-                  <DoneConversationRow
-                    key={c.id}
-                    conversation={c}
-                    active={c.id === activeSessionId}
-                    onClick={() => openConversation(c.id)}
-                    onDelete={() => setPendingDelete(c)}
-                    onUndo={() => setConversationDone(c.id, false)}
-                  />
-                ))}
-                {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDoneExpanded((v) => !v)}
-                    className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
-                  >
-                    {doneExpanded
-                      ? "Show less"
-                      : `Show all (${doneConversations.length})`}
-                  </Button>
-                )}
-              </>
+            {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDoneExpanded((v) => !v)}
+                className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {doneExpanded
+                  ? "Show less"
+                  : `Show all (${doneConversations.length})`}
+              </Button>
             )}
-          </>
+          </SidebarSectionCollapsible>
         )}
       </div>
       <div className="shrink-0 border-t border-white/[0.06] p-2">

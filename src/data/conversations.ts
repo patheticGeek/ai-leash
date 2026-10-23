@@ -66,6 +66,16 @@ export function fetchConversations(): Promise<ConversationSummary[]> {
   });
 }
 
+// Like `fetchConversations`, but always goes to the backend — for a caller
+// that just created a row there and needs to see it.
+export function refreshConversations(): Promise<ConversationSummary[]> {
+  return queryClient.fetchQuery({
+    queryKey: qk.conversations,
+    queryFn: listConversations,
+    staleTime: 0,
+  });
+}
+
 // Rows inserted client-side ahead of the backend having them
 // (`insertConversation`, for a thread's first send). A refetch — any
 // `conversation://changed` invalidation — can land between that insert and

@@ -40,7 +40,12 @@ pub struct Preferences {
     pub ui_font_size: f64,
     pub code_font_family: String,
     pub code_font_size: f64,
+    /// Where board task chats go in the sidebar's chat list: `"all"` mixed
+    /// in by recency, `"top"` grouped above the rest, or `"hide"`.
+    pub sidebar_task_chats: String,
 }
+
+pub const SIDEBAR_TASK_CHATS: &[&str] = &["all", "top", "hide"];
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -55,6 +60,7 @@ impl Default for Preferences {
             ui_font_size: 16.0,
             code_font_family: String::new(),
             code_font_size: 12.0,
+            sidebar_task_chats: "all".to_string(),
         }
     }
 }
@@ -76,6 +82,9 @@ impl Preferences {
         self.composer_max_rows = self
             .composer_max_rows
             .clamp(MIN_COMPOSER_ROWS, MAX_COMPOSER_ROWS);
+        if !SIDEBAR_TASK_CHATS.contains(&self.sidebar_task_chats.as_str()) {
+            self.sidebar_task_chats = defaults.sidebar_task_chats;
+        }
         self
     }
 

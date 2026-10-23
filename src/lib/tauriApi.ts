@@ -24,6 +24,8 @@ export interface Preferences {
   uiFontSize: number;
   codeFontFamily: string;
   codeFontSize: number;
+  // Where board task chats sit in the sidebar's chat list.
+  sidebarTaskChats: "all" | "top" | "hide";
 }
 
 export interface PreferencesSnapshot {
@@ -277,6 +279,12 @@ export interface ConversationSummary {
   effort: string | null;
   agentMode: string | null;
   permissionMode: string | null;
+  // "project" for a project's board chat (shown as the board, not in the
+  // chat list) — see `api.openProjectChat`.
+  role: string | null;
+  // The board task this conversation was started for, if any.
+  taskId: string | null;
+  taskNumber: number | null;
 }
 
 export interface GitBranch {
@@ -325,6 +333,90 @@ export interface ActionSummary {
   // or that action was deleted.
   lastRun: boolean;
 }
+
+export type TaskStatus = "backlog" | "todo" | "in_progress" | "review" | "done";
+export type TaskPriority = "urgent" | "high" | "medium" | "low";
+export type TaskEffort = "xs" | "s" | "m" | "l" | "xl";
+
+// One card on a project's board — Rust's `db::Task`.
+export interface Task {
+  id: string;
+  projectId: string;
+  epicId: string | null;
+  // Per-project `#N`, never reused.
+  number: number;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  effort: TaskEffort | null;
+  // Order within its column (ascending).
+  position: number;
+  // The task's chat, once started.
+  conversationId: string | null;
+  engagedWithProject: boolean;
+  createdAt: number; // epoch seconds
+  updatedAt: number;
+  startedAt: number | null;
+  completedAt: number | null;
+}
+
+export interface Epic {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  color: string;
+  position: number;
+  archived: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Everything one board shows — `get_board`.
+export interface Board {
+  tasks: Task[];
+  epics: Epic[];
+  // All done tasks, including the older ones `tasks` leaves out.
+  doneCount: number;
+  parallelMainCheckoutTasks: boolean;
+}
+
+export interface BoardSummary {
+  projectRoot: string;
+  backlog: number;
+  todo: number;
+  inProgress: number;
+  review: number;
+  done: number;
+}
+
+export interface NewTask {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  effort?: TaskEffort | null;
+  epicId?: string | null;
+}
+
+// Absent fields are left alone; `null` clears `effort`/`epicId`.
+export type TaskPatch = Partial<
+  Pick<
+    Task,
+    "title" | "description" | "status" | "priority" | "effort" | "epicId"
+  >
+>;
+
+export interface NewEpic {
+  title: string;
+  description?: string;
+  color?: string;
+}
+
+export type EpicPatch = Partial<
+  Pick<Epic, "title" | "description" | "color" | "archived">
+>;
 
 export const api = {
   // Returns the project's stable UUID (`db::ensure_project`'s id), created
@@ -437,6 +529,29 @@ export const api = {
       projectRoot,
       selection: { backend, model, effort, agentMode },
     }),
+  getBoard: (projectRoot: string, includeOlderDone: boolean) =>
+    invoke<Board>("get_board", { projectRoot, includeOlderDone }),
+  listBoardSummaries: () => invoke<BoardSummary[]>("list_board_summaries"),
+  // The project's board chat id, created on first use.
+  openProjectChat: (projectRoot: string) =>
+    invoke<string>("open_project_chat", { projectRoot }),
+  createTask: (projectRoot: string, task: NewTask) =>
+    invoke<Task>("create_task", { projectRoot, task }),
+  updateTask: (taskId: string, patch: TaskPatch) =>
+    invoke<Task>("update_task", { taskId, patch }),
+  // Into `status`, just before `beforeTaskId` (null: the end of the column).
+  moveTask: (taskId: string, status: TaskStatus, beforeTaskId: string | null) =>
+    invoke<Task>("move_task", { taskId, status, beforeTaskId }),
+  deleteTask: (taskId: string) => invoke<void>("delete_task", { taskId }),
+  createEpic: (projectRoot: string, epic: NewEpic) =>
+    invoke<Epic>("create_epic", { projectRoot, epic }),
+  updateEpic: (epicId: string, patch: EpicPatch) =>
+    invoke<Epic>("update_epic", { epicId, patch }),
+  deleteEpic: (epicId: string) => invoke<void>("delete_epic", { epicId }),
+  setParallelMainCheckoutTasks: (projectRoot: string, allowed: boolean) =>
+    invoke<void>("set_parallel_main_checkout_tasks", { projectRoot, allowed }),
+  deleteProjectBoard: (projectRoot: string) =>
+    invoke<void>("delete_project_board", { projectRoot }),
   clearConversation: (sessionId: string) =>
     invoke<void>("clear_conversation", { sessionId }),
   // Every chat operation names the backend by id; Rust resolves it.

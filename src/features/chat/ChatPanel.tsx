@@ -21,9 +21,18 @@ let lastComposerHeight = 0;
 export default function ChatPanel({
   sessionId,
   projectRoot,
+  compact = false,
+  showCheckout = true,
 }: {
   sessionId: string | null;
   projectRoot: string;
+  // A slim chat for a narrow column — the board's project chat beside the
+  // board: fills its column instead of a centered max width, with a flush
+  // message box.
+  compact?: boolean;
+  // The worktree/branch bar under the message box. Off for the project
+  // chat, which always works in the project's main checkout.
+  showCheckout?: boolean;
 }) {
   const conversations = useConversations();
   const promoteDraft = useAppStore((s) => s.promoteDraft);
@@ -280,7 +289,9 @@ export default function ChatPanel({
   return (
     <div
       className={cn(
-        "flex h-full",
+        // The floating composer is positioned against this, so it's as
+        // wide as the panel, not whatever holds it.
+        "relative flex h-full",
         isNewThread ? "items-center justify-center px-6" : "flex-col",
       )}
     >
@@ -303,7 +314,7 @@ export default function ChatPanel({
               turnDurations={turnDurations}
               replyStartedAt={replyStartedAt}
               onRetry={retry}
-              className="justify-end"
+              className={cn("justify-end", compact && "mx-0 max-w-none")}
               bottomInset={composerHeight}
             />
           </div>
@@ -320,6 +331,8 @@ export default function ChatPanel({
             onArmAutoResume: armClaudeAutoResume,
             onDismiss: dismissClaudeRateLimit,
           }}
+          compact={compact}
+          showCheckout={showCheckout}
           checkout={{
             projectRoot,
             cwd: worktreeCwd,

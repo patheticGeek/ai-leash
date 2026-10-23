@@ -39,6 +39,10 @@ interface ChatComposerProps {
     onDismiss: () => void;
   };
   checkout: CheckoutBarProps;
+  // A narrow column (see `ChatPanel`'s `compact`): full width of it, with
+  // a flush message box.
+  compact: boolean;
+  showCheckout: boolean;
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
   // or "/compact" — is its own; what those actually do to the conversation
   // (talk to the backend, rewrite the transcript) is `ChatPanel`'s.
@@ -67,6 +71,8 @@ export default function ChatComposer({
   usage,
   claudeRateLimit,
   checkout,
+  compact,
+  showCheckout,
   onSubmit,
   onRunShell,
   onCommand,
@@ -233,7 +239,7 @@ export default function ChatComposer({
       ref={dockRef}
       className={cn("w-full", floating && "absolute bottom-0")}
     >
-      <div className="mx-auto max-w-4xl my-3">
+      <div className={cn(compact ? "mt-3" : "mx-auto my-3 max-w-4xl")}>
         <ChatBanners
           helpOpen={helpOpen}
           commands={allCommands}
@@ -246,6 +252,7 @@ export default function ChatComposer({
           onCancelQueued={queue.remove}
         />
         <ChatInputBar
+          flush={compact}
           input={input}
           onChange={setInput}
           onKeyDown={onKeyDown}
@@ -297,7 +304,7 @@ export default function ChatComposer({
             )
           }
         />
-        <CheckoutBar {...checkout} />
+        {showCheckout && <CheckoutBar {...checkout} />}
       </div>
     </div>
   );

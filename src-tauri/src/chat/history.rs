@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter, State};
 /// conversation row's own columns change; activity (a turn starting, which
 /// bumps sort order) rides the existing `chat://generating` event instead,
 /// since that's already global with `sessionId` in its payload.
-pub(super) fn emit_conversation_changed(app: &AppHandle, conversation_id: &str, reason: &str) {
+pub(crate) fn emit_conversation_changed(app: &AppHandle, conversation_id: &str, reason: &str) {
     let _ = app.emit(
         "conversation://changed",
         json!({ "conversationId": conversation_id, "reason": reason }),
