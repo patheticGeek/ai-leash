@@ -19,9 +19,9 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub(crate) const TASK_STATUSES: &[&str] = &["backlog", "todo", "in_progress", "review", "done"];
-pub(crate) const TASK_PRIORITIES: &[&str] = &["urgent", "high", "medium", "low"];
-pub(crate) const TASK_EFFORTS: &[&str] = &["xs", "s", "m", "l", "xl"];
+pub const TASK_STATUSES: &[&str] = &["backlog", "todo", "in_progress", "review", "done"];
+pub const TASK_PRIORITIES: &[&str] = &["urgent", "high", "medium", "low"];
+pub const TASK_EFFORTS: &[&str] = &["xs", "s", "m", "l", "xl"];
 
 /// Gap between consecutive positions after a renumber, and for a card
 /// appended to the end of a column.
@@ -184,6 +184,39 @@ fn get_task_connection(conn: &Connection, task_id: &str) -> Option<Task> {
 pub fn get_task(db: &Db, task_id: &str) -> Option<Task> {
     let conn = db.0.lock().unwrap();
     get_task_connection(&conn, task_id)
+}
+
+/// Resolves what a person or agent typed — `#12`, `12`, or a task's uuid —
+/// to a task in `project_root`'s board.
+pub fn find_task(db: &Db, project_root: &str, reference: &str) -> Option<Task> {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    let reference = reference.trim();
+    if let Ok(number) = reference.trim_start_matches('#').parse::<i64>() {
+        return conn
+            .query_row(
+                &format!("SELECT {TASK_COLUMNS} FROM tasks WHERE project_id = ?1 AND number = ?2"),
+                params![project_id, number],
+                task_from_row,
+            )
+            .optional()
+            .ok()
+            .flatten();
+    }
+    get_task_connection(&conn, reference).filter(|t| t.project_id == project_id)
+}
+
+/// The task a conversation was started for, if any.
+pub fn task_for_conversation(db: &Db, conversation_id: &str) -> Option<Task> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        &format!("SELECT {TASK_COLUMNS} FROM tasks WHERE conversation_id = ?1"),
+        params![conversation_id],
+        task_from_row,
+    )
+    .optional()
+    .ok()
+    .flatten()
 }
 
 /// One board's tasks, every column, in display order. Done tasks are only
@@ -593,6 +626,19 @@ mod tests {
     }
 
     #[test]
+    fn find_task_accepts_a_number_or_an_id_but_only_in_its_own_project() {
+        let db = temp_db();
+        let a = create_task(&db, "/proj", new("a")).unwrap();
+        create_task(&db, "/other", new("x")).unwrap();
+
+        assert_eq!(find_task(&db, "/proj", "#1").unwrap().id, a.id);
+        assert_eq!(find_task(&db, "/proj", "1").unwrap().id, a.id);
+        assert_eq!(find_task(&db, "/proj", &a.id).unwrap().id, a.id);
+        assert!(find_task(&db, "/other", &a.id).is_none());
+        assert!(find_task(&db, "/proj", "#9").is_none());
+    }
+
+    #[test]
     fn create_task_rejects_unknown_values_and_empty_titles() {
         let db = temp_db();
         assert!(create_task(&db, "/proj", new("  ")).is_err());
@@ -769,6 +815,7 @@ mod tests {
             },
         );
         set_task_conversation(&db, &a.id, Some("chat"), true);
+        assert_eq!(task_for_conversation(&db, "chat").unwrap().id, a.id);
 
         delete_conversation(&db, "chat");
         delete_epic(&db, &epic.id);

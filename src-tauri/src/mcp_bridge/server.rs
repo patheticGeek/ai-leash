@@ -97,7 +97,8 @@ const RELAYED_TOOLS: &[&str] = &[
 ];
 
 async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
-    if !RELAYED_TOOLS.contains(&req.name.as_str()) {
+    let name = req.name.as_str();
+    if !RELAYED_TOOLS.contains(&name) && !tools::board_tools::BOARD_TOOLS.contains(&name) {
         return BridgeResponse::Err {
             message: format!("tool `{}` is not relayed over the bridge", req.name),
         };

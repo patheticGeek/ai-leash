@@ -50,6 +50,15 @@ Click a card to edit it or delete it. A card shows its number, priority,
 effort and epic, and a spinner with the elapsed time while its chat is
 working.
 
+## Planning by chatting
+
+Agents can work the board too — see
+[Tools](./tools.md#plan-and-track-work-on-the-board). In the project chat
+(or any chat), ask for something like "break the settings rework into
+tasks" and they're added to the board, with epics, priorities and sizes if
+you ask for them. You can ask it to start tasks as well, optionally naming
+the agent, model and effort to use.
+
 ## Starting a task
 
 Hover a card that hasn't been started and click its **▶ Start** button.
@@ -67,7 +76,8 @@ Starting a task:
   runs the chat there — so several tasks can be worked on at once without
   touching each other or your main checkout;
 - moves it to **In progress** and sends the task — its title, priority,
-  effort, epic and description — as the chat's first message.
+  effort, epic and description — as the chat's first message, asking the
+  agent to move the task to **Review** when it's done.
 
 A started card has a chat button that opens its chat. The chat is a normal
 conversation: you can read along, answer questions, approve tool use and

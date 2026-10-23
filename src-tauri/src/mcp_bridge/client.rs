@@ -1,7 +1,7 @@
 use super::{BridgeRequest, BridgeResponse};
 use crate::actions;
 use crate::context;
-use crate::tools::{action_tools, guidance, memory_tools, sub_agent_tools};
+use crate::tools::{action_tools, board_tools, guidance, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -121,6 +121,7 @@ fn tools_list_result(root: &Path) -> Value {
     // defined yet) — same as `tools::tool_definitions` — so the agent
     // knows this capability exists and can offer create_action itself.
     tools.extend(action_tools::action_defs().into_iter().map(mcp_tool));
+    tools.extend(board_tools::board_defs().into_iter().map(mcp_tool));
 
     // Gated like the native list: only worth a tool slot if there's a skill
     // to load. A snapshot from connect time, same as the instructions' list.
@@ -176,6 +177,9 @@ fn tools_call_result(
         "update_memory" => update_memory_tool(root, &arguments),
         "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
         | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action" => {
+            relay_over_tcp(port, token, session_id, name, arguments)
+        }
+        board if board_tools::BOARD_TOOLS.contains(&board) => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         other => Err(format!("unknown tool `{other}`")),

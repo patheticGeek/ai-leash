@@ -17,7 +17,8 @@ pub fn native_guidance(allow_subtasks: bool) -> String {
          - **Editing.** `read_file` first, then `edit_file` for a change to an existing file. Use `write_file` only for a new file or a full rewrite.\n\
          - **Commands.** Use `shell` for one-off commands that finish quickly (tests, builds, git, inspecting state). It has a 30 second limit and blocks your turn, so for anything long-running or repeated (dev server, watcher, `--watch` builds) call `list_actions` first: if an Action matches, `run_action` it and check its output with `read_action`. If none matches, `create_action` one so it shows up in the user's Actions tab, rather than running it in `shell`.\n\
          - **Verify.** After starting or changing something, check the outcome (`read_action`, re-run the tests) instead of assuming it worked.\n\
-         - **Memory.** When the user states a lasting preference or project convention, or corrects you in a way that should apply next time, save it with `update_memory` right away, without being asked. Keep it to durable facts, not scratch state for the current task.",
+         - **Memory.** When the user states a lasting preference or project convention, or corrects you in a way that should apply next time, save it with `update_memory` right away, without being asked. Keep it to durable facts, not scratch state for the current task.\n\
+         - **The board.** The project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list. `list_tasks` shows what's there. If this conversation is a task's own chat, set it to review with `update_task` when your work on it is done.",
     );
     if allow_subtasks {
         out.push_str(
@@ -35,7 +36,8 @@ pub fn bridge_instructions() -> String {
      \n\
      - Actions are named background commands shown in the user's Actions tab. Before starting a long-running process yourself (dev server, watcher, `--watch` build), call `list_actions`; if one matches, `run_action` it and use `read_action` to check its output or compile errors. If none matches, `create_action` one instead of leaving an untracked background process.\n\
      - Memory is AI Leash's persistent notes for this project (`project`) and across projects (`global`). It is not put in your context for you: call `read_memory` at the start of a task in this project. When the user states a lasting preference or convention, or corrects you in a way that should apply next time, save it with `update_memory` without being asked — it replaces the whole file, so `read_memory` first and pass the merged contents. Durable facts only, not scratch state.\n\
-     - Sub-agents: if a request has two or more independent parts, hand them to `spawn_sub_agent` in one call so they run concurrently. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own as later turns; don't poll with `list_sub_agents`."
+     - Sub-agents: if a request has two or more independent parts, hand them to `spawn_sub_agent` in one call so they run concurrently. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own as later turns; don't poll with `list_sub_agents`.\n\
+     - The board: the project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list; `list_tasks` shows what's there. If this conversation is a task's own chat, set it to review with `update_task` when your work on it is done."
         .to_string()
 }
 
@@ -67,6 +69,9 @@ mod tests {
             "update_memory",
             "spawn_sub_agent",
             "list_agent_options",
+            "create_tasks",
+            "list_tasks",
+            "update_task",
         ];
         let bridge = [
             "list_actions",
@@ -78,6 +83,9 @@ mod tests {
             "spawn_sub_agent",
             "list_agent_options",
             "list_sub_agents",
+            "create_tasks",
+            "list_tasks",
+            "update_task",
         ];
         for (text, allowed) in [
             (native_guidance(true), &native[..]),

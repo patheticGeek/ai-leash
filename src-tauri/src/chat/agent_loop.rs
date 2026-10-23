@@ -69,10 +69,7 @@ pub(super) async fn run_with_cancellation(
         .lock()
         .unwrap()
         .insert(session_id.to_string(), cancel_flag.clone());
-    let _ = app.emit(
-        "chat://generating",
-        json!({ "sessionId": session_id, "active": true, "autonomous": autonomous }),
-    );
+    super::set_generating(app, session_id, true, autonomous);
 
     let result = run_agent_loop(
         app,
@@ -86,10 +83,7 @@ pub(super) async fn run_with_cancellation(
     .await;
 
     state.cancellations.lock().unwrap().remove(session_id);
-    let _ = app.emit(
-        "chat://generating",
-        json!({ "sessionId": session_id, "active": false, "autonomous": autonomous }),
-    );
+    super::set_generating(app, session_id, false, autonomous);
     result
 }
 
