@@ -172,6 +172,8 @@ pub fn run() {
             board::delete_epic,
             board::set_parallel_main_checkout_tasks,
             board::delete_project_board,
+            board::lifecycle::start_task,
+            board::lifecycle::finish_task,
             tools::permissions::respond_permission,
             tools::permissions::set_permission_mode,
             acp::elicitation::respond_elicitation,

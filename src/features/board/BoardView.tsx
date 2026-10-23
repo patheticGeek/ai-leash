@@ -13,10 +13,17 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Layers, Plus, Rows3 } from "lucide-react";
+import { Layers, Plus, Rows3, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -32,10 +39,14 @@ import {
   useBoard,
 } from "../../data/board";
 import { api, type Epic, type Task, type TaskStatus } from "../../lib/tauriApi";
+import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
+import { useAppStore } from "../../store";
 import EpicsDialog from "./EpicsDialog";
+import StartTaskDialog from "./StartTaskDialog";
 import TaskCard, { TaskCardBody } from "./TaskCard";
 import TaskDialog from "./TaskDialog";
 import { EpicDot } from "./TaskMeta";
+import { useFinishTask } from "./useFinishTask";
 
 // Epic filter values besides an epic's own id. Radix `Select` reserves "".
 const ALL_EPICS = "all";
@@ -61,6 +72,8 @@ function Column({
   fill,
   showHeader,
   onOpen,
+  onStart,
+  onOpenChat,
   onAdd,
 }: {
   lane: string;
@@ -72,6 +85,8 @@ function Column({
   fill: boolean;
   showHeader: boolean;
   onOpen: (task: Task) => void;
+  onStart: (task: Task) => void;
+  onOpenChat: (task: Task) => void;
   onAdd: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -120,6 +135,8 @@ function Column({
               lane={lane}
               epic={task.epicId ? epicsById.get(task.epicId) : undefined}
               onOpen={() => onOpen(task)}
+              onStart={() => onStart(task)}
+              onOpenChat={() => onOpenChat(task)}
             />
           ))}
         </SortableContext>
@@ -143,7 +160,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [epicsOpen, setEpicsOpen] = useState(false);
   const [dragging, setDragging] = useState<Task | null>(null);
+  const [starting, setStarting] = useState<Task | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const openConversation = useAppStore((s) => s.openConversation);
+  const { finish, dialog: finishDialog } = useFinishTask();
   const board = useBoard(projectRoot, includeOlderDone);
+  // No branch: not a git repository (or a detached HEAD), so tasks share the
+  // main checkout instead of getting worktrees.
+  const sharedCheckout = useCurrentGitBranch(projectRoot) === null;
   // A small threshold, so a click still opens the card.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -226,10 +250,23 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     if (epicChanged) {
       void api.updateTask(task.id, { epicId: lane.epicId ?? null });
     }
-    if (!unmoved) {
-      void moveTask(projectRoot, task.id, data.status, beforeId);
-    }
+    if (unmoved) return;
+    setMoveError(null);
+    // Into Done from elsewhere: finishing removes the task's worktree.
+    const done =
+      data.status === "done" && task.status !== "done"
+        ? finish(task, beforeId)
+        : moveTask(projectRoot, task.id, data.status, beforeId);
+    done.catch((err) => setMoveError(String(err)));
   }
+
+  const cardHandlers = {
+    onOpen: (task: Task) => setEditing({ kind: "edit", task }),
+    onStart: (task: Task) => setStarting(task),
+    onOpenChat: (task: Task) => {
+      if (task.conversationId) void openConversation(task.conversationId);
+    },
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -284,6 +321,32 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           </Button>
         )}
         <div className="flex-1" />
+        {sharedCheckout && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" title="Board settings">
+                <Settings2 />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-w-72">
+              <DropdownMenuLabel>
+                This project isn't a git repository, so started tasks share its
+                one checkout.
+              </DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={board?.parallelMainCheckoutTasks ?? false}
+                onCheckedChange={(allowed) =>
+                  void api.setParallelMainCheckoutTasks(
+                    projectRoot,
+                    allowed === true,
+                  )
+                }
+              >
+                Allow several tasks in progress at once
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}>
           <Layers size={13} />
           Epics
@@ -306,6 +369,15 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           New task
         </Button>
       </div>
+      {moveError && (
+        <button
+          type="button"
+          onClick={() => setMoveError(null)}
+          className="shrink-0 border-b border-white/5 bg-destructive/10 px-3 py-1.5 text-left text-xs text-destructive"
+        >
+          {moveError}
+        </button>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -353,7 +425,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                         epicsById={epicsById}
                         fill={false}
                         showHeader={false}
-                        onOpen={(task) => setEditing({ kind: "edit", task })}
+                        {...cardHandlers}
                         onAdd={() =>
                           setEditing({
                             kind: "new",
@@ -377,7 +449,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                 epicsById={epicsById}
                 fill
                 showHeader
-                onOpen={(task) => setEditing({ kind: "edit", task })}
+                {...cardHandlers}
                 onAdd={() =>
                   setEditing({
                     kind: "new",
@@ -421,7 +493,10 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
             ? { status: editing.status, epicId: editing.epicId }
             : {}
         }
+        onFinish={(task) => finish(task, null)}
       />
+      <StartTaskDialog task={starting} onClose={() => setStarting(null)} />
+      {finishDialog}
       <EpicsDialog
         open={epicsOpen}
         onOpenChange={setEpicsOpen}

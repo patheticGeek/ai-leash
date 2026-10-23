@@ -4,6 +4,8 @@
 //! the UI or from an agent's tool call — goes through so open boards
 //! refresh.
 
+pub mod lifecycle;
+
 use crate::db::{self, BoardSummary, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;
 use serde::Serialize;

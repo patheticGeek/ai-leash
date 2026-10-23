@@ -172,6 +172,91 @@ fn create_worktree_existing_branch(root: &Path, branch: &str) -> Result<PathBuf,
     Ok(target)
 }
 
+/// Whether `root` is inside a git work tree.
+pub(crate) fn is_git_repo(root: &Path) -> bool {
+    run_git(root, &["rev-parse", "--is-inside-work-tree"]).is_ok_and(|out| out == "true")
+}
+
+/// A worktree for a board task on `branch`: attached to the branch if it
+/// already exists (a task started again after its worktree was removed),
+/// else a new branch off whatever the primary checkout has checked out.
+pub(crate) fn create_task_worktree(root: &Path, branch: &str) -> Result<PathBuf, String> {
+    let exists = run_git(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ],
+    )
+    .is_ok();
+    if exists {
+        create_worktree_existing_branch(root, branch)
+    } else {
+        let base = current_branch(root)?.unwrap_or_else(|| "HEAD".to_string());
+        create_worktree_new_branch(root, branch, &base)
+    }
+}
+
+/// What removing a worktree would lose.
+#[derive(Serialize, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WorktreeChanges {
+    /// `git status --porcelain` lines: uncommitted and untracked files.
+    pub uncommitted: Vec<String>,
+    /// `<short hash> <subject>` of each commit on its branch that no other
+    /// local or remote branch has.
+    pub unmerged_commits: Vec<String>,
+}
+
+impl WorktreeChanges {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.uncommitted.is_empty() && self.unmerged_commits.is_empty()
+    }
+}
+
+pub(crate) fn worktree_changes(worktree: &Path) -> Result<WorktreeChanges, String> {
+    let lines = |out: String| -> Vec<String> {
+        out.lines()
+            .map(str::to_string)
+            .filter(|l| !l.is_empty())
+            .collect()
+    };
+    let uncommitted = lines(run_git(worktree, &["status", "--porcelain"])?);
+    let mut args = vec!["log", "--format=%h %s", "HEAD", "--not"];
+    let exclude = current_branch(worktree)?.map(|b| format!("--exclude={b}"));
+    if let Some(exclude) = &exclude {
+        args.push(exclude);
+    }
+    args.extend(["--branches", "--remotes"]);
+    let unmerged_commits = lines(run_git(worktree, &args)?);
+    Ok(WorktreeChanges {
+        uncommitted,
+        unmerged_commits,
+    })
+}
+
+/// `git worktree remove` (`--force` past uncommitted changes), and forgets
+/// the branch watcher on it — its git dir is gone, so a worktree later
+/// recreated at the same path needs a fresh one.
+pub(crate) fn remove_worktree(
+    state: &AppState,
+    root: &Path,
+    worktree: &Path,
+    force: bool,
+) -> Result<(), String> {
+    let worktree_str = worktree.to_str().ok_or("invalid path")?;
+    let mut args = vec!["worktree", "remove"];
+    if force {
+        args.push("--force");
+    }
+    args.push(worktree_str);
+    run_git(root, &args)?;
+    state.git_watchers.lock().unwrap().remove(worktree);
+    Ok(())
+}
+
 fn checkout_branch(worktree_path: &Path, branch: &str) -> Result<(), String> {
     run_git(worktree_path, &["checkout", branch]).map(|_| ())
 }
@@ -341,21 +426,12 @@ pub fn delete_git_worktree(
     worktree_path: String,
     force: bool,
 ) -> Result<(), String> {
-    let root = PathBuf::from(root_path);
-    let mut args = vec!["worktree", "remove"];
-    if force {
-        args.push("--force");
-    }
-    args.push(&worktree_path);
-    run_git(&root, &args)?;
-    // Its git dir is gone, so the watcher on it is dead — drop it so a
-    // worktree later recreated at the same path gets a fresh one.
-    state
-        .git_watchers
-        .lock()
-        .unwrap()
-        .remove(&PathBuf::from(worktree_path));
-    Ok(())
+    remove_worktree(
+        &state,
+        &PathBuf::from(root_path),
+        &PathBuf::from(worktree_path),
+        force,
+    )
 }
 
 /// Deletes a local branch. `force` maps to `-D` instead of `-d`, needed when
@@ -513,5 +589,59 @@ mod tests {
             );
         }
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A throwaway repo with one commit on `main`.
+    fn temp_repo() -> PathBuf {
+        let root = std::env::temp_dir()
+            .join(format!("ai-leash-git-{}", uuid::Uuid::new_v4()))
+            .join("repo");
+        std::fs::create_dir_all(&root).unwrap();
+        for args in [
+            vec!["init", "-q", "-b", "main"],
+            vec!["config", "user.email", "test@example.com"],
+            vec!["config", "user.name", "Test"],
+            vec!["config", "commit.gpgsign", "false"],
+            vec!["commit", "-q", "--allow-empty", "-m", "first"],
+        ] {
+            run_git(&root, &args).unwrap();
+        }
+        root
+    }
+
+    #[test]
+    fn worktree_changes_finds_uncommitted_files_and_unmerged_commits() {
+        let root = temp_repo();
+        assert!(is_git_repo(&root));
+        let worktree = create_task_worktree(&root, "task/1-thing").unwrap();
+        assert!(worktree_changes(&worktree).unwrap().is_empty());
+
+        std::fs::write(worktree.join("new.txt"), "hi").unwrap();
+        let changes = worktree_changes(&worktree).unwrap();
+        assert_eq!(changes.uncommitted, ["?? new.txt"]);
+        assert!(changes.unmerged_commits.is_empty());
+
+        run_git(&worktree, &["add", "."]).unwrap();
+        run_git(&worktree, &["commit", "-q", "-m", "add new.txt"]).unwrap();
+        let changes = worktree_changes(&worktree).unwrap();
+        assert!(changes.uncommitted.is_empty());
+        assert_eq!(changes.unmerged_commits.len(), 1);
+        assert!(changes.unmerged_commits[0].ends_with("add new.txt"));
+
+        // Merged into main: nothing would be lost any more.
+        run_git(&root, &["merge", "-q", "--ff-only", "task/1-thing"]).unwrap();
+        assert!(worktree_changes(&worktree).unwrap().is_empty());
+    }
+
+    #[test]
+    fn create_task_worktree_reattaches_an_existing_branch() {
+        let root = temp_repo();
+        let first = create_task_worktree(&root, "task/2-again").unwrap();
+        run_git(&root, &["worktree", "remove", first.to_str().unwrap()]).unwrap();
+        let second = create_task_worktree(&root, "task/2-again").unwrap();
+        assert_eq!(
+            current_branch(&second).unwrap().as_deref(),
+            Some("task/2-again")
+        );
     }
 }

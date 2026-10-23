@@ -50,6 +50,49 @@ Click a card to edit it or delete it. A card shows its number, priority,
 effort and epic, and a spinner with the elapsed time while its chat is
 working.
 
+## Starting a task
+
+Hover a card that hasn't been started and click its **▶ Start** button.
+Pick the agent, model and effort its chat should use (the effort starts
+from the task's size: XS and S are low, M medium, L and XL high), whether
+it may run tools without asking, and whether to open its chat straight
+away. Then click **Start**.
+
+Starting a task:
+
+- gives it a chat of its own, listed under **Chats** with the task's
+  number;
+- in a git repository, creates a worktree on a new `task/<number>-<title>`
+  branch, off whatever the project's main checkout has checked out, and
+  runs the chat there — so several tasks can be worked on at once without
+  touching each other or your main checkout;
+- moves it to **In progress** and sends the task — its title, priority,
+  effort, epic and description — as the chat's first message.
+
+A started card has a chat button that opens its chat. The chat is a normal
+conversation: you can read along, answer questions, approve tool use and
+send messages of your own.
+
+### Projects that aren't git repositories
+
+Without git there are no worktrees, so a task's chat runs in the project's
+one checkout. To keep tasks from changing the same files under each other,
+only one task can be in progress at a time there. If you'd rather run
+several anyway, open the board settings (the gear in the toolbar, shown
+only for such projects) and turn on **Allow several tasks in progress at
+once**.
+
+## Finishing a task
+
+Drag a task to **Done**, or set its status to Done, when you're happy with
+it. That stops its chat if it's still working, marks the chat done, and
+removes the task's worktree. The branch is kept, so its commits stay
+reachable; merge or delete it as you usually would.
+
+If the worktree has uncommitted changes, or commits that aren't on any
+other branch, AI Leash lists them and asks before removing it. Choose
+**Keep it open** to deal with them first.
+
 ## Epics
 
 Epics group related tasks. Click **Epics** in the toolbar to add, rename,
@@ -70,6 +113,7 @@ project menu to choose how they're listed:
 - **Show all chats**: task chats are mixed in with the rest, most recent
   first.
 - **Group task chats at top**: task chats come first.
-- **Hide task chats**: only other chats are listed.
+- **Hide task chats**: only other chats are listed. Open a task's chat from
+  its card instead.
 
 Removing a project from AI Leash also deletes its board.

@@ -181,6 +181,11 @@ fn get_task_connection(conn: &Connection, task_id: &str) -> Option<Task> {
     .flatten()
 }
 
+pub fn get_task(db: &Db, task_id: &str) -> Option<Task> {
+    let conn = db.0.lock().unwrap();
+    get_task_connection(&conn, task_id)
+}
+
 /// One board's tasks, every column, in display order. Done tasks are only
 /// included if they were completed at or after `done_since` (all of them
 /// when it's `None`) — a long-lived board's Done column grows without bound.
@@ -462,6 +467,39 @@ pub fn move_task(
     get_task_connection(&conn, task_id).ok_or_else(|| "no such task".into())
 }
 
+/// Links a task to the chat it was started in.
+pub fn set_task_conversation(
+    db: &Db,
+    task_id: &str,
+    conversation_id: Option<&str>,
+    engaged_with_project: bool,
+) {
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE tasks SET conversation_id = ?2, engaged_with_project = ?3, updated_at = ?4
+         WHERE id = ?1",
+        params![task_id, conversation_id, engaged_with_project, now()],
+    );
+}
+
+/// Other tasks in `project_root` that are in progress with a chat — in a
+/// project that isn't a git repo they all share its one checkout.
+pub fn running_tasks(db: &Db, project_root: &str, except_task_id: &str) -> Vec<Task> {
+    let conn = db.0.lock().unwrap();
+    let project_id = ensure_project_connection(&conn, project_root);
+    let Ok(mut stmt) = conn.prepare(&format!(
+        "SELECT {TASK_COLUMNS} FROM tasks
+         WHERE project_id = ?1 AND id != ?2 AND status = 'in_progress'
+           AND conversation_id IS NOT NULL
+         ORDER BY number"
+    )) else {
+        return vec![];
+    };
+    stmt.query_map(params![project_id, except_task_id], task_from_row)
+        .map(|rows| rows.filter_map(Result::ok).collect())
+        .unwrap_or_default()
+}
+
 pub fn delete_task(db: &Db, task_id: &str) -> Option<Task> {
     let conn = db.0.lock().unwrap();
     let task = get_task_connection(&conn, task_id)?;
@@ -730,18 +768,12 @@ mod tests {
                 tool_calls: None,
             },
         );
-        db.0.lock()
-            .unwrap()
-            .execute(
-                "UPDATE tasks SET conversation_id = 'chat', engaged_with_project = 1 WHERE id = ?1",
-                params![a.id],
-            )
-            .unwrap();
+        set_task_conversation(&db, &a.id, Some("chat"), true);
 
         delete_conversation(&db, "chat");
         delete_epic(&db, &epic.id);
 
-        let a = get_task_connection(&db.0.lock().unwrap(), &a.id).unwrap();
+        let a = get_task(&db, &a.id).unwrap();
         assert_eq!(a.conversation_id, None);
         assert!(!a.engaged_with_project);
         assert_eq!(a.epic_id, None);
@@ -773,6 +805,25 @@ mod tests {
         assert_eq!(summaries[1].project_root, "/proj");
         assert_eq!((summaries[1].todo, summaries[1].review), (1, 1));
         assert_eq!(summaries[0].todo, 1);
+    }
+
+    #[test]
+    fn running_tasks_lists_other_started_in_progress_tasks() {
+        let db = temp_db();
+        let a = create_task(&db, "/proj", new("a")).unwrap();
+        let b = create_task(&db, "/proj", new("b")).unwrap();
+        let c = create_task(&db, "/proj", new("c")).unwrap();
+        for t in [&a, &b, &c] {
+            move_task(&db, &t.id, "in_progress", None).unwrap();
+        }
+        set_task_conversation(&db, &a.id, Some("chat-a"), false);
+        set_task_conversation(&db, &b.id, Some("chat-b"), false);
+
+        let others: Vec<_> = running_tasks(&db, "/proj", &a.id)
+            .into_iter()
+            .map(|t| t.title)
+            .collect();
+        assert_eq!(others, ["b"]);
     }
 
     #[test]
