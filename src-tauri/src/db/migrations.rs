@@ -22,6 +22,7 @@ const MIGRATIONS: &[Migration] = &[
     v3_drop_sub_agents,
     v4_backend_ids,
     v5_agent_mode,
+    v6_project_boards,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -232,6 +233,71 @@ fn v3_drop_sub_agents(conn: &Connection) {
 fn v5_agent_mode(conn: &Connection) {
     conn.execute("ALTER TABLE conversations ADD COLUMN agent_mode TEXT", [])
         .expect("failed to add conversations.agent_mode");
+}
+
+/// Project boards: `epics` and `tasks`, both owned by a `projects` row, plus
+/// the per-project counter behind a task's short `#N` and the opt-in for
+/// running several tasks at once in a non-git project's only checkout. See
+/// `db/tasks.rs`.
+///
+/// `projects` is part of `Db::open`'s baseline schema, so it already exists
+/// in any real database; it's only created here for databases built by hand
+/// (the tests below) that predate it.
+fn v6_project_boards(conn: &Connection) {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS projects (
+             id TEXT PRIMARY KEY,
+             root_path TEXT NOT NULL UNIQUE,
+             name TEXT NOT NULL,
+             created_at INTEGER NOT NULL,
+             updated_at INTEGER NOT NULL,
+             last_opened_at INTEGER
+         )",
+        [],
+    )
+    .expect("failed to create projects");
+    conn.execute_batch(
+        "
+        ALTER TABLE projects ADD COLUMN next_task_number INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE projects ADD COLUMN parallel_main_checkout_tasks INTEGER NOT NULL DEFAULT 0;
+
+        CREATE TABLE epics (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            color TEXT NOT NULL,
+            position REAL NOT NULL,
+            archived INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX idx_epics_project ON epics(project_id, position);
+
+        CREATE TABLE tasks (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            epic_id TEXT,
+            number INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL,
+            priority TEXT NOT NULL,
+            effort TEXT,
+            position REAL NOT NULL,
+            conversation_id TEXT,
+            engaged_with_project INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            started_at INTEGER,
+            completed_at INTEGER,
+            UNIQUE (project_id, number)
+        );
+        CREATE INDEX idx_tasks_project_status ON tasks(project_id, status, position);
+        CREATE INDEX idx_tasks_conversation ON tasks(conversation_id);
+        ",
+    )
+    .expect("failed to create project board tables");
 }
 
 fn v4_backend_ids(conn: &Connection) {

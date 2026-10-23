@@ -58,6 +58,18 @@ pub fn ensure_project(db: &Db, root_path: &str) -> String {
     ensure_project_connection(&conn, root_path)
 }
 
+/// The folder a project id belongs to — events about a board name its
+/// project by root, since that's what the frontend keys everything on.
+pub fn project_root_for_id(db: &Db, project_id: &str) -> Option<String> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT root_path FROM projects WHERE id = ?1",
+        params![project_id],
+        |row| row.get(0),
+    )
+    .ok()
+}
+
 pub fn touch_project(db: &Db, root_path: &str) {
     let conn = db.0.lock().unwrap();
     let ts = now();
