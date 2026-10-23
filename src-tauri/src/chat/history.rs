@@ -37,8 +37,17 @@ pub fn load_conversation_history(
     session_id: String,
 ) -> Result<Vec<PersistedMessage>, String> {
     let messages = db::load_messages(&state.db, &session_id);
+    hydrate_in_memory(&state, &session_id, &messages);
+    Ok(messages)
+}
+
+/// Gives `session_id` its in-memory history (`AppState::chat_sessions`, what
+/// a native turn sends) from `messages` the first time it's needed in this
+/// run — a no-op once it has one, since a live session's copy can already be
+/// ahead of disk.
+fn hydrate_in_memory(state: &AppState, session_id: &str, messages: &[PersistedMessage]) {
     let mut sessions = state.chat_sessions.lock().unwrap();
-    sessions.entry(session_id).or_insert_with(|| {
+    sessions.entry(session_id.to_string()).or_insert_with(|| {
         messages
             .iter()
             // "thinking" rows (ACP reasoning) are never sent to a
@@ -50,13 +59,28 @@ pub fn load_conversation_history(
             // before the switch.
             .filter(|m| m.role != "thinking")
             .map(|m| ChatMessage {
-                role: m.role.clone(),
+                // A board note (`board::messaging`) is context the model
+                // should see, so it goes over as a user message.
+                role: if m.role == "event" {
+                    "user".into()
+                } else {
+                    m.role.clone()
+                },
                 content: m.content.clone(),
                 tool_calls: m.tool_calls.clone(),
             })
             .collect()
     });
-    Ok(messages)
+}
+
+/// `hydrate_in_memory` from disk — for code about to add to a conversation
+/// nobody has opened in this run.
+pub(crate) fn ensure_in_memory(state: &AppState, session_id: &str) {
+    if state.chat_sessions.lock().unwrap().contains_key(session_id) {
+        return;
+    }
+    let messages = db::load_messages(&state.db, session_id);
+    hydrate_in_memory(state, session_id, &messages);
 }
 
 /// Stamps how long a turn took onto the conversation's most recent assistant

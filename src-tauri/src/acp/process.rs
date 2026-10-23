@@ -716,6 +716,9 @@ async fn drive_acp_connection(
                                 }
                             }
                         }
+                        // After `close_segment` has saved the reply, which
+                        // the board's turn-ended update quotes.
+                        crate::board::messaging::on_turn_end(&app, &session_id);
                         continue;
                     }
                     AcpCommand::Cancel => {

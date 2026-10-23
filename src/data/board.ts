@@ -63,11 +63,13 @@ export function effortForSize(size: TaskEffort | null): string | null {
 export function useBoard(
   projectRoot: string,
   includeOlderDone: boolean,
+  enabled = true,
 ): Board | undefined {
   const { data } = useQuery({
     queryKey: qk.board(projectRoot, includeOlderDone),
     queryFn: () => api.getBoard(projectRoot, includeOlderDone),
     placeholderData: keepPreviousData,
+    enabled,
   });
   return data;
 }

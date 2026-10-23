@@ -84,6 +84,8 @@ pub(super) async fn run_with_cancellation(
 
     state.cancellations.lock().unwrap().remove(session_id);
     super::set_generating(app, session_id, false, autonomous);
+    // After the reply is saved, which the board's turn-ended update quotes.
+    crate::board::messaging::on_turn_end(app, session_id);
     result
 }
 

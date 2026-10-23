@@ -6,7 +6,7 @@
 //! can leave the task out entirely: `update_task` and `read_task` default to
 //! the task the calling conversation was started for.
 
-use crate::board::{emit_board_changed, lifecycle};
+use crate::board::{emit_board_changed, lifecycle, messaging};
 use crate::commands;
 use crate::db::{self, Epic, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;
@@ -105,6 +105,18 @@ pub(crate) fn board_defs() -> Vec<Value> {
             }
         }),
         json!({
+            "name": "send_message",
+            "description": "Message the project chat or a task's chat. From a task's chat, send to \"project\" to report progress or ask for something you need; it's woken up to answer if it's following this task, otherwise it sees your message as a note next time it runs. From the project chat (or any chat), send to a started task by number (\"#12\") to give it instructions or answer it; that task is woken up to act on it and its reply comes back. Don't also repeat what you send in your own reply.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "to": { "type": "string", "description": "\"project\" for the project chat, or a task's number, e.g. \"#12\"" },
+                    "message": { "type": "string", "description": "What to tell them, self-contained" }
+                },
+                "required": ["to", "message"]
+            }
+        }),
+        json!({
             "name": "list_epics",
             "description": "List this project's epics (groups of related tasks) with how many open tasks each has.",
             "parameters": { "type": "object", "properties": {}, "required": [] }
@@ -131,6 +143,7 @@ pub(crate) const BOARD_TOOLS: &[&str] = &[
     "create_tasks",
     "update_task",
     "start_task",
+    "send_message",
     "list_epics",
     "create_epic",
 ];
@@ -412,7 +425,7 @@ fn start_task(
         },
     )?;
     Ok(format!(
-        "Started #{} {}: it has its own chat now and is working on it.",
+        "Started #{} {}: it has its own chat now and is working on it. You'll hear back when its turns end.",
         task.number, task.title
     ))
 }
@@ -470,6 +483,13 @@ pub(crate) async fn execute(
         "create_tasks" => create_tasks(app, &state, &root, args),
         "update_task" => update_task(app, &state, session_id, &root, args).await,
         "start_task" => start_task(app, &state, session_id, &root, args),
+        "send_message" => messaging::send_message(
+            app,
+            session_id,
+            &root,
+            str_arg(args, "to").ok_or("missing `to`")?,
+            str_arg(args, "message").ok_or("missing `message`")?,
+        ),
         "list_epics" => list_epics(&state, &root),
         "create_epic" => create_epic(app, &state, &root, args),
         other => Err(format!("unknown board tool `{other}`")),

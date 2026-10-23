@@ -29,7 +29,7 @@ pub use acp_sessions::{
 pub use action_last_run::{clear_last_run_action, get_last_run_action, set_last_run_action};
 pub use conversations::{
     clear_conversation, conversation_worktree, delete_conversation, ensure_project_chat,
-    get_conversation_title, list_all_conversations, set_conversation_backend,
+    get_conversation, get_conversation_title, list_all_conversations, set_conversation_backend,
     set_conversation_done, set_conversation_permission_mode, set_conversation_title,
     set_conversation_worktree, ConversationSummary,
 };
@@ -37,8 +37,9 @@ pub use epics::{
     create_epic, delete_epic, find_epic, list_epics, update_epic, Epic, EpicPatch, NewEpic,
 };
 pub use messages::{
-    finish_streaming_message, load_messages, save_message, set_message_duration,
-    start_streaming_message, update_streaming_message, update_tool_call_args, PersistedMessage,
+    consecutive_agent_messages, finish_streaming_message, load_messages, save_message,
+    save_message_from, set_message_duration, start_streaming_message, update_streaming_message,
+    update_tool_call_args, PersistedMessage,
 };
 pub use projects::{
     ensure_project, list_projects, project_root_for_id, touch_project, ProjectSummary,
@@ -53,8 +54,9 @@ pub use sub_agents::{
 pub use tasks::{
     board_summaries, count_done_tasks, create_task, delete_project_board, delete_task, find_task,
     get_task, list_tasks, move_task, parallel_main_checkout_tasks, running_tasks,
-    set_parallel_main_checkout_tasks, set_task_conversation, task_for_conversation, update_task,
-    BoardSummary, NewTask, Task, TaskPatch, TASK_EFFORTS, TASK_PRIORITIES, TASK_STATUSES,
+    set_parallel_main_checkout_tasks, set_task_conversation, set_task_engaged,
+    task_for_conversation, update_task, BoardSummary, NewTask, Task, TaskPatch, TASK_EFFORTS,
+    TASK_PRIORITIES, TASK_STATUSES,
 };
 
 pub struct Db(Mutex<Connection>);

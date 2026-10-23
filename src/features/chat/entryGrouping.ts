@@ -81,7 +81,9 @@ export function groupEntries(
 ): RenderItem[] {
   if (!collapse) return groupActivity(entries);
   const items: RenderItem[] = [];
-  const isUserText = (e: PanelEntry) => e.kind === "text" && e.role === "user";
+  // A note arrives between turns, so it ends one like a user message does.
+  const isUserText = (e: PanelEntry) =>
+    (e.kind === "text" && e.role === "user") || e.kind === "note";
   const isReplyText = (e: PanelEntry) =>
     e.kind === "text" && e.role === "assistant";
   let start = 0;

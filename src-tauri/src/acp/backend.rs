@@ -30,6 +30,34 @@ pub struct AcpBackend {
 }
 
 impl AcpBackend {
+    /// `connect`, plus the conversation's remembered model/effort/mode when
+    /// that starts a new connection — a new thread's first message, or the
+    /// first one after an agent switch, `/clear` or a restart. The frontend
+    /// applies picks only to a live connection, so this one would otherwise
+    /// answer its first prompt on the agent's defaults.
+    fn connect_with_picks(
+        &self,
+        app: &AppHandle,
+        session_id: &str,
+    ) -> tokio::sync::mpsc::UnboundedSender<AcpCommand> {
+        let fresh = !session_ready(&app.state::<AppState>(), session_id);
+        let sender = self.connect(app, session_id);
+        if fresh {
+            let picks: Vec<_> = [
+                (ConfigKind::Model, &self.model_value),
+                (ConfigKind::Effort, &self.effort_value),
+                (ConfigKind::Mode, &self.mode_value),
+            ]
+            .into_iter()
+            .filter_map(|(kind, value)| Some((kind, value.clone()?)))
+            .collect();
+            if !picks.is_empty() {
+                let _ = sender.send(AcpCommand::ApplyPicks(picks));
+            }
+        }
+        sender
+    }
+
     fn connect(
         &self,
         app: &AppHandle,
@@ -79,31 +107,18 @@ impl Backend for AcpBackend {
         message: String,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
-            // Not up yet — a new thread's first message, or the first one
-            // after an agent switch, `/clear` or a restart. The frontend
-            // applies picks only to a live connection, so this one would
-            // otherwise answer its first prompt on the agent's defaults.
-            let fresh = !session_ready(&app.state::<AppState>(), session_id);
-            let sender = self.connect(app, session_id);
-            if fresh {
-                let picks: Vec<_> = [
-                    (ConfigKind::Model, &self.model_value),
-                    (ConfigKind::Effort, &self.effort_value),
-                    (ConfigKind::Mode, &self.mode_value),
-                ]
-                .into_iter()
-                .filter_map(|(kind, value)| Some((kind, value.clone()?)))
-                .collect();
-                if !picks.is_empty() {
-                    let _ = sender.send(AcpCommand::ApplyPicks(picks));
-                }
-            }
-            sender
-                .send(AcpCommand::Prompt(message.clone(), None))
-                .map_err(|_| {
-                    "ACP agent process is no longer running; send another message to restart it."
-                        .to_string()
-                })?;
+            let sender = self.connect_with_picks(app, session_id);
+            // Board notes that arrived since its last turn ride along with
+            // this prompt; the transcript keeps them as their own rows.
+            let prompt = crate::board::messaging::with_pending_notes(
+                &app.state::<AppState>(),
+                session_id,
+                message.clone(),
+            );
+            sender.send(AcpCommand::Prompt(prompt, None)).map_err(|_| {
+                "ACP agent process is no longer running; send another message to restart it."
+                    .to_string()
+            })?;
             // Persist at command acceptance time so title lookup and
             // transcript updates do not race the ACP worker's asynchronous
             // prompt handling.
@@ -119,6 +134,24 @@ impl Backend for AcpBackend {
             );
             rate_limit::clear(app, session_id);
             Ok(())
+        })
+    }
+
+    fn continue_turn<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        session_id: &'a str,
+        prompt: String,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let prompt = crate::board::messaging::with_pending_notes(
+                &app.state::<AppState>(),
+                session_id,
+                prompt,
+            );
+            self.connect_with_picks(app, session_id)
+                .send(AcpCommand::Prompt(prompt, None))
+                .map_err(|_| "ACP agent process is no longer running.".to_string())
         })
     }
 

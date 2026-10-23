@@ -30,6 +30,7 @@ pub async fn send_prompt(
         agent_mode.as_deref(),
     )?;
     registry::remember_model(&app, &backend_id, &model);
+    crate::board::messaging::on_user_message(&app, &session_id);
     backend.send(&app, &session_id, message).await
 }
 

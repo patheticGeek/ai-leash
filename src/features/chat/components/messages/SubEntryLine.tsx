@@ -36,6 +36,11 @@ export default function SubEntryLine({ entry }: { entry: Entry }) {
       </div>
     );
   }
+  if (entry.kind === "note") {
+    return (
+      <div className="whitespace-pre-wrap text-zinc-600">{entry.content}</div>
+    );
+  }
   const failed = isToolError(entry.result);
   return (
     <div

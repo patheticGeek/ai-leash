@@ -47,6 +47,18 @@ impl Backend for NativeBackend {
         })
     }
 
+    fn continue_turn<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        session_id: &'a str,
+        _prompt: String,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let state = app.state::<AppState>();
+            chat::run_turn(app, &state, session_id, self, true).await
+        })
+    }
+
     fn retry<'a>(
         &'a self,
         app: &'a AppHandle,

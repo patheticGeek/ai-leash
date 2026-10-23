@@ -129,6 +129,8 @@ pub struct AppState {
     /// Sessions with a turn in flight right now, either backend — kept by
     /// `chat::set_generating`, the one place `chat://generating` is sent.
     pub generating: Mutex<HashSet<String>>,
+    /// Board messages waiting to be delivered — see `board::messaging`.
+    pub mailroom: crate::board::messaging::Mailroom,
     /// Directories each session's agent has touched via its tools (read_file,
     /// edit_file, write_file, list_dir, grep), used to scope AGENTS.md/skills
     /// discovery to subfolders the agent is actually working in.

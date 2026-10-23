@@ -41,6 +41,9 @@ pub struct PersistedMessage {
     pub tool_calls: Option<Vec<ToolCall>>,
     pub created_at: i64,
     pub duration_seconds: Option<i64>,
+    /// The conversation that sent this, when it came from another agent's
+    /// chat rather than the user — see `board::messaging`.
+    pub from_conversation_id: Option<String>,
 }
 
 /// Appends one message to `conversation_id`'s history on disk. No-op for
@@ -49,6 +52,17 @@ pub struct PersistedMessage {
 /// which never routes through here in the first place — this check just
 /// guards direct callers).
 pub fn save_message(db: &Db, conversation_id: &str, project_root: &str, message: &ChatMessage) {
+    save_message_from(db, conversation_id, project_root, message, None);
+}
+
+/// `save_message`, recording which conversation it came from.
+pub fn save_message_from(
+    db: &Db,
+    conversation_id: &str,
+    project_root: &str,
+    message: &ChatMessage,
+    from_conversation_id: Option<&str>,
+) {
     if message.role == "system" {
         return;
     }
@@ -60,10 +74,10 @@ pub fn save_message(db: &Db, conversation_id: &str, project_root: &str, message:
         .as_ref()
         .map(|c| serde_json::to_string(c).unwrap_or_default());
     let _ = conn.execute(
-        "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![conversation_id, message.role, message.content, tool_calls_json, ts],
+        "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at, from_conversation_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![conversation_id, message.role, message.content, tool_calls_json, ts, from_conversation_id],
     );
-    if message.role == "user" {
+    if message.role == "user" && from_conversation_id.is_none() {
         if let Some(title) = title_from_message(&message.content) {
             let _ = conn.execute(
                 "UPDATE conversations SET title = ?1 WHERE id = ?2 AND title IS NULL",
@@ -172,7 +186,7 @@ pub fn update_tool_call_args(
 pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
     let conn = db.0.lock().unwrap();
     let mut stmt = match conn.prepare(
-        "SELECT id, role, content, tool_calls, created_at, duration_seconds FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
+        "SELECT id, role, content, tool_calls, created_at, duration_seconds, from_conversation_id FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
     ) {
         Ok(s) => s,
         Err(_) => return vec![],
@@ -184,6 +198,7 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
         let tool_calls_json: Option<String> = row.get(3)?;
         let created_at: i64 = row.get(4)?;
         let duration_seconds: Option<i64> = row.get(5)?;
+        let from_conversation_id: Option<String> = row.get(6)?;
         let tool_calls =
             tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
         Ok(PersistedMessage {
@@ -193,12 +208,32 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
             tool_calls,
             created_at,
             duration_seconds,
+            from_conversation_id,
         })
     });
     match rows {
         Ok(iter) => iter.filter_map(Result::ok).collect(),
         Err(_) => vec![],
     }
+}
+
+/// How many messages in a row other agents have sent `conversation_id`
+/// since a person last wrote in it — the ping-pong guard in
+/// `board::messaging`. Notes (`event` rows) and the agent's own replies
+/// don't break the run; a typed message does.
+pub fn consecutive_agent_messages(db: &Db, conversation_id: &str) -> usize {
+    let conn = db.0.lock().unwrap();
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT from_conversation_id FROM messages
+         WHERE conversation_id = ?1 AND role = 'user' ORDER BY id DESC",
+    ) else {
+        return 0;
+    };
+    let froms: Vec<Option<String>> = stmt
+        .query_map(params![conversation_id], |row| row.get(0))
+        .map(|rows| rows.filter_map(Result::ok).collect())
+        .unwrap_or_default();
+    froms.iter().take_while(|from| from.is_some()).count()
 }
 
 /// Records how long a turn took to produce its final assistant reply —
@@ -227,6 +262,46 @@ mod tests {
     fn temp_db() -> Db {
         let path = std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4()));
         Db::open(path)
+    }
+
+    fn message(role: &str, content: &str) -> ChatMessage {
+        ChatMessage {
+            role: role.into(),
+            content: content.into(),
+            tool_calls: None,
+        }
+    }
+
+    #[test]
+    fn counts_agent_messages_since_a_person_last_wrote() {
+        let db = temp_db();
+        save_message(&db, "c", "/p", &message("user", "typed"));
+        assert_eq!(consecutive_agent_messages(&db, "c"), 0);
+
+        save_message_from(&db, "c", "/p", &message("user", "from a"), Some("a"));
+        save_message(&db, "c", "/p", &message("assistant", "reply"));
+        save_message_from(&db, "c", "/p", &message("event", "a note"), Some("a"));
+        save_message_from(&db, "c", "/p", &message("user", "from b"), Some("b"));
+        assert_eq!(consecutive_agent_messages(&db, "c"), 2);
+
+        save_message(&db, "c", "/p", &message("user", "typed again"));
+        assert_eq!(consecutive_agent_messages(&db, "c"), 0);
+        let loaded = load_messages(&db, "c");
+        assert_eq!(loaded[1].from_conversation_id.as_deref(), Some("a"));
+        assert_eq!(loaded[0].from_conversation_id, None);
+    }
+
+    #[test]
+    fn an_agent_message_does_not_title_the_conversation() {
+        let db = temp_db();
+        save_message_from(
+            &db,
+            "c",
+            "/p",
+            &message("user", "Message from x"),
+            Some("x"),
+        );
+        assert_eq!(crate::db::get_conversation_title(&db, "c"), None);
     }
 
     #[test]
