@@ -13,7 +13,7 @@
 use super::{emit_board_changed, emit_board_changed_for};
 use crate::backend::registry;
 use crate::chat::history::emit_conversation_changed;
-use crate::db::{self, Task};
+use crate::db::{self, AgentDefaults, Task};
 use crate::git::{self, WorktreeChanges};
 use crate::state::{AppState, ConversationRoot};
 use serde::{Deserialize, Serialize};
@@ -21,9 +21,10 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
-/// How to start a task. Everything is optional: the default backend, the
-/// model last used on it, and (for our own providers) a reasoning effort
-/// from the task's size.
+/// How to start a task. Everything is optional; what's left out comes from
+/// the task's own agent defaults, then the board's (see `resolve_agent`),
+/// then the app's default backend with the model last used on it and (for
+/// our own providers) a reasoning effort from the task's size.
 #[derive(Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StartOptions {
@@ -32,12 +33,50 @@ pub struct StartOptions {
     pub effort: Option<String>,
     pub agent_mode: Option<String>,
     /// Run its tools without asking (AI Leash's own Bypass mode).
-    #[serde(default)]
-    pub bypass_permissions: bool,
+    pub bypass_permissions: Option<bool>,
     /// Started by the project chat, so the task reports back to it — see
     /// `Task::engaged_with_project`.
     #[serde(default)]
     pub engaged_with_project: bool,
+}
+
+/// The agent a task starts with, before the app-wide fallbacks: `explicit`
+/// (the Start dialog, or `start_task`'s arguments) over the task's own
+/// defaults over the board's. A model, thinking level and agent mode
+/// belong to a backend, so they're taken only from the layer that chose
+/// the backend — unless no layer chose one, when each comes from wherever
+/// it's set first. Permission isn't tied to a backend: first one set wins.
+fn resolve_agent(
+    explicit: &AgentDefaults,
+    task: &AgentDefaults,
+    board: &AgentDefaults,
+) -> AgentDefaults {
+    let first = |pick: fn(&AgentDefaults) -> &Option<String>| -> Option<String> {
+        [explicit, task, board]
+            .into_iter()
+            .find_map(|layer| pick(layer).clone())
+    };
+    let permission_mode = first(|l| &l.permission_mode);
+    if explicit.backend_id.is_some() {
+        return AgentDefaults {
+            permission_mode,
+            ..explicit.clone()
+        };
+    }
+    let chooser = [task, board].into_iter().find(|l| l.backend_id.is_some());
+    let from_chooser = |pick: fn(&AgentDefaults) -> &Option<String>| -> Option<String> {
+        pick(explicit).clone().or_else(|| match chooser {
+            Some(layer) => pick(layer).clone(),
+            None => first(pick),
+        })
+    };
+    AgentDefaults {
+        backend_id: chooser.and_then(|l| l.backend_id.clone()),
+        model: from_chooser(|l| &l.model),
+        thinking: from_chooser(|l| &l.thinking),
+        agent_mode: from_chooser(|l| &l.agent_mode),
+        permission_mode,
+    }
 }
 
 /// A native provider's reasoning effort for a task of this size.
@@ -129,11 +168,25 @@ pub(crate) fn start(
         .ok_or("this task's project is gone")?;
     let root = PathBuf::from(&project_root);
 
+    let explicit = AgentDefaults {
+        backend_id: options.backend_id.clone(),
+        model: options.model.clone(),
+        thinking: options.effort.clone(),
+        agent_mode: options.agent_mode.clone(),
+        permission_mode: options
+            .bypass_permissions
+            .map(|bypass| if bypass { "bypass" } else { "ask" }.to_string()),
+    };
+    let agent = resolve_agent(
+        &explicit,
+        &task.agent,
+        &db::board_agent_defaults(&state.db, &project_root),
+    );
     let (backend_id, model) = {
         let backends = state.backends.lock().unwrap();
         let (default_id, default_model) = backends.default_selection();
-        let backend_id = options.backend_id.clone().unwrap_or(default_id);
-        let model = match &options.model {
+        let backend_id = agent.backend_id.clone().unwrap_or(default_id);
+        let model = match &agent.model {
             Some(model) => model.clone(),
             None if backend_id == backends.default_backend_id => default_model,
             None => String::new(),
@@ -141,18 +194,19 @@ pub(crate) fn start(
         (backend_id, model)
     };
     let native = state.backends.lock().unwrap().is_native(&backend_id);
-    let effort = options.effort.clone().or_else(|| {
+    let effort = agent.thinking.clone().or_else(|| {
         native
             .then(|| effort_for_size(task.effort.as_deref()))
             .flatten()
     });
+    let bypass_permissions = agent.permission_mode.as_deref() == Some("bypass");
     // Fails before anything is created if the backend is gone or off.
     let backend = registry::resolve(
         &state,
         &backend_id,
         &model,
         effort.as_deref(),
-        options.agent_mode.as_deref(),
+        agent.agent_mode.as_deref(),
     )?;
 
     let (cwd, branch) = if git::is_git_repo(&root) {
@@ -188,9 +242,9 @@ pub(crate) fn start(
         &backend_id,
         (!model.is_empty()).then_some(model.as_str()),
         effort.as_deref(),
-        options.agent_mode.as_deref(),
+        agent.agent_mode.as_deref(),
     );
-    if options.bypass_permissions {
+    if bypass_permissions {
         state
             .permission_bypass
             .lock()
@@ -340,6 +394,7 @@ mod tests {
             updated_at: 0,
             started_at: None,
             completed_at: None,
+            agent: AgentDefaults::default(),
         }
     }
 
@@ -353,6 +408,59 @@ mod tests {
         let long = task_branch(&task(1, &"word ".repeat(30)));
         assert!(long.len() <= "task/1-".len() + 40, "{long}");
         assert!(!long.ends_with('-'));
+    }
+
+    fn agent(
+        backend: Option<&str>,
+        model: Option<&str>,
+        permission: Option<&str>,
+    ) -> AgentDefaults {
+        AgentDefaults {
+            backend_id: backend.map(str::to_string),
+            model: model.map(str::to_string),
+            permission_mode: permission.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_agent_comes_from_the_most_specific_layer_that_picks_one() {
+        let none = AgentDefaults::default();
+        let board = agent(Some("ollama"), Some("llama3"), Some("bypass"));
+        let task = agent(Some("claude"), None, None);
+
+        // The task picks its own backend, so the board's model doesn't
+        // carry over; its permission does.
+        let got = resolve_agent(&none, &task, &board);
+        assert_eq!(got.backend_id.as_deref(), Some("claude"));
+        assert_eq!(got.model, None);
+        assert_eq!(got.permission_mode.as_deref(), Some("bypass"));
+
+        // Nothing on the task: the board decides.
+        let got = resolve_agent(&none, &none, &board);
+        assert_eq!(got.model.as_deref(), Some("llama3"));
+
+        // An explicit model without a backend applies to whichever backend
+        // the defaults chose.
+        let explicit = agent(None, Some("llama3.1"), Some("ask"));
+        let got = resolve_agent(&explicit, &none, &board);
+        assert_eq!(got.backend_id.as_deref(), Some("ollama"));
+        assert_eq!(got.model.as_deref(), Some("llama3.1"));
+        assert_eq!(got.permission_mode.as_deref(), Some("ask"));
+
+        // An explicit backend replaces everything backend-specific.
+        let explicit = agent(Some("copilot"), None, None);
+        let got = resolve_agent(&explicit, &task, &board);
+        assert_eq!(got.backend_id.as_deref(), Some("copilot"));
+        assert_eq!(got.model, None);
+        assert_eq!(got.permission_mode.as_deref(), Some("bypass"));
+
+        // No backend anywhere: each part from wherever it's set.
+        let task = agent(None, Some("m"), None);
+        let got = resolve_agent(&none, &task, &agent(None, None, Some("bypass")));
+        assert_eq!(got.backend_id, None);
+        assert_eq!(got.model.as_deref(), Some("m"));
+        assert_eq!(got.permission_mode.as_deref(), Some("bypass"));
     }
 
     #[test]

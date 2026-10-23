@@ -26,6 +26,7 @@ import {
   TASK_STATUSES,
 } from "../../data/board";
 import {
+  type AgentDefaults,
   api,
   type Epic,
   type Task,
@@ -33,6 +34,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "../../lib/tauriApi";
+import AgentFields from "./AgentFields";
 import { EpicDot, PriorityIcon } from "./TaskMeta";
 
 // Radix `Select` reserves "" for "nothing selected".
@@ -45,6 +47,8 @@ interface Draft {
   priority: TaskPriority;
   effort: TaskEffort | null;
   epicId: string | null;
+  // Which agent its chat starts with; unset parts use the board's.
+  agent: AgentDefaults;
 }
 
 function draftFor(task: Task | null, defaults: Partial<Draft>): Draft {
@@ -55,6 +59,7 @@ function draftFor(task: Task | null, defaults: Partial<Draft>): Draft {
     priority: task?.priority ?? defaults.priority ?? "medium",
     effort: task ? task.effort : (defaults.effort ?? null),
     epicId: task ? task.epicId : (defaults.epicId ?? null),
+    agent: task?.agent ?? defaults.agent ?? {},
   };
 }
 
@@ -243,6 +248,11 @@ export default function TaskDialog({
               </Select>
             </Field>
           </div>
+          <AgentFields
+            value={draft.agent}
+            onChange={(agent) => set("agent", agent)}
+            inheritLabel="Board default"
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
           <DialogFooter className="sm:justify-between">
             {task ? (

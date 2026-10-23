@@ -171,6 +171,7 @@ pub fn run() {
             board::update_epic,
             board::delete_epic,
             board::set_parallel_main_checkout_tasks,
+            board::set_board_agent_defaults,
             board::delete_project_board,
             board::lifecycle::start_task,
             board::lifecycle::finish_task,

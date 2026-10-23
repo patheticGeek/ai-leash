@@ -7,7 +7,9 @@
 pub mod lifecycle;
 pub mod messaging;
 
-use crate::db::{self, BoardSummary, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch};
+use crate::db::{
+    self, AgentDefaults, BoardSummary, Epic, EpicPatch, NewEpic, NewTask, Task, TaskPatch,
+};
 use crate::state::AppState;
 use serde::Serialize;
 use serde_json::json;
@@ -56,6 +58,8 @@ pub struct Board {
     /// Whether several tasks may run at once in a non-git project's main
     /// checkout — see `db::parallel_main_checkout_tasks`.
     pub parallel_main_checkout_tasks: bool,
+    /// The agent tasks start with when they don't say otherwise.
+    pub agent_defaults: AgentDefaults,
 }
 
 fn now() -> i64 {
@@ -77,6 +81,7 @@ pub fn get_board(
         epics: db::list_epics(&state.db, &project_root),
         done_count: db::count_done_tasks(&state.db, &project_root),
         parallel_main_checkout_tasks: db::parallel_main_checkout_tasks(&state.db, &project_root),
+        agent_defaults: db::board_agent_defaults(&state.db, &project_root),
     })
 }
 
@@ -191,6 +196,20 @@ pub fn set_parallel_main_checkout_tasks(
     db::set_parallel_main_checkout_tasks(&state.db, &project_root, allowed);
     emit_board_changed(&app, &project_root, None, "settings");
     Ok(())
+}
+
+/// The agent `project_root`'s tasks start with when they don't say
+/// otherwise — the board settings dialog.
+#[tauri::command]
+pub fn set_board_agent_defaults(
+    app: AppHandle,
+    state: State<AppState>,
+    project_root: String,
+    defaults: AgentDefaults,
+) -> Result<AgentDefaults, String> {
+    let defaults = db::set_board_agent_defaults(&state.db, &project_root, defaults)?;
+    emit_board_changed(&app, &project_root, None, "settings");
+    Ok(defaults)
 }
 
 /// Forgets a project's whole board, for when the project itself is removed

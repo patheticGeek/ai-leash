@@ -52,11 +52,11 @@ pub use sub_agents::{
     record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
 };
 pub use tasks::{
-    board_summaries, count_done_tasks, create_task, delete_project_board, delete_task, find_task,
-    get_task, list_tasks, move_task, parallel_main_checkout_tasks, running_tasks,
-    set_parallel_main_checkout_tasks, set_task_conversation, set_task_engaged,
-    task_for_conversation, update_task, BoardSummary, NewTask, Task, TaskPatch, TASK_EFFORTS,
-    TASK_PRIORITIES, TASK_STATUSES,
+    board_agent_defaults, board_summaries, count_done_tasks, create_task, delete_project_board,
+    delete_task, find_task, get_task, list_tasks, move_task, parallel_main_checkout_tasks,
+    running_tasks, set_board_agent_defaults, set_parallel_main_checkout_tasks,
+    set_task_conversation, set_task_engaged, task_for_conversation, update_task, AgentDefaults,
+    BoardSummary, NewTask, Task, TaskPatch, TASK_EFFORTS, TASK_PRIORITIES, TASK_STATUSES,
 };
 
 pub struct Db(Mutex<Connection>);

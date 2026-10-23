@@ -41,7 +41,11 @@ add a task. A task has:
 - a **status** (its column),
 - a **priority**: urgent, high, medium or low,
 - an **effort**: a T-shirt size from XS to XL, or unsized,
-- an optional **epic**.
+- an optional **epic**;
+- optionally, the **agent** its chat starts with — which agent or
+  provider, model, thinking level and permission (Ask/Bypass, or the
+  agent's own modes for agents that have them). Anything left at **Board
+  default** uses the board's settings.
 
 Each task also gets a short number, such as **#12**, that stays with it.
 Numbers aren't reused, even after a task is deleted.
@@ -55,18 +59,21 @@ working.
 Agents can work the board too — see
 [Tools](./tools.md#plan-and-track-work-on-the-board). In the project chat
 (or any chat), ask for something like "break the settings rework into
-tasks" and they're added to the board, with epics, priorities and sizes if
-you ask for them. You can ask it to start tasks as well, optionally naming
-the agent, model and effort to use.
+tasks" and they're added to the board, with epics, priorities, sizes and
+the agent each should start with if you ask for them. You can ask it to
+start tasks as well, optionally naming the agent, model and thinking level
+to use.
 
 ## Starting a task
 
 Hover a card that hasn't been started and click its **▶ Start** button.
-Pick the agent, model and effort its chat should use (the effort starts
-from the task's size: XS and S are low, M medium, L and XL high), whether
-it may run tools without asking, whether the project chat follows it (see
+Pick the agent, model, thinking level and permission its chat should
+use — filled in from the task's own agent settings, else the board's —
+whether the project chat follows it (see
 [below](#the-project-chat-and-task-chats)), and whether to open its chat
-straight away. Then click **Start**.
+straight away. Then click **Start**. With no thinking level picked, our
+own providers think at a level that fits the task's size: XS and S low, M
+medium, L and XL high.
 
 Starting a task:
 
@@ -124,9 +131,8 @@ gets further ones as notes instead. Writing in that chat resumes it.
 Without git there are no worktrees, so a task's chat runs in the project's
 one checkout. To keep tasks from changing the same files under each other,
 only one task can be in progress at a time there. If you'd rather run
-several anyway, open the board settings (the gear in the toolbar, shown
-only for such projects) and turn on **Allow several tasks in progress at
-once**.
+several anyway, open the board settings (the gear in the toolbar) and
+turn on **Allow several tasks in progress at once**.
 
 ## Finishing a task
 
@@ -138,6 +144,13 @@ reachable; merge or delete it as you usually would.
 If the worktree has uncommitted changes, or commits that aren't on any
 other branch, AI Leash lists them and asks before removing it. Choose
 **Keep it open** to deal with them first.
+
+## Board settings
+
+The gear in the board's toolbar opens its settings. Set the agent, model,
+thinking level and permission the board's tasks start with when they
+don't pick their own. Anything left at **Default** uses the app's default
+agent (Settings > Agents) with the model last used on it.
 
 ## Epics
 

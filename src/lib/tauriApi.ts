@@ -341,6 +341,20 @@ export type TaskStatus = "backlog" | "todo" | "in_progress" | "review" | "done";
 export type TaskPriority = "urgent" | "high" | "medium" | "low";
 export type TaskEffort = "xs" | "s" | "m" | "l" | "xl";
 
+// The agent a task's chat starts with — Rust's `db::AgentDefaults`. Any
+// part may be unset, falling back to the board's, then the app's default.
+// `model`, `thinking` and `agentMode` belong to `backendId`.
+export interface AgentDefaults {
+  backendId?: string | null;
+  model?: string | null;
+  // Reasoning effort.
+  thinking?: string | null;
+  // AI Leash's own Ask/Bypass.
+  permissionMode?: "ask" | "bypass" | null;
+  // An ACP agent's own mode, for agents that have modes.
+  agentMode?: string | null;
+}
+
 // One card on a project's board — Rust's `db::Task`.
 export interface Task {
   id: string;
@@ -362,6 +376,7 @@ export interface Task {
   updatedAt: number;
   startedAt: number | null;
   completedAt: number | null;
+  agent: AgentDefaults;
 }
 
 export interface Epic {
@@ -383,6 +398,8 @@ export interface Board {
   // All done tasks, including the older ones `tasks` leaves out.
   doneCount: number;
   parallelMainCheckoutTasks: boolean;
+  // What tasks start with when they don't say otherwise.
+  agentDefaults: AgentDefaults;
 }
 
 export interface BoardSummary {
@@ -401,6 +418,7 @@ export interface NewTask {
   priority?: TaskPriority;
   effort?: TaskEffort | null;
   epicId?: string | null;
+  agent?: AgentDefaults;
 }
 
 // Absent fields are left alone; `null` clears `effort`/`epicId`.
@@ -409,7 +427,7 @@ export type TaskPatch = Partial<
     Task,
     "title" | "description" | "status" | "priority" | "effort" | "epicId"
   >
->;
+> & { agent?: AgentDefaults };
 
 export interface NewEpic {
   title: string;
@@ -583,6 +601,11 @@ export const api = {
   // chat's "Hand back to project chat".
   setTaskEngaged: (taskId: string, engaged: boolean) =>
     invoke<void>("set_task_engaged", { taskId, engaged }),
+  setBoardAgentDefaults: (projectRoot: string, defaults: AgentDefaults) =>
+    invoke<AgentDefaults>("set_board_agent_defaults", {
+      projectRoot,
+      defaults,
+    }),
   setParallelMainCheckoutTasks: (projectRoot: string, allowed: boolean) =>
     invoke<void>("set_parallel_main_checkout_tasks", { projectRoot, allowed }),
   deleteProjectBoard: (projectRoot: string) =>

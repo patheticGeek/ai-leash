@@ -1,9 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader, MessageSquare, Play } from "lucide-react";
+import { Bot, Loader, MessageSquare, Play } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, revealOnGroupHover } from "@/ui/button";
+import { useBackends } from "../../data/backends";
 import { formatDuration } from "../../lib/format";
 import { useGenerating } from "../../lib/generatingQuery";
 import type { Epic, Task } from "../../lib/tauriApi";
@@ -39,6 +40,9 @@ export function TaskCardBody({
   const { active: generating, startedAtMs } = useGenerating(
     task.conversationId ?? "",
   );
+  const agentLabel = useBackends().find(
+    (b) => b.id === task.agent.backendId,
+  )?.label;
   return (
     <div
       className={cn(
@@ -66,6 +70,13 @@ export function TaskCardBody({
         <PriorityIcon priority={task.priority} />
         {task.effort && <EffortBadge effort={task.effort} />}
         {epic && <EpicChip epic={epic} />}
+        {agentLabel && (
+          <span
+            title={`Starts with ${agentLabel}${task.agent.model ? ` (${task.agent.model})` : ""}`}
+          >
+            <Bot className="size-3.5" />
+          </span>
+        )}
         {actions && (
           <span className="ml-auto flex shrink-0 items-center gap-0.5">
             {actions}
