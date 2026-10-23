@@ -6,6 +6,7 @@ import { type PanelSlice, panelSlice } from "./panelSlice";
 import { type PermissionSlice, permissionSlice } from "./permissionSlice";
 import { type ProjectSlice, projectSlice } from "./projectSlice";
 import { type SelectionSlice, selectionSlice } from "./selectionSlice";
+import { type SidebarSlice, sidebarSlice } from "./sidebarSlice";
 import { type SubAgentSlice, subAgentSlice } from "./subAgentSlice";
 
 export type AppStore = ProjectSlice &
@@ -15,7 +16,8 @@ export type AppStore = ProjectSlice &
   SubAgentSlice &
   PanelSlice &
   ConversationSlice &
-  DebugSlice;
+  DebugSlice &
+  SidebarSlice;
 
 export const useAppStore = create<AppStore>()((...a) => ({
   ...projectSlice(...a),
@@ -26,6 +28,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...panelSlice(...a),
   ...conversationSlice(...a),
   ...debugSlice(...a),
+  ...sidebarSlice(...a),
 }));
 
 export type { ConversationSummary } from "./conversationSlice";
@@ -44,4 +47,5 @@ export { permissionForSession } from "./permissionSlice";
 // `src/store.ts` used to export directly, just backed by slices now.
 export type { RecentProject } from "./projectSlice";
 export type { ConversationBackendSelection } from "./selectionSlice";
+export type { SidebarSection } from "./sidebarSlice";
 export type { SubAgentTask } from "./subAgentSlice";

@@ -30,7 +30,9 @@ The left sidebar has three sections:
   task's number, such as **#12**.
 - **Done**: conversations you've marked as done (see below).
 
-The active entry is highlighted.
+The active entry is highlighted. Click a section's header to collapse or
+expand it. Each section collapses on its own, and the app remembers which
+ones you collapsed, including after a restart.
 
 Use the project menu at the top of the sidebar to switch between:
 

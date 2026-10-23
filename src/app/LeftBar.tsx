@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  ChevronDown,
   Folder,
   FolderPlus,
   GitBranch,
@@ -17,6 +18,11 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, revealOnGroupHover } from "@/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/ui/collapsible";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -53,6 +59,7 @@ import {
   type ConversationSummary,
   elicitationForSession,
   permissionForSession,
+  type SidebarSection,
   useAppStore,
 } from "../store";
 import DeleteConversationDialog from "./DeleteConversationDialog";
@@ -253,7 +260,7 @@ function ConversationRow({
 }
 
 // Done conversations only show their title and a way back — see `LeftBar`'s
-// collapsed "Done" section.
+// "Done" section.
 function DoneConversationRow({
   conversation,
   active,
@@ -303,12 +310,43 @@ function DoneConversationRow({
   );
 }
 
-function SectionHeader({ children }: { children: ReactNode }) {
+// A collapsible sidebar section. Its open state lives in the store
+// (`sidebarSlice`) so it survives restarts and project-filter switches.
+function SidebarSectionCollapsible({
+  section,
+  label,
+  className,
+  children,
+}: {
+  section: SidebarSection;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const collapsed = useAppStore((s) => s.sidebarCollapsed[section]);
+  const setCollapsed = useAppStore((s) => s.setSidebarSectionCollapsed);
   return (
-    <div className="mx-1.5 my-1.5 flex items-center gap-2 px-3 text-xs font-medium text-zinc-600">
-      <span>{children}</span>
-      <div className="h-px flex-1 bg-white/[0.06]" />
-    </div>
+    <Collapsible
+      open={!collapsed}
+      onOpenChange={(open) => setCollapsed(section, !open)}
+      className={className}
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="unstyled"
+          size="none"
+          className="group/section mx-1.5 my-1.5 flex w-[calc(100%-0.75rem)] items-center justify-start gap-1.5 rounded-md px-3 text-xs font-medium text-zinc-600 hover:text-zinc-400"
+        >
+          <ChevronDown
+            size={12}
+            className="shrink-0 transition-transform group-data-[state=closed]/section:-rotate-90"
+          />
+          <span>{label}</span>
+          <div className="h-px flex-1 bg-white/[0.06]" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -393,8 +431,8 @@ export default function LeftBar() {
   // projects, all conversations," matching the flat list this sidebar
   // already showed before this filter existed.
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
-  // Collapsed by default — only the 3 most recently-done conversations show
-  // until expanded, so a long "done" backlog doesn't push active
+  // "Show all"/"Show less" inside the open Done section — only the 3 most
+  // recently-done conversations show until expanded, so a long "done" backlog doesn't push active
   // conversations out of view.
   const [doneExpanded, setDoneExpanded] = useState(false);
   const DEFAULT_VISIBLE_DONE = 3;
@@ -548,8 +586,7 @@ export default function LeftBar() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {boardProjects.length > 0 && (
-          <>
-            <SectionHeader>Project boards</SectionHeader>
+          <SidebarSectionCollapsible section="boards" label="Project boards">
             {boardProjects.map((p) => {
               const chat = boardChatFor(p.path);
               return (
@@ -563,63 +600,65 @@ export default function LeftBar() {
                 />
               );
             })}
-          </>
+          </SidebarSectionCollapsible>
         )}
-        <div className="mt-3">
-          <SectionHeader>Chats</SectionHeader>
-        </div>
-        {sortedConversations.length === 0 && doneConversations.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-zinc-600">
-            {projectFilter
-              ? "No conversations for this project"
-              : "No conversations yet"}
-          </div>
-        ) : (
-          <>
-            {sortedConversations.map((c) => (
-              <ConversationRow
+        <SidebarSectionCollapsible
+          section="chats"
+          label="Chats"
+          className="mt-3"
+        >
+          {sortedConversations.length === 0 &&
+            doneConversations.length === 0 && (
+              <div className="px-3 py-6 text-center text-xs text-zinc-600">
+                {projectFilter
+                  ? "No conversations for this project"
+                  : "No conversations yet"}
+              </div>
+            )}
+          {sortedConversations.map((c) => (
+            <ConversationRow
+              key={c.id}
+              conversation={c}
+              projectName={
+                recentProjects.find((p) => p.path === c.projectRoot)?.name ??
+                c.projectRoot
+              }
+              active={c.id === activeSessionId}
+              onClick={() => openConversation(c.id)}
+              onDelete={() => setPendingDelete(c)}
+              onMarkDone={() => setConversationDone(c.id, true)}
+            />
+          ))}
+        </SidebarSectionCollapsible>
+        {doneConversations.length > 0 && (
+          <SidebarSectionCollapsible
+            section="done"
+            label="Done"
+            className="mt-3"
+          >
+            {visibleDoneConversations.map((c) => (
+              <DoneConversationRow
                 key={c.id}
                 conversation={c}
-                projectName={
-                  recentProjects.find((p) => p.path === c.projectRoot)?.name ??
-                  c.projectRoot
-                }
                 active={c.id === activeSessionId}
                 onClick={() => openConversation(c.id)}
                 onDelete={() => setPendingDelete(c)}
-                onMarkDone={() => setConversationDone(c.id, true)}
+                onUndo={() => setConversationDone(c.id, false)}
               />
             ))}
-            {doneConversations.length > 0 && (
-              <>
-                <div className="mt-3">
-                  <SectionHeader>Done</SectionHeader>
-                </div>
-                {visibleDoneConversations.map((c) => (
-                  <DoneConversationRow
-                    key={c.id}
-                    conversation={c}
-                    active={c.id === activeSessionId}
-                    onClick={() => openConversation(c.id)}
-                    onDelete={() => setPendingDelete(c)}
-                    onUndo={() => setConversationDone(c.id, false)}
-                  />
-                ))}
-                {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDoneExpanded((v) => !v)}
-                    className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
-                  >
-                    {doneExpanded
-                      ? "Show less"
-                      : `Show all (${doneConversations.length})`}
-                  </Button>
-                )}
-              </>
+            {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDoneExpanded((v) => !v)}
+                className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {doneExpanded
+                  ? "Show less"
+                  : `Show all (${doneConversations.length})`}
+              </Button>
             )}
-          </>
+          </SidebarSectionCollapsible>
         )}
       </div>
       <div className="shrink-0 border-t border-white/[0.06] p-2">
