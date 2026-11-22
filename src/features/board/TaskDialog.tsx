@@ -1,3 +1,6 @@
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextArea } from "@astryxdesign/core/TextArea";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/ui/button";
@@ -8,16 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { Field, FieldLabel } from "@/ui/field";
-import { Input } from "@/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
-import { Textarea } from "@/ui/textarea";
 import {
   PRIORITY_LABELS,
   STATUS_LABELS,
@@ -147,106 +140,75 @@ export default function TaskDialog({
               {task ? `#${task.number} ${task.title}` : "New task"}
             </DialogTitle>
           </DialogHeader>
-          <Field>
-            <FieldLabel htmlFor="task-title">Title</FieldLabel>
-            <Input
-              id="task-title"
-              autoFocus
-              value={draft.title}
-              onChange={(e) => set("title", e.target.value)}
-              placeholder="What needs doing?"
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="task-description">Description</FieldLabel>
-            <Textarea
-              id="task-description"
-              rows={8}
-              value={draft.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Context, acceptance criteria, links… (Markdown)"
-              className="max-h-80"
-            />
-          </Field>
+          <TextInput
+            label="Title"
+            hasAutoFocus
+            value={draft.title}
+            onChange={(title) => set("title", title)}
+            placeholder="What needs doing?"
+          />
+          <TextArea
+            label="Description"
+            rows={8}
+            value={draft.description}
+            onChange={(description) => set("description", description)}
+            placeholder="Context, acceptance criteria, links… (Markdown)"
+          />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Field>
-              <FieldLabel>Status</FieldLabel>
-              <Select
-                value={draft.status}
-                onValueChange={(v) => set("status", v as TaskStatus)}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Priority</FieldLabel>
-              <Select
-                value={draft.priority}
-                onValueChange={(v) => set("priority", v as TaskPriority)}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TASK_PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      <PriorityIcon priority={p} />
-                      {PRIORITY_LABELS[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Effort</FieldLabel>
-              <Select
-                value={draft.effort ?? NONE}
-                onValueChange={(v) =>
-                  set("effort", v === NONE ? null : (v as TaskEffort))
-                }
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Unsized</SelectItem>
-                  {TASK_EFFORTS.map((size) => (
-                    <SelectItem key={size} value={size}>
-                      {size.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Epic</FieldLabel>
-              <Select
-                value={draft.epicId ?? NONE}
-                onValueChange={(v) => set("epicId", v === NONE ? null : v)}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>No epic</SelectItem>
-                  {selectableEpics.map((epic) => (
-                    <SelectItem key={epic.id} value={epic.id}>
-                      <EpicDot color={epic.color} />
-                      {epic.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            <Selector
+              label="Status"
+              size="sm"
+              width="100%"
+              value={draft.status}
+              onChange={(v) => set("status", v as TaskStatus)}
+              options={TASK_STATUSES.map((s) => ({
+                value: s,
+                label: STATUS_LABELS[s],
+              }))}
+            />
+            <Selector
+              label="Priority"
+              size="sm"
+              width="100%"
+              value={draft.priority}
+              onChange={(v) => set("priority", v as TaskPriority)}
+              options={TASK_PRIORITIES.map((p) => ({
+                value: p,
+                label: PRIORITY_LABELS[p],
+                icon: <PriorityIcon priority={p} />,
+              }))}
+            />
+            <Selector
+              label="Effort"
+              size="sm"
+              width="100%"
+              value={draft.effort ?? NONE}
+              onChange={(v) =>
+                set("effort", v === NONE ? null : (v as TaskEffort))
+              }
+              options={[
+                { value: NONE, label: "Unsized" },
+                ...TASK_EFFORTS.map((size) => ({
+                  value: size,
+                  label: size.toUpperCase(),
+                })),
+              ]}
+            />
+            <Selector
+              label="Epic"
+              size="sm"
+              width="100%"
+              value={draft.epicId ?? NONE}
+              onChange={(v) => set("epicId", v === NONE ? null : v)}
+              options={[
+                { value: NONE, label: "No epic" },
+                ...selectableEpics.map((epic) => ({
+                  value: epic.id,
+                  label: epic.title,
+                  icon: <EpicDot color={epic.color} />,
+                })),
+              ]}
+            />
           </div>
           <AgentFields
             value={draft.agent}

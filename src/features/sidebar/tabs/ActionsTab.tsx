@@ -1,9 +1,9 @@
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/ui/badge";
 import { Button, revealOnGroupHover } from "@/ui/button";
 import { Card } from "@/ui/card";
-import { Input } from "@/ui/input";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import { useActions } from "../../actions/useActions";
@@ -161,17 +161,19 @@ export default function ActionsTab() {
       ))}
       {showForm ? (
         <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-          <Input
+          <TextInput
+            label="Name"
+            size="sm"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            placeholder="Name, e.g. dev"
+            onChange={(name) => setForm({ ...form, name })}
+            placeholder="e.g. dev"
           />
-          <Input
+          <TextInput
+            label="Command"
+            size="sm"
             value={form.command}
-            onChange={(e) =>
-              setForm({ ...form, command: e.currentTarget.value })
-            }
-            placeholder="Command, e.g. npm run dev"
+            onChange={(command) => setForm({ ...form, command })}
+            placeholder="e.g. npm run dev"
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="md" onClick={cancelForm}>

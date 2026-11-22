@@ -1,6 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
-import { Checkbox } from "@/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { Label } from "@/ui/label";
 import { type AgentDefaults, api, type Board } from "../../lib/tauriApi";
 import AgentFields from "./AgentFields";
 
@@ -33,7 +32,6 @@ export default function BoardSettingsDialog({
   const [parallel, setParallel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const parallelId = useId();
 
   // Fresh from the board every time it opens.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on open
@@ -73,24 +71,12 @@ export default function BoardSettingsDialog({
         </DialogHeader>
         <AgentFields value={agent} onChange={setAgent} inheritLabel="Default" />
         {sharedCheckout && (
-          <Label
-            htmlFor={parallelId}
-            className="cursor-pointer items-start gap-2 font-normal text-zinc-300"
-          >
-            <Checkbox
-              id={parallelId}
-              checked={parallel}
-              onCheckedChange={(v) => setParallel(v === true)}
-              className="mt-0.5"
-            />
-            <span>
-              Allow several tasks in progress at once
-              <span className="block text-xs text-zinc-500">
-                This project isn't a git repository, so started tasks share its
-                one checkout and can change the same files.
-              </span>
-            </span>
-          </Label>
+          <CheckboxInput
+            label="Allow several tasks in progress at once"
+            description="This project isn't a git repository, so started tasks share its one checkout and can change the same files."
+            value={parallel}
+            onChange={setParallel}
+          />
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter>

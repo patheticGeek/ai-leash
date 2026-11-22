@@ -1,7 +1,7 @@
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { Play } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/ui/button";
-import { Checkbox } from "@/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,36 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { Label } from "@/ui/label";
 import { effortForSize } from "../../data/board";
 import { type AgentDefaults, api, type Task } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import AgentFields, { resolveAgent } from "./AgentFields";
-
-function CheckRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <Label
-      htmlFor={id}
-      className="cursor-pointer gap-2 font-normal text-zinc-300"
-    >
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(next) => onChange(next === true)}
-      />
-      {label}
-    </Label>
-  );
-}
 
 // Picks how to start a task — which agent, model, thinking level and
 // permission its chat runs with, prefilled from the task's own defaults
@@ -117,14 +91,14 @@ export default function StartTaskDialog({
           </p>
         )}
         <div className="flex flex-col gap-2">
-          <CheckRow
+          <CheckboxInput
             label="The project chat follows it (its updates wake the project chat)"
-            checked={follow}
+            value={follow}
             onChange={setFollow}
           />
-          <CheckRow
+          <CheckboxInput
             label="Open its chat after starting"
-            checked={openAfter}
+            value={openAfter}
             onChange={setOpenAfter}
           />
         </div>

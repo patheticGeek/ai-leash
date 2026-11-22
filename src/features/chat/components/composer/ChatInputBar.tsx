@@ -1,8 +1,15 @@
+import { TextArea } from "@astryxdesign/core/TextArea";
+import * as stylex from "@stylexjs/stylex";
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
-import { type ReactNode, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { COMPOSER_MIN_ROWS, usePreference } from "@/data/preferences";
 import { cn } from "@/lib/utils";
-import { AutoResizeTextarea } from "@/ui/AutoResizeTextarea";
 import { Button } from "@/ui/button";
 import type {
   AcpCommandInfo,
@@ -26,14 +33,52 @@ const getPlaceholderText = (composeMode: boolean) => {
   return text;
 };
 
+const styles = stylex.create({
+  // The composer box around it already paints the surface and the focus
+  // ring, so the field's own control box is invisible.
+  bareControl: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderRadius: 0,
+    padding: 0,
+    boxShadow: { default: "none", ":hover": "none", ":focus-within": "none" },
+    outline: "none",
+  },
+});
+
+// Grows the textarea with its content between `minRows` and `maxRows`
+// lines, then scrolls. Re-measured whenever the text changes — typed or
+// written programmatically — or the row limits do.
+function useAutoGrow(
+  ref: RefObject<HTMLTextAreaElement | null>,
+  value: string,
+  minRows: number,
+  maxRows: number,
+) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: value is a trigger-only dep — its contents aren't read, a change just means the text changed
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const lineHeight = parseFloat(cs.lineHeight) || 20;
+    const paddingY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const minHeight = lineHeight * minRows + paddingY;
+    const maxHeight = lineHeight * maxRows + paddingY;
+    el.style.height = "auto";
+    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [ref, value, minRows, maxRows]);
+}
+
 export interface ChatInputBarProps {
   // Square, edge to edge and without the floating shadow — the board's
   // narrow project chat (see `ChatPanel`'s `compact`).
   flush?: boolean;
   input: string;
   onChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   shellMode: boolean;
   pendingPermission: PermissionRequestPayload | null;
   onRespondPermission: (approved: boolean) => void;
@@ -91,6 +136,7 @@ export default function ChatInputBar({
   const showQueue = sending && input.trim().length > 0;
   const composeMode = usePreference("composeMode");
   const composerMaxRows = usePreference("composerMaxRows");
+  useAutoGrow(textareaRef, input, COMPOSER_MIN_ROWS, composerMaxRows);
 
   return (
     <div
@@ -136,19 +182,25 @@ export default function ChatInputBar({
             className="pointer-events-none absolute left-3.5 top-[15px] text-emerald-400"
           />
         )}
-        <AutoResizeTextarea
+        <TextArea
           ref={textareaRef}
-          defaultValue={input}
-          onChange={(e) => onChange(e.currentTarget.value)}
-          onKeyDown={onKeyDown}
+          label="Message"
+          isLabelHidden
+          width="100%"
+          value={input}
+          onChange={onChange}
+          onKeyDown={(e) => onKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
           placeholder={getPlaceholderText(composeMode)}
-          minRows={COMPOSER_MIN_ROWS}
-          maxRows={composerMaxRows}
-          className={cn(
-            "py-3 leading-relaxed",
+          rows={COMPOSER_MIN_ROWS}
+          controlXstyle={styles.bareControl}
+          // Text styling has to reach the <textarea> inside the control box,
+          // which StyleX can't select into; the composer box around it is
+          // still Tailwind until its own migration.
+          controlClassName={cn(
+            "[&_textarea]:resize-none [&_textarea]:py-3 [&_textarea]:leading-relaxed",
             shellMode
-              ? "pl-9 pr-3.5 font-mono text-code text-emerald-200"
-              : "px-3.5 text-zinc-200",
+              ? "[&_textarea]:pl-9 [&_textarea]:pr-3.5 [&_textarea]:font-mono [&_textarea]:text-code [&_textarea]:text-emerald-200"
+              : "[&_textarea]:px-3.5 [&_textarea]:text-zinc-200",
           )}
         />
       </div>
