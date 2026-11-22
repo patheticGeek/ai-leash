@@ -1,5 +1,5 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { X } from "lucide-react";
-import { Button } from "@/ui/button";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 
 type HelpBannerProps = {
@@ -17,9 +17,14 @@ export default function HelpBanner({ commands, onClose }: HelpBannerProps) {
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
           Commands
         </span>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} title="Close">
-          <X size={14} />
-        </Button>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Close"
+          tooltip="Close"
+          icon={<X size={14} />}
+          onClick={onClose}
+        />
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
         <div className="rounded-md bg-raised px-3 py-2">

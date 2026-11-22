@@ -1,9 +1,10 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSubAgents } from "@/data/subAgents";
 import { formatDuration, formatTime } from "@/lib/format";
-import { Button, revealOnGroupHover } from "@/ui/button";
+import { revealOnGroupHover } from "@/lib/utils";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import SubAgentStatusBadge from "../../chat/SubAgentStatusBadge";
@@ -59,28 +60,28 @@ export default function SubAgentsTab() {
               description={`started ${formatTime(task.startedAt)} · ${running ? "running" : "ran"} for ${duration} · ${task.model}${task.effort ? ` (${task.effort})` : ""}`}
               endContent={
                 running ? (
-                  <Button
+                  <IconButton
                     variant="danger"
-                    size="icon-sm"
-                    title="Stop sub-agent"
+                    size="sm"
+                    label="Stop sub-agent"
+                    tooltip="Stop sub-agent"
+                    icon={<Square size={12} />}
                     onClick={() => void api.cancelPrompt(task.subSessionId)}
                     className={revealOnGroupHover}
-                  >
-                    <Square size={12} />
-                  </Button>
+                  />
                 ) : (
-                  <Button
+                  <IconButton
                     variant="danger"
-                    size="icon-sm"
-                    title="Delete sub-agent"
+                    size="sm"
+                    label="Delete sub-agent"
+                    tooltip="Delete sub-agent"
+                    icon={<Trash2 size={12} />}
                     onClick={() =>
                       activeSessionId &&
                       deleteSubAgentTask(activeSessionId, task.subSessionId)
                     }
                     className={revealOnGroupHover}
-                  >
-                    <Trash2 size={12} />
-                  </Button>
+                  />
                 )
               }
             />

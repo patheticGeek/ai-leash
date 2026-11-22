@@ -1,3 +1,4 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { Theme } from "@astryxdesign/core/theme";
 import {
@@ -11,7 +12,6 @@ import { RotateCcw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { defaultThemeSlug, themeModes, themes } from "../astryx-themes";
 import { reportReactError } from "../lib/crashReporting";
-import { Button } from "./button";
 
 const styles = stylex.create({
   screen: {
@@ -87,11 +87,10 @@ export default class ErrorBoundary extends Component<Props, State> {
             <Button
               variant="primary"
               size="sm"
+              label="Reload"
+              icon={<RotateCcw size={13} />}
               onClick={() => window.location.reload()}
-            >
-              <RotateCcw size={13} />
-              Reload
-            </Button>
+            />
           </VStack>
         </Theme>
       );

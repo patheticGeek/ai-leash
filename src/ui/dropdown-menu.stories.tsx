@@ -1,7 +1,7 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ListFilter, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "./button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -29,9 +29,13 @@ export const Default: Story = {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-lg" title="Filters">
-            <ListFilter size={17} />
-          </Button>
+          <IconButton
+            variant="quiet"
+            size="lg"
+            label="Filters"
+            tooltip="Filters"
+            icon={<ListFilter size={17} />}
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuLabel>Task chats</DropdownMenuLabel>

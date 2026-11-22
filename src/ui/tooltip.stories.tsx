@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "./button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 const meta = {
@@ -14,9 +14,7 @@ export const Default: Story = {
   render: () => (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="secondary" size="md">
-          Hover me
-        </Button>
+        <Button variant="secondary" label="Hover me" />
       </TooltipTrigger>
       <TooltipContent>Helpful hint</TooltipContent>
     </Tooltip>

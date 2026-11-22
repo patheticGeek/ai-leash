@@ -1,5 +1,6 @@
 import { Badge } from "@astryxdesign/core/Badge";
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
@@ -11,7 +12,6 @@ import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
 import { useSubAgents } from "@/data/subAgents";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import { useGenerating } from "../../lib/generatingQuery";
 import { useAppStore, type WorkspaceTab } from "../../store";
 import { SortableTab } from "./TabDnd";
@@ -110,16 +110,15 @@ export default function TabStrip({
                 {closable && (
                   // A sibling of the tab, not inside it — a button can't
                   // contain a button.
-                  <Button
+                  <IconButton
                     variant="quiet"
-                    size="icon-sm"
-                    title="Close tab"
-                    aria-label="Close tab"
+                    size="sm"
+                    label="Close tab"
+                    tooltip="Close tab"
+                    icon={<X size={12} />}
                     onClick={() => closeTab(tab.id)}
-                    className="absolute inset-y-0 right-0.5 my-auto"
-                  >
-                    <X size={12} />
-                  </Button>
+                    className="absolute inset-y-0 right-0.5 my-auto size-6"
+                  />
                 )}
               </SortableTab>
             );

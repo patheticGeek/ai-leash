@@ -1,8 +1,8 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Selector } from "@astryxdesign/core/Selector";
 import { MoveDiagonal2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useConversations } from "@/data/conversations";
-import { Button } from "@/ui/button";
 import { JsonViewer } from "@/ui/json-viewer";
 import { type AcpDebugEvent, useAppStore } from "../../store";
 
@@ -65,22 +65,22 @@ export default function DebugEventsPanel({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button
+          <IconButton
             variant="quiet"
-            size="icon-sm"
-            title="Clear events"
+            size="sm"
+            label="Clear events"
+            tooltip="Clear events"
+            icon={<Trash2 size={13} />}
             onClick={clearDebugEvents}
-          >
-            <Trash2 size={13} />
-          </Button>
-          <Button
+          />
+          <IconButton
             variant="quiet"
-            size="icon-sm"
-            title="Close panel"
+            size="sm"
+            label="Close panel"
+            tooltip="Close panel"
+            icon={<X size={13} />}
             onClick={onClose}
-          >
-            <X size={13} />
-          </Button>
+          />
         </div>
       </div>
       <div className="shrink-0 border-b border-white/5 px-3 py-2">

@@ -1,7 +1,7 @@
+import { Button } from "@astryxdesign/core/Button";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { qk } from "@/data/keys";
-import { Button } from "@/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -65,13 +65,11 @@ export default function FontFamilyPicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="chip"
-          bordered
+          variant="secondary"
           size="sm"
-          title="Pick an installed font"
-        >
-          Browse
-        </Button>
+          label="Browse"
+          tooltip="Pick an installed font"
+        />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-0">
         <Command

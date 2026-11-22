@@ -1,3 +1,4 @@
+import { Button } from "@astryxdesign/core/Button";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import * as stylex from "@stylexjs/stylex";
 import { Clock, Send, Square, SquareTerminal } from "lucide-react";
@@ -10,7 +11,6 @@ import {
 } from "react";
 import { COMPOSER_MIN_ROWS, usePreference } from "@/data/preferences";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import type {
   AcpCommandInfo,
   ElicitationAnswer,
@@ -212,30 +212,28 @@ export default function ChatInputBar({
           {contextUsage}
           {showQueue && (
             <Button
-              variant="chip"
-              bordered
+              variant="secondary"
               size="sm"
+              label="Queue"
+              icon={<Clock size={12} />}
               onClick={onQueue}
-              title="Send after the current turn finishes (Ctrl+Enter)"
-            >
-              <Clock size={12} />
-              <span>Queue</span>
-            </Button>
+              tooltip="Send after the current turn finishes (Ctrl+Enter)"
+            />
           )}
           <Button
             variant={sending ? "chip-danger" : "chip-primary"}
             size="sm"
+            label={sending ? "Stop" : "Send"}
+            icon={
+              sending ? (
+                <Square size={12} fill="currentColor" />
+              ) : (
+                <Send size={14} />
+              )
+            }
             onClick={sending ? onStop : onSend}
-            disabled={!sending && sendDisabled}
-            title={sending ? "Stop" : "Send"}
-          >
-            {sending ? (
-              <Square size={12} fill="currentColor" />
-            ) : (
-              <Send size={14} />
-            )}
-            <span>{sending ? "Stop" : "Send"}</span>
-          </Button>
+            isDisabled={!sending && sendDisabled}
+          />
         </div>
       </div>
     </div>

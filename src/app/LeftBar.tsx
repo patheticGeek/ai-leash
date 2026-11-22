@@ -1,6 +1,9 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { Divider } from "@astryxdesign/core/Divider";
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Item } from "@astryxdesign/core/Item";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
@@ -22,8 +25,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button, revealOnGroupHover } from "@/ui/button";
+import { cn, revealOnGroupHover } from "@/lib/utils";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -159,43 +161,62 @@ function ConversationRow({
       <div
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
+        title={
+          awaitingApproval
+            ? `${projectName} — needs your approval`
+            : awaitingAnswer
+              ? `${projectName} — has a question for you`
+              : projectName
+        }
         className={cn(
-          "group mx-1.5 mb-1.5 flex items-center rounded-md text-sm transition-colors",
-          active
-            ? "bg-white/10 text-zinc-100"
-            : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+          "group mx-1.5 mb-1.5 rounded-md text-sm",
           needsAttention
             ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
             : "",
         )}
       >
-        <Button
-          variant="unstyled"
-          size="none"
+        <Item
           onClick={onClick}
-          title={
-            awaitingApproval
-              ? `${projectName} — needs your approval`
-              : awaitingAnswer
-                ? `${projectName} — has a question for you`
-                : projectName
-          }
-          className="flex min-w-0 flex-1 flex-col items-start text-left gap-0.5 px-3 py-2"
-        >
-          <span className="flex w-full items-center gap-1.5 mb-1.5 relative h-7">
-            {conversation.taskNumber != null && (
-              <span
-                title="Board task"
-                className="shrink-0 rounded bg-white/[0.06] px-1 text-[11px] tabular-nums text-zinc-400"
-              >
-                #{conversation.taskNumber}
+          isSelected={active}
+          label={
+            <span className="flex w-full items-center gap-1.5">
+              {conversation.taskNumber != null && (
+                <span
+                  title="Board task"
+                  className="shrink-0 rounded bg-white/[0.06] px-1 text-[11px] tabular-nums text-zinc-400"
+                >
+                  #{conversation.taskNumber}
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate">
+                {conversation.title || "New conversation"}
               </span>
-            )}
-            <span className="min-w-0 flex-1 truncate text-zinc-200">
-              {conversation.title || "New conversation"}
             </span>
-
-            <span>
+          }
+          description={
+            <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
+              <Folder className="size-2.5 shrink-0" />
+              <span
+                className="min-w-0 flex-1 truncate"
+                title={projectAndWorkspace}
+              >
+                {projectAndWorkspace}
+              </span>
+              {branchName && (
+                <>
+                  <GitBranch className="size-2.5 shrink-0" />
+                  <span
+                    className="max-w-28 shrink-0 truncate"
+                    title={branchName}
+                  >
+                    {branchName}
+                  </span>
+                </>
+              )}
+            </span>
+          }
+          endContent={
+            <span className="flex h-7 items-center">
               {awaitingApproval ? (
                 <span
                   title="Permission required"
@@ -223,36 +244,17 @@ function ConversationRow({
               ) : hovering ? (
                 <Button
                   variant="success"
-                  size="xs"
-                  title="Mark as done"
+                  size="sm"
+                  label="done"
+                  tooltip="Mark as done"
+                  icon={<Check size={12} />}
                   onClick={onMarkDone}
-                  className={cn("m-0", revealOnGroupHover)}
-                >
-                  <Check size={12} />
-                  done
-                </Button>
+                  className={revealOnGroupHover}
+                />
               ) : null}
             </span>
-          </span>
-
-          <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
-            <Folder className="size-2.5 shrink-0" />
-            <span
-              className="min-w-0 flex-1 truncate"
-              title={projectAndWorkspace}
-            >
-              {projectAndWorkspace}
-            </span>
-            {branchName && (
-              <>
-                <GitBranch className="size-2.5 shrink-0" />
-                <span className="max-w-28 shrink-0 truncate" title={branchName}>
-                  {branchName}
-                </span>
-              </>
-            )}
-          </span>
-        </Button>
+          }
+        />
       </div>
     </ConversationContextMenu>
   );
@@ -276,34 +278,28 @@ function DoneConversationRow({
   return (
     <ConversationContextMenu onDelete={onDelete}>
       <div
-        className={cn(
-          "mx-1.5 flex items-stretch gap-2 rounded-md text-sm",
-          active
-            ? "bg-white/10 text-zinc-100"
-            : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300",
-        )}
+        title={conversation.title || "New conversation"}
+        className="mx-1.5 rounded-md text-sm"
       >
-        <Button
-          variant="unstyled"
-          size="none"
+        <Item
+          density="compact"
           onClick={onClick}
-          title={conversation.title || "New conversation"}
-          className="min-w-0 flex-1 justify-start truncate text-left px-3 py-1.5"
-        >
-          {conversation.title || "New conversation"}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          title="Mark as not done"
-          onClick={(event) => {
-            event.stopPropagation();
-            onUndo();
-          }}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200 px-3"
-        >
-          <Undo2 size={14} />
-        </Button>
+          isSelected={active}
+          label={conversation.title || "New conversation"}
+          endContent={
+            <IconButton
+              variant="quiet"
+              size="sm"
+              label="Mark as not done"
+              tooltip="Mark as not done"
+              icon={<Undo2 size={14} />}
+              onClick={(event) => {
+                event.stopPropagation();
+                onUndo();
+              }}
+            />
+          }
+        />
       </div>
     </ConversationContextMenu>
   );
@@ -372,40 +368,37 @@ function ProjectBoardRow({
 }) {
   const { active: generating } = useGenerating(chatId ?? "");
   return (
-    <Button
-      variant="unstyled"
-      size="none"
+    <Item
+      density="compact"
       onClick={onClick}
-      title={`${name} board`}
-      className={cn(
-        "mx-1.5 mb-1 flex w-[calc(100%-0.75rem)] items-center justify-start gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors",
-        active
-          ? "bg-white/10 text-zinc-100"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
-      )}
-    >
-      <SquareKanban size={14} className="shrink-0 text-zinc-500" />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-      {generating && (
-        <Loader size={12} className="shrink-0 animate-spin text-blue-400" />
-      )}
-      {!!summary?.inProgress && (
-        <span
-          title={`${summary.inProgress} in progress`}
-          className="shrink-0 rounded bg-blue-400/10 px-1 text-[11px] tabular-nums text-blue-400"
-        >
-          {summary.inProgress}
+      isSelected={active}
+      className="mx-1.5 mb-1 text-sm"
+      startContent={<SquareKanban size={14} className="text-zinc-500" />}
+      label={name}
+      endContent={
+        <span className="flex items-center gap-2">
+          {generating && (
+            <Loader size={12} className="shrink-0 animate-spin text-blue-400" />
+          )}
+          {!!summary?.inProgress && (
+            <span
+              title={`${summary.inProgress} in progress`}
+              className="shrink-0 rounded bg-blue-400/10 px-1 text-[11px] tabular-nums text-blue-400"
+            >
+              {summary.inProgress}
+            </span>
+          )}
+          {!!summary?.review && (
+            <span
+              title={`${summary.review} in review`}
+              className="shrink-0 rounded bg-warning/10 px-1 text-[11px] tabular-nums text-warning"
+            >
+              {summary.review}
+            </span>
+          )}
         </span>
-      )}
-      {!!summary?.review && (
-        <span
-          title={`${summary.review} in review`}
-          className="shrink-0 rounded bg-warning/10 px-1 text-[11px] tabular-nums text-warning"
-        >
-          {summary.review}
-        </span>
-      )}
-    </Button>
+      }
+    />
   );
 }
 
@@ -560,17 +553,17 @@ export default function LeftBar() {
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
+            <IconButton
               variant="ghost"
-              size="icon-lg"
-              title="Filters"
+              size="lg"
+              label="Filters"
+              tooltip="Filters"
+              icon={<ListFilter size={17} />}
               className={cn(
                 "shrink-0 text-zinc-500 hover:text-zinc-200",
                 taskChats !== "all" && "text-primary-hover",
               )}
-            >
-              <ListFilter size={17} />
-            </Button>
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Task chats</DropdownMenuLabel>
@@ -594,15 +587,15 @@ export default function LeftBar() {
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon-lg"
-          title="Add project"
+          size="lg"
+          label="Add project"
+          tooltip="Add project"
+          icon={<FolderPlus size={17} />}
           onClick={onAddProject}
           className="shrink-0 text-zinc-500 hover:text-zinc-200"
-        >
-          <FolderPlus size={17} />
-        </Button>
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {boardProjects.length > 0 && (
@@ -624,13 +617,14 @@ export default function LeftBar() {
               <Button
                 variant="ghost"
                 size="sm"
+                label={
+                  boardsExpanded
+                    ? "Show less"
+                    : `More boards (${hiddenBoardCount})`
+                }
                 onClick={() => setBoardsExpanded((v) => !v)}
                 className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
-              >
-                {boardsExpanded
-                  ? "Show less"
-                  : `More boards (${hiddenBoardCount})`}
-              </Button>
+              />
             )}
           </SidebarSectionCollapsible>
         )}
@@ -682,13 +676,14 @@ export default function LeftBar() {
               <Button
                 variant="ghost"
                 size="sm"
+                label={
+                  doneExpanded
+                    ? "Show less"
+                    : `Show all (${doneConversations.length})`
+                }
                 onClick={() => setDoneExpanded((v) => !v)}
                 className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
-              >
-                {doneExpanded
-                  ? "Show less"
-                  : `Show all (${doneConversations.length})`}
-              </Button>
+              />
             )}
           </SidebarSectionCollapsible>
         )}
@@ -696,14 +691,12 @@ export default function LeftBar() {
       <div className="shrink-0 border-t border-white/[0.06] p-2">
         <Button
           variant="ghost"
-          size="md"
-          title="Settings"
+          label="Settings"
+          tooltip="Settings"
+          icon={<SettingsIcon size={15} />}
           onClick={() => setSettingsModalOpen(true)}
           className="w-full justify-start gap-2 text-zinc-500 hover:text-zinc-200"
-        >
-          <SettingsIcon size={15} />
-          Settings
-        </Button>
+        />
       </div>
       <DeleteConversationDialog
         conversation={pendingDelete}

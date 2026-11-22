@@ -1,6 +1,6 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { TabBody } from "../tabs/TabContent";
 import { useTabDropArea } from "../tabs/TabDnd";
@@ -41,15 +41,14 @@ export default function SidePanel() {
           }}
           className="flex-1"
         />
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          size="sm"
+          label="Open tab"
+          tooltip="Open tab"
+          icon={<Plus size={14} />}
           onClick={() => setPickerOpen(true)}
-          title="Open tab"
-          className="shrink-0"
-        >
-          <Plus size={14} />
-        </Button>
+        />
       </div>
       <div className="relative flex-1 min-h-0">
         <TabBody

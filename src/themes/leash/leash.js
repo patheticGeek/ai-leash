@@ -351,6 +351,55 @@ export const leashTheme = {
       "variant:destructive": {
         "backgroundColor": "var(--color-error-muted)",
         "color": "var(--color-on-error-muted)"
+      },
+      "variant:quiet": {
+        "backgroundColor": "transparent",
+        "color": "var(--color-text-secondary)",
+        ":hover": {
+          "backgroundImage": "none",
+          "color": "var(--color-text-primary)"
+        }
+      },
+      "variant:danger": {
+        "backgroundColor": "transparent",
+        "color": "var(--color-text-secondary)",
+        ":hover": {
+          "backgroundColor": "var(--color-error-muted)",
+          "backgroundImage": "none",
+          "color": "var(--color-text-error)"
+        }
+      },
+      "variant:success": {
+        "backgroundColor": "transparent",
+        "color": "var(--color-text-secondary)",
+        ":hover": {
+          "backgroundColor": "var(--color-success-muted)",
+          "backgroundImage": "none",
+          "color": "var(--color-text-success)"
+        }
+      },
+      "variant:chip": {
+        "backgroundColor": "var(--color-overlay-hover)",
+        "color": "var(--color-text-secondary)",
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
+      },
+      "variant:chip-primary": {
+        "backgroundColor": "var(--color-accent-muted)",
+        "color": "var(--color-text-accent)"
+      },
+      "variant:chip-danger": {
+        "backgroundColor": "var(--color-error-muted)",
+        "color": "var(--color-text-error)"
+      },
+      "variant:chip-warning": {
+        "backgroundColor": "var(--color-warning-muted)",
+        "color": "var(--color-text-warning)"
+      },
+      "variant:chip-success": {
+        "backgroundColor": "var(--color-success-muted)",
+        "color": "var(--color-text-success)"
       }
     },
     "badge": {

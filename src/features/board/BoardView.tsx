@@ -1,3 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Selector } from "@astryxdesign/core/Selector";
 import {
   closestCorners,
@@ -17,7 +19,6 @@ import {
 import { Layers, Plus, Rows3, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import {
   columnTasks,
   moveTask,
@@ -93,15 +94,15 @@ function Column({
         <div className="group flex shrink-0 items-center gap-2 px-3 pt-2.5 pb-1.5 text-xs font-medium text-zinc-400">
           <span>{STATUS_LABELS[status]}</span>
           <span className="tabular-nums text-zinc-600">{tasks.length}</span>
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon-sm"
-            title={`New task in ${STATUS_LABELS[status]}`}
+            size="sm"
+            label={`New task in ${STATUS_LABELS[status]}`}
+            tooltip={`New task in ${STATUS_LABELS[status]}`}
+            icon={<Plus size={14} />}
             onClick={onAdd}
             className="ml-auto opacity-0 group-hover:opacity-100"
-          >
-            <Plus />
-          </Button>
+          />
         </div>
       )}
       <div
@@ -280,20 +281,18 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         <Button
           variant={groupByEpic ? "chip-primary" : "chip"}
           size="sm"
-          bordered={false}
+          label="Group by epic"
+          icon={<Rows3 size={13} />}
           onClick={() => setGroupByEpic((v) => !v)}
-          title="Group the board into one row per epic"
-        >
-          <Rows3 size={13} />
-          Group by epic
-        </Button>
+          tooltip="Group the board into one row per epic"
+        />
         <Button
           variant={showDone ? "chip-primary" : "chip"}
           size="sm"
-          bordered={false}
+          label={showDone ? "Hide done" : "Show done"}
           onClick={() => setShowDone((v) => !v)}
         >
-          {showDone ? "Hide done" : "Show done"}
+          {showDone ? "Hide done" : "Show done"}{" "}
           <span className="tabular-nums opacity-60">
             {board?.doneCount ?? 0}
           </span>
@@ -302,28 +301,32 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           <Button
             variant="quiet"
             size="sm"
+            label={`Load ${olderDoneHidden} older`}
             onClick={() => setIncludeOlderDone(true)}
-            title="Done tasks older than 30 days"
-          >
-            Load {olderDoneHidden} older
-          </Button>
+            tooltip="Done tasks older than 30 days"
+          />
         )}
         <div className="flex-1" />
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Board settings"
+          tooltip="Board settings"
+          icon={<Settings2 size={14} />}
+          onClick={() => setSettingsOpen(true)}
+        />
         <Button
           variant="ghost"
-          size="icon-sm"
-          title="Board settings"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <Settings2 />
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}>
-          <Layers size={13} />
-          Epics
-        </Button>
+          size="sm"
+          label="Epics"
+          icon={<Layers size={13} />}
+          onClick={() => setEpicsOpen(true)}
+        />
         <Button
           variant="chip-primary"
           size="sm"
+          label="New task"
+          icon={<Plus size={13} />}
           onClick={() =>
             setEditing({
               kind: "new",
@@ -334,10 +337,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                   : epicFilter,
             })
           }
-        >
-          <Plus size={13} />
-          New task
-        </Button>
+        />
       </div>
       {moveError && (
         <button

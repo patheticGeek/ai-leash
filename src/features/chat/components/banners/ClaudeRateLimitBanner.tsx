@@ -1,7 +1,7 @@
+import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { useEffect, useState } from "react";
 import { formatClockTime } from "@/lib/format";
-import { Button } from "@/ui/button";
 import DockedBanner from "./DockedBanner";
 
 export interface ClaudeRateLimit {
@@ -49,31 +49,27 @@ export default function ClaudeRateLimitBanner({
       endContent={
         autoResumeArmed ? (
           <Button
-            size="sm"
             variant="chip-warning"
-            bordered={false}
+            size="sm"
+            label="Cancel"
             onClick={onDismiss}
-          >
-            Cancel
-          </Button>
+          />
         ) : (
           <HStack gap={2}>
             <Button
-              size="sm"
               variant="chip-danger"
-              bordered={false}
-              onClick={onDismiss}
-            >
-              No
-            </Button>
-            <Button
               size="sm"
+              label="No"
+              onClick={onDismiss}
+            />
+            <Button
               variant="chip-success"
-              bordered={false}
+              size="sm"
+              label={
+                alreadyReset ? "Yes, continue" : "Yes, resume automatically"
+              }
               onClick={onArmAutoResume}
-            >
-              {alreadyReset ? "Yes, continue" : "Yes, resume automatically"}
-            </Button>
+            />
           </HStack>
         )
       }

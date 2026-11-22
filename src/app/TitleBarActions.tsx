@@ -1,7 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { ChevronDown, Play, Square } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useActions } from "../features/actions/useActions";
@@ -46,27 +47,27 @@ export default function TitleBarActions() {
       <div className="flex shrink-0 items-center gap-px">
         <Button
           variant={current.running ? "chip-warning" : "chip"}
-          bordered={false}
           size="sm"
+          label={current.name}
+          icon={current.running ? <Square size={11} /> : <Play size={11} />}
           onClick={() => handleToggle(current)}
-          title={
+          tooltip={
             current.running ? `Stop ${current.name}` : `Run ${current.name}`
           }
           className={cn(
-            "flex min-w-0 max-w-[160px]",
+            "min-w-0 max-w-[160px]",
             rest.length > 0 && "rounded-r-none",
           )}
-        >
-          {current.running ? <Square size={11} /> : <Play size={11} />}
-          <span className="truncate">{current.name}</span>
-        </Button>
+        />
         {rest.length > 0 && (
           <PopoverTrigger asChild>
-            <Button
+            <IconButton
               variant="chip"
               size="sm"
-              title="Other actions"
-              className="rounded-l-none px-1.5"
+              label="Other actions"
+              tooltip="Other actions"
+              icon={<ChevronDown size={12} />}
+              className="rounded-l-none"
               onKeyDown={(e) => {
                 // Popover triggers only open on Enter/Space; a dropdown
                 // chevron is expected to open on ArrowDown too.
@@ -75,9 +76,7 @@ export default function TitleBarActions() {
                   setOpen(true);
                 }
               }}
-            >
-              <ChevronDown size={12} />
-            </Button>
+            />
           </PopoverTrigger>
         )}
       </div>

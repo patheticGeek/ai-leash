@@ -1,8 +1,9 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 
 function Dialog({
   ...props
@@ -66,14 +67,13 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button
+            <IconButton
               variant="ghost"
-              className="absolute top-2 right-2 p-4"
-              size="icon-sm"
-            >
-              <XIcon />
-              <span className="sr-only">Close</span>
-            </Button>
+              size="sm"
+              label="Close"
+              icon={<XIcon size={14} />}
+              className="absolute top-2 right-2"
+            />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
@@ -111,7 +111,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="secondary" label="Close" />
         </DialogPrimitive.Close>
       )}
     </div>

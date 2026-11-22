@@ -1,9 +1,9 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -219,35 +219,27 @@ export default function TaskDialog({
           <DialogFooter className="sm:justify-between">
             {task ? (
               <Button
-                type="button"
                 variant="danger"
-                size="md"
+                label="Delete"
+                icon={<Trash2 size={14} />}
                 onClick={remove}
-                title="Delete task"
-              >
-                <Trash2 size={14} />
-                Delete
-              </Button>
+                tooltip="Delete task"
+              />
             ) : (
               <span />
             )}
             <div className="flex gap-2">
               <Button
-                type="button"
                 variant="ghost"
-                size="md"
+                label="Cancel"
                 onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
+              />
               <Button
                 type="submit"
                 variant="primary"
-                size="md"
-                disabled={!draft.title.trim() || saving}
-              >
-                {task ? "Save" : "Create task"}
-              </Button>
+                label={task ? "Save" : "Create task"}
+                isDisabled={!draft.title.trim() || saving}
+              />
             </div>
           </DialogFooter>
         </form>

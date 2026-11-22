@@ -1,7 +1,7 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Check, Copy, RotateCcw } from "lucide-react";
 import { formatDuration, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 
 interface MessageFooterProps {
   isUser: boolean;
@@ -32,13 +32,23 @@ export default function MessageFooter({
         isUser ? "flex-row-reverse" : "",
       )}
     >
-      <Button variant="quiet" size="icon-sm" onClick={onCopy} title="Copy">
-        {copied ? <Check size={13} /> : <Copy size={13} />}
-      </Button>
+      <IconButton
+        variant="quiet"
+        size="sm"
+        label="Copy"
+        tooltip="Copy"
+        icon={copied ? <Check size={13} /> : <Copy size={13} />}
+        onClick={onCopy}
+      />
       {showRetry && (
-        <Button variant="quiet" size="icon-sm" onClick={onRetry} title="Retry">
-          <RotateCcw size={13} />
-        </Button>
+        <IconButton
+          variant="quiet"
+          size="sm"
+          label="Retry"
+          tooltip="Retry"
+          icon={<RotateCcw size={13} />}
+          onClick={onRetry}
+        />
       )}
       <div className="normal-case tracking-normal text-zinc-700 gap-2 flex items-center">
         <span>{formatTime(time)}</span>

@@ -1,6 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
-import { Button } from "@/ui/button";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TabBody } from "../features/tabs/TabContent";
 import { useTabDropArea } from "../features/tabs/TabDnd";
@@ -35,12 +35,12 @@ function NoProjectState() {
           conversation that stays with the project.
         </p>
         <Button
+          variant="primary"
+          label="Open a project folder"
+          icon={<FolderOpen size={15} />}
           onClick={pickProject}
-          className="mt-7 gap-2 bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(58,95,143,0.3)] hover:bg-primary-hover"
-        >
-          <FolderOpen size={15} />
-          Open a project folder
-        </Button>
+          className="mt-7"
+        />
         <p className="mt-4 text-xs text-muted-foreground">
           You can also use the <span className="text-muted-foreground">+</span>{" "}
           button in the sidebar header.

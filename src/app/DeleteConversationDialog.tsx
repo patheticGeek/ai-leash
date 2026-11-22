@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Button } from "@/ui/button";
+import { Button } from "@astryxdesign/core/Button";
+import { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ export default function DeleteConversationDialog({
   onConfirm: (id: string) => Promise<void>;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const deleteRef = useRef<HTMLButtonElement>(null);
   const generating = useGenerating(conversation?.id ?? "").active;
 
   async function confirm() {
@@ -45,7 +46,14 @@ export default function DeleteConversationDialog({
         if (!open && !deleting) onCancel();
       }}
     >
-      <DialogContent showCloseButton={false}>
+      <DialogContent
+        showCloseButton={false}
+        // Focus Delete rather than the first button (Cancel) on open.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          deleteRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Delete conversation?</DialogTitle>
           <DialogDescription>
@@ -57,21 +65,17 @@ export default function DeleteConversationDialog({
         <DialogFooter>
           <Button
             variant="ghost"
-            size="md"
-            disabled={deleting}
+            label="Cancel"
+            isDisabled={deleting}
             onClick={onCancel}
-          >
-            Cancel
-          </Button>
+          />
           <Button
-            variant="chip-danger"
-            size="md"
-            disabled={deleting}
+            variant="destructive"
+            label={deleting ? "Deleting…" : "Delete"}
+            isDisabled={deleting}
             onClick={confirm}
-            autoFocus
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </Button>
+            ref={deleteRef}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Item } from "@astryxdesign/core/Item";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "./button";
 import {
   Popover,
   PopoverContent,
@@ -21,9 +22,7 @@ export const Default: Story = {
   render: () => (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="secondary" size="md">
-          Open popover
-        </Button>
+        <Button variant="secondary" label="Open popover" />
       </PopoverTrigger>
       <PopoverContent>
         <PopoverHeader>
@@ -40,9 +39,7 @@ export const OpenTop: Story = {
     <div className="pt-40">
       <Popover defaultOpen>
         <PopoverTrigger asChild>
-          <Button variant="chip" size="sm">
-            Model picker
-          </Button>
+          <Button variant="chip" size="sm" label="Model picker" />
         </PopoverTrigger>
         <PopoverContent
           side="top"
@@ -52,14 +49,13 @@ export const OpenTop: Story = {
         >
           <div className="py-1">
             {["Sonnet", "Opus"].map((label, i) => (
-              <Button
+              <Item
                 key={label}
-                variant="menu-item"
-                size="none"
-                data-active={i === 0}
-              >
-                {label}
-              </Button>
+                density="compact"
+                isSelected={i === 0}
+                onClick={() => {}}
+                label={label}
+              />
             ))}
           </div>
         </PopoverContent>

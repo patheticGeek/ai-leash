@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Bot, Loader } from "lucide-react";
-import { Button } from "@/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -73,17 +73,18 @@ export default function ModelPickerPopover({
         <Button
           variant={dangerMessage ? "chip-danger" : "chip"}
           size="sm"
-          title={dangerMessage ?? undefined}
-          disabled={disabled}
-          className="flex min-w-0 max-w-[160px]"
-        >
-          {loading ? (
-            <Loader size={12} className="shrink-0 animate-spin" />
-          ) : (
-            <Bot size={12} className="shrink-0" />
-          )}
-          <span className="truncate">{triggerLabel}</span>
-        </Button>
+          label={triggerLabel}
+          icon={
+            loading ? (
+              <Loader size={12} className="animate-spin" />
+            ) : (
+              <Bot size={12} />
+            )
+          }
+          tooltip={dangerMessage ?? undefined}
+          isDisabled={disabled}
+          className="max-w-[160px]"
+        />
       </PopoverTrigger>
       <PopoverContent
         side="top"

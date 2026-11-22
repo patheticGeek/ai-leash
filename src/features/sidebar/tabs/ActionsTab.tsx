@@ -1,11 +1,13 @@
+import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Button, revealOnGroupHover } from "@/ui/button";
+import { revealOnGroupHover } from "@/lib/utils";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import { useActions } from "../../actions/useActions";
@@ -122,33 +124,34 @@ export default function ActionsTab() {
               description={action.command}
               endContent={
                 <HStack gap={1} align="center">
-                  <Button
+                  <IconButton
                     variant="danger"
-                    size="icon-sm"
-                    title="Delete"
+                    size="sm"
+                    label="Delete"
+                    tooltip="Delete"
+                    icon={<Trash2 size={12} />}
                     onClick={() => remove(action.id)}
                     className={revealOnGroupHover}
-                  >
-                    <Trash2 size={12} />
-                  </Button>
-                  <Button
+                  />
+                  <IconButton
                     variant="ghost"
-                    size="icon-sm"
-                    title="Edit"
+                    size="sm"
+                    label="Edit"
+                    tooltip="Edit"
+                    icon={<Pencil size={12} />}
                     onClick={() => startEdit(action)}
                     className={revealOnGroupHover}
-                  >
-                    <Pencil size={12} />
-                  </Button>
-                  <Button
+                  />
+                  <IconButton
                     variant={action.running ? "danger" : "secondary"}
-                    size="icon-sm"
-                    title={action.running ? "Stop action" : "Run action"}
+                    size="sm"
+                    label={action.running ? "Stop action" : "Run action"}
+                    tooltip={action.running ? "Stop action" : "Run action"}
+                    icon={
+                      action.running ? <Square size={12} /> : <Play size={12} />
+                    }
                     onClick={() => toggle(action)}
-                    className="shrink-0"
-                  >
-                    {action.running ? <Square size={12} /> : <Play size={12} />}
-                  </Button>
+                  />
                 </HStack>
               }
             />
@@ -172,21 +175,27 @@ export default function ActionsTab() {
             placeholder="e.g. npm run dev"
           />
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="md" onClick={cancelForm}>
-              <X size={14} />
-              Cancel
-            </Button>
-            <Button variant="primary" size="md" onClick={saveForm}>
-              <Check size={14} />
-              Save
-            </Button>
+            <Button
+              variant="ghost"
+              label="Cancel"
+              icon={<X size={14} />}
+              onClick={cancelForm}
+            />
+            <Button
+              variant="primary"
+              label="Save"
+              icon={<Check size={14} />}
+              onClick={saveForm}
+            />
           </div>
         </div>
       ) : (
-        <Button variant="ghost" size="md" onClick={startAdd}>
-          <Plus size={14} />
-          Add action
-        </Button>
+        <Button
+          variant="ghost"
+          label="Add action"
+          icon={<Plus size={14} />}
+          onClick={startAdd}
+        />
       )}
     </div>
   );

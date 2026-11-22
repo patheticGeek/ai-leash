@@ -1,7 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Check, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import { CommandItem } from "@/ui/command";
 
 // A `cmdk` item — arrow-key/typeahead navigable via `Command`'s own keyboard
@@ -55,22 +56,22 @@ export default function DeletableRow({
       <div className="flex items-center justify-between gap-2 px-2 py-1.5">
         <span className="truncate text-xs text-zinc-500">Delete {label}?</span>
         <div className="flex shrink-0 gap-1">
-          <Button
-            size="icon-sm"
+          <IconButton
+            size="sm"
             variant="ghost"
-            disabled={phase === "deleting"}
+            label="Cancel"
+            icon={<X size={12} />}
+            isDisabled={phase === "deleting"}
             onClick={() => setPhase("idle")}
-          >
-            <X size={12} />
-          </Button>
-          <Button
-            size="icon-sm"
+          />
+          <IconButton
+            size="sm"
             variant="danger"
-            disabled={phase === "deleting"}
+            label={`Delete ${label}`}
+            icon={<Check size={12} />}
+            isDisabled={phase === "deleting"}
             onClick={() => runDelete(false)}
-          >
-            <Check size={12} />
-          </Button>
+          />
         </div>
       </div>
     );
@@ -81,12 +82,18 @@ export default function DeletableRow({
       <div className="flex flex-col gap-1 px-2 py-1.5">
         <span className="text-xs text-red-400">{error}</span>
         <div className="flex justify-end gap-1.5">
-          <Button size="sm" variant="ghost" onClick={() => setPhase("idle")}>
-            Cancel
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => runDelete(true)}>
-            Force delete
-          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            label="Cancel"
+            onClick={() => setPhase("idle")}
+          />
+          <Button
+            size="sm"
+            variant="danger"
+            label="Force delete"
+            onClick={() => runDelete(true)}
+          />
         </div>
       </div>
     );
@@ -110,17 +117,17 @@ export default function DeletableRow({
         {label}
       </span>
       {deletable && (
-        <Button
+        <IconButton
           variant="danger"
-          size="icon-sm"
-          className="shrink-0 opacity-0 group-hover/command-item:opacity-100 group-data-selected/command-item:opacity-100"
+          size="sm"
+          label={`Delete ${label}`}
+          icon={<Trash2 size={12} />}
+          className="opacity-0 group-hover/command-item:opacity-100 group-data-selected/command-item:opacity-100"
           onClick={(e) => {
             e.stopPropagation();
             setPhase("confirm");
           }}
-        >
-          <Trash2 size={12} />
-        </Button>
+        />
       )}
     </CommandItem>
   );

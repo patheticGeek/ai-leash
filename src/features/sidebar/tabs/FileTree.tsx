@@ -1,5 +1,5 @@
+import { Item } from "@astryxdesign/core/Item";
 import { useState } from "react";
-import { Button } from "@/ui/button";
 import type { DirEntryInfo } from "../../../lib/tauriApi";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useAppStore } from "../../../store";
@@ -33,19 +33,19 @@ function Node({
 
   return (
     <div>
-      <Button
-        variant="menu-item"
-        size="none"
-        data-active={entry.path === activePath}
-        className="flex w-full items-center justify-start gap-1.5 px-2 py-1 text-sm rounded-md select-none text-zinc-300 data-[active=true]:text-zinc-100"
+      <Item
+        density="compact"
+        isSelected={entry.path === activePath}
+        className="select-none text-sm"
         style={{ paddingLeft: depth * 14 + 8 }}
         onClick={toggle}
-      >
-        <span className="text-zinc-500 w-3 inline-block">
-          {entry.isDir ? (expanded ? "▾" : "▸") : ""}
-        </span>
-        <span>{entry.name}</span>
-      </Button>
+        startContent={
+          <span className="inline-block w-3 text-zinc-500">
+            {entry.isDir ? (expanded ? "▾" : "▸") : ""}
+          </span>
+        }
+        label={entry.name}
+      />
       {entry.isDir && expanded && children && (
         <div>
           {children.map((child) => (

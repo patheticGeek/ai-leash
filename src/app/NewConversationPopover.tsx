@@ -1,9 +1,11 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Item } from "@astryxdesign/core/Item";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderPlus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button, revealOnGroupHover } from "@/ui/button";
+import { revealOnGroupHover } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAppStore } from "../store";
 
@@ -54,37 +56,30 @@ export default function NewConversationPopover({
             </div>
           ) : (
             recentProjects.map((p) => (
-              <div
-                key={p.path}
-                className="group flex items-center gap-1 hover:bg-white/5"
-              >
-                <Button
-                  variant="unstyled"
-                  size="none"
-                  title={p.path}
+              <div key={p.path} title={p.path} className="group mx-1">
+                <Item
+                  density="compact"
                   onClick={() => {
                     startNewConversation(p.path);
                     setOpen(false);
                   }}
-                  className="block min-w-0 flex-1 truncate px-3 py-2 text-left text-sm text-zinc-200"
-                >
-                  {p.name}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Forget this project"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeProject(p.path);
-                  }}
-                  className={cn(
-                    "mr-1 text-zinc-600 hover:text-red-400",
-                    revealOnGroupHover,
-                  )}
-                >
-                  <Trash2 size={12} />
-                </Button>
+                  label={p.name}
+                  className="text-sm"
+                  endContent={
+                    <IconButton
+                      variant="danger"
+                      size="sm"
+                      label="Forget this project"
+                      tooltip="Forget this project"
+                      icon={<Trash2 size={12} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeProject(p.path);
+                      }}
+                      className={revealOnGroupHover}
+                    />
+                  }
+                />
               </div>
             ))
           )}
@@ -93,12 +88,12 @@ export default function NewConversationPopover({
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start gap-2 text-zinc-400 hover:text-zinc-200"
+            label="Add project"
+            icon={<FolderPlus size={14} />}
+            width="100%"
+            className="justify-start"
             onClick={onAddProject}
-          >
-            <FolderPlus size={14} />
-            Add project
-          </Button>
+          />
         </div>
       </PopoverContent>
     </Popover>

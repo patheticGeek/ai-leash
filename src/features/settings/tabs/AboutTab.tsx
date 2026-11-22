@@ -1,8 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
 import { getIdentifier, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import Logo from "../../../ui/Logo";
 
 const GITHUB_URL = "https://github.com/patheticGeek/ai-leash";
@@ -31,19 +31,17 @@ export default function AboutTab() {
         <Button
           variant="secondary"
           size="sm"
+          label="source code"
+          icon={<ExternalLink size={13} />}
           onClick={() => openUrl(GITHUB_URL)}
-        >
-          <ExternalLink size={13} />
-          source code
-        </Button>
+        />
         <Button
           variant="secondary"
           size="sm"
+          label="my website"
+          icon={<ExternalLink size={13} />}
           onClick={() => openUrl(WEBSITE_URL)}
-        >
-          <ExternalLink size={13} />
-          my website
-        </Button>
+        />
       </div>
     </div>
   );

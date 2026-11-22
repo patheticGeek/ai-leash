@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import { ArrowUpRight } from "lucide-react";
-import { Button } from "@/ui/button";
 import { useConversation } from "../../../../data/conversations";
 import { useAppStore } from "../../../../store";
 
@@ -21,14 +21,15 @@ export default function FromChat({ id }: { id: string }) {
   const openConversation = useAppStore((s) => s.openConversation);
   return (
     <Button
-      variant="unstyled"
-      size="none"
+      variant="quiet"
+      size="sm"
+      label={`From ${label}`}
+      tooltip={`Open ${label}`}
       onClick={() => void openConversation(id)}
-      title={`Open ${label}`}
-      className="gap-0.5 text-xs text-zinc-500 hover:text-zinc-300"
+      className="h-auto gap-0.5 p-0 text-xs"
     >
       From {label}
-      <ArrowUpRight size={11} />
+      <ArrowUpRight size={11} className="inline" />
     </Button>
   );
 }

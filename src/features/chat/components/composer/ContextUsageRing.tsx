@@ -1,6 +1,6 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { useState } from "react";
 import { formatTokenCount } from "@/lib/format";
-import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 export interface ContextUsageRingProps {
@@ -28,28 +28,30 @@ export default function ContextUsageRing({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="unstyled"
-          size="none"
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Context usage"
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => setOpen(false)}
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
-        >
-          <div
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-            style={{
-              background:
-                usagePct !== null
-                  ? `conic-gradient(var(--primary) ${usagePct}%, var(--border) ${usagePct}% 100%)`
-                  : "var(--border)",
-            }}
-          >
-            <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-raised text-[7px] text-muted-foreground">
-              {usagePct !== null ? Math.round(usagePct) : "–"}
+          icon={
+            <div
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+              style={{
+                background:
+                  usagePct !== null
+                    ? `conic-gradient(var(--primary) ${usagePct}%, var(--border) ${usagePct}% 100%)`
+                    : "var(--border)",
+              }}
+            >
+              <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-raised text-[7px] text-muted-foreground">
+                {usagePct !== null ? Math.round(usagePct) : "–"}
+              </div>
             </div>
-          </div>
-        </Button>
+          }
+        />
       </PopoverTrigger>
       <PopoverContent side="top" align="end" sideOffset={8} className="w-48">
         <div className="flex items-center justify-between text-[10px] text-zinc-400">

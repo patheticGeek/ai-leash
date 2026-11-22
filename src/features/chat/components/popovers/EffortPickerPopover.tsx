@@ -1,6 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Brain, Gauge, Sparkles, Zap } from "lucide-react";
 import { useRef, useState } from "react";
-import { Button } from "@/ui/button";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
@@ -47,12 +47,11 @@ export default function EffortPickerPopover({
         <Button
           variant="chip"
           size="sm"
-          title="Thinking effort"
-          className="flex min-w-0 max-w-[120px]"
-        >
-          <EffortIcon size={12} className="shrink-0" />
-          <span className="truncate">{active?.name ?? "effort"}</span>
-        </Button>
+          label={active?.name ?? "effort"}
+          icon={<EffortIcon size={12} />}
+          tooltip="Thinking effort"
+          className="max-w-[120px]"
+        />
       </PopoverTrigger>
       <PopoverContent
         side="top"

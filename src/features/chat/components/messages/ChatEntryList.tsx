@@ -1,3 +1,4 @@
+import { Button } from "@astryxdesign/core/Button";
 import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
 import { ArrowDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -5,7 +6,6 @@ import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import {
   type ActivityItem,
   groupActivity,
@@ -230,8 +230,9 @@ export default function ChatEntryList({
         </div>
       </ScrollableArea>
       <Button
-        variant="outline"
-        size="md"
+        variant="secondary"
+        label="Latest"
+        icon={<ArrowDown size={14} />}
         onClick={stick}
         aria-hidden={atEnd || undefined}
         tabIndex={atEnd ? -1 : undefined}
@@ -243,10 +244,7 @@ export default function ChatEntryList({
             ? "pointer-events-none translate-y-full scale-95 opacity-0"
             : "translate-y-0 scale-100 opacity-100",
         )}
-      >
-        <ArrowDown />
-        Latest
-      </Button>
+      />
     </div>
   );
 }
