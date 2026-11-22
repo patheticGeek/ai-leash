@@ -385,7 +385,10 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
               </div>
               {lanes.map((lane) => (
                 <div key={lane.key} className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-1.5 px-1 text-xs font-medium text-zinc-300">
+                  {/* Sticky to the scroll container's left edge (offset by
+                      its `p-3`), so the epic's name stays in view while the
+                      status columns scroll past horizontally. */}
+                  <div className="sticky left-3 flex items-center gap-1.5 self-start px-1 text-xs font-medium text-zinc-300">
                     {lane.epic && <EpicDot color={lane.epic.color} />}
                     {lane.label}
                     <span className="tabular-nums text-zinc-600">
