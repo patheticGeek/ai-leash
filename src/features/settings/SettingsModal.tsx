@@ -1,6 +1,7 @@
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
+import { Layout, LayoutHeader, LayoutPanel } from "@astryxdesign/core/Layout";
 import { SideNav, SideNavItem } from "@astryxdesign/core/SideNav";
+import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 import { useAppStore } from "../../store";
@@ -10,13 +11,14 @@ import CrashLogTab from "./tabs/CrashLogTab";
 import PreferencesSettingsTab from "./tabs/PreferencesSettingsTab";
 
 const styles = stylex.create({
-  // A fixed-width rail; the open section takes the rest of the dialog.
-  nav: {
-    width: "12rem",
-    flexShrink: 0,
-  },
   // A fixed height, so switching sections doesn't resize the dialog.
   dialog: { height: "38.75rem" },
+  // The rail fills its panel and doesn't hand width back to the content.
+  nav: {
+    width: "100%",
+    flexShrink: 0,
+    backgroundColor: "transparent",
+  },
 });
 
 // One entry per settings page — the side nav is built to hold more without
@@ -41,23 +43,27 @@ export default function SettingsModal() {
       onOpenChange={setOpen}
       width="52.5rem"
       maxHeight="90dvh"
+      padding={0}
       xstyle={styles.dialog}
     >
       <Layout
         header={
-          <DialogHeader
-            title="Settings"
-            onOpenChange={setOpen}
-            hasDivider={false}
-          />
+          <LayoutHeader padding={4}>
+            <DialogHeader
+              title="Settings"
+              onOpenChange={setOpen}
+              hasDivider={false}
+            />
+          </LayoutHeader>
         }
         start={
-          <LayoutPanel>
+          <LayoutPanel width="12.5rem" padding={2}>
             <SideNav xstyle={styles.nav}>
               {SECTIONS.map((section) => (
                 <SideNavItem
                   key={section.id}
                   label={section.label}
+                  size="lg"
                   isSelected={section.id === activeSection}
                   onClick={() => setActiveSection(section.id)}
                 />
@@ -66,12 +72,12 @@ export default function SettingsModal() {
           </LayoutPanel>
         }
         content={
-          <LayoutContent>
+          <VStack isScrollable height="100%" padding={5}>
             {activeSection === "agents" && <AgentsSettingsTab />}
             {activeSection === "preferences" && <PreferencesSettingsTab />}
             {activeSection === "crashlog" && <CrashLogTab />}
             {activeSection === "about" && <AboutTab />}
-          </LayoutContent>
+          </VStack>
         }
       />
     </Dialog>

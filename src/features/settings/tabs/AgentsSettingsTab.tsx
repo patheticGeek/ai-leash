@@ -2,10 +2,19 @@ import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { List, ListItem } from "@astryxdesign/core/List";
+import { Item } from "@astryxdesign/core/Item";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { Token } from "@astryxdesign/core/Token";
+import {
+  borderVars,
+  colorVars,
+  radiusVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import {
   Bot,
   Check,
@@ -16,9 +25,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import {
   deleteBackend,
   saveBackend,
@@ -28,6 +36,49 @@ import {
   useKeyStorageError,
 } from "../../../data/backends";
 import type { BackendConfig } from "../../../lib/tauriApi";
+import { Hint, SectionHeading, SettingsSection } from "./SettingsParts";
+
+const ring = (color: string) =>
+  `0 0 0 ${borderVars["--border-width"]} ${color}`;
+
+const styles = stylex.create({
+  // An agent card: a tinted, rounded, borderless row on the dialog surface.
+  card: {
+    backgroundColor: colorVars["--color-background-muted"],
+    borderColor: "transparent",
+    borderRadius: radiusVars["--radius-element"],
+  },
+  // The default agent: an accent ring over a faint accent tint.
+  cardDefault: {
+    backgroundColor: `color-mix(in srgb, ${colorVars["--color-accent"]} 10%, ${colorVars["--color-background-muted"]})`,
+    boxShadow: ring(colorVars["--color-accent"]),
+  },
+  // A turned-off agent stays listed (and its controls live), just dimmed.
+  cardOff: { opacity: 0.6 },
+  warning: { color: colorVars["--color-text-warning"] },
+  // The open Add/Edit form: a tinted block with an accent ring.
+  form: {
+    backgroundColor: colorVars["--color-background-muted"],
+    borderRadius: radiusVars["--radius-element"],
+    boxShadow: ring(colorVars["--color-accent"]),
+    padding: spacingVars["--spacing-3"],
+  },
+  // The "Add" tile: a dashed outline that brightens on hover.
+  addTile: {
+    backgroundColor: "transparent",
+    borderStyle: "dashed",
+    borderWidth: borderVars["--border-width"],
+    borderColor: {
+      default: colorVars["--color-border-emphasized"],
+      ":hover": colorVars["--color-text-secondary"],
+    },
+    borderRadius: radiusVars["--radius-element"],
+    color: {
+      default: colorVars["--color-text-secondary"],
+      ":hover": colorVars["--color-text-primary"],
+    },
+  },
+});
 
 // One flat grid of every configured backend — Ollama connections, ACP
 // agents, then OpenAI-compatible APIs — matching what the user asked for
@@ -41,7 +92,7 @@ type CardType = BackendConfig["kind"];
 const TYPE_META: Record<
   CardType,
   {
-    icon: ComponentType<{ size?: number; className?: string }>;
+    icon: ComponentType<SVGProps<SVGSVGElement>>;
     label: string;
     hint: string;
   }
@@ -162,13 +213,29 @@ export default function AgentsSettingsTab() {
     return config.baseUrl;
   }
 
+  // The Cancel / Save pair under every form.
+  const formButtons = (
+    <HStack gap={2} justify="end">
+      <Button
+        variant="ghost"
+        label="Cancel"
+        icon={<X size={14} />}
+        onClick={() => setView({ step: "grid" })}
+      />
+      <Button
+        variant="primary"
+        label="Save"
+        icon={<Check size={14} />}
+        onClick={saveForm}
+      />
+    </HStack>
+  );
+
   if (view.step === "pickType") {
     return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-            Add a backend
-          </div>
+      <SettingsSection
+        title="Add a backend"
+        actions={
           <Button
             variant="ghost"
             size="sm"
@@ -176,211 +243,202 @@ export default function AgentsSettingsTab() {
             icon={<X size={14} />}
             onClick={() => setView({ step: "grid" })}
           />
-        </div>
-        <div className="flex flex-col gap-2">
+        }
+      >
+        <VStack gap={3}>
           {(Object.keys(TYPE_META) as CardType[]).map((type) => {
             const meta = TYPE_META[type];
             return (
               <ClickableCard
                 key={type}
                 label={meta.label}
+                variant="muted"
                 padding={3}
                 onClick={() => startAdd(type)}
-                className="flex w-full min-w-0 flex-col items-start gap-1.5 text-left"
+                xstyle={styles.card}
               >
-                <div className="flex w-full items-center gap-2">
-                  <meta.icon size={16} className="text-zinc-500" />
-                  <span className="w-full text-sm text-zinc-200">
-                    {meta.label}
-                  </span>
-                </div>
-                <span className="whitespace-normal w-full text-[11px] text-zinc-600">
-                  {meta.hint}
-                </span>
+                <VStack gap={1}>
+                  <HStack gap={2} vAlign="center">
+                    <Icon icon={meta.icon} size="sm" color="secondary" />
+                    <Text>{meta.label}</Text>
+                  </HStack>
+                  <Text size="sm" color="secondary">
+                    {meta.hint}
+                  </Text>
+                </VStack>
               </ClickableCard>
             );
           })}
-        </div>
-      </div>
+        </VStack>
+      </SettingsSection>
     );
   }
 
   if (view.step === "form") {
     const { type, id } = view;
     const editingOpenAi = backends.find((b) => b.id === id);
+    let fields: ReactNode;
+    if (type === "ollama") {
+      fields = (
+        <>
+          <TextInput
+            label="Label"
+            isLabelHidden
+            value={ollamaForm.label}
+            onChange={(label) => setOllamaForm({ ...ollamaForm, label })}
+            placeholder="Label, e.g. Local Ollama"
+          />
+          <TextInput
+            label="Host"
+            isLabelHidden
+            value={ollamaForm.host}
+            onChange={(host) => setOllamaForm({ ...ollamaForm, host })}
+            placeholder="localhost:11434"
+          />
+        </>
+      );
+    } else if (type === "openAiCompatible") {
+      fields = (
+        <>
+          <TextInput
+            label="Label"
+            isLabelHidden
+            value={openAiForm.label}
+            onChange={(label) => setOpenAiForm({ ...openAiForm, label })}
+            placeholder="Label, e.g. OpenRouter"
+          />
+          <TextInput
+            label="Base URL"
+            isLabelHidden
+            value={openAiForm.baseUrl}
+            onChange={(baseUrl) => setOpenAiForm({ ...openAiForm, baseUrl })}
+            placeholder="https://api.openai.com/v1"
+          />
+          <TextInput
+            label="API key"
+            isLabelHidden
+            value={openAiForm.apiKey}
+            onChange={(apiKey) => setOpenAiForm({ ...openAiForm, apiKey })}
+            type="password"
+            placeholder={
+              editingOpenAi?.kind === "openAiCompatible" &&
+              editingOpenAi.apiKeySaved
+                ? "API key saved — leave blank to keep it"
+                : "API key"
+            }
+          />
+          {keyStorageError ? (
+            <Text display="block" size="sm" xstyle={styles.warning}>
+              {`Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`}
+            </Text>
+          ) : (
+            <Hint>Stored in the system keychain.</Hint>
+          )}
+          <TextInput
+            label="Model"
+            isLabelHidden
+            value={openAiForm.model}
+            onChange={(model) => setOpenAiForm({ ...openAiForm, model })}
+            placeholder="Model id, e.g. gpt-4.1"
+          />
+        </>
+      );
+    } else {
+      fields = (
+        <>
+          <TextInput
+            label="Label"
+            isLabelHidden
+            value={acpForm.label}
+            onChange={(label) => setAcpForm({ ...acpForm, label })}
+            placeholder="Label, e.g. Claude Code"
+          />
+          <TextInput
+            label="Launch command"
+            isLabelHidden
+            value={acpForm.launchCommand}
+            onChange={(launchCommand) =>
+              setAcpForm({ ...acpForm, launchCommand })
+            }
+            placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
+          />
+          <Hint>
+            Runs as an external agent process — model/tool behavior depends on
+            what it exposes. If it advertises a model list, that shows up in the
+            chat bar once a conversation using it starts.
+          </Hint>
+        </>
+      );
+    }
     return (
-      <div className="space-y-3">
-        <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-          {id ? "Edit" : "Add"} {TYPE_META[type].label}
-        </div>
-        {type === "ollama" && (
-          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <TextInput
-              label="Label"
-              size="sm"
-              value={ollamaForm.label}
-              onChange={(label) => setOllamaForm({ ...ollamaForm, label })}
-              placeholder="e.g. Local Ollama"
-            />
-            <TextInput
-              label="Host"
-              size="sm"
-              value={ollamaForm.host}
-              onChange={(host) => setOllamaForm({ ...ollamaForm, host })}
-              placeholder="localhost:11434"
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                label="Cancel"
-                icon={<X size={14} />}
-                onClick={() => setView({ step: "grid" })}
-              />
-              <Button
-                variant="primary"
-                label="Save"
-                icon={<Check size={14} />}
-                onClick={saveForm}
-              />
-            </div>
-          </div>
-        )}
-        {type === "openAiCompatible" && (
-          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <TextInput
-              label="Label"
-              size="sm"
-              value={openAiForm.label}
-              onChange={(label) => setOpenAiForm({ ...openAiForm, label })}
-              placeholder="e.g. OpenRouter"
-            />
-            <TextInput
-              label="Base URL"
-              size="sm"
-              value={openAiForm.baseUrl}
-              onChange={(baseUrl) => setOpenAiForm({ ...openAiForm, baseUrl })}
-              placeholder="https://api.openai.com/v1"
-            />
-            <TextInput
-              label="API key"
-              size="sm"
-              value={openAiForm.apiKey}
-              onChange={(apiKey) => setOpenAiForm({ ...openAiForm, apiKey })}
-              type="password"
-              placeholder={
-                editingOpenAi?.kind === "openAiCompatible" &&
-                editingOpenAi.apiKeySaved
-                  ? "API key saved — leave blank to keep it"
-                  : "API key"
-              }
-            />
-            <div
-              className={cn(
-                "text-xs",
-                keyStorageError ? "text-amber-400" : "text-zinc-600",
-              )}
-            >
-              {keyStorageError
-                ? `Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`
-                : "Stored in the system keychain."}
-            </div>
-            <TextInput
-              label="Model"
-              size="sm"
-              value={openAiForm.model}
-              onChange={(model) => setOpenAiForm({ ...openAiForm, model })}
-              placeholder="e.g. gpt-4.1"
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                label="Cancel"
-                icon={<X size={14} />}
-                onClick={() => setView({ step: "grid" })}
-              />
-              <Button
-                variant="primary"
-                label="Save"
-                icon={<Check size={14} />}
-                onClick={saveForm}
-              />
-            </div>
-          </div>
-        )}
-        {type === "acp" && (
-          <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <TextInput
-              label="Label"
-              size="sm"
-              value={acpForm.label}
-              onChange={(label) => setAcpForm({ ...acpForm, label })}
-              placeholder="e.g. Claude Code"
-            />
-            <TextInput
-              label="Launch command"
-              size="sm"
-              value={acpForm.launchCommand}
-              onChange={(launchCommand) =>
-                setAcpForm({ ...acpForm, launchCommand })
-              }
-              placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
-            />
-            <div className="text-xs text-zinc-600">
-              Runs as an external agent process — model/tool behavior depends on
-              what it exposes. If it advertises a model list, that shows up in
-              the chat bar once a conversation using it starts.
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                label="Cancel"
-                icon={<X size={14} />}
-                onClick={() => setView({ step: "grid" })}
-              />
-              <Button
-                variant="primary"
-                label="Save"
-                icon={<Check size={14} />}
-                onClick={saveForm}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      <SettingsSection
+        title={`${id ? "Edit" : "Add"} ${TYPE_META[type].label}`}
+      >
+        <VStack gap={2} xstyle={styles.form}>
+          {fields}
+          {formButtons}
+        </VStack>
+      </SettingsSection>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <div className="mb-1.5 text-sm font-medium uppercase tracking-wide text-zinc-500">
-        Agents
-      </div>
-      <div className="flex flex-col gap-2">
-        <List hasDividers>
-          {cards.map((c) => {
-            const meta = TYPE_META[c.kind];
-            const active = c.enabled && c.id === defaultBackendId;
-            return (
-              <ListItem
-                key={c.id}
-                isSelected={active}
-                // Turned-off agents can't be made the default, but their
-                // controls (turn back on, edit, delete) stay live.
-                onClick={
-                  c.enabled ? () => void setDefaultBackend(c.id) : undefined
+    <VStack gap={3}>
+      <SectionHeading>Agents</SectionHeading>
+      <VStack gap={3}>
+        {cards.map((c) => {
+          const meta = TYPE_META[c.kind];
+          const active = c.enabled && c.id === defaultBackendId;
+          return (
+            <ClickableCard
+              key={c.id}
+              label={
+                !c.enabled
+                  ? `${c.label} (turned off)`
+                  : active
+                    ? `${c.label}, default for new conversations`
+                    : `Make ${c.label} the default for new conversations`
+              }
+              padding={0}
+              // Turned-off agents can't be made the default, but their
+              // controls (turn back on, edit, delete) stay live.
+              onClick={
+                c.enabled ? () => void setDefaultBackend(c.id) : undefined
+              }
+              xstyle={[
+                styles.card,
+                active && styles.cardDefault,
+                !c.enabled && styles.cardOff,
+              ]}
+            >
+              <Item
+                align="first-line"
+                startContent={
+                  <Icon icon={meta.icon} size="sm" color="secondary" />
                 }
-                className={cn(!c.enabled && "opacity-60")}
-                startContent={<meta.icon size={15} />}
-                label={c.label}
-                description={subtitle(c)}
-                endContent={
-                  <HStack gap={1} align="center">
+                label={
+                  <HStack gap={2} vAlign="center">
+                    <Text weight="medium" maxLines={1}>
+                      {c.label}
+                    </Text>
                     {active && (
-                      <Token size="sm" color="purple" label="default" />
+                      <Text size="sm" color="accent">
+                        default
+                      </Text>
                     )}
+                  </HStack>
+                }
+                description={
+                  <Text size="sm" color="secondary" maxLines={1}>
+                    {subtitle(c)}
+                  </Text>
+                }
+                endContent={
+                  <HStack gap={1} vAlign="center">
                     <CheckboxInput
                       label={`Enable ${c.label}`}
                       isLabelHidden
+                      size="sm"
                       value={c.enabled}
                       onChange={(enabled) =>
                         void saveBackend({ ...c, enabled })
@@ -405,24 +463,27 @@ export default function AgentsSettingsTab() {
                   </HStack>
                 }
               />
-            );
-          })}
-        </List>
-        <Button
-          variant="quiet"
-          label="Add"
-          icon={<Plus size={16} />}
-          width="100%"
+            </ClickableCard>
+          );
+        })}
+        <ClickableCard
+          label="Add an agent"
+          padding={3}
           onClick={() => setView({ step: "pickType" })}
-          className="h-auto flex-col gap-1.5 border border-dashed border-zinc-700 py-2.5 hover:border-zinc-500"
-        />
-      </div>
-      <div className="text-xs text-zinc-600">
+          xstyle={styles.addTile}
+        >
+          <VStack gap={1} hAlign="center">
+            <Plus size={16} />
+            <Text color="inherit">Add</Text>
+          </VStack>
+        </ClickableCard>
+      </VStack>
+      <Hint>
         Click a card to make it the default for new conversations. Each
         conversation remembers its own choice once you pick one from the chat
         bar. Untick a card to turn it off — it stays saved but is hidden from
         the chat bar and no longer checked in the background.
-      </div>
-    </div>
+      </Hint>
+    </VStack>
   );
 }

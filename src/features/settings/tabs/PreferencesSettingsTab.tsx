@@ -1,6 +1,11 @@
+import { Code } from "@astryxdesign/core/Code";
+import { HStack } from "@astryxdesign/core/HStack";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
+import { StackItem } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import type { ReactNode } from "react";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import {
   COMPOSER_MIN_ROWS,
   DEFAULT_CODE_FONT_SIZE,
@@ -14,18 +19,14 @@ import {
   useSetPreferences,
 } from "../../../data/preferences";
 import FontFamilyPicker from "./FontFamilyPicker";
+import { Hint, SettingsRow, SettingsSection } from "./SettingsParts";
 import ToggleRow from "./ToggleRow";
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-        {title}
-      </div>
-      {children}
-    </section>
-  );
-}
+const styles = stylex.create({
+  // A short number field under a full-width label: the label keeps the row's
+  // width, only the box is narrow.
+  numberBox: { width: "6rem" },
+});
 
 function FontRow({
   label,
@@ -49,45 +50,52 @@ function FontRow({
   onSizeChange: (size: number) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-md bg-raised px-3 py-2.5">
-      <div className="text-sm text-zinc-200">{label}</div>
-      <div className="flex items-end gap-3">
-        <div className="flex min-w-0 flex-1 items-end gap-1.5">
-          <TextInput
-            label="Font family"
-            size="sm"
-            width="100%"
-            value={family}
-            placeholder={familyPlaceholder}
-            hasSpellCheck={false}
-            autoComplete="off"
-            onChange={onFamilyChange}
+    <SettingsRow>
+      <Text display="block">{label}</Text>
+      <HStack gap={4} vAlign="end">
+        <StackItem size="fill">
+          <VStack gap={1}>
+            <Hint>Font family</Hint>
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                <TextInput
+                  label={`${label} font family`}
+                  isLabelHidden
+                  width="100%"
+                  value={family}
+                  placeholder={familyPlaceholder}
+                  hasSpellCheck={false}
+                  autoComplete="off"
+                  onChange={onFamilyChange}
+                />
+              </StackItem>
+              <FontFamilyPicker
+                monospaceFirst={monospace}
+                onPick={onFamilyChange}
+              />
+            </HStack>
+          </VStack>
+        </StackItem>
+        <VStack gap={1}>
+          <Hint>Size (px)</Hint>
+          <NumberInput
+            label={`${label} size in pixels`}
+            isLabelHidden
+            width="6rem"
+            isIntegerOnly
+            value={size}
+            min={MIN_FONT_SIZE}
+            max={MAX_FONT_SIZE}
+            onChange={onSizeChange}
           />
-          <FontFamilyPicker
-            monospaceFirst={monospace}
-            onPick={onFamilyChange}
-          />
-        </div>
-        <NumberInput
-          label="Size"
-          size="sm"
-          width={96}
-          units="px"
-          isIntegerOnly
-          value={size}
-          min={MIN_FONT_SIZE}
-          max={MAX_FONT_SIZE}
-          onChange={onSizeChange}
-        />
-      </div>
-      <span className="block text-xs text-zinc-600">
+        </VStack>
+      </HStack>
+      <Hint>
         {hint} Family is a CSS font list, such as{" "}
-        <code className="font-mono text-code text-zinc-400">
-          Inter, sans-serif
-        </code>{" "}
-        (empty for the default). Default size is {defaultSize}px.
-      </span>
-    </div>
+        <Code size="inherit">Inter, sans-serif</Code> (empty for the default).
+        Default size is {defaultSize}px.
+      </Hint>
+    </SettingsRow>
   );
 }
 
@@ -105,8 +113,8 @@ export default function PreferencesSettingsTab() {
   const setPreferences = useSetPreferences();
 
   return (
-    <div className="space-y-6">
-      <Section title="Chat">
+    <VStack gap={8}>
+      <SettingsSection title="Chat">
         <ToggleRow
           label="Compose mode"
           hint="Enter inserts a new line in the chat box, and Ctrl+Enter sends
@@ -124,21 +132,25 @@ export default function PreferencesSettingsTab() {
             setPreferences({ collapseFinishedTurns })
           }
         />
-        <div className="rounded-md bg-raised px-3 py-2.5">
+        <SettingsRow>
           <NumberInput
             label="Max chat box height (lines)"
-            description={`The chat box grows with your text up to this many lines, then scrolls. Between ${COMPOSER_MIN_ROWS} and ${MAX_COMPOSER_MAX_ROWS}, default ${DEFAULT_COMPOSER_MAX_ROWS}.`}
-            size="sm"
-            width={96}
+            width="100%"
+            controlXstyle={styles.numberBox}
             isIntegerOnly
             value={composerMaxRows}
             min={COMPOSER_MIN_ROWS}
             max={MAX_COMPOSER_MAX_ROWS}
             onChange={(composerMaxRows) => setPreferences({ composerMaxRows })}
           />
-        </div>
-      </Section>
-      <Section title="Fonts">
+          <Hint>
+            The chat box grows with your text up to this many lines, then
+            scrolls. Between {COMPOSER_MIN_ROWS} and {MAX_COMPOSER_MAX_ROWS},
+            default {DEFAULT_COMPOSER_MAX_ROWS}.
+          </Hint>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection title="Fonts">
         <FontRow
           label="Interface text"
           hint="Used for all normal text; every text size in the app scales with it."
@@ -163,30 +175,27 @@ export default function PreferencesSettingsTab() {
           defaultSize={DEFAULT_CODE_FONT_SIZE}
           onSizeChange={(codeFontSize) => setPreferences({ codeFontSize })}
         />
-      </Section>
-      <Section title="IDE">
-        <div className="space-y-1.5 rounded-md bg-raised px-3 py-2.5">
+      </SettingsSection>
+      <SettingsSection title="IDE">
+        <SettingsRow>
           <TextInput
             label="Command"
-            size="sm"
             value={ideCommand}
             placeholder={DEFAULT_IDE_COMMAND}
             hasSpellCheck={false}
             autoComplete="off"
             onChange={(ideCommand) => setPreferences({ ideCommand })}
           />
-          <span className="block text-xs text-zinc-600">
+          <Hint>
             Launched by the title bar's Open button with the current project or
             worktree folder added as the last argument. Use any command on your
-            PATH, with optional flags, such as{" "}
-            <code className="font-mono text-code text-zinc-400">code</code>,{" "}
-            <code className="font-mono text-code text-zinc-400">zed</code>,{" "}
-            <code className="font-mono text-code text-zinc-400">cursor</code> or{" "}
-            <code className="font-mono text-code text-zinc-400">code -n</code>.
-          </span>
-        </div>
-      </Section>
-      <Section title="Debug">
+            PATH, with optional flags, such as <Code size="inherit">code</Code>,{" "}
+            <Code size="inherit">zed</Code>, <Code size="inherit">cursor</Code>{" "}
+            or <Code size="inherit">code -n</Code>.
+          </Hint>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection title="Debug">
         <ToggleRow
           label="Enable debug mode"
           hint="Adds a floating icon (bottom-right) that opens a live ACP Events
@@ -205,7 +214,7 @@ export default function PreferencesSettingsTab() {
           checked={debugShowIds}
           onChange={(debugShowIds) => setPreferences({ debugShowIds })}
         />
-      </Section>
-    </div>
+      </SettingsSection>
+    </VStack>
   );
 }
