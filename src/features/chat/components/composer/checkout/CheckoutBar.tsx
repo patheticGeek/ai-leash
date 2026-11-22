@@ -98,7 +98,11 @@ export default function CheckoutBar({
   );
 
   return (
-    <Card variant="muted" padding={1} xstyle={dockStyles.dock}>
+    <Card
+      variant="muted"
+      padding={1}
+      xstyle={[dockStyles.dock, dockStyles.bottom]}
+    >
       <HStack
         role="group"
         aria-label="Checkout"

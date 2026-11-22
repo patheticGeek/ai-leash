@@ -21,6 +21,7 @@ const styles = stylex.create({
   strip: {
     minWidth: 0,
     flexGrow: 1,
+    paddingBlock: spacingVars["--spacing-2"],
   },
   // Room at the tab's end for the close button laid over it.
   closable: {

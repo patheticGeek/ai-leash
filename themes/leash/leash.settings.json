@@ -80,18 +80,175 @@
       "source": "dial"
     },
     {
+      "thing": "--color-text-secondary",
+      "value": "#8d8f9a",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "corners",
+      "value": "6px",
+      "source": "dial"
+    },
+    {
+      "thing": "spacing",
+      "value": "tight",
+      "source": "dial"
+    },
+    {
+      "thing": "text-size",
+      "value": "small",
+      "source": "dial"
+    },
+    {
+      "thing": "--color-accent",
+      "value": "#3a5f8f",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-on-accent",
+      "value": "#e4e4e7",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-inverted",
+      "value": "#141518",
+      "source": "token",
+      "on": "tooltip",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-surface",
+      "value": "#e4e4e7",
+      "source": "token",
+      "on": "tooltip",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-inverted",
+      "value": "#141518",
+      "source": "token",
+      "on": "toast",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-error-inverted",
+      "value": "#f87171",
+      "source": "token",
+      "on": "toast",
+      "when": "type:error",
+      "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-background-muted)",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-background-muted)",
+      "source": "property",
+      "on": "top-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-neutral)",
+      "source": "property",
+      "on": "button",
+      "when": "variant:primary",
+      "state": "disabled"
+    },
+    {
       "thing": "color",
-      "value": "#ffffff",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "button",
+      "when": "variant:primary",
+      "state": "disabled"
+    },
+    {
+      "thing": "background-color",
+      "value": "#8fa4bf",
+      "source": "property",
+      "on": "progress-bar-fill",
+      "when": "variant:accent",
+      "mode": "dark"
+    },
+    {
+      "thing": "color",
+      "value": "#000000",
       "source": "property",
       "on": "toast",
       "when": "type:error",
       "mode": "dark"
     },
     {
-      "thing": "--color-text-secondary",
-      "value": "#8d8f9a",
-      "source": "token",
+      "thing": "box-shadow",
+      "value": "0 1px 4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "display",
+      "value": "none",
+      "source": "property",
+      "on": "tab-indicator"
+    },
+    {
+      "thing": "background-color",
+      "value": "rgba(255, 255, 255, 0.1)",
+      "source": "property",
+      "on": "tab",
+      "state": "selected",
       "mode": "dark"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "tab",
+      "state": "hover"
+    },
+    {
+      "thing": "padding-inline",
+      "value": "8px",
+      "source": "property",
+      "on": "tab"
+    },
+    {
+      "thing": "padding-block",
+      "value": "6px",
+      "source": "property",
+      "on": "tab"
+    },
+    {
+      "thing": "font-size",
+      "value": "var(--font-size-sm)",
+      "source": "property",
+      "on": "tab"
+    },
+    {
+      "thing": "font-weight",
+      "value": "var(--font-weight-normal)",
+      "source": "property",
+      "on": "tab"
+    },
+    {
+      "thing": "gap",
+      "value": "4px",
+      "source": "property",
+      "on": "tab-list"
+    },
+    {
+      "thing": "padding-inline",
+      "value": "6px",
+      "source": "property",
+      "on": "tab-list"
     }
   ],
   "lifted": [],
