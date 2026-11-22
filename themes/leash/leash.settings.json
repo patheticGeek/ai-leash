@@ -249,6 +249,37 @@
       "value": "6px",
       "source": "property",
       "on": "tab-list"
+    },
+    {
+      "thing": "background-color",
+      "value": "#0b0c0e",
+      "source": "property",
+      "on": "app-shell",
+      "when": "variant:wash",
+      "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "#0b0c0e",
+      "source": "property",
+      "on": "app-shell-header",
+      "when": "variant:wash",
+      "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "#0b0c0e",
+      "source": "property",
+      "on": "app-shell-sidenav",
+      "when": "variant:wash",
+      "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "#0b0c0e",
+      "source": "property",
+      "on": "layout-panel",
+      "mode": "dark"
     }
   ],
   "lifted": [],

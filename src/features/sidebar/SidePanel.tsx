@@ -1,4 +1,7 @@
+import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { type PanelTabKind, useAppStore } from "../../store";
@@ -6,6 +9,14 @@ import { TabBody } from "../tabs/TabContent";
 import { useTabDropArea } from "../tabs/TabDnd";
 import TabStrip from "../tabs/TabStrip";
 import TabPicker from "./TabPicker";
+
+const styles = stylex.create({
+  fill: { height: "100%" },
+  header: { flexShrink: 0 },
+  tabStrip: { flex: 1 },
+  // Takes what the tab row leaves; the positioning context for tab content.
+  body: { position: "relative", flex: 1, minHeight: 0 },
+});
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
@@ -30,8 +41,8 @@ export default function SidePanel() {
   }
 
   return (
-    <div ref={dropRef} className="flex h-full flex-col bg-sunken">
-      <div className="flex shrink-0 items-center pr-1.5">
+    <VStack ref={dropRef} xstyle={styles.fill}>
+      <HStack align="center" paddingInlineEnd={1.5} xstyle={styles.header}>
         <TabStrip
           tabs={panelTabs}
           value={showPicker ? "" : (activePanelTabId ?? "")}
@@ -39,7 +50,7 @@ export default function SidePanel() {
             activateTab(id);
             setPickerOpen(false);
           }}
-          className="flex-1"
+          xstyle={styles.tabStrip}
         />
         <IconButton
           variant="ghost"
@@ -49,15 +60,15 @@ export default function SidePanel() {
           icon={<Plus size={14} />}
           onClick={() => setPickerOpen(true)}
         />
-      </div>
-      <div className="relative flex-1 min-h-0">
+      </HStack>
+      <VStack xstyle={styles.body}>
         <TabBody
           tabs={panelTabs}
           activeId={activePanelTabId}
           hidden={showPicker}
         />
         {showPicker && <TabPicker onPick={pick} />}
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   );
 }

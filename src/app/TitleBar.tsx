@@ -1,5 +1,12 @@
+import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
+import { TopNav } from "@astryxdesign/core/TopNav";
+import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
@@ -15,6 +22,37 @@ import OpenInIdeButton from "./OpenInIdeButton";
 import TitleBarActions from "./TitleBarActions";
 
 export const TITLEBAR_HEIGHT = 36;
+
+const styles = stylex.create({
+  nav: { padding: 0, flexWrap: "nowrap", height: TITLEBAR_HEIGHT },
+  // The full window width: a definite size, since the heading slot it sits
+  // in otherwise shrinks to its content.
+  bar: { width: "100vw", height: TITLEBAR_HEIGHT },
+  fullHeight: { height: "100%" },
+  // The corners above the sidebar and the side panel, sized to match them.
+  fixedRegion: { flexShrink: 0 },
+  // Above the centre pane, so it takes the centre's colour.
+  middle: {
+    flex: 1,
+    minWidth: 0,
+    height: "100%",
+    backgroundColor: colorVars["--color-background-body"],
+  },
+  actions: { flexShrink: 0, marginInlineStart: "auto" },
+  // Window-chrome buttons fill the bar's height edge to edge, square-cornered.
+  windowButton: {
+    height: "100%",
+    width: spacingVars["--spacing-10"],
+    borderRadius: 0,
+  },
+  closeButton: {
+    backgroundColor: { default: null, ":hover": colorVars["--color-error"] },
+    color: { default: null, ":hover": colorVars["--color-on-error"] },
+  },
+  debugButton: {
+    color: colorVars["--color-text-warning"],
+  },
+});
 
 // `getCurrentWindow()` reads `window.__TAURI_INTERNALS__` synchronously and
 // throws when this file runs outside an actual Tauri webview — e.g. opening
@@ -46,14 +84,14 @@ function WindowControls() {
   }, []);
 
   return (
-    <div className="flex h-full shrink-0 items-center">
+    <HStack align="center" xstyle={styles.fullHeight}>
       <IconButton
         variant="ghost"
         size="sm"
         label="Minimize"
         tooltip="Minimize"
         icon={<Minus size={14} />}
-        className="h-full w-10 rounded-none"
+        xstyle={styles.windowButton}
         onClick={() => tauriWindow()?.minimize()}
       />
       <IconButton
@@ -62,7 +100,7 @@ function WindowControls() {
         label={maximized ? "Restore" : "Maximize"}
         tooltip={maximized ? "Restore" : "Maximize"}
         icon={maximized ? <Copy size={12} /> : <Square size={12} />}
-        className="h-full w-10 rounded-none"
+        xstyle={styles.windowButton}
         onClick={() => tauriWindow()?.toggleMaximize()}
       />
       <IconButton
@@ -71,10 +109,10 @@ function WindowControls() {
         label="Close"
         tooltip="Close"
         icon={<X size={14} />}
-        className="h-full w-10 rounded-none hover:bg-red-500 hover:text-white"
+        xstyle={[styles.windowButton, styles.closeButton]}
         onClick={() => tauriWindow()?.close()}
       />
-    </div>
+    </HStack>
   );
 }
 
@@ -143,95 +181,117 @@ export default function TitleBar({
   }
 
   return (
-    <div
-      data-tauri-drag-region
-      className="absolute top-0 left-0 right-0 z-20 flex bg-sunken"
-      style={{ height: TITLEBAR_HEIGHT }}
-    >
-      <div
-        data-tauri-drag-region
-        style={{ width: leftBarWidth }}
-        className="flex shrink-0 items-center justify-between px-1.5"
-      >
-        <div className="flex min-w-0 items-center gap-1.5 ml-1.5">
-          <Logo size="sm" />
-          {BUILD_LABEL && (
-            <Token size="sm" color="orange" label={BUILD_LABEL} />
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <IconButton
-            variant="ghost"
-            size="lg"
-            label="New thread"
-            tooltip="Start a new thread in the current project"
-            icon={<SquarePen size={17} />}
-            onClick={onNewThread}
-          />
-        </div>
-      </div>
-      <div
-        data-tauri-drag-region
-        className="flex min-w-0 flex-1 items-center px-3 text-sm text-zinc-400 bg-background"
-      >
-        {project && !debugShowIds && (
-          <span className="min-w-0 truncate">
-            {project.name}
-            {isNewThread ? (
-              <span className="text-zinc-600"> / New Thread</span>
-            ) : (
-              conversationTitle && (
-                <span className="text-zinc-600"> / {conversationTitle}</span>
-              )
-            )}
-          </span>
-        )}
-        {debugShowIds && (
-          <span
-            // The project root is the tooltip rather than the line itself:
-            // `projectId` is the project's real identity (it survives the
-            // folder being moved or renamed), but the path is what makes it
-            // recognizable at a glance.
-            title={`project id / conversation id / session id\n${projectRoot ?? "no project"}`}
-            className="min-w-0 truncate font-mono text-[11px] text-zinc-600"
+    <TopNav
+      label="Title bar"
+      // `deep`: a press anywhere in the bar drags the window, except on its
+      // buttons and other controls (Tauri's drag script skips those).
+      data-tauri-drag-region="deep"
+      xstyle={styles.nav}
+      heading={
+        // The whole bar sits in the heading slot so its three regions can
+        // line up with the panes below: TopNav's own start/end slots size to
+        // their content and wrap, which would neither track the pane widths
+        // nor let the title truncate.
+        <HStack align="center" xstyle={styles.bar}>
+          <HStack
+            align="center"
+            hAlign="between"
+            width={leftBarWidth}
+            paddingInlineStart={3}
+            paddingInlineEnd={1.5}
+            xstyle={styles.fixedRegion}
           >
-            {projectId ?? "—"} / {activeSessionId ?? "—"} /{" "}
-            {acpSessionId ?? "—"}
-          </span>
-        )}
-        <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-3">
-          {/* A project's board has no checkout of its own to open or run
-              Actions in — just its layout switch. */}
-          {boardView ? (
-            <BoardLayoutSwitch />
-          ) : (
-            <>
-              <OpenInIdeButton />
-              <TitleBarActions />
-            </>
-          )}
-        </div>
-      </div>
-      <div
-        data-tauri-drag-region
-        style={
-          rightPanelWidth === null ? undefined : { width: rightPanelWidth }
-        }
-        className="flex shrink-0 items-center justify-end"
-      >
-        {debugModeEnabled && (
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
-            tooltip={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
-            icon={<Bug size={15} />}
-            onClick={() => setDebugPanelOpen(!debugPanelOpen)}
-            className="h-full w-10 rounded-none text-amber-400 hover:text-amber-300"
-          />
-        )}
-        <WindowControls />
-      </div>
-    </div>
+            <HStack align="center" gap={1.5}>
+              <Logo size="sm" />
+              {BUILD_LABEL && (
+                <Token size="sm" color="orange" label={BUILD_LABEL} />
+              )}
+            </HStack>
+            <IconButton
+              variant="ghost"
+              size="lg"
+              label="New thread"
+              tooltip="Start a new thread in the current project"
+              icon={<SquarePen size={17} />}
+              onClick={onNewThread}
+            />
+          </HStack>
+          <HStack align="center" paddingInline={3} xstyle={styles.middle}>
+            {project && !debugShowIds && (
+              <Text size="sm" color="secondary" maxLines={1}>
+                {project.name}
+                {isNewThread ? (
+                  <Text color="disabled"> / New Thread</Text>
+                ) : (
+                  conversationTitle && (
+                    <Text color="disabled"> / {conversationTitle}</Text>
+                  )
+                )}
+              </Text>
+            )}
+            {debugShowIds && (
+              // The project root is the tooltip rather than the line itself:
+              // `projectId` is the project's real identity (it survives the
+              // folder being moved or renamed), but the path is what makes
+              // it recognizable at a glance.
+              <Tooltip
+                hasHoverIndication={false}
+                content={
+                  <VStack>
+                    <Text>project id / conversation id / session id</Text>
+                    <Text>{projectRoot ?? "no project"}</Text>
+                  </VStack>
+                }
+              >
+                <Text type="code" size="2xs" color="disabled" maxLines={1}>
+                  {projectId ?? "—"} / {activeSessionId ?? "—"} /{" "}
+                  {acpSessionId ?? "—"}
+                </Text>
+              </Tooltip>
+            )}
+            <HStack
+              align="center"
+              gap={1.5}
+              paddingInlineStart={3}
+              xstyle={styles.actions}
+            >
+              {/* A project's board has no checkout of its own to open or run
+                  Actions in — just its layout switch. */}
+              {boardView ? (
+                <BoardLayoutSwitch />
+              ) : (
+                <>
+                  <OpenInIdeButton />
+                  <TitleBarActions />
+                </>
+              )}
+            </HStack>
+          </HStack>
+          <HStack
+            align="center"
+            hAlign="end"
+            // Null while there's no side panel (the board): the corner then
+            // just fits the window controls.
+            width={rightPanelWidth ?? undefined}
+            xstyle={[styles.fixedRegion, styles.fullHeight]}
+          >
+            {debugModeEnabled && (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
+                tooltip={
+                  debugPanelOpen ? "Close ACP Events" : "Open ACP Events"
+                }
+                icon={<Bug size={15} />}
+                onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                xstyle={[styles.windowButton, styles.debugButton]}
+              />
+            )}
+            <WindowControls />
+          </HStack>
+        </HStack>
+      }
+    />
   );
 }
