@@ -1,13 +1,13 @@
 import { Button } from "@astryxdesign/core/Button";
-import { type ReactNode, useState } from "react";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from "@astryxdesign/core/Layout";
+import { type ReactNode, useState } from "react";
 import {
   getConversations,
   refreshConversations,
@@ -77,8 +77,12 @@ export function useFinishTask(): {
   }
 
   const dialog = (
+    // A destructive confirm, but not `AlertDialog`: it lists the changes
+    // that would be lost, and AlertDialog's description is plain text.
     <Dialog
-      open={pending !== null}
+      isOpen={pending !== null}
+      role="alertdialog"
+      width={512}
       onOpenChange={(open) => {
         if (!open && !working) {
           setPending(null);
@@ -86,37 +90,53 @@ export function useFinishTask(): {
         }
       }}
     >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Remove #{pending?.task.number}'s worktree?</DialogTitle>
-          <DialogDescription>
-            Moving the task to Done removes its worktree. Its branch is kept.
-          </DialogDescription>
-        </DialogHeader>
-        <ChangeList
-          title="Uncommitted changes — lost when the worktree goes"
-          lines={pending?.changes.uncommitted ?? []}
-        />
-        <ChangeList
-          title="Commits not merged anywhere — they stay on the branch"
-          lines={pending?.changes.unmergedCommits ?? []}
-        />
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            label="Keep it open"
-            isDisabled={working}
-            onClick={() => setPending(null)}
+      <Layout
+        header={
+          <DialogHeader
+            title={`Remove #${pending?.task.number ?? ""}'s worktree?`}
+            subtitle="Moving the task to Done removes its worktree. Its branch is kept."
+            onOpenChange={() => {
+              if (!working) {
+                setPending(null);
+                setError(null);
+              }
+            }}
           />
-          <Button
-            variant="destructive"
-            label={working ? "Removing…" : "Remove and mark done"}
-            isDisabled={working}
-            onClick={confirm}
-          />
-        </DialogFooter>
-      </DialogContent>
+        }
+        content={
+          <LayoutContent>
+            <VStack gap={4}>
+              <ChangeList
+                title="Uncommitted changes — lost when the worktree goes"
+                lines={pending?.changes.uncommitted ?? []}
+              />
+              <ChangeList
+                title="Commits not merged anywhere — they stay on the branch"
+                lines={pending?.changes.unmergedCommits ?? []}
+              />
+              {error && <p className="text-xs text-destructive">{error}</p>}
+            </VStack>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <HStack gap={2} hAlign="end">
+              <Button
+                variant="ghost"
+                label="Keep it open"
+                isDisabled={working}
+                onClick={() => setPending(null)}
+              />
+              <Button
+                variant="destructive"
+                label={working ? "Removing…" : "Remove and mark done"}
+                isDisabled={working}
+                onClick={confirm}
+              />
+            </HStack>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 

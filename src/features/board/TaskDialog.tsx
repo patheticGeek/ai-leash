@@ -1,16 +1,18 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import {
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from "@astryxdesign/core/Layout";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import * as stylex from "@stylexjs/stylex";
 import { Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
 import {
   PRIORITY_LABELS,
   STATUS_LABELS,
@@ -30,8 +32,14 @@ import {
 import AgentFields from "./AgentFields";
 import { EpicDot, PriorityIcon } from "./TaskMeta";
 
-// Radix `Select` reserves "" for "nothing selected".
+// Sentinel option value for "nothing selected" (no epic / unsized).
 const NONE = "none";
+
+const styles = stylex.create({
+  // The form wraps the dialog's whole Layout so Enter / Ctrl+Enter submit
+  // from any field; it has to fill the dialog like the Layout would.
+  form: { flex: 1, minHeight: 0, height: "100%" },
+});
 
 interface Draft {
   title: string;
@@ -126,124 +134,141 @@ export default function TaskDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <form
-          onSubmit={submit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void submit();
-          }}
-          className="flex flex-col gap-4"
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {task ? `#${task.number} ${task.title}` : "New task"}
-            </DialogTitle>
-          </DialogHeader>
-          <TextInput
-            label="Title"
-            hasAutoFocus
-            value={draft.title}
-            onChange={(title) => set("title", title)}
-            placeholder="What needs doing?"
-          />
-          <TextArea
-            label="Description"
-            rows={8}
-            value={draft.description}
-            onChange={(description) => set("description", description)}
-            placeholder="Context, acceptance criteria, links… (Markdown)"
-          />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Selector
-              label="Status"
-              size="sm"
-              width="100%"
-              value={draft.status}
-              onChange={(v) => set("status", v as TaskStatus)}
-              options={TASK_STATUSES.map((s) => ({
-                value: s,
-                label: STATUS_LABELS[s],
-              }))}
+    <Dialog
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      purpose="form"
+      width={576}
+    >
+      <VStack
+        as="form"
+        xstyle={styles.form}
+        onSubmit={submit}
+        onKeyDown={(e: React.KeyboardEvent) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void submit();
+        }}
+      >
+        <Layout
+          header={
+            <DialogHeader
+              title={task ? `#${task.number} ${task.title}` : "New task"}
+              onOpenChange={onOpenChange}
             />
-            <Selector
-              label="Priority"
-              size="sm"
-              width="100%"
-              value={draft.priority}
-              onChange={(v) => set("priority", v as TaskPriority)}
-              options={TASK_PRIORITIES.map((p) => ({
-                value: p,
-                label: PRIORITY_LABELS[p],
-                icon: <PriorityIcon priority={p} />,
-              }))}
-            />
-            <Selector
-              label="Effort"
-              size="sm"
-              width="100%"
-              value={draft.effort ?? NONE}
-              onChange={(v) =>
-                set("effort", v === NONE ? null : (v as TaskEffort))
-              }
-              options={[
-                { value: NONE, label: "Unsized" },
-                ...TASK_EFFORTS.map((size) => ({
-                  value: size,
-                  label: size.toUpperCase(),
-                })),
-              ]}
-            />
-            <Selector
-              label="Epic"
-              size="sm"
-              width="100%"
-              value={draft.epicId ?? NONE}
-              onChange={(v) => set("epicId", v === NONE ? null : v)}
-              options={[
-                { value: NONE, label: "No epic" },
-                ...selectableEpics.map((epic) => ({
-                  value: epic.id,
-                  label: epic.title,
-                  icon: <EpicDot color={epic.color} />,
-                })),
-              ]}
-            />
-          </div>
-          <AgentFields
-            value={draft.agent}
-            onChange={(agent) => set("agent", agent)}
-            inheritLabel="Board default"
-          />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <DialogFooter className="sm:justify-between">
-            {task ? (
-              <Button
-                variant="danger"
-                label="Delete"
-                icon={<Trash2 size={14} />}
-                onClick={remove}
-                tooltip="Delete task"
-              />
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                label="Cancel"
-                onClick={() => onOpenChange(false)}
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                label={task ? "Save" : "Create task"}
-                isDisabled={!draft.title.trim() || saving}
-              />
-            </div>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+          }
+          content={
+            <LayoutContent>
+              <VStack gap={4}>
+                <TextInput
+                  label="Title"
+                  hasAutoFocus
+                  value={draft.title}
+                  onChange={(title) => set("title", title)}
+                  placeholder="What needs doing?"
+                />
+                <TextArea
+                  label="Description"
+                  rows={8}
+                  value={draft.description}
+                  onChange={(description) => set("description", description)}
+                  placeholder="Context, acceptance criteria, links… (Markdown)"
+                />
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Selector
+                    label="Status"
+                    size="sm"
+                    width="100%"
+                    value={draft.status}
+                    onChange={(v) => set("status", v as TaskStatus)}
+                    options={TASK_STATUSES.map((s) => ({
+                      value: s,
+                      label: STATUS_LABELS[s],
+                    }))}
+                  />
+                  <Selector
+                    label="Priority"
+                    size="sm"
+                    width="100%"
+                    value={draft.priority}
+                    onChange={(v) => set("priority", v as TaskPriority)}
+                    options={TASK_PRIORITIES.map((p) => ({
+                      value: p,
+                      label: PRIORITY_LABELS[p],
+                      icon: <PriorityIcon priority={p} />,
+                    }))}
+                  />
+                  <Selector
+                    label="Effort"
+                    size="sm"
+                    width="100%"
+                    value={draft.effort ?? NONE}
+                    onChange={(v) =>
+                      set("effort", v === NONE ? null : (v as TaskEffort))
+                    }
+                    options={[
+                      { value: NONE, label: "Unsized" },
+                      ...TASK_EFFORTS.map((size) => ({
+                        value: size,
+                        label: size.toUpperCase(),
+                      })),
+                    ]}
+                  />
+                  <Selector
+                    label="Epic"
+                    size="sm"
+                    width="100%"
+                    value={draft.epicId ?? NONE}
+                    onChange={(v) => set("epicId", v === NONE ? null : v)}
+                    options={[
+                      { value: NONE, label: "No epic" },
+                      ...selectableEpics.map((epic) => ({
+                        value: epic.id,
+                        label: epic.title,
+                        icon: <EpicDot color={epic.color} />,
+                      })),
+                    ]}
+                  />
+                </div>
+                <AgentFields
+                  value={draft.agent}
+                  onChange={(agent) => set("agent", agent)}
+                  inheritLabel="Board default"
+                />
+                {error && <p className="text-xs text-destructive">{error}</p>}
+              </VStack>
+            </LayoutContent>
+          }
+          footer={
+            <LayoutFooter>
+              <HStack gap={2} justify="between">
+                {task ? (
+                  <Button
+                    variant="danger"
+                    label="Delete"
+                    icon={<Trash2 size={14} />}
+                    onClick={remove}
+                    tooltip="Delete task"
+                  />
+                ) : (
+                  <span />
+                )}
+                <HStack gap={2}>
+                  <Button
+                    variant="ghost"
+                    label="Cancel"
+                    onClick={() => onOpenChange(false)}
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    label={task ? "Save" : "Create task"}
+                    isDisabled={!draft.title.trim() || saving}
+                  />
+                </HStack>
+              </HStack>
+            </LayoutFooter>
+          }
+        />
+      </VStack>
     </Dialog>
   );
 }

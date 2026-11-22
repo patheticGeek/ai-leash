@@ -1,12 +1,12 @@
 import { Button } from "@astryxdesign/core/Button";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Item } from "@astryxdesign/core/Item";
+import { Popover } from "@astryxdesign/core/Popover";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderPlus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { revealOnGroupHover } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAppStore } from "../store";
 
 // The project switcher — lists known projects, and picking one starts a new
@@ -41,61 +41,66 @@ export default function NewConversationPopover({
   }
 
   return (
-    <Popover open={open_} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="center"
-        sideOffset={8}
-        className="w-64 gap-0 overflow-hidden p-0"
-      >
-        <div className="max-h-72 overflow-y-auto py-1">
-          {recentProjects.length === 0 ? (
-            <div className="px-3 py-4 text-xs text-zinc-600">
-              No projects yet
-            </div>
-          ) : (
-            recentProjects.map((p) => (
-              <div key={p.path} title={p.path} className="group mx-1">
-                <Item
-                  density="compact"
-                  onClick={() => {
-                    startNewConversation(p.path);
-                    setOpen(false);
-                  }}
-                  label={p.name}
-                  className="text-sm"
-                  endContent={
-                    <IconButton
-                      variant="danger"
-                      size="sm"
-                      label="Forget this project"
-                      tooltip="Forget this project"
-                      icon={<Trash2 size={12} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeProject(p.path);
-                      }}
-                      className={revealOnGroupHover}
-                    />
-                  }
-                />
+    <Popover
+      isOpen={open_}
+      onOpenChange={setOpen}
+      label="Projects"
+      placement="below"
+      alignment="center"
+      width="16rem"
+      padding={0}
+      content={
+        <>
+          <div className="max-h-72 overflow-y-auto py-1">
+            {recentProjects.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-zinc-600">
+                No projects yet
               </div>
-            ))
-          )}
-        </div>
-        <div className="border-t border-white/[0.06] p-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Add project"
-            icon={<FolderPlus size={14} />}
-            width="100%"
-            className="justify-start"
-            onClick={onAddProject}
-          />
-        </div>
-      </PopoverContent>
+            ) : (
+              recentProjects.map((p) => (
+                <div key={p.path} title={p.path} className="group mx-1">
+                  <Item
+                    density="compact"
+                    onClick={() => {
+                      startNewConversation(p.path);
+                      setOpen(false);
+                    }}
+                    label={p.name}
+                    className="text-sm"
+                    endContent={
+                      <IconButton
+                        variant="danger"
+                        size="sm"
+                        label="Forget this project"
+                        tooltip="Forget this project"
+                        icon={<Trash2 size={12} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeProject(p.path);
+                        }}
+                        className={revealOnGroupHover}
+                      />
+                    }
+                  />
+                </div>
+              ))
+            )}
+          </div>
+          <div className="border-t border-white/[0.06] p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              label="Add project"
+              icon={<FolderPlus size={14} />}
+              width="100%"
+              className="justify-start"
+              onClick={onAddProject}
+            />
+          </div>
+        </>
+      }
+    >
+      {trigger}
     </Popover>
   );
 }

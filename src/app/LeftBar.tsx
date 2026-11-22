@@ -1,6 +1,13 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
+import { ContextMenu } from "@astryxdesign/core/ContextMenu";
 import { Divider } from "@astryxdesign/core/Divider";
+import {
+  DropdownMenu,
+  DropdownMenuGroup,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Item } from "@astryxdesign/core/Item";
@@ -26,20 +33,6 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { cn, revealOnGroupHover } from "@/lib/utils";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/ui/dropdown-menu";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
 import { useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
@@ -97,14 +90,19 @@ function ConversationContextMenu({
   children: ReactNode;
 }) {
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem variant="danger" onSelect={onDelete}>
-          <Trash2 />
-          Delete conversation
-        </ContextMenuItem>
-      </ContextMenuContent>
+    <ContextMenu
+      label="Conversation actions"
+      menuWidth="auto"
+      items={[
+        {
+          label: "Delete conversation",
+          icon: <Trash2 size={14} />,
+          variant: "destructive",
+          onClick: onDelete,
+        },
+      ]}
+    >
+      {children}
     </ContextMenu>
   );
 }
@@ -551,9 +549,12 @@ export default function LeftBar() {
             ...recentProjects.map((p) => ({ value: p.path, label: p.name })),
           ]}
         />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu
+          placement="below"
+          alignment="end"
+          renderTrigger={(triggerProps) => (
             <IconButton
+              {...triggerProps}
               variant="ghost"
               size="lg"
               label="Filters"
@@ -564,28 +565,26 @@ export default function LeftBar() {
                 taskChats !== "all" && "text-primary-hover",
               )}
             />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Task chats</DropdownMenuLabel>
+          )}
+        >
+          <DropdownMenuGroup title="Task chats">
             <DropdownMenuRadioGroup
+              label="Task chats"
               value={taskChats}
-              onValueChange={(value) =>
+              onChange={(value) =>
                 setPreferences({
                   sidebarTaskChats: value as Preferences["sidebarTaskChats"],
                 })
               }
             >
-              <DropdownMenuRadioItem value="all">
-                Show all chats
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="top">
-                Group task chats at top
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="hide">
-                Hide task chats
-              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all" label="Show all chats" />
+              <DropdownMenuRadioItem
+                value="top"
+                label="Group task chats at top"
+              />
+              <DropdownMenuRadioItem value="hide" label="Hide task chats" />
             </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
+          </DropdownMenuGroup>
         </DropdownMenu>
         <IconButton
           variant="ghost"

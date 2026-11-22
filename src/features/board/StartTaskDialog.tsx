@@ -1,15 +1,15 @@
 import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import {
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from "@astryxdesign/core/Layout";
 import { Play } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
 import { effortForSize } from "../../data/board";
 import { type AgentDefaults, api, type Task } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
@@ -71,49 +71,71 @@ export default function StartTaskDialog({
   const sizeThinking = effortForSize(task?.effort ?? null);
 
   return (
-    <Dialog open={task !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>
-            Start #{task?.number} {task?.title}
-          </DialogTitle>
-          <DialogDescription>
-            The task gets its own chat, which starts working on it straight
-            away. In a git repository it also gets its own worktree, on a new{" "}
-            <code>task/{task?.number}-…</code> branch.
-          </DialogDescription>
-        </DialogHeader>
-        <AgentFields value={agent} onChange={setAgent} inheritLabel="Default" />
-        {!agent.thinking && sizeThinking && (
-          <p className="text-xs text-zinc-500">
-            Our own providers think at <strong>{sizeThinking}</strong> effort
-            for a task this size unless you pick otherwise.
-          </p>
-        )}
-        <div className="flex flex-col gap-2">
-          <CheckboxInput
-            label="The project chat follows it (its updates wake the project chat)"
-            value={follow}
-            onChange={setFollow}
+    <Dialog
+      isOpen={task !== null}
+      onOpenChange={(open) => !open && onClose()}
+      purpose="form"
+      width={576}
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title={`Start #${task?.number ?? ""} ${task?.title ?? ""}`}
+            subtitle={
+              <>
+                The task gets its own chat, which starts working on it straight
+                away. In a git repository it also gets its own worktree, on a
+                new <code>task/{task?.number}-…</code> branch.
+              </>
+            }
+            onOpenChange={onClose}
           />
-          <CheckboxInput
-            label="Open its chat after starting"
-            value={openAfter}
-            onChange={setOpenAfter}
-          />
-        </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button variant="ghost" label="Cancel" onClick={onClose} />
-          <Button
-            variant="primary"
-            label={starting ? "Starting…" : "Start"}
-            icon={<Play size={14} />}
-            isDisabled={starting}
-            onClick={start}
-          />
-        </DialogFooter>
-      </DialogContent>
+        }
+        content={
+          <LayoutContent>
+            <VStack gap={4}>
+              <AgentFields
+                value={agent}
+                onChange={setAgent}
+                inheritLabel="Default"
+              />
+              {!agent.thinking && sizeThinking && (
+                <p className="text-xs text-zinc-500">
+                  Our own providers think at <strong>{sizeThinking}</strong>{" "}
+                  effort for a task this size unless you pick otherwise.
+                </p>
+              )}
+              <VStack gap={2}>
+                <CheckboxInput
+                  label="The project chat follows it (its updates wake the project chat)"
+                  value={follow}
+                  onChange={setFollow}
+                />
+                <CheckboxInput
+                  label="Open its chat after starting"
+                  value={openAfter}
+                  onChange={setOpenAfter}
+                />
+              </VStack>
+              {error && <p className="text-xs text-destructive">{error}</p>}
+            </VStack>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <HStack gap={2} hAlign="end">
+              <Button variant="ghost" label="Cancel" onClick={onClose} />
+              <Button
+                variant="primary"
+                label={starting ? "Starting…" : "Start"}
+                icon={<Play size={14} />}
+                isDisabled={starting}
+                onClick={start}
+              />
+            </HStack>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 }

@@ -1,10 +1,10 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Popover } from "@astryxdesign/core/Popover";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Folder as FolderIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { GitWorktree } from "@/lib/tauriApi";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAsyncAction } from "../../../hooks/useAsyncAction";
 import { useGitBranches } from "../../../hooks/useGitBranches";
 import { CreatePanel, NewBranchFields } from "./CreatePanel";
@@ -84,56 +84,48 @@ export default function WorktreePicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={closePopover}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title={
-            editable
-              ? undefined
-              : "The worktree is fixed once the conversation has started"
-          }
-          className={cn(
-            "inline-flex max-w-40 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200",
-            !editable && "text-zinc-500",
-          )}
-        >
-          <FolderIcon size={12} className="shrink-0" />
-          <span className="truncate">{label}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="start"
-        sideOffset={4}
-        className="flex w-72 flex-col gap-0 overflow-hidden p-0"
-      >
-        {!creating ? (
+    <Popover
+      isOpen={open}
+      onOpenChange={closePopover}
+      label="Worktrees"
+      placement="below"
+      alignment="start"
+      width="18rem"
+      padding={0}
+      // Only while open, so the search and any half-done delete start
+      // fresh each time.
+      content={
+        !open ? null : !creating ? (
           <PickerList
             searchPlaceholder="Search worktrees..."
             createLabel={editable ? "New worktree…" : undefined}
-            createValue="new-worktree"
             onCreate={() => setCreating(true)}
-          >
-            {worktrees.map((w) => {
+            rows={worktrees.map((w) => {
               const path = w.isPrimary ? projectRoot : w.path;
-              return (
-                <DeletableRow
-                  key={w.path}
-                  value={`${worktreeLabel(w)} ${w.branch ?? ""}`}
-                  label={worktreeLabel(w)}
-                  active={path === activePath}
-                  deletable={editable && !w.isPrimary && path !== activePath}
-                  selectDisabled={!editable && path !== activePath}
-                  onSelect={() => {
-                    if (editable) onSelect(path, w.isPrimary);
-                    closePopover(false);
-                  }}
-                  onDelete={(force) => onDelete(w.path, force)}
-                />
-              );
+              const selectDisabled = !editable && path !== activePath;
+              const select = () => {
+                if (editable) onSelect(path, w.isPrimary);
+                closePopover(false);
+              };
+              return {
+                key: w.path,
+                searchText: `${worktreeLabel(w)} ${w.branch ?? ""}`,
+                isDisabled: selectDisabled,
+                onSelect: select,
+                render: (row) => (
+                  <DeletableRow
+                    {...row}
+                    label={worktreeLabel(w)}
+                    active={path === activePath}
+                    deletable={editable && !w.isPrimary && path !== activePath}
+                    selectDisabled={selectDisabled}
+                    onSelect={select}
+                    onDelete={(force) => onDelete(w.path, force)}
+                  />
+                ),
+              };
             })}
-          </PickerList>
+          />
         ) : (
           <CreatePanel
             error={create.error}
@@ -182,8 +174,24 @@ export default function WorktreePicker({
               </>
             )}
           </CreatePanel>
+        )
+      }
+    >
+      <button
+        type="button"
+        title={
+          editable
+            ? undefined
+            : "The worktree is fixed once the conversation has started"
+        }
+        className={cn(
+          "inline-flex max-w-40 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200",
+          !editable && "text-zinc-500",
         )}
-      </PopoverContent>
+      >
+        <FolderIcon size={12} className="shrink-0" />
+        <span className="truncate">{label}</span>
+      </button>
     </Popover>
   );
 }

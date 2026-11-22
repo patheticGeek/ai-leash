@@ -1,7 +1,14 @@
+import { VStack } from "@astryxdesign/core/Layout";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Text } from "@astryxdesign/core/Text";
+import * as stylex from "@stylexjs/stylex";
 import { type RefObject, useEffect, useRef } from "react";
-import { Command, CommandItem, CommandList } from "@/ui/command";
-import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
+import InputAnchoredPopover from "./InputAnchoredPopover";
+
+const styles = stylex.create({
+  list: { maxHeight: "14rem" },
+});
 
 export interface SlashCommandMenuProps {
   matches: AcpCommandInfo[];
@@ -28,57 +35,51 @@ export default function SlashCommandMenu({
   onActiveIndexChange,
   anchorRef,
 }: SlashCommandMenuProps) {
-  const listRef = useRef<HTMLDivElement>(null);
-  // The highlight is driven from outside (the textarea's arrow keys, not
-  // cmdk's own), and cmdk only scrolls to a selection it changed itself —
-  // so keep the active row in view here (by index: cmdk's own
-  // `data-selected` lags a render behind).
+  const listRef = useRef<HTMLElement>(null);
+  // The highlight is driven from outside (the textarea's arrow keys), so
+  // keep the active row in view here.
   useEffect(() => {
     listRef.current
-      ?.querySelectorAll("[cmdk-item]")
+      ?.querySelectorAll("[data-slash-index]")
       [activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
   return (
-    <Popover open>
-      <PopoverAnchor virtualRef={anchorRef} />
-      <PopoverContent
-        side="top"
-        align="center"
-        sideOffset={4}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="w-(--radix-popover-trigger-width) gap-0 p-0"
+    <InputAnchoredPopover anchorRef={anchorRef} label="Slash commands">
+      <VStack
+        ref={listRef}
+        isScrollable
+        xstyle={styles.list}
+        onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
       >
-        <Command
-          shouldFilter={false}
-          value={String(activeIndex)}
-          onValueChange={(v) => onActiveIndexChange(Number(v))}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <CommandList ref={listRef} className="max-h-56">
-            {matches.map((c, i) => (
-              <CommandItem
-                key={c.name}
-                value={String(i)}
-                onSelect={() => onSelect(c)}
-                className="flex-col items-start gap-0 py-1.5"
-              >
-                <div className="flex text-sm font-medium text-zinc-100">
-                  <span>/{c.name}</span>
+        <List density="compact">
+          {matches.map((c, i) => (
+            <ListItem
+              key={c.name}
+              data-slash-index={i}
+              isSelected={i === activeIndex}
+              onMouseEnter={() => onActiveIndexChange(i)}
+              onClick={() => onSelect(c)}
+              label={
+                <>
+                  <Text weight="medium">/{c.name}</Text>
                   {c.hint && (
-                    <span className="ml-2 truncate text-zinc-500">
-                      {c.hint}
-                    </span>
+                    <>
+                      {" "}
+                      <Text color="secondary">{c.hint}</Text>
+                    </>
                   )}
-                </div>
-                <div className="whitespace-normal text-xs text-zinc-500">
+                </>
+              }
+              description={
+                <Text type="supporting" size="xsm" color="secondary">
                   {c.description}
-                </div>
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                </Text>
+              }
+            />
+          ))}
+        </List>
+      </VStack>
+    </InputAnchoredPopover>
   );
 }

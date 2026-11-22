@@ -1,22 +1,49 @@
 import { Button } from "@astryxdesign/core/Button";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { qk } from "@/data/keys";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
+  CommandPalette,
+  CommandPaletteFooter,
+  CommandPaletteInput,
+  useCommandPaletteContext,
+} from "@astryxdesign/core/CommandPalette";
+import { Popover } from "@astryxdesign/core/Popover";
+import { Text } from "@astryxdesign/core/Text";
+import {
+  createStaticSource,
+  type SearchableItem,
+} from "@astryxdesign/core/Typeahead";
+import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { qk } from "@/data/keys";
 import { api } from "../../../lib/tauriApi";
 
 // A family name as a CSS `font-family` entry — always quoted, so names with
 // spaces or digits ("Fira Code", "3270") are valid.
 function cssFamily(name: string): string {
   return `"${name.replace(/["\\]/g, "\\$&")}"`;
+}
+
+const styles = stylex.create({
+  preview: (fontFamily: string) => ({ fontFamily }),
+});
+
+// The highlighted row, previewed in its own typeface below the list —
+// rendering every row in its own font would load hundreds of them at once.
+function HighlightedPreview() {
+  const palette = useCommandPaletteContext();
+  const family =
+    palette?.selectableItems[palette.highlightedIndex]?.value ?? null;
+  if (!family) return null;
+  return (
+    <CommandPaletteFooter>
+      <Text
+        maxLines={1}
+        xstyle={styles.preview(`${cssFamily(family)}, sans-serif`)}
+      >
+        The quick brown fox jumps over the lazy dog
+      </Text>
+    </CommandPaletteFooter>
+  );
 }
 
 // Browse-and-pick for the installed fonts. Picking replaces the whole family
@@ -30,9 +57,6 @@ export default function FontFamilyPicker({
   onPick: (family: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  // The highlighted row, previewed in its own typeface — rendering every row
-  // in its own font would load hundreds of them at once.
-  const [highlighted, setHighlighted] = useState("");
   const { data: fonts, isPending } = useQuery({
     queryKey: qk.systemFonts,
     queryFn: api.listSystemFonts,
@@ -41,72 +65,72 @@ export default function FontFamilyPicker({
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  const mono = monospaceFirst ? (fonts ?? []).filter((f) => f.monospaced) : [];
-  const rest = monospaceFirst
-    ? (fonts ?? []).filter((f) => !f.monospaced)
-    : (fonts ?? []);
-
-  function renderItem(family: string) {
-    return (
-      <CommandItem
-        key={family}
-        value={family}
-        onSelect={() => {
-          onPick(cssFamily(family));
-          setOpen(false);
-        }}
-      >
-        {family}
-      </CommandItem>
+  // Code fonts list the monospaced families up front (a "Monospace" group),
+  // the rest below ("Other"); otherwise one ungrouped list.
+  const searchSource = useMemo(() => {
+    const items: SearchableItem<{ group: string }>[] = (fonts ?? []).map(
+      (f) => ({
+        id: f.family,
+        label: f.family,
+        auxiliaryData: monospaceFirst
+          ? { group: f.monospaced ? "Monospace" : "Other" }
+          : undefined,
+      }),
     );
-  }
+    if (monospaceFirst) {
+      items.sort(
+        (a, b) =>
+          Number(a.auxiliaryData?.group === "Other") -
+          Number(b.auxiliaryData?.group === "Other"),
+      );
+    }
+    return createStaticSource(items);
+  }, [fonts, monospaceFirst]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="secondary"
-          size="sm"
-          label="Browse"
-          tooltip="Pick an installed font"
+    <Popover
+      isOpen={open}
+      onOpenChange={setOpen}
+      label="Installed fonts"
+      placement="below"
+      alignment="end"
+      width="20rem"
+      padding={0}
+      content={
+        <CommandPalette
+          isInline
+          isOpen={open}
+          onOpenChange={setOpen}
+          label="Installed fonts"
+          width="100%"
+          maxHeight="24rem"
+          searchSource={searchSource}
+          value=""
+          onValueChange={(family) => {
+            if (family) onPick(cssFamily(family));
+          }}
+          input={
+            // The popover moves focus here when it opens; the closed
+            // popover stays mounted, so the input mustn't autofocus itself.
+            <CommandPaletteInput
+              placeholder="Search installed fonts..."
+              hasAutoFocus={false}
+            />
+          }
+          emptySearchText="No matching fonts."
+          emptyBootstrapText={
+            isPending ? "Loading fonts..." : "No fonts found."
+          }
+          footer={<HighlightedPreview />}
         />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 gap-0 p-0">
-        <Command
-          className="h-auto"
-          value={highlighted}
-          onValueChange={setHighlighted}
-        >
-          <CommandInput placeholder="Search installed fonts..." />
-          <CommandList>
-            {isPending ? (
-              <div className="py-6 text-center text-sm text-zinc-500">
-                Loading fonts...
-              </div>
-            ) : (
-              <>
-                <CommandEmpty>No matching fonts.</CommandEmpty>
-                {mono.length > 0 && (
-                  <CommandGroup heading="Monospace">
-                    {mono.map((f) => renderItem(f.family))}
-                  </CommandGroup>
-                )}
-                <CommandGroup heading={monospaceFirst ? "Other" : undefined}>
-                  {rest.map((f) => renderItem(f.family))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-          {highlighted && (
-            <div
-              className="truncate border-t border-border px-3 py-2 text-sm text-zinc-300"
-              style={{ fontFamily: `${cssFamily(highlighted)}, sans-serif` }}
-            >
-              The quick brown fox jumps over the lazy dog
-            </div>
-          )}
-        </Command>
-      </PopoverContent>
+      }
+    >
+      <Button
+        variant="secondary"
+        size="sm"
+        label="Browse"
+        tooltip="Pick an installed font"
+      />
     </Popover>
   );
 }

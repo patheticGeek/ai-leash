@@ -1,10 +1,11 @@
 import { Button } from "@astryxdesign/core/Button";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+} from "@astryxdesign/core/DropdownMenu";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { ChevronDown, Play, Square } from "lucide-react";
-import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Command, CommandItem, CommandList } from "@/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
@@ -24,8 +25,6 @@ function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
 export default function TitleBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, checkoutPath } = useActions();
-  const [open, setOpen] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const current = pickCurrent(actions);
   if (!current) return null;
@@ -43,80 +42,61 @@ export default function TitleBarActions() {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <div className="flex shrink-0 items-center gap-px">
-        <Button
-          variant={current.running ? "chip-warning" : "chip"}
-          size="sm"
-          label={current.name}
-          icon={current.running ? <Square size={11} /> : <Play size={11} />}
-          onClick={() => handleToggle(current)}
-          tooltip={
-            current.running ? `Stop ${current.name}` : `Run ${current.name}`
-          }
-          className={cn(
-            "min-w-0 max-w-[160px]",
-            rest.length > 0 && "rounded-r-none",
-          )}
-        />
-        {rest.length > 0 && (
-          <PopoverTrigger asChild>
+    <div className="flex shrink-0 items-center gap-px">
+      <Button
+        variant={current.running ? "chip-warning" : "chip"}
+        size="sm"
+        label={current.name}
+        icon={current.running ? <Square size={11} /> : <Play size={11} />}
+        onClick={() => handleToggle(current)}
+        tooltip={
+          current.running ? `Stop ${current.name}` : `Run ${current.name}`
+        }
+        className={cn(
+          "min-w-0 max-w-[160px]",
+          rest.length > 0 && "rounded-r-none",
+        )}
+      />
+      {rest.length > 0 && (
+        <DropdownMenu
+          placement="below"
+          alignment="end"
+          menuWidth="14rem"
+          renderTrigger={(triggerProps) => (
             <IconButton
+              {...triggerProps}
               variant="chip"
               size="sm"
               label="Other actions"
               tooltip="Other actions"
               icon={<ChevronDown size={12} />}
               className="rounded-l-none"
-              onKeyDown={(e) => {
-                // Popover triggers only open on Enter/Space; a dropdown
-                // chevron is expected to open on ArrowDown too.
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setOpen(true);
-                }
-              }}
             />
-          </PopoverTrigger>
-        )}
-      </div>
-      <PopoverContent
-        align="end"
-        onOpenAutoFocus={(e) => {
-          // No search box to take focus, so give it to the list itself —
-          // that's what makes arrow keys/Enter work straight away.
-          e.preventDefault();
-          listRef.current?.focus();
-        }}
-        className="w-56 gap-0 p-0"
-      >
-        <Command ref={listRef} tabIndex={-1}>
-          <CommandList>
-            {rest.map((action) => (
-              <CommandItem
-                key={action.id}
-                value={action.id}
-                onSelect={() => {
-                  handleToggle(action);
-                  setOpen(false);
-                }}
-              >
-                {action.running ? (
+          )}
+        >
+          {rest.map((action) => (
+            <DropdownMenuItem
+              key={action.id}
+              icon={
+                action.running ? (
                   <Square size={11} className="shrink-0 text-warning" />
                 ) : (
                   <Play size={11} className="shrink-0 text-zinc-500" />
-                )}
-                <span className="min-w-0 flex-1 truncate">{action.name}</span>
-                {action.running && (
+                )
+              }
+              label={action.name}
+              endContent={
+                action.running && (
                   <span className="shrink-0 text-[10px] uppercase tracking-wide text-warning">
                     running
                   </span>
-                )}
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                )
+              }
+              onClick={() => void handleToggle(action)}
+            />
+          ))}
+        </DropdownMenu>
+      )}
+    </div>
   );
 }

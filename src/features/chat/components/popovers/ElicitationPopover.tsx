@@ -19,8 +19,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { MessageCircleQuestion, X } from "lucide-react";
 import type { RefObject } from "react";
-import { useMemo, useState } from "react";
-import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collectAnswers,
   type ElicitationField,
@@ -32,6 +31,7 @@ import type {
   ElicitationAnswer,
   ElicitationRequestPayload,
 } from "../../../../lib/tauriApi";
+import InputAnchoredPopover from "./InputAnchoredPopover";
 
 const styles = stylex.create({
   // Skip / Next sit at the far end of the actions row.
@@ -206,6 +206,20 @@ export default function ElicitationPopover({
   const step = steps[stepIndex];
   const isLast = stepIndex === steps.length - 1;
 
+  // Escape anywhere dismisses without answering, as the close button does —
+  // unless something inside (an open picker) already handled it.
+  const onRespondRef = useRef(onRespond);
+  onRespondRef.current = onRespond;
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        onRespondRef.current({ action: "cancel" });
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   function setValue(name: string, value: string[]) {
     setValues((prev) => ({ ...prev, [name]: value }));
     setErrors(({ [name]: _, ...rest }) => rest);
@@ -273,115 +287,106 @@ export default function ElicitationPopover({
   }
 
   return (
-    <Popover open>
-      <PopoverAnchor virtualRef={anchorRef} />
-      <PopoverContent
-        side="top"
-        align="center"
-        sideOffset={4}
-        onEscapeKeyDown={() => onRespond({ action: "cancel" })}
-        className="max-h-[50vh] w-(--radix-popover-trigger-width) gap-0 overflow-hidden p-0"
-      >
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span
-            title="The agent is asking you a question"
-            className="shrink-0 text-zinc-400"
-          >
-            <MessageCircleQuestion size={16} />
-          </span>
-          <div className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
-            {request.schema.title ?? "The agent has a question"}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Decline"
-            tooltip="Decline to answer"
-            onClick={() => onRespond({ action: "decline" })}
-          />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Dismiss"
-            tooltip="Dismiss without answering (Esc)"
-            icon={<X size={13} />}
-            onClick={() => onRespond({ action: "cancel" })}
-          />
+    <InputAnchoredPopover
+      anchorRef={anchorRef}
+      label={request.schema.title ?? "The agent has a question"}
+      maxHeight="50vh"
+      hasAutoFocus
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span
+          title="The agent is asking you a question"
+          className="shrink-0 text-zinc-400"
+        >
+          <MessageCircleQuestion size={16} />
+        </span>
+        <div className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
+          {request.schema.title ?? "The agent has a question"}
         </div>
-        <div className="flex flex-1 select-text flex-col gap-3 overflow-auto px-3 py-2">
-          <p className="text-sm whitespace-pre-wrap text-zinc-300">
-            {request.message}
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Decline"
+          tooltip="Decline to answer"
+          onClick={() => onRespond({ action: "decline" })}
+        />
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Dismiss"
+          tooltip="Dismiss without answering (Esc)"
+          icon={<X size={13} />}
+          onClick={() => onRespond({ action: "cancel" })}
+        />
+      </div>
+      <div className="flex flex-1 select-text flex-col gap-3 overflow-auto px-3 py-2">
+        <p className="text-sm whitespace-pre-wrap text-zinc-300">
+          {request.message}
+        </p>
+        {request.schema.description && (
+          <p className="text-xs text-muted-foreground">
+            {request.schema.description}
           </p>
-          {request.schema.description && (
-            <p className="text-xs text-muted-foreground">
-              {request.schema.description}
-            </p>
-          )}
-          {fields.length > 0 ? (
-            <VStack gap={4}>
-              {steps.length > 1 && (
-                <Text type="supporting" size="xsm">
-                  {`Question ${stepIndex + 1} of ${steps.length}`}
-                </Text>
-              )}
-              {step && (
-                <VStack key={step.field.name} gap={3}>
+        )}
+        {fields.length > 0 ? (
+          <VStack gap={4}>
+            {steps.length > 1 && (
+              <Text type="supporting" size="xsm">
+                {`Question ${stepIndex + 1} of ${steps.length}`}
+              </Text>
+            )}
+            {step && (
+              <VStack key={step.field.name} gap={3}>
+                <FieldControl
+                  field={step.field}
+                  values={values}
+                  error={errors[step.field.name]}
+                  onChange={setValue}
+                  onEnter={advance}
+                />
+                {step.other && (
                   <FieldControl
-                    field={step.field}
+                    field={step.other}
                     values={values}
-                    error={errors[step.field.name]}
+                    error={errors[step.other.name]}
                     onChange={setValue}
                     onEnter={advance}
                   />
-                  {step.other && (
-                    <FieldControl
-                      field={step.other}
-                      values={values}
-                      error={errors[step.other.name]}
-                      onChange={setValue}
-                      onEnter={advance}
-                    />
-                  )}
-                </VStack>
-              )}
-              <HStack gap={2} align="center">
-                {stepIndex > 0 && (
-                  <Button
-                    variant="ghost"
-                    label="Previous"
-                    onClick={() => setStepIndex(stepIndex - 1)}
-                  />
                 )}
-                <HStack
-                  gap={2}
-                  align="center"
-                  justify="end"
-                  xstyle={styles.end}
-                >
-                  {step && !step.field.required && (
-                    <Button variant="ghost" label="Skip" onClick={skip} />
-                  )}
-                  <Button
-                    variant="primary"
-                    label={isLast ? "Submit" : "Next"}
-                    onClick={advance}
-                  />
-                </HStack>
+              </VStack>
+            )}
+            <HStack gap={2} align="center">
+              {stepIndex > 0 && (
+                <Button
+                  variant="ghost"
+                  label="Previous"
+                  onClick={() => setStepIndex(stepIndex - 1)}
+                />
+              )}
+              <HStack gap={2} align="center" justify="end" xstyle={styles.end}>
+                {step && !step.field.required && (
+                  <Button variant="ghost" label="Skip" onClick={skip} />
+                )}
+                <Button
+                  variant="primary"
+                  label={isLast ? "Submit" : "Next"}
+                  onClick={advance}
+                />
               </HStack>
-            </VStack>
-          ) : (
-            // Nothing to fill in — the agent just wants a yes/no.
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                size="sm"
-                label="Accept"
-                onClick={() => onRespond({ action: "accept", content: {} })}
-              />
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+            </HStack>
+          </VStack>
+        ) : (
+          // Nothing to fill in — the agent just wants a yes/no.
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              label="Accept"
+              onClick={() => onRespond({ action: "accept", content: {} })}
+            />
+          </div>
+        )}
+      </div>
+    </InputAnchoredPopover>
   );
 }

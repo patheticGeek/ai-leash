@@ -1,8 +1,10 @@
 import { Button } from "@astryxdesign/core/Button";
+import {
+  DropdownMenu,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@astryxdesign/core/DropdownMenu";
 import { Brain, Gauge, Sparkles, Zap } from "lucide-react";
-import { useRef, useState } from "react";
-import { Command, CommandItem, CommandList } from "@/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 interface EffortPickerPopoverProps {
   options: { value: string; name: string }[];
@@ -15,8 +17,6 @@ export default function EffortPickerPopover({
   value,
   onSelect,
 }: EffortPickerPopoverProps) {
-  const [open, setOpen] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
   // Some ACP agents report the selected thought level as the sentinel
   // `"default"` even though their select options contain the concrete
   // levels. Treat the explicitly named Default option as the mapping; when
@@ -42,9 +42,13 @@ export default function EffortPickerPopover({
           ? Sparkles
           : Gauge;
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <DropdownMenu
+      placement="above"
+      alignment="start"
+      menuWidth="14rem"
+      renderTrigger={(triggerProps) => (
         <Button
+          {...triggerProps}
           variant="chip"
           size="sm"
           label={active?.name ?? "effort"}
@@ -52,40 +56,21 @@ export default function EffortPickerPopover({
           tooltip="Thinking effort"
           className="max-w-[120px]"
         />
-      </PopoverTrigger>
-      <PopoverContent
-        side="top"
-        align="start"
-        sideOffset={8}
-        onOpenAutoFocus={(e) => {
-          // No search box to take focus, so give it to the list itself —
-          // that's what makes arrow keys/Enter work straight away.
-          e.preventDefault();
-          listRef.current?.focus();
-        }}
-        className="w-56 gap-0 overflow-hidden p-0"
+      )}
+    >
+      <DropdownMenuRadioGroup
+        label="Thinking effort"
+        value={activeValue}
+        onChange={onSelect}
       >
-        <Command ref={listRef} tabIndex={-1} defaultValue={activeValue}>
-          <CommandList>
-            {options.map((option) => (
-              <CommandItem
-                key={option.value}
-                value={option.value}
-                data-checked={option.value === activeValue}
-                checkIcon
-                onSelect={() => {
-                  onSelect(option.value);
-                  setOpen(false);
-                }}
-              >
-                <span className="text-sm font-medium text-zinc-100">
-                  {option.name}
-                </span>
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        {options.map((option) => (
+          <DropdownMenuRadioItem
+            key={option.value}
+            value={option.value}
+            label={option.name}
+          />
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenu>
   );
 }
