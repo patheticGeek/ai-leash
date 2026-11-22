@@ -166,6 +166,8 @@ just have no epic afterwards. Archived epics can't be picked for new tasks.
 Use the epic menu at the left of the toolbar to show one epic's tasks, or
 only tasks with no epic. **Group by epic** splits the board into one row
 per epic; dragging a card into another epic's row moves it to that epic.
+Each row's epic name stays pinned at the left edge while you scroll across
+the status columns.
 
 ## In the sidebar
 
