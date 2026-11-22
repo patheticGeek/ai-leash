@@ -6,9 +6,9 @@
  * Core: @astryxdesign/core@0.7.17
  */
 
-import type { IconRegistry } from "@astryxdesign/core/Icon";
 /// <reference path="./leash.variants.d.ts" />
-import type { DefinedTheme } from "@astryxdesign/core/theme";
+import type { DefinedTheme } from '@astryxdesign/core/theme';
+import type { IconRegistry } from '@astryxdesign/core/Icon';
 export declare const themeIcons: IconRegistry;
 export declare const leashTheme: DefinedTheme;
 export declare const colorModes: readonly ["dark"];

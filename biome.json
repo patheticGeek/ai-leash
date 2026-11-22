@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist", "!!**/website", "!!**/src-tauri"]
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/website",
+      "!!**/src-tauri",
+      "!!**/themes",
+      "!!**/src/themes",
+      "!!**/src/astryx-themes.ts"
+    ]
   },
   "formatter": {
     "enabled": true,
