@@ -1,4 +1,8 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Center } from "@astryxdesign/core/Center";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Text } from "@astryxdesign/core/Text";
+import { VStack } from "@astryxdesign/core/VStack";
 import { getIdentifier, getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
@@ -21,28 +25,30 @@ export default function AboutTab() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-      <Logo size="lg" />
-      <div className="text-xs text-zinc-600">
-        v{info?.version ?? "…"} ({__COMMIT_HASH__}
-        {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}
-      </div>
-      <div className="flex gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          label="source code"
-          icon={<ExternalLink size={13} />}
-          onClick={() => openUrl(GITHUB_URL)}
-        />
-        <Button
-          variant="secondary"
-          size="sm"
-          label="my website"
-          icon={<ExternalLink size={13} />}
-          onClick={() => openUrl(WEBSITE_URL)}
-        />
-      </div>
-    </div>
+    <Center height="100%">
+      <VStack gap={5} hAlign="center">
+        <Logo size="lg" />
+        <Text size="sm" color="secondary" justify="center">
+          v{info?.version ?? "…"} ({__COMMIT_HASH__}
+          {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}
+        </Text>
+        <HStack gap={2}>
+          <Button
+            variant="secondary"
+            size="sm"
+            label="source code"
+            icon={<ExternalLink size={13} />}
+            onClick={() => openUrl(GITHUB_URL)}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            label="my website"
+            icon={<ExternalLink size={13} />}
+            onClick={() => openUrl(WEBSITE_URL)}
+          />
+        </HStack>
+      </VStack>
+    </Center>
   );
 }

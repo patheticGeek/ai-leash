@@ -1,8 +1,33 @@
 import { Button } from "@astryxdesign/core/Button";
+import { HStack } from "@astryxdesign/core/HStack";
+import { StackItem } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import {
+  colorVars,
+  radiusVars,
+  spacingVars,
+  typographyVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { api } from "../../../lib/tauriApi";
+import { Hint, SectionHeading } from "./SettingsParts";
+
+const styles = stylex.create({
+  // The log itself: a sunken, scrolling, selectable monospace block that
+  // keeps the log's own line breaks.
+  log: {
+    backgroundColor: colorVars["--color-background-body"],
+    borderRadius: radiusVars["--radius-element"],
+    padding: spacingVars["--spacing-3"],
+    fontFamily: typographyVars["--font-family-code"],
+    whiteSpace: "pre-wrap",
+    userSelect: "text",
+  },
+});
 
 export default function CrashLogTab() {
   const [log, setLog] = useState<string | null>(null);
@@ -22,12 +47,10 @@ export default function CrashLogTab() {
   }
 
   return (
-    <div className="flex h-full flex-col space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-          Crash log
-        </div>
-        <div className="flex gap-2">
+    <VStack gap={3} height="100%">
+      <HStack justify="between" vAlign="center" gap={2}>
+        <SectionHeading>Crash log</SectionHeading>
+        <HStack gap={2}>
           <Button
             variant="secondary"
             size="sm"
@@ -51,17 +74,19 @@ export default function CrashLogTab() {
             onClick={clear}
             isDisabled={!log}
           />
-        </div>
-      </div>
-      <div className="text-xs text-zinc-600">
+        </HStack>
+      </HStack>
+      <Hint>
         Backend panics and frontend errors (uncaught exceptions, unhandled
         promise rejections, React crashes) are appended here as they happen —
         including ones from a previous run, so you can find out what happened
         after restarting the app.
-      </div>
-      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded-md bg-sunken p-2.5 text-code text-zinc-400">
-        {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
-      </pre>
-    </div>
+      </Hint>
+      <StackItem size="fill" isScrollable xstyle={styles.log}>
+        <Text type="code" color="secondary">
+          {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
+        </Text>
+      </StackItem>
+    </VStack>
   );
 }
