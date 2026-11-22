@@ -4,8 +4,8 @@
 // prettier-ignore
 export const leashPaletteRefs = {
   accent: {
-    light: {35: '#2d5283', 40: '#3a5f8f', 85: '#cdd5e0'},
-    dark: {30: '#124683', 70: '#79aef3', 80: '#b8c8de'},
+    light: {35: '#2d5283', 85: '#cdd5e0'},
+    dark: {30: '#124683', 75: '#92bcf2'},
   },
   success: {
     light: {25: '#004830', 35: '#006243', 70: '#34d399', 80: '#81e5b8', 85: '#a1ebc8'},
@@ -19,6 +19,5 @@ export const leashPaletteRefs = {
     light: {25: '#750014', 40: '#aa212e', 65: '#f87171', 80: '#e6bcb9', 85: '#eaccca'},
     dark: {65: '#f87171', 70: '#ff8582', 75: '#ff9b98', 80: '#f9b3b0'},
   },
-  white: '#ffffff',
   black: '#000000',
 };

@@ -19,60 +19,60 @@ export const leashTheme = {
   name: 'leash',
   __built: true,
   tokens: {
-    "--font-size-4xs": "0.375rem",
-    "--font-size-3xs": "0.4375rem",
+    "--font-size-4xs": "0.3125rem",
+    "--font-size-3xs": "0.375rem",
     "--font-size-2xs": "0.5rem",
-    "--font-size-xs": "0.625rem",
-    "--font-size-sm": "0.75rem",
-    "--font-size-base": "0.875rem",
-    "--font-size-lg": "1.0625rem",
-    "--font-size-xl": "1.25rem",
-    "--font-size-2xl": "1.5rem",
-    "--font-size-3xl": "1.8125rem",
-    "--font-size-4xl": "2.1875rem",
-    "--font-size-5xl": "2.625rem",
+    "--font-size-xs": "0.5625rem",
+    "--font-size-sm": "0.6875rem",
+    "--font-size-base": "0.8125rem",
+    "--font-size-lg": "1rem",
+    "--font-size-xl": "1.1875rem",
+    "--font-size-2xl": "1.375rem",
+    "--font-size-3xl": "1.6875rem",
+    "--font-size-4xl": "2rem",
+    "--font-size-5xl": "2.4375rem",
     "--text-heading-1-size": "var(--font-size-2xl)",
     "--text-heading-1-weight": "var(--font-weight-semibold)",
-    "--text-heading-1-leading": "1.3333",
+    "--text-heading-1-leading": "1.4545",
     "--text-heading-2-size": "var(--font-size-xl)",
     "--text-heading-2-weight": "var(--font-weight-semibold)",
-    "--text-heading-2-leading": "1.4",
+    "--text-heading-2-leading": "1.4737",
     "--text-heading-3-size": "var(--font-size-lg)",
     "--text-heading-3-weight": "var(--font-weight-bold)",
-    "--text-heading-3-leading": "1.4118",
+    "--text-heading-3-leading": "1.5",
     "--text-heading-4-size": "var(--font-size-base)",
     "--text-heading-4-weight": "var(--font-weight-bold)",
-    "--text-heading-4-leading": "1.4286",
+    "--text-heading-4-leading": "1.5385",
     "--text-heading-5-size": "var(--font-size-sm)",
     "--text-heading-5-weight": "var(--font-weight-semibold)",
-    "--text-heading-5-leading": "1.6667",
+    "--text-heading-5-leading": "1.4545",
     "--text-heading-6-size": "var(--font-size-xs)",
     "--text-heading-6-weight": "var(--font-weight-semibold)",
-    "--text-heading-6-leading": "1.6",
+    "--text-heading-6-leading": "1.7778",
     "--text-body-size": "var(--font-size-base)",
     "--text-body-weight": "var(--font-weight-normal)",
-    "--text-body-leading": "1.4286",
+    "--text-body-leading": "1.5385",
     "--text-large-size": "var(--font-size-lg)",
     "--text-large-weight": "var(--font-weight-semibold)",
-    "--text-large-leading": "1.4118",
+    "--text-large-leading": "1.5",
     "--text-label-size": "var(--font-size-base)",
     "--text-label-weight": "var(--font-weight-medium)",
-    "--text-label-leading": "1.4286",
+    "--text-label-leading": "1.5385",
     "--text-code-size": "var(--font-size-base)",
     "--text-code-weight": "var(--font-weight-normal)",
-    "--text-code-leading": "1.4286",
+    "--text-code-leading": "1.5385",
     "--text-supporting-size": "var(--font-size-sm)",
     "--text-supporting-weight": "var(--font-weight-normal)",
-    "--text-supporting-leading": "1.6667",
+    "--text-supporting-leading": "1.4545",
     "--text-display-1-size": "var(--font-size-5xl)",
     "--text-display-1-weight": "var(--font-weight-normal)",
-    "--text-display-1-leading": "1.2381",
+    "--text-display-1-leading": "1.2308",
     "--text-display-2-size": "var(--font-size-4xl)",
     "--text-display-2-weight": "var(--font-weight-normal)",
-    "--text-display-2-leading": "1.2571",
+    "--text-display-2-leading": "1.25",
     "--text-display-3-size": "var(--font-size-3xl)",
     "--text-display-3-weight": "var(--font-weight-normal)",
-    "--text-display-3-leading": "1.3793",
+    "--text-display-3-leading": "1.3333",
     "--duration-fast-min": "95ms",
     "--duration-fast": "125ms",
     "--duration-fast-max": "165ms",
@@ -119,7 +119,7 @@ export const leashTheme = {
     "--color-background-card": "light-dark(#ffffff, #141518)",
     "--color-background-popover": "light-dark(#ffffff, #141518)",
     "--color-background-muted": "light-dark(#f1f1f1, #17181c)",
-    "--color-accent": "light-dark(#3a5f8f, #79aef3)",
+    "--color-accent": "#3a5f8f",
     "--color-accent-muted": "light-dark(#cdd5e0, #124683)",
     "--color-neutral": "light-dark(#0000000F, #ffffff1A)",
     "--color-overlay": "light-dark(#00000080, #000000CC)",
@@ -128,10 +128,10 @@ export const leashTheme = {
     "--color-text-primary": "light-dark(#000000, #e4e4e7)",
     "--color-text-secondary": "light-dark(#474747, #8d8f9a)",
     "--color-text-disabled": "light-dark(#919191, #525252)",
-    "--color-text-accent": "light-dark(#2d5283, #b8c8de)",
+    "--color-text-accent": "light-dark(#2d5283, #92bcf2)",
     "--color-on-dark": "#ffffff",
     "--color-on-light": "#111111",
-    "--color-on-accent": "light-dark(#ffffff, #000000)",
+    "--color-on-accent": "light-dark(#ffffff, #e4e4e7)",
     "--color-on-success": "light-dark(#000000, #000000)",
     "--color-on-error": "light-dark(#000000, #000000)",
     "--color-on-warning": "light-dark(#000000, #000000)",
@@ -146,7 +146,7 @@ export const leashTheme = {
     "--color-on-success-muted": "light-dark(#004830, #83e5b9)",
     "--color-on-warning-muted": "light-dark(#4d3700, #fbbf24)",
     "--color-on-error-muted": "light-dark(#750014, #f9b3b0)",
-    "--color-icon-accent": "light-dark(#2d5283, #b8c8de)",
+    "--color-icon-accent": "light-dark(#2d5283, #92bcf2)",
     "--color-icon-primary": "light-dark(#000000, #ffffff)",
     "--color-icon-secondary": "light-dark(#6a6a6a, #9e9e9e)",
     "--color-icon-disabled": "light-dark(#919191, #525252)",
@@ -202,11 +202,11 @@ export const leashTheme = {
     "--color-icon-gray": "light-dark(#474747, #9e9e9e)",
     "--color-text-gray": "light-dark(#1b1b1b, #d4d4d4)",
     "--radius-none": "0px",
-    "--radius-inner": "0.375rem",
-    "--radius-element": "0.625rem",
-    "--radius-container": "0.75rem",
-    "--radius-page": "1.75rem",
-    "--radius-chat": "28px",
+    "--radius-inner": "4px",
+    "--radius-element": "6px",
+    "--radius-container": "7px",
+    "--radius-page": "17px",
+    "--radius-chat": "var(--radius-container)",
     "--radius-full": "9999px",
     "--shadow-low": "0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 25%)), 0 4px 8px light-dark(oklch(0 0 0 / 10%), oklch(0 0 0 / 40%)), inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 8%))",
     "--shadow-med": "0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 35%)), 0 4px 12px light-dark(oklch(0 0 0 / 10%), oklch(0 0 0 / 50%)), inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 12%))",
@@ -216,13 +216,30 @@ export const leashTheme = {
     "--shadow-inset-success": "inset 0px 0px 0px 2px #2f7d334D",
     "--shadow-inset-warning": "inset 0px 0px 0px 2px #f8d36a4D",
     "--shadow-inset-error": "inset 0px 0px 0px 2px #de47454D",
-    "--focus-outline-color": "light-dark(#3a5f8f, #79aef3)",
     "--color-icon-success": "light-dark(#006243, #34d399)",
     "--color-border-success": "light-dark(#81e5b8, #00c48a)",
     "--color-icon-warning": "light-dark(#6a4d00, #fbbf24)",
     "--color-border-warning": "light-dark(#fbbf24, #c89600)",
     "--color-icon-error": "light-dark(#aa212e, #ff8582)",
-    "--color-border-error": "light-dark(#e6bcb9, #f87171)"
+    "--color-border-error": "light-dark(#e6bcb9, #f87171)",
+    "--spacing-0": "0rem",
+    "--spacing-0-5": "0.094rem",
+    "--spacing-1": "0.188rem",
+    "--spacing-1-5": "0.281rem",
+    "--spacing-2": "0.375rem",
+    "--spacing-3": "0.563rem",
+    "--spacing-4": "0.75rem",
+    "--spacing-5": "0.938rem",
+    "--spacing-6": "1.125rem",
+    "--spacing-7": "1.313rem",
+    "--spacing-8": "1.5rem",
+    "--spacing-9": "1.688rem",
+    "--spacing-10": "1.875rem",
+    "--spacing-11": "2.063rem",
+    "--spacing-12": "2.25rem",
+    "--size-element-sm": "24px",
+    "--size-element-md": "27px",
+    "--size-element-lg": "30px"
   },
   localTokens: {
     "--astryx-theme-neutral-color-status-fill-accent": "light-dark(#0074e2, #6d9cfe)"
@@ -351,6 +368,12 @@ export const leashTheme = {
       "variant:destructive": {
         "backgroundColor": "var(--color-error-muted)",
         "color": "var(--color-on-error-muted)"
+      },
+      "variant:primary": {
+        ":is(:disabled,[aria-disabled=\"true\"])": {
+          "backgroundColor": "var(--color-neutral)",
+          "color": "var(--color-text-primary)"
+        }
       },
       "variant:quiet": {
         "backgroundColor": "transparent",
@@ -486,6 +509,11 @@ export const leashTheme = {
       },
       "variant:disabled": {
         "backgroundColor": "light-dark(var(--color-text-secondary), #b9b9b9)"
+      },
+      "variant:accent": {
+        "@dark": {
+          "backgroundColor": "#8fa4bf"
+        }
       }
     },
     "card": {
@@ -601,14 +629,66 @@ export const leashTheme = {
         }
       }
     },
+    "tooltip": {
+      "base": {
+        "@dark": {
+          "--color-background-inverted": "#141518",
+          "--color-background-surface": "#e4e4e7"
+        },
+        "boxShadow": "0 1px 4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08)"
+      }
+    },
     "toast": {
+      "base": {
+        "@dark": {
+          "--color-background-inverted": "#141518"
+        }
+      },
       "type:error": {
         "@dark": {
-          "--color-on-dark": "#ffffff",
-          "--color-on-light": "#ffffff",
-          "--color-text-primary": "#ffffff",
-          "color": "#ffffff"
+          "--color-background-error-inverted": "#f87171",
+          "--color-on-dark": "#000000",
+          "--color-on-light": "#000000",
+          "--color-text-primary": "#000000",
+          "color": "#000000"
         }
+      }
+    },
+    "side-nav-item": {
+      "selected": {
+        "backgroundColor": "var(--color-background-muted)"
+      }
+    },
+    "top-nav-item": {
+      "selected": {
+        "backgroundColor": "var(--color-background-muted)"
+      }
+    },
+    "tab-indicator": {
+      "base": {
+        "display": "none"
+      }
+    },
+    "tab": {
+      "base": {
+        "paddingInline": "8px",
+        "paddingBlock": "6px",
+        "fontSize": "var(--font-size-sm)",
+        "fontWeight": "var(--font-weight-normal)",
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
+      },
+      "selected": {
+        "@dark": {
+          "backgroundColor": "rgba(255, 255, 255, 0.1)"
+        }
+      }
+    },
+    "tab-list": {
+      "base": {
+        "gap": "4px",
+        "paddingInline": "6px"
       }
     }
   },
@@ -658,7 +738,7 @@ export const leashTheme = {
   __axes: {
     "typography": {
       "scale": {
-        "base": 14,
+        "base": 13,
         "ratio": 1.2
       },
       "body": {
@@ -669,8 +749,12 @@ export const leashTheme = {
         "family": "Figtree",
         "fallbacks": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
         "weights": {
-          "3": "bold",
-          "4": "bold"
+          "1": "var(--font-weight-semibold)",
+          "2": "var(--font-weight-semibold)",
+          "3": "var(--font-weight-bold)",
+          "4": "var(--font-weight-bold)",
+          "5": "var(--font-weight-semibold)",
+          "6": "var(--font-weight-semibold)"
         }
       },
       "code": {

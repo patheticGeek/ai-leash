@@ -87,6 +87,20 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   `src/ui` stays until its replacement task lands, and the "no `<div>` /
   no `className`" rules apply to surfaces as they are migrated. The
   shadcn notes below describe the legacy code.
+- **The `leash` theme should look like ai-leash, not like stock Astryx.**
+  Match the pre-migration look (dense spacing, 12px chrome text, 6px
+  corners, `#3a5f8f` accent, pill tabs, quiet tinted strips) through
+  theme settings (`npx astryx experimental theme editor set leash …`, or
+  `themes/leash/leash.theme.ts` for custom variants), not per-page
+  overrides. When an Astryx component's whole design doesn't fit (e.g.
+  `Banner` for the one-line strips docked on the composer), build the
+  small piece from Astryx layout/text primitives + StyleX tokens instead.
+  Theme pictures (`editor show leash --png`) need Playwright:
+  `npm i --no-save playwright && npx playwright install chromium-headless-shell`.
+- **StyleX `classNamePrefix: "al"`** (`vite.config.ts`) is load-bearing:
+  with the default `x` prefix our atomic classes collide with Astryx's
+  prebuilt ones, and ours are unlayered, so they silently override the
+  `astryx-theme` layer for every Astryx element sharing that class.
 - **`src/ui` components come from shadcn, then get themed.** Add a
   component with `npx shadcn@latest add <name>` (or, for a third-party
   registry such as AI Elements, `npx shadcn@latest view
