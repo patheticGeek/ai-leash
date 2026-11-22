@@ -1,6 +1,15 @@
+/* Cascade-layer order for Tailwind + Astryx side by side. It has to come
+   before `@import "tailwindcss"`, which names theme/base/components/utilities
+   as it loads, and this file has to be the first stylesheet the page loads
+   (`main.tsx` imports it before anything else). Utilities sit last so
+   `className` still overrides Astryx components during the migration. */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/jetbrains-mono";
 
@@ -82,6 +91,16 @@
   --input: var(--al-border);
   --ring: var(--al-accent);
   --radius: 0.5rem;
+}
+
+/* Astryx's theme (`src/themes/leash`, set on the `Theme` element) only takes
+   literal font families, so point its font tokens at the ones Settings >
+   Preferences > Fonts writes at runtime (`lib/fontPreferences.ts`).
+   Unlayered, so this wins over the theme's `astryx-theme` layer. */
+[data-astryx-theme] {
+  --font-family-body: var(--al-font-sans);
+  --font-family-heading: var(--al-font-sans);
+  --font-family-code: var(--al-font-mono);
 }
 
 html,

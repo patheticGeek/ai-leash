@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
+import stylex from "@stylexjs/unplugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -19,7 +20,10 @@ function commitHash() {
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss()],
+  // StyleX compiles our own `stylex.create()` styles only. Astryx itself is
+  // prebuilt (`@astryxdesign/core/astryx.css`) and never goes through it.
+  // Tailwind stays until the Astryx migration has moved every surface off it.
+  plugins: [stylex.vite(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
