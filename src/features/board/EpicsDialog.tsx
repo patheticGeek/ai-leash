@@ -1,18 +1,18 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import {
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+} from "@astryxdesign/core/Layout";
+import { Popover } from "@astryxdesign/core/Popover";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import * as stylex from "@stylexjs/stylex";
 import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { api, type Epic } from "../../lib/tauriApi";
 import { EpicDot } from "./TaskMeta";
 
@@ -37,32 +37,40 @@ function ColorPicker({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <IconButton
-          variant="ghost"
-          size="sm"
-          label="Colour"
-          tooltip="Colour"
-          icon={<EpicDot color={color} className="size-3" />}
-        />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-auto gap-1 p-1.5">
-        {EPIC_COLORS.map((c) => (
-          <IconButton
-            key={c}
-            variant={c === color ? "secondary" : "ghost"}
-            size="sm"
-            label={c}
-            tooltip={c}
-            icon={<EpicDot color={c} className="size-3" />}
-            onClick={() => {
-              onChange(c);
-              setOpen(false);
-            }}
-          />
-        ))}
-      </PopoverContent>
+    <Popover
+      isOpen={open}
+      onOpenChange={setOpen}
+      label="Colour"
+      placement="below"
+      alignment="start"
+      width="max-content"
+      padding={1.5}
+      content={
+        <HStack gap={1}>
+          {EPIC_COLORS.map((c) => (
+            <IconButton
+              key={c}
+              variant={c === color ? "secondary" : "ghost"}
+              size="sm"
+              label={c}
+              tooltip={c}
+              icon={<EpicDot color={c} className="size-3" />}
+              onClick={() => {
+                onChange(c);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </HStack>
+      }
+    >
+      <IconButton
+        variant="ghost"
+        size="sm"
+        label="Colour"
+        tooltip="Colour"
+        icon={<EpicDot color={color} className="size-3" />}
+      />
     </Popover>
   );
 }
@@ -148,42 +156,49 @@ export default function EpicsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Epics</DialogTitle>
-          <DialogDescription>
-            Group related tasks. Deleting an epic keeps its tasks.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex max-h-80 flex-col overflow-y-auto">
-          {epics.length === 0 && (
-            <p className="py-4 text-center text-xs text-zinc-600">
-              No epics yet
-            </p>
-          )}
-          {epics.map((epic) => (
-            <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
-          ))}
-        </div>
-        <form onSubmit={add} className="flex gap-2">
-          <TextInput
-            label="New epic"
-            isLabelHidden
-            containerXstyle={styles.grow}
-            value={title}
-            onChange={setTitle}
-            placeholder="New epic"
+    <Dialog isOpen={open} onOpenChange={onOpenChange} width={384}>
+      <Layout
+        header={
+          <DialogHeader
+            title="Epics"
+            subtitle="Group related tasks. Deleting an epic keeps its tasks."
+            onOpenChange={onOpenChange}
           />
-          <Button
-            type="submit"
-            variant="chip-primary"
-            label="Add"
-            icon={<Plus size={14} />}
-            isDisabled={!title.trim()}
-          />
-        </form>
-      </DialogContent>
+        }
+        content={
+          <LayoutContent>
+            {epics.length === 0 && (
+              <p className="py-4 text-center text-xs text-zinc-600">
+                No epics yet
+              </p>
+            )}
+            {epics.map((epic) => (
+              <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
+            ))}
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <form onSubmit={add} className="flex gap-2">
+              <TextInput
+                label="New epic"
+                isLabelHidden
+                containerXstyle={styles.grow}
+                value={title}
+                onChange={setTitle}
+                placeholder="New epic"
+              />
+              <Button
+                type="submit"
+                variant="chip-primary"
+                label="Add"
+                icon={<Plus size={14} />}
+                isDisabled={!title.trim()}
+              />
+            </form>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 }

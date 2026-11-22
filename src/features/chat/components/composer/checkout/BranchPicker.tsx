@@ -1,6 +1,6 @@
+import { Popover } from "@astryxdesign/core/Popover";
 import { GitBranch as GitBranchIcon } from "lucide-react";
 import { useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAsyncAction } from "../../../hooks/useAsyncAction";
 import { useGitBranches } from "../../../hooks/useGitBranches";
 import { CreatePanel, NewBranchFields } from "./CreatePanel";
@@ -58,47 +58,47 @@ export default function BranchPicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={closePopover}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex max-w-60 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
-        >
-          <GitBranchIcon size={12} className="shrink-0" />
-          <span className="truncate">{branch ?? "detached"}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={4}
-        className="flex w-64 flex-col gap-0 overflow-hidden p-0"
-      >
-        {!creating ? (
+    <Popover
+      isOpen={open}
+      onOpenChange={closePopover}
+      label="Branches"
+      placement="below"
+      alignment="end"
+      width="16rem"
+      padding={0}
+      // Only while open, so the search and any half-done delete start
+      // fresh each time.
+      content={
+        !open ? null : !creating ? (
           <PickerList
             searchPlaceholder="Search branches..."
             createLabel="New branch…"
-            createValue="new-branch"
             onCreate={() => setCreating(true)}
-          >
-            {branches.map((b) => (
-              <DeletableRow
-                key={b.name}
-                value={b.name}
-                label={b.name}
-                active={b.name === branch}
-                deletable={!b.isCurrent}
-                selectDisabled={action.pending}
-                onSelect={() => pick(b.name)}
-                onDelete={(force) => deleteBranch(b.name, force)}
-              />
-            ))}
-            {action.error && (
-              <span className="block px-2 py-1 text-xs text-red-400">
-                {action.error}
-              </span>
-            )}
-          </PickerList>
+            rows={branches.map((b) => ({
+              key: b.name,
+              searchText: b.name,
+              isDisabled: action.pending,
+              onSelect: () => void pick(b.name),
+              render: (row) => (
+                <DeletableRow
+                  {...row}
+                  label={b.name}
+                  active={b.name === branch}
+                  deletable={!b.isCurrent}
+                  selectDisabled={action.pending}
+                  onSelect={() => void pick(b.name)}
+                  onDelete={(force) => deleteBranch(b.name, force)}
+                />
+              ),
+            }))}
+            footer={
+              action.error && (
+                <span className="block px-2 py-1 text-xs text-red-400">
+                  {action.error}
+                </span>
+              )
+            }
+          />
         ) : (
           <CreatePanel
             error={action.error}
@@ -115,8 +115,16 @@ export default function BranchPicker({
               branches={branches}
             />
           </CreatePanel>
-        )}
-      </PopoverContent>
+        )
+      }
+    >
+      <button
+        type="button"
+        className="inline-flex max-w-60 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
+      >
+        <GitBranchIcon size={12} className="shrink-0" />
+        <span className="truncate">{branch ?? "detached"}</span>
+      </button>
     </Popover>
   );
 }

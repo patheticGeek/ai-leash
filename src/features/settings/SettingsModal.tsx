@@ -1,7 +1,8 @@
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
 import { SideNav, SideNavItem } from "@astryxdesign/core/SideNav";
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
 import { useAppStore } from "../../store";
 import AboutTab from "./tabs/AboutTab";
 import AgentsSettingsTab from "./tabs/AgentsSettingsTab";
@@ -14,6 +15,8 @@ const styles = stylex.create({
     width: "12rem",
     flexShrink: 0,
   },
+  // A fixed height, so switching sections doesn't resize the dialog.
+  dialog: { height: "38.75rem" },
 });
 
 // One entry per settings page — the side nav is built to hold more without
@@ -33,32 +36,44 @@ export default function SettingsModal() {
   const [activeSection, setActiveSection] = useState<SettingsSection>("agents");
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="flex h-[620px] w-[840px] max-w-[calc(100%-2rem)] flex-col gap-0 p-0 sm:max-w-[840px]">
-        <div className="flex items-center justify-between px-4 py-3">
-          <DialogTitle className="text-base font-medium text-zinc-100">
-            Settings
-          </DialogTitle>
-        </div>
-        <div className="flex min-h-0 flex-1">
-          <SideNav xstyle={styles.nav}>
-            {SECTIONS.map((section) => (
-              <SideNavItem
-                key={section.id}
-                label={section.label}
-                isSelected={section.id === activeSection}
-                onClick={() => setActiveSection(section.id)}
-              />
-            ))}
-          </SideNav>
-          <div className="min-w-0 flex-1 overflow-auto p-4 text-base">
+    <Dialog
+      isOpen={open}
+      onOpenChange={setOpen}
+      width="52.5rem"
+      maxHeight="90dvh"
+      xstyle={styles.dialog}
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Settings"
+            onOpenChange={setOpen}
+            hasDivider={false}
+          />
+        }
+        start={
+          <LayoutPanel>
+            <SideNav xstyle={styles.nav}>
+              {SECTIONS.map((section) => (
+                <SideNavItem
+                  key={section.id}
+                  label={section.label}
+                  isSelected={section.id === activeSection}
+                  onClick={() => setActiveSection(section.id)}
+                />
+              ))}
+            </SideNav>
+          </LayoutPanel>
+        }
+        content={
+          <LayoutContent>
             {activeSection === "agents" && <AgentsSettingsTab />}
             {activeSection === "preferences" && <PreferencesSettingsTab />}
             {activeSection === "crashlog" && <CrashLogTab />}
             {activeSection === "about" && <AboutTab />}
-          </div>
-        </div>
-      </DialogContent>
+          </LayoutContent>
+        }
+      />
     </Dialog>
   );
 }

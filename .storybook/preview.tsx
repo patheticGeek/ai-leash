@@ -1,6 +1,5 @@
 import type { Preview } from "@storybook/react-vite";
 import { themes } from "storybook/theming";
-import { TooltipProvider } from "../src/ui/tooltip";
 import "../src/index.css";
 import "./storybook.css";
 
@@ -32,9 +31,7 @@ const preview: Preview = {
   decorators: [
     (Story) => (
       <div className="dark p-6 font-sans text-foreground">
-        <TooltipProvider>
-          <Story />
-        </TooltipProvider>
+        <Story />
       </div>
     ),
   ],

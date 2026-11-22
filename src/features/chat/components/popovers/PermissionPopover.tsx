@@ -1,8 +1,8 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Check, FilePenLine, ShieldAlert, Terminal, X } from "lucide-react";
 import type { RefObject } from "react";
-import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
 import type { PermissionRequestPayload } from "../../../../lib/tauriApi";
+import InputAnchoredPopover from "./InputAnchoredPopover";
 
 interface PermissionPopoverProps {
   request: PermissionRequestPayload;
@@ -36,66 +36,61 @@ export default function PermissionPopover({
 }: PermissionPopoverProps) {
   const KindIcon = KIND_ICON[request.kind];
   return (
-    <Popover open>
-      <PopoverAnchor virtualRef={anchorRef} />
-      <PopoverContent
-        side="top"
-        align="center"
-        sideOffset={4}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[40vh] w-(--radix-popover-trigger-width) gap-0 overflow-hidden p-0"
-      >
-        <div className="flex items-center gap-2 px-3 py-2">
-          <span
-            title={KIND_LABEL[request.kind]}
-            className="shrink-0 text-zinc-400"
-          >
-            <KindIcon size={16} />
-          </span>
-          <div className="truncate text-sm font-medium text-zinc-100">
-            {request.title}
-          </div>
+    <InputAnchoredPopover
+      anchorRef={anchorRef}
+      label={KIND_LABEL[request.kind]}
+      maxHeight="40vh"
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span
+          title={KIND_LABEL[request.kind]}
+          className="shrink-0 text-zinc-400"
+        >
+          <KindIcon size={16} />
+        </span>
+        <div className="truncate text-sm font-medium text-zinc-100">
+          {request.title}
         </div>
-        <div className="flex-1 select-text overflow-auto px-3 py-2 font-mono text-code">
-          {request.kind === "edit" ? (
-            request.detail.split("\n").map((line, i) => (
-              <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: fixed diff text split into lines, no stable id available
-                key={i}
-                className={
-                  line.startsWith("+ ")
-                    ? "text-emerald-400"
-                    : line.startsWith("- ")
-                      ? "text-red-400"
-                      : "text-zinc-500"
-                }
-              >
-                {line || " "}
-              </div>
-            ))
-          ) : (
-            <pre className="whitespace-pre-wrap text-zinc-300">
-              {request.detail}
-            </pre>
-          )}
-        </div>
-        <div className="flex items-center justify-end gap-1.5 px-3 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Deny"
-            icon={<X size={13} />}
-            onClick={() => onRespond(false)}
-          />
-          <Button
-            variant="primary"
-            size="sm"
-            label="Approve"
-            icon={<Check size={13} />}
-            onClick={() => onRespond(true)}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+      <div className="flex-1 select-text overflow-auto px-3 py-2 font-mono text-code">
+        {request.kind === "edit" ? (
+          request.detail.split("\n").map((line, i) => (
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed diff text split into lines, no stable id available
+              key={i}
+              className={
+                line.startsWith("+ ")
+                  ? "text-emerald-400"
+                  : line.startsWith("- ")
+                    ? "text-red-400"
+                    : "text-zinc-500"
+              }
+            >
+              {line || " "}
+            </div>
+          ))
+        ) : (
+          <pre className="whitespace-pre-wrap text-zinc-300">
+            {request.detail}
+          </pre>
+        )}
+      </div>
+      <div className="flex items-center justify-end gap-1.5 px-3 py-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Deny"
+          icon={<X size={13} />}
+          onClick={() => onRespond(false)}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          label="Approve"
+          icon={<Check size={13} />}
+          onClick={() => onRespond(true)}
+        />
+      </div>
+    </InputAnchoredPopover>
   );
 }
