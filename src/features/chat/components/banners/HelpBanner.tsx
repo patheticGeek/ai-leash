@@ -1,8 +1,6 @@
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
-import { dockClassName } from "./DockedBanner";
 
 type HelpBannerProps = {
   commands: AcpCommandInfo[];
@@ -12,10 +10,8 @@ type HelpBannerProps = {
 export default function HelpBanner({ commands, onClose }: HelpBannerProps) {
   return (
     <div
-      className={cn(
-        dockClassName("top"),
-        "flex max-h-[50vh] flex-col overflow-auto rounded-t-md bg-background shadow-[var(--al-shadow-floating)]",
-      )}
+      // Docked above the message box like `DockedBanner` (same inset).
+      className="z-10 mx-10 flex max-h-[50vh] flex-col overflow-auto rounded-t-md bg-background shadow-[var(--al-shadow-floating)]"
     >
       <div className="flex items-center justify-between px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">

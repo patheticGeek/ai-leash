@@ -1,10 +1,14 @@
+import { Collapsible } from "@astryxdesign/core/Collapsible";
+import { Divider } from "@astryxdesign/core/Divider";
+import { HStack } from "@astryxdesign/core/HStack";
 import { Selector } from "@astryxdesign/core/Selector";
+import { Text } from "@astryxdesign/core/Text";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
-  ChevronDown,
   Folder,
   FolderPlus,
   GitBranch,
@@ -20,11 +24,6 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, revealOnGroupHover } from "@/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/ui/collapsible";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -310,6 +309,16 @@ function DoneConversationRow({
   );
 }
 
+const sectionStyles = stylex.create({
+  root: {
+    paddingBlockStart: spacingVars["--spacing-1-5"],
+  },
+  // The rule after the label runs out to the row's end.
+  rule: {
+    flexGrow: 1,
+  },
+});
+
 // A collapsible sidebar section. Its open state lives in the store
 // (`sidebarSlice`) so it survives restarts and project-filter switches.
 function SidebarSectionCollapsible({
@@ -327,25 +336,21 @@ function SidebarSectionCollapsible({
   const setCollapsed = useAppStore((s) => s.setSidebarSectionCollapsed);
   return (
     <Collapsible
-      open={!collapsed}
+      isOpen={!collapsed}
       onOpenChange={(open) => setCollapsed(section, !open)}
+      chevronPosition="start"
       className={className}
+      xstyle={sectionStyles.root}
+      trigger={
+        <HStack gap={1.5} align="center">
+          <Text type="supporting" size="xsm" color="secondary">
+            {label}
+          </Text>
+          <Divider xstyle={sectionStyles.rule} />
+        </HStack>
+      }
     >
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="unstyled"
-          size="none"
-          className="group/section mx-1.5 my-1.5 flex w-[calc(100%-0.75rem)] items-center justify-start gap-1.5 rounded-md px-3 text-xs font-medium text-zinc-600 hover:text-zinc-400"
-        >
-          <ChevronDown
-            size={12}
-            className="shrink-0 transition-transform group-data-[state=closed]/section:-rotate-90"
-          />
-          <span>{label}</span>
-          <div className="h-px flex-1 bg-white/[0.06]" />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent>{children}</CollapsibleContent>
+      {children}
     </Collapsible>
   );
 }

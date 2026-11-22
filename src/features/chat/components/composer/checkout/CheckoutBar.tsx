@@ -1,7 +1,9 @@
+import { Card } from "@astryxdesign/core/Card";
+import { HStack } from "@astryxdesign/core/HStack";
 import { useCallback, useEffect, useState } from "react";
 import { api, type GitWorktree } from "@/lib/tauriApi";
 import { useCurrentGitBranch } from "@/lib/useCurrentGitBranch";
-import DockedBanner from "../../banners/DockedBanner";
+import { dockStyles } from "../../banners/DockedBanner";
 import BranchPicker from "./BranchPicker";
 import WorktreePicker, { worktreeLabel } from "./WorktreePicker";
 
@@ -23,12 +25,9 @@ export interface CheckoutBarProps {
   onWorktreeSelected: (worktreePath: string | null) => void;
 }
 
-// Sits directly below `ChatInputBar` as a bottom-docked `DockedBanner`
-// (mirroring `ClaudeRateLimitBanner` above it). Its default variant is
-// `bg-card`, the app's established "recessed surface" tone (see `Input`'s
-// default variant), so this reads as consistent rather than a one-off color.
-// A `group`, not the `Alert`'s default `alert` role — it holds controls, not
-// a message to announce.
+// Sits directly below `ChatInputBar`, docked with the same inset as the
+// `DockedBanner`s above it. A muted `Card` rather than a `Banner`: it holds
+// controls (a `group`), not a message to announce.
 //
 // Two independent pickers share the bar: which worktree (left) and which
 // branch is checked out there (right, pinned to the far edge). They're
@@ -99,25 +98,33 @@ export default function CheckoutBar({
   );
 
   return (
-    <DockedBanner side="bottom" role="group" aria-label="Checkout">
-      <WorktreePicker
-        worktrees={worktrees}
-        activePath={cwd}
-        projectRoot={projectRoot}
-        label={active ? worktreeLabel(active) : "primary"}
-        editable={editable}
-        onRefresh={refreshWorktrees}
-        onSelect={selectWorktree}
-        onCreate={createWorktree}
-        onDelete={deleteWorktree}
-      />
-      <BranchPicker
-        cwd={cwd}
-        branch={branch}
-        onSelect={selectBranch}
-        onCreate={createBranch}
-        onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
-      />
-    </DockedBanner>
+    <Card variant="muted" padding={1} xstyle={dockStyles.dock}>
+      <HStack
+        role="group"
+        aria-label="Checkout"
+        align="center"
+        justify="between"
+        gap={3}
+      >
+        <WorktreePicker
+          worktrees={worktrees}
+          activePath={cwd}
+          projectRoot={projectRoot}
+          label={active ? worktreeLabel(active) : "primary"}
+          editable={editable}
+          onRefresh={refreshWorktrees}
+          onSelect={selectWorktree}
+          onCreate={createWorktree}
+          onDelete={deleteWorktree}
+        />
+        <BranchPicker
+          cwd={cwd}
+          branch={branch}
+          onSelect={selectBranch}
+          onCreate={createBranch}
+          onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
+        />
+      </HStack>
+    </Card>
   );
 }

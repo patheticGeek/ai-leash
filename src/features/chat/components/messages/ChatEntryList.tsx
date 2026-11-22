@@ -1,16 +1,11 @@
+import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
+import { ArrowDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { cn } from "@/lib/utils";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/ui/message-scroller";
+import { Button } from "@/ui/button";
 import {
   type ActivityItem,
   groupActivity,
@@ -117,10 +112,9 @@ export default function ChatEntryList({
   );
   const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
-  // Following the end is ours, not the scroller's `autoScroll` — see
-  // `useStickToEnd`. The scroller still does the initial jump to the end and
-  // the "Latest" button.
-  const { viewportRef, contentRef, stick } = useStickToEnd();
+  // Following the end — including the initial jump there — and whether to
+  // offer the "Latest" button are `useStickToEnd`'s.
+  const { viewportRef, contentRef, stick, atEnd } = useStickToEnd();
   useStickOnUserMessage(entries, stick);
 
   function toggle(i: number) {
@@ -170,71 +164,89 @@ export default function ChatEntryList({
   }
 
   return (
-    <MessageScrollerProvider defaultScrollPosition="end">
-      <MessageScroller>
-        <MessageScrollerViewport ref={viewportRef}>
-          <MessageScrollerContent
-            ref={contentRef}
-            className={cn(
-              "mx-auto w-full max-w-4xl gap-3 p-3 text-sm",
-              className,
-            )}
-            style={bottomInset ? { paddingBottom: bottomInset } : undefined}
-          >
-            <TranscriptNotices
-              chatError={chatError}
-              acpRestoreFailed={acpRestoreFailed}
-              onRetryAcpSession={onRetryAcpSession}
-              acpHistoryTruncated={acpHistoryTruncated}
-              acpAgentLabel={acpAgentLabel}
+    <div className="relative flex size-full min-h-0 flex-col overflow-hidden">
+      <ScrollableArea
+        ref={viewportRef}
+        label="Transcript"
+        overscroll="contain"
+        height="100%"
+        className="min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable contain-content"
+      >
+        <div
+          ref={contentRef}
+          className={cn(
+            "mx-auto flex h-max min-h-full w-full max-w-4xl flex-col gap-3 p-3 text-sm",
+            className,
+          )}
+          style={bottomInset ? { paddingBottom: bottomInset } : undefined}
+        >
+          <TranscriptNotices
+            chatError={chatError}
+            acpRestoreFailed={acpRestoreFailed}
+            onRetryAcpSession={onRetryAcpSession}
+            acpHistoryTruncated={acpHistoryTruncated}
+            acpAgentLabel={acpAgentLabel}
+          />
+          {systemPrompt && <SystemPromptRow systemPrompt={systemPrompt} />}
+          {entries.length === 0 && historyLoaded && !chatError && (
+            <EmptyTranscript />
+          )}
+          {items.map((item) => (
+            <div
+              key={itemKey(item)}
+              className={cn(
+                "min-w-0 shrink-0",
+                item.kind === "activitygroup" && "space-y-1.5",
+              )}
+            >
+              {item.kind === "work" ? (
+                <WorkSummary
+                  entries={entries}
+                  indices={item.indices}
+                  turnDuration={turnDurations[item.replyIndex]}
+                >
+                  {groupActivity(entries, item.indices).map((inner) => (
+                    <div
+                      key={itemKey(inner)}
+                      className={
+                        inner.kind === "activitygroup" ? "space-y-1.5" : ""
+                      }
+                    >
+                      {renderItem(inner)}
+                    </div>
+                  ))}
+                </WorkSummary>
+              ) : (
+                renderItem(item)
+              )}
+            </div>
+          ))}
+          {sending && (
+            <WorkingForIndicator
+              hasActivity={hasTurnActivity(entries)}
+              replyStartedAt={replyStartedAt}
             />
-            {systemPrompt && <SystemPromptRow systemPrompt={systemPrompt} />}
-            {entries.length === 0 && historyLoaded && !chatError && (
-              <EmptyTranscript />
-            )}
-            {items.map((item) => (
-              <MessageScrollerItem
-                key={itemKey(item)}
-                className={item.kind === "activitygroup" ? "space-y-1.5" : ""}
-              >
-                {item.kind === "work" ? (
-                  <WorkSummary
-                    entries={entries}
-                    indices={item.indices}
-                    turnDuration={turnDurations[item.replyIndex]}
-                  >
-                    {groupActivity(entries, item.indices).map((inner) => (
-                      <div
-                        key={itemKey(inner)}
-                        className={
-                          inner.kind === "activitygroup" ? "space-y-1.5" : ""
-                        }
-                      >
-                        {renderItem(inner)}
-                      </div>
-                    ))}
-                  </WorkSummary>
-                ) : (
-                  renderItem(item)
-                )}
-              </MessageScrollerItem>
-            ))}
-            {sending && (
-              <WorkingForIndicator
-                hasActivity={hasTurnActivity(entries)}
-                replyStartedAt={replyStartedAt}
-              />
-            )}
-          </MessageScrollerContent>
-        </MessageScrollerViewport>
-        <MessageScrollerButton
-          variant="outline"
-          size="md"
-          onClick={stick}
-          // 1rem clear of the inset, matching the button's default `bottom-4`.
-          style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
-        />
-      </MessageScroller>
-    </MessageScrollerProvider>
+          )}
+        </div>
+      </ScrollableArea>
+      <Button
+        variant="outline"
+        size="md"
+        onClick={stick}
+        aria-hidden={atEnd || undefined}
+        tabIndex={atEnd ? -1 : undefined}
+        // 1rem clear of the inset, matching the default `bottom-4`.
+        style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
+        className={cn(
+          "absolute bottom-4 left-1/2 -translate-x-1/2 transition-[translate,scale,opacity] duration-200",
+          atEnd
+            ? "pointer-events-none translate-y-full scale-95 opacity-0"
+            : "translate-y-0 scale-100 opacity-100",
+        )}
+      >
+        <ArrowDown />
+        Latest
+      </Button>
+    </div>
   );
 }

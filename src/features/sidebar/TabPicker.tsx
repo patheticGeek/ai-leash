@@ -1,8 +1,19 @@
+import { Badge } from "@astryxdesign/core/Badge";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useSubAgents } from "@/data/subAgents";
-import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { PICKER_TAB_KINDS } from "../tabs/tabKinds";
+
+const styles = stylex.create({
+  // Pinned over the tile's top-right corner.
+  corner: {
+    position: "absolute",
+    top: `calc(-1 * ${spacingVars["--spacing-1-5"]})`,
+    right: `calc(-1 * ${spacingVars["--spacing-1-5"]})`,
+  },
+});
 
 export default function TabPicker({
   onPick,
@@ -35,9 +46,11 @@ export default function TabPicker({
             className="relative"
           >
             {tile.kind === "subagents" && runningSubAgents > 0 && (
-              <Badge size="count" className="absolute -right-1.5 -top-1.5">
-                {runningSubAgents}
-              </Badge>
+              <Badge
+                variant="info"
+                label={runningSubAgents}
+                xstyle={styles.corner}
+              />
             )}
             <div className="flex w-full items-center gap-2">
               {tile.icon && <tile.icon size={16} className="text-zinc-500" />}

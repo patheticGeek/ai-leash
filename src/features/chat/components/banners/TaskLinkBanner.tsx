@@ -1,5 +1,4 @@
 import { Undo2 } from "lucide-react";
-import { AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
 import { useBoard } from "../../../../data/board";
 import { useConversation } from "../../../../data/conversations";
@@ -26,12 +25,11 @@ export default function TaskLinkBanner({
     : undefined;
   if (!task || task.engagedWithProject || task.status === "done") return null;
   return (
-    <DockedBanner variant="info">
-      <AlertDescription className="flex items-center justify-between gap-3">
-        <span>
-          The project chat isn't following #{task.number}: it only gets notes of
-          what happens here.
-        </span>
+    <DockedBanner
+      status="info"
+      title={`The project chat isn't following #${task.number}`}
+      description="It only gets notes of what happens here."
+      endContent={
         <Button
           variant="chip-primary"
           size="sm"
@@ -41,7 +39,7 @@ export default function TaskLinkBanner({
           <Undo2 size={13} />
           Hand back to project chat
         </Button>
-      </AlertDescription>
-    </DockedBanner>
+      }
+    />
   );
 }

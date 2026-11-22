@@ -1,10 +1,10 @@
+import { Token } from "@astryxdesign/core/Token";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
-import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
@@ -154,16 +154,9 @@ export default function TitleBar({
         className="flex shrink-0 items-center justify-between px-1.5"
       >
         <div className="flex min-w-0 items-center gap-1.5 ml-1.5">
-          <Logo className="h-3.5 w-auto shrink-0" />
+          <Logo size="sm" />
           {BUILD_LABEL && (
-            <Badge
-              size="sm"
-              variant="warning"
-              outline
-              className="font-semibold"
-            >
-              {BUILD_LABEL}
-            </Badge>
+            <Token size="sm" color="orange" label={BUILD_LABEL} />
           )}
         </div>
         <div className="flex items-center gap-1">

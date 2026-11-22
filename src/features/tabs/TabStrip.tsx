@@ -1,14 +1,38 @@
+import { Badge } from "@astryxdesign/core/Badge";
+import { HStack } from "@astryxdesign/core/HStack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import {
   horizontalListSortingStrategy,
   SortableContext,
 } from "@dnd-kit/sortable";
+import * as stylex from "@stylexjs/stylex";
+import { X } from "lucide-react";
 import { useSubAgents } from "@/data/subAgents";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
+import { Button } from "@/ui/button";
 import { useGenerating } from "../../lib/generatingQuery";
 import { useAppStore, type WorkspaceTab } from "../../store";
 import { SortableTab } from "./TabDnd";
+
+const styles = stylex.create({
+  // Lets the strip shrink below its tabs' width and scroll instead.
+  strip: {
+    minWidth: 0,
+    flexGrow: 1,
+  },
+  // Room at the tab's end for the close button laid over it.
+  closable: {
+    paddingInlineEnd: spacingVars["--spacing-7"],
+  },
+});
+
+// Tab labels are single-line; cap very long ones (file paths, sub-agent
+// descriptions) so one tab can't take the whole strip.
+const MAX_LABEL = 32;
+const clip = (label: string) =>
+  label.length > MAX_LABEL ? `${label.slice(0, MAX_LABEL - 1)}…` : label;
 
 // The tab row of either area — every tab kind can sit in either one, so
 // each tab's decorations (running shine, sub-agent count, unsaved marker)
@@ -42,12 +66,13 @@ export default function TabStrip({
   ).length;
 
   return (
-    <Tabs
-      value={value}
-      onValueChange={onSelect}
-      className={cn("min-w-0 gap-0", className)}
-    >
-      <TabsList variant="strip">
+    <HStack className={cn("min-w-0", className)} align="center">
+      <TabList
+        value={value}
+        onChange={onSelect}
+        size="sm"
+        xstyle={styles.strip}
+      >
         <SortableContext
           items={tabs.map((t) => t.id)}
           strategy={horizontalListSortingStrategy}
@@ -66,37 +91,41 @@ export default function TabStrip({
             const dirty =
               tab.kind === "file" &&
               !!openFiles.find((f) => f.path === tab.path)?.dirty;
+            const closable = tab.kind !== "primary";
             return (
               <SortableTab key={tab.id} id={tab.id}>
-                <TabsTrigger
+                <Tab
                   value={tab.id}
-                  onClose={
-                    tab.kind === "primary" ? undefined : () => closeTab(tab.id)
+                  label={clip(tab.label)}
+                  className={shine ? "shine-text" : undefined}
+                  xstyle={closable && styles.closable}
+                  endContent={
+                    tab.kind === "subagents" && runningSubAgents > 0 ? (
+                      <Badge variant="info" label={runningSubAgents} />
+                    ) : dirty ? (
+                      <StatusDot variant="neutral" label="Unsaved changes" />
+                    ) : undefined
                   }
-                  className="gap-1.5"
-                >
-                  <span
-                    className={cn(
-                      "max-w-[12rem] truncate",
-                      shine && "shine-text",
-                    )}
+                />
+                {closable && (
+                  // A sibling of the tab, not inside it — a button can't
+                  // contain a button.
+                  <Button
+                    variant="quiet"
+                    size="icon-sm"
+                    title="Close tab"
+                    aria-label="Close tab"
+                    onClick={() => closeTab(tab.id)}
+                    className="absolute inset-y-0 right-0.5 my-auto"
                   >
-                    {tab.label}
-                  </span>
-                  {tab.kind === "subagents" && runningSubAgents > 0 && (
-                    <Badge size="count" className="h-4 min-w-4 px-1.5">
-                      {runningSubAgents}
-                    </Badge>
-                  )}
-                  {dirty && (
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
-                  )}
-                </TabsTrigger>
+                    <X size={12} />
+                  </Button>
+                )}
               </SortableTab>
             );
           })}
         </SortableContext>
-      </TabsList>
-    </Tabs>
+      </TabList>
+    </HStack>
   );
 }

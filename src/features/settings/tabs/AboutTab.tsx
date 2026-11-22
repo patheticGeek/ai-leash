@@ -22,7 +22,7 @@ export default function AboutTab() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-      <Logo className="h-14 w-auto" />
+      <Logo size="lg" />
       <div className="text-xs text-zinc-600">
         v{info?.version ?? "…"} ({__COMMIT_HASH__}
         {import.meta.env.DEV ? " dev" : ""}) · {info?.identifier ?? "…"}

@@ -1,11 +1,20 @@
+import { SideNav, SideNavItem } from "@astryxdesign/core/SideNav";
+import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { useAppStore } from "../../store";
 import AboutTab from "./tabs/AboutTab";
 import AgentsSettingsTab from "./tabs/AgentsSettingsTab";
 import CrashLogTab from "./tabs/CrashLogTab";
 import PreferencesSettingsTab from "./tabs/PreferencesSettingsTab";
+
+const styles = stylex.create({
+  // A fixed-width rail; the open section takes the rest of the dialog.
+  nav: {
+    width: "12rem",
+    flexShrink: 0,
+  },
+});
 
 // One entry per settings page — the side nav is built to hold more without
 // restructuring.
@@ -31,42 +40,24 @@ export default function SettingsModal() {
             Settings
           </DialogTitle>
         </div>
-        <Tabs
-          value={activeSection}
-          onValueChange={(v) => setActiveSection(v as SettingsSection)}
-          orientation="vertical"
-          className="flex-1 min-h-0"
-        >
-          <TabsList
-            size="lg"
-            className="h-fit w-48 shrink-0 flex-col items-stretch gap-0.5 bg-transparent p-2"
-          >
+        <div className="flex min-h-0 flex-1">
+          <SideNav xstyle={styles.nav}>
             {SECTIONS.map((section) => (
-              <TabsTrigger
+              <SideNavItem
                 key={section.id}
-                value={section.id}
-                className="justify-start text-left"
-              >
-                {section.label}
-              </TabsTrigger>
+                label={section.label}
+                isSelected={section.id === activeSection}
+                onClick={() => setActiveSection(section.id)}
+              />
             ))}
-          </TabsList>
-          <TabsContent value="agents" className="overflow-auto p-4 text-base">
-            <AgentsSettingsTab />
-          </TabsContent>
-          <TabsContent
-            value="preferences"
-            className="overflow-auto p-4 text-base"
-          >
-            <PreferencesSettingsTab />
-          </TabsContent>
-          <TabsContent value="crashlog" className="overflow-auto p-4 text-base">
-            <CrashLogTab />
-          </TabsContent>
-          <TabsContent value="about" className="overflow-auto p-4 text-base">
-            <AboutTab />
-          </TabsContent>
-        </Tabs>
+          </SideNav>
+          <div className="min-w-0 flex-1 overflow-auto p-4 text-base">
+            {activeSection === "agents" && <AgentsSettingsTab />}
+            {activeSection === "preferences" && <PreferencesSettingsTab />}
+            {activeSection === "crashlog" && <CrashLogTab />}
+            {activeSection === "about" && <AboutTab />}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

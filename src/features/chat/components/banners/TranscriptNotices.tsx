@@ -1,11 +1,17 @@
-import { Alert, AlertAction, AlertDescription } from "@/ui/alert";
+import { Banner } from "@astryxdesign/core/Banner";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { Button } from "@/ui/button";
 
-// Pinned to the top of the scroller. The `z-10` matters: each message is a
-// `MessageScrollerItem` with `content-visibility: auto`, which gives it its
-// own stacking context, so without a z-index every later message paints over
-// a sticky notice as it scrolls past.
-const STICKY = "sticky top-1 z-10";
+// Pinned to the top of the transcript. The z-index keeps later messages from
+// painting over a sticky notice as they scroll past it.
+const styles = stylex.create({
+  sticky: {
+    position: "sticky",
+    top: spacingVars["--spacing-1"],
+    zIndex: 10,
+  },
+});
 
 interface TranscriptNoticesProps {
   chatError: string | null;
@@ -33,31 +39,38 @@ export default function TranscriptNotices({
   return (
     <>
       {chatError && (
-        <Alert variant="danger" outline className={STICKY}>
-          <AlertDescription>{chatError}</AlertDescription>
-        </Alert>
+        <Banner
+          status="error"
+          role="alert"
+          title="Error"
+          description={chatError}
+          collapsible={false}
+          xstyle={styles.sticky}
+        />
       )}
       {acpRestoreFailed && (
-        <Alert variant="danger" outline className={STICKY}>
-          <AlertDescription>
-            This agent couldn't restore its previous session ({acpRestoreFailed}
-            ). It no longer remembers this conversation.
-          </AlertDescription>
-          <AlertAction>
+        <Banner
+          status="error"
+          role="alert"
+          title="Couldn't restore the previous session"
+          description={`${acpRestoreFailed}. This agent no longer remembers this conversation.`}
+          endContent={
             <Button size="sm" variant="outline" onClick={onRetryAcpSession}>
               Start new session
             </Button>
-          </AlertAction>
-        </Alert>
+          }
+          collapsible={false}
+          xstyle={styles.sticky}
+        />
       )}
       {acpHistoryTruncated && (
-        <Alert variant="warning" outline className={STICKY}>
-          <AlertDescription>
-            {acpAgentLabel ?? "This agent"} doesn't support resuming a previous
-            session, so this conversation's earlier history won't be visible to
-            it.
-          </AlertDescription>
-        </Alert>
+        <Banner
+          status="warning"
+          title="Earlier history not shared"
+          description={`${acpAgentLabel ?? "This agent"} doesn't support resuming a previous session, so this conversation's earlier history won't be visible to it.`}
+          collapsible={false}
+          xstyle={styles.sticky}
+        />
       )}
     </>
   );
