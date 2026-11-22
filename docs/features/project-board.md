@@ -3,6 +3,11 @@
 Every project has a Kanban board for planning work as tasks. Open it from
 the **Project boards** section at the top of the sidebar.
 
+That section only lists boards that are in use — ones with tasks, or whose
+project chat has been opened — and at most five of them. The open board
+always shows. Click **More boards** to see the rest, including projects
+whose board you haven't used yet.
+
 The board takes over the window next to the sidebar — there's no tab
 strip or side panel while it's open. Next to it is the **project chat**,
 an ordinary conversation for the whole project: use it to plan, break work

@@ -24,6 +24,7 @@ const MIGRATIONS: &[Migration] = &[
     v5_agent_mode,
     v6_project_boards,
     v7_agent_defaults,
+    v8_drop_empty_project_chats,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -314,6 +315,55 @@ fn v7_agent_defaults(conn: &Connection) {
     .expect("failed to add agent defaults");
 }
 
+/// Earlier versions created a project chat for every project, so the
+/// sidebar's Project boards section treated every board as in use. Drops
+/// the ones nothing was ever said in (no messages, nothing they own), along
+/// with the per-conversation rows keyed by them. `ensure_project_chat`
+/// recreates one the next time its board is opened.
+fn v8_drop_empty_project_chats(conn: &Connection) {
+    conn.execute_batch(
+        "
+        CREATE TEMP TABLE empty_project_chats AS
+            SELECT c.id FROM conversations c
+            WHERE c.role = 'project'
+              AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM conversations o WHERE o.owner_conversation_id = c.id);
+        ",
+    )
+    .expect("failed to find empty project chats");
+    // Both are baseline tables in any real database, but not in the
+    // hand-built ones the older migrations' tests start from.
+    for table in ["acp_agent_sessions", "rate_limit_resumes"] {
+        if has_table(conn, table) {
+            conn.execute(
+                &format!(
+                    "DELETE FROM {table}
+                     WHERE conversation_id IN (SELECT id FROM empty_project_chats)"
+                ),
+                [],
+            )
+            .unwrap_or_else(|e| panic!("failed to clear {table}: {e}"));
+        }
+    }
+    conn.execute_batch(
+        "
+        DELETE FROM conversations WHERE id IN (SELECT id FROM empty_project_chats);
+        DROP TABLE empty_project_chats;
+        ",
+    )
+    .expect("failed to drop empty project chats");
+}
+
+fn has_table(conn: &Connection, table: &str) -> bool {
+    conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        [table],
+        |r| r.get::<_, i64>(0),
+    )
+    .map(|n| n > 0)
+    .unwrap_or_else(|e| panic!("failed to look up table {table}: {e}"))
+}
+
 fn v4_backend_ids(conn: &Connection) {
     let rows: Vec<(String, String)> = conn
         .prepare("SELECT id, backend FROM conversations WHERE backend IS NOT NULL")
@@ -422,6 +472,52 @@ mod tests {
         run(&conn);
         assert_eq!(user_version(&conn), MIGRATIONS.len());
     }
+    #[test]
+    fn v8_drops_only_empty_project_chats() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversations (id TEXT PRIMARY KEY, project_root TEXT NOT NULL,
+                 role TEXT, owner_conversation_id TEXT,
+                 created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 conversation_id TEXT NOT NULL, role TEXT NOT NULL,
+                 content TEXT NOT NULL, created_at INTEGER NOT NULL);
+             CREATE TABLE acp_agent_sessions (conversation_id TEXT NOT NULL,
+                 launch_command TEXT NOT NULL, agent_session_id TEXT NOT NULL,
+                 updated_at INTEGER NOT NULL, PRIMARY KEY (conversation_id, launch_command));
+             CREATE TABLE rate_limit_resumes (conversation_id TEXT PRIMARY KEY);
+             INSERT INTO conversations (id, project_root, role, owner_conversation_id, created_at, updated_at)
+                 VALUES ('empty', '/a', 'project', NULL, 1, 1),
+                        ('used', '/b', 'project', NULL, 1, 1),
+                        ('owner', '/c', 'project', NULL, 1, 1),
+                        ('sub', '/c', NULL, 'owner', 1, 1),
+                        ('plain', '/a', NULL, NULL, 1, 1);
+             INSERT INTO messages (conversation_id, role, content, created_at)
+                 VALUES ('used', 'user', 'hi', 1);
+             INSERT INTO acp_agent_sessions VALUES ('empty', 'claude', 's', 1);
+             INSERT INTO rate_limit_resumes VALUES ('empty');",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 7).unwrap();
+
+        run(&conn);
+
+        let ids: Vec<String> = conn
+            .prepare("SELECT id FROM conversations ORDER BY id")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(ids, ["owner", "plain", "sub", "used"]);
+        for table in ["acp_agent_sessions", "rate_limit_resumes"] {
+            let n: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(n, 0, "{table}");
+        }
+    }
+
     #[test]
     fn v2_turns_existing_sub_agents_into_owned_hidden_conversations() {
         let conn = Connection::open_in_memory().unwrap();

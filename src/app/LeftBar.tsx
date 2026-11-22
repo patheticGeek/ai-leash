@@ -436,6 +436,9 @@ export default function LeftBar() {
   // conversations out of view.
   const [doneExpanded, setDoneExpanded] = useState(false);
   const DEFAULT_VISIBLE_DONE = 3;
+  // Same idea for Project boards: only boards in use show until expanded.
+  const [boardsExpanded, setBoardsExpanded] = useState(false);
+  const DEFAULT_VISIBLE_BOARDS = 5;
 
   async function onAddProject() {
     const dir = await open({ directory: true, multiple: false });
@@ -507,6 +510,29 @@ export default function LeftBar() {
   );
   const boardChatFor = (root: string) =>
     conversations.find((c) => c.role === "project" && c.projectRoot === root);
+  // A board is "in use" once it has tasks or its project chat exists; the
+  // rest (and in-use ones past the first few) sit behind "More boards". The
+  // open board always stays visible.
+  const isActiveBoard = (root: string) => {
+    const chat = boardChatFor(root);
+    return !!chat && chat.id === activeSessionId;
+  };
+  const inUseBoards = boardProjects.filter(
+    (p) =>
+      p.path === projectFilter ||
+      boardSummaries.some((b) => b.projectRoot === p.path) ||
+      !!boardChatFor(p.path),
+  );
+  const collapsedBoards = new Set(
+    inUseBoards.slice(0, DEFAULT_VISIBLE_BOARDS).map((p) => p.path),
+  );
+  for (const p of boardProjects) {
+    if (isActiveBoard(p.path)) collapsedBoards.add(p.path);
+  }
+  const visibleBoards = boardsExpanded
+    ? boardProjects
+    : boardProjects.filter((p) => collapsedBoards.has(p.path));
+  const hiddenBoardCount = boardProjects.length - collapsedBoards.size;
 
   return (
     <div className="relative flex h-full flex-col bg-sunken">
@@ -587,7 +613,7 @@ export default function LeftBar() {
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {boardProjects.length > 0 && (
           <SidebarSectionCollapsible section="boards" label="Project boards">
-            {boardProjects.map((p) => {
+            {visibleBoards.map((p) => {
               const chat = boardChatFor(p.path);
               return (
                 <ProjectBoardRow
@@ -600,6 +626,18 @@ export default function LeftBar() {
                 />
               );
             })}
+            {hiddenBoardCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setBoardsExpanded((v) => !v)}
+                className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+              >
+                {boardsExpanded
+                  ? "Show less"
+                  : `More boards (${hiddenBoardCount})`}
+              </Button>
+            )}
           </SidebarSectionCollapsible>
         )}
         <SidebarSectionCollapsible
