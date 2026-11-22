@@ -1,5 +1,5 @@
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useState } from "react";
-import { Input } from "@/ui/input";
 import type { AcpModeOptions } from "../../../../lib/tauriApi";
 import type { PermissionMode } from "../../../../store";
 import EffortPickerPopover from "../popovers/EffortPickerPopover";
@@ -116,10 +116,13 @@ export default function ChatToolbar({
         />
       )}
       {showModelIdInput && (
-        <Input
-          variant="chip"
+        <TextInput
+          label="Model id"
+          isLabelHidden
+          size="sm"
+          width={160}
           value={model}
-          onChange={(e) => onModelChange(e.currentTarget.value)}
+          onChange={onModelChange}
           placeholder="model id"
         />
       )}

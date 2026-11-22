@@ -1,3 +1,5 @@
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import {
   Bot,
   Check,
@@ -13,8 +15,6 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Card } from "@/ui/card";
-import { Checkbox } from "@/ui/checkbox";
-import { Input } from "@/ui/input";
 import {
   deleteBackend,
   saveBackend,
@@ -212,18 +212,18 @@ export default function AgentsSettingsTab() {
         </div>
         {type === "ollama" && (
           <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <Input
+            <TextInput
+              label="Label"
+              size="sm"
               value={ollamaForm.label}
-              onChange={(e) =>
-                setOllamaForm({ ...ollamaForm, label: e.currentTarget.value })
-              }
-              placeholder="Label, e.g. Local Ollama"
+              onChange={(label) => setOllamaForm({ ...ollamaForm, label })}
+              placeholder="e.g. Local Ollama"
             />
-            <Input
+            <TextInput
+              label="Host"
+              size="sm"
               value={ollamaForm.host}
-              onChange={(e) =>
-                setOllamaForm({ ...ollamaForm, host: e.currentTarget.value })
-              }
+              onChange={(host) => setOllamaForm({ ...ollamaForm, host })}
               placeholder="localhost:11434"
             />
             <div className="flex justify-end gap-2">
@@ -244,25 +244,25 @@ export default function AgentsSettingsTab() {
         )}
         {type === "openAiCompatible" && (
           <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <Input
+            <TextInput
+              label="Label"
+              size="sm"
               value={openAiForm.label}
-              onChange={(e) =>
-                setOpenAiForm({ ...openAiForm, label: e.currentTarget.value })
-              }
-              placeholder="Label, e.g. OpenRouter"
+              onChange={(label) => setOpenAiForm({ ...openAiForm, label })}
+              placeholder="e.g. OpenRouter"
             />
-            <Input
+            <TextInput
+              label="Base URL"
+              size="sm"
               value={openAiForm.baseUrl}
-              onChange={(e) =>
-                setOpenAiForm({ ...openAiForm, baseUrl: e.currentTarget.value })
-              }
+              onChange={(baseUrl) => setOpenAiForm({ ...openAiForm, baseUrl })}
               placeholder="https://api.openai.com/v1"
             />
-            <Input
+            <TextInput
+              label="API key"
+              size="sm"
               value={openAiForm.apiKey}
-              onChange={(e) =>
-                setOpenAiForm({ ...openAiForm, apiKey: e.currentTarget.value })
-              }
+              onChange={(apiKey) => setOpenAiForm({ ...openAiForm, apiKey })}
               type="password"
               placeholder={
                 editingOpenAi?.kind === "openAiCompatible" &&
@@ -281,12 +281,12 @@ export default function AgentsSettingsTab() {
                 ? `Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`
                 : "Stored in the system keychain."}
             </div>
-            <Input
+            <TextInput
+              label="Model"
+              size="sm"
               value={openAiForm.model}
-              onChange={(e) =>
-                setOpenAiForm({ ...openAiForm, model: e.currentTarget.value })
-              }
-              placeholder="Model id, e.g. gpt-4.1"
+              onChange={(model) => setOpenAiForm({ ...openAiForm, model })}
+              placeholder="e.g. gpt-4.1"
             />
             <div className="flex justify-end gap-2">
               <Button
@@ -306,17 +306,19 @@ export default function AgentsSettingsTab() {
         )}
         {type === "acp" && (
           <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-            <Input
+            <TextInput
+              label="Label"
+              size="sm"
               value={acpForm.label}
-              onChange={(e) =>
-                setAcpForm({ ...acpForm, label: e.currentTarget.value })
-              }
-              placeholder="Label, e.g. Claude Code"
+              onChange={(label) => setAcpForm({ ...acpForm, label })}
+              placeholder="e.g. Claude Code"
             />
-            <Input
+            <TextInput
+              label="Launch command"
+              size="sm"
               value={acpForm.launchCommand}
-              onChange={(e) =>
-                setAcpForm({ ...acpForm, launchCommand: e.currentTarget.value })
+              onChange={(launchCommand) =>
+                setAcpForm({ ...acpForm, launchCommand })
               }
               placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
             />
@@ -394,14 +396,11 @@ export default function AgentsSettingsTab() {
                 </span>
               </Button>
               <div className="flex shrink-0 items-center gap-1 pr-2">
-                <Checkbox
-                  checked={c.enabled}
-                  onCheckedChange={(next) =>
-                    void saveBackend({ ...c, enabled: next === true })
-                  }
-                  title={c.enabled ? "Turn off" : "Turn on"}
-                  aria-label={`Enable ${c.label}`}
-                  className="mr-1"
+                <CheckboxInput
+                  label={`Enable ${c.label}`}
+                  isLabelHidden
+                  value={c.enabled}
+                  onChange={(enabled) => void saveBackend({ ...c, enabled })}
                 />
                 <Button
                   variant="ghost"

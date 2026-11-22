@@ -1,15 +1,9 @@
+import { Selector } from "@astryxdesign/core/Selector";
 import { MoveDiagonal2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useConversations } from "@/data/conversations";
 import { Button } from "@/ui/button";
 import { JsonViewer } from "@/ui/json-viewer";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
 import { type AcpDebugEvent, useAppStore } from "../../store";
 
 const ALL_CONVERSATIONS = "__all__";
@@ -90,33 +84,24 @@ export default function DebugEventsPanel({
         </div>
       </div>
       <div className="shrink-0 border-b border-white/5 px-3 py-2">
-        <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue placeholder="All conversations" />
-          </SelectTrigger>
-          {/* This panel is `z-[999]` (see `DebugDevtoolsOverlay`) so it can
-              float above the whole app — `SelectContent`'s own portal
-              defaults to `z-50`, which paints *underneath* that regardless
-              of DOM order, making the dropdown open invisibly behind the
-              panel. Bumped above the panel's own z-index. */}
-          <SelectContent className="z-[1000]">
-            <SelectItem
-              value={ALL_CONVERSATIONS}
-              className="cursor-pointer px-3 py-2"
-            >
-              All conversations
-            </SelectItem>
-            {conversationIds.map((id) => (
-              <SelectItem
-                key={id}
-                value={id}
-                className="cursor-pointer px-3 py-2"
-              >
-                {labelFor(id)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Astryx opens its option list in the top layer, so it paints above
+            this `z-[999]` panel (see `DebugDevtoolsOverlay`) without a
+            z-index of its own. */}
+        <Selector
+          label="Conversation"
+          isLabelHidden
+          size="sm"
+          width="100%"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: ALL_CONVERSATIONS, label: "All conversations" },
+            ...conversationIds.map((id) => ({
+              value: id,
+              label: labelFor(id),
+            })),
+          ]}
+        />
       </div>
       {filtered.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-sm text-zinc-600">

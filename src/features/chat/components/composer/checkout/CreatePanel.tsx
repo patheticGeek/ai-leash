@@ -1,18 +1,8 @@
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import type { ReactNode } from "react";
 import type { GitBranch } from "@/lib/tauriApi";
 import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
-
-export function FieldLabel({ children }: { children: ReactNode }) {
-  return <span className="text-[11px] text-zinc-500">{children}</span>;
-}
 
 // The "create" view shared by both checkout pickers: a scrolling form body
 // (with the failure message, if any) over a Back / Create footer.
@@ -70,30 +60,26 @@ export function NewBranchFields({
 }) {
   return (
     <>
-      <FieldLabel>New branch name</FieldLabel>
-      <Input
+      <TextInput
+        label="New branch name"
+        size="sm"
         value={name}
-        onChange={(e) => onNameChange(e.target.value)}
+        onChange={onNameChange}
         placeholder="my-feature"
-        autoFocus
+        hasAutoFocus
       />
-      <FieldLabel>Base branch</FieldLabel>
-      <Select
+      <Selector
+        label="Base branch"
+        size="sm"
+        width="100%"
         value={baseBranch ?? undefined}
-        onValueChange={onBaseBranchChange}
-      >
-        <SelectTrigger size="sm" className="w-full">
-          <SelectValue placeholder="Select a branch" />
-        </SelectTrigger>
-        <SelectContent>
-          {branches.map((b) => (
-            <SelectItem key={b.name} value={b.name}>
-              {b.name}
-              {b.isCurrent ? " (current)" : ""}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        onChange={onBaseBranchChange}
+        placeholder="Select a branch"
+        options={branches.map((b) => ({
+          value: b.name,
+          label: b.isCurrent ? `${b.name} (current)` : b.name,
+        }))}
+      />
     </>
   );
 }

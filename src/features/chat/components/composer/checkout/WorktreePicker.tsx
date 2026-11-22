@@ -1,19 +1,13 @@
+import { Selector } from "@astryxdesign/core/Selector";
 import { Folder as FolderIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { GitWorktree } from "@/lib/tauriApi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
 import { useAsyncAction } from "../../../hooks/useAsyncAction";
 import { useGitBranches } from "../../../hooks/useGitBranches";
-import { CreatePanel, FieldLabel, NewBranchFields } from "./CreatePanel";
+import { CreatePanel, NewBranchFields } from "./CreatePanel";
 import DeletableRow from "./DeletableRow";
 import PickerList from "./PickerList";
 
@@ -174,22 +168,16 @@ export default function WorktreePicker({
               />
             ) : (
               <>
-                <FieldLabel>Branch</FieldLabel>
-                <Select
+                <Selector
+                  label="Branch"
+                  size="sm"
+                  width="100%"
                   value={branchName || undefined}
-                  onValueChange={setBranchName}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder="Select a branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableBranches.map((b) => (
-                      <SelectItem key={b.name} value={b.name}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={setBranchName}
+                  placeholder="Select a branch"
+                  emptyText="No unattached branches"
+                  options={availableBranches.map((b) => b.name)}
+                />
                 {availableBranches.length === 0 && (
                   <span className="text-zinc-600">No unattached branches</span>
                 )}

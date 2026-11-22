@@ -1,3 +1,4 @@
+import { Selector } from "@astryxdesign/core/Selector";
 import {
   closestCorners,
   DndContext,
@@ -18,13 +19,6 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
-import {
   columnTasks,
   moveTask,
   STATUS_LABELS,
@@ -42,7 +36,7 @@ import TaskDialog from "./TaskDialog";
 import { EpicDot } from "./TaskMeta";
 import { useFinishTask } from "./useFinishTask";
 
-// Epic filter values besides an epic's own id. Radix `Select` reserves "".
+// Epic filter values besides an epic's own id.
 const ALL_EPICS = "all";
 const NO_EPIC = "none";
 
@@ -266,24 +260,23 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex shrink-0 items-center gap-1.5 border-b border-white/5 px-3 py-2">
-        <Select value={epicFilter} onValueChange={setEpicFilter}>
-          <SelectTrigger
-            size="sm"
-            className="border-none bg-white/[0.04] text-xs text-zinc-400 hover:bg-white/5"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="start">
-            <SelectItem value={ALL_EPICS}>All epics</SelectItem>
-            <SelectItem value={NO_EPIC}>No epic</SelectItem>
-            {epics.map((e) => (
-              <SelectItem key={e.id} value={e.id}>
-                <EpicDot color={e.color} />
-                {e.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Selector
+          label="Filter by epic"
+          isLabelHidden
+          variant="ghost"
+          size="sm"
+          value={epicFilter}
+          onChange={setEpicFilter}
+          options={[
+            { value: ALL_EPICS, label: "All epics" },
+            { value: NO_EPIC, label: "No epic" },
+            ...epics.map((e) => ({
+              value: e.id,
+              label: e.title,
+              icon: <EpicDot color={e.color} />,
+            })),
+          ]}
+        />
         <Button
           variant={groupByEpic ? "chip-primary" : "chip"}
           size="sm"

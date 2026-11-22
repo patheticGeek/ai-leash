@@ -1,18 +1,11 @@
-import { Field, FieldLabel } from "@/ui/field";
-import { Input } from "@/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useBackendModels, useBackends } from "../../data/backends";
 import { useAcpAgentCatalog } from "../../lib/acpCatalogQuery";
 import type { AgentDefaults } from "../../lib/tauriApi";
 
-// Radix `Select` reserves "" for "nothing selected", so this stands for
-// "unset: fall back to `inheritLabel`".
+// Stands for "unset: fall back to `inheritLabel`" as a real option, so the
+// fallback shows by name instead of as an empty placeholder.
 const UNSET = "unset";
 const NATIVE_THINKING = ["low", "medium", "high"];
 const ASK_BYPASS = [
@@ -36,26 +29,18 @@ function OptionSelect({
   disabled?: boolean;
 }) {
   return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <Select
-        value={value ?? UNSET}
-        onValueChange={(v) => onChange(v === UNSET ? null : v)}
-        disabled={disabled}
-      >
-        <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={UNSET}>{unsetLabel}</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
+    <Selector
+      label={label}
+      size="sm"
+      width="100%"
+      value={value ?? UNSET}
+      onChange={(v) => onChange(v === UNSET ? null : v)}
+      isDisabled={disabled}
+      options={[
+        { value: UNSET, label: unsetLabel },
+        ...options.map((o) => ({ value: o.value, label: o.name })),
+      ]}
+    />
   );
 }
 
@@ -121,14 +106,14 @@ export default function AgentFields({
         }
       />
       {backend?.kind === "openAiCompatible" ? (
-        <Field>
-          <FieldLabel>Model</FieldLabel>
-          <Input
-            value={value.model ?? ""}
-            onChange={(e) => set({ model: e.target.value || null })}
-            placeholder={backend.model || "Model id"}
-          />
-        </Field>
+        <TextInput
+          label="Model"
+          size="sm"
+          width="100%"
+          value={value.model ?? ""}
+          onChange={(model) => set({ model: model || null })}
+          placeholder={backend.model || "Model id"}
+        />
       ) : (
         <OptionSelect
           label="Model"

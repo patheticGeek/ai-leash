@@ -1,3 +1,5 @@
+import { Selector } from "@astryxdesign/core/Selector";
+import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -37,13 +39,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
 import { useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
@@ -64,9 +59,14 @@ import {
 } from "../store";
 import DeleteConversationDialog from "./DeleteConversationDialog";
 
-// Sentinel for "no project filter" — Radix `Select` doesn't allow an empty
-// string item value (that's reserved to mean "no selection").
+// Sentinel for "no project filter", a real option so the selector shows
+// "All projects" by name rather than an empty placeholder.
 const ALL_PROJECTS = "all";
+
+const styles = stylex.create({
+  // Fills the header row beside the filter menu button.
+  projectFilter: { flex: 1, minWidth: 0 },
+});
 
 // How long the row's turn has been running, next to its spinner. Ticks its
 // own clock (like `WorkingForIndicator`) so only this label re-renders each
@@ -537,33 +537,22 @@ export default function LeftBar() {
   return (
     <div className="relative flex h-full flex-col bg-sunken">
       <div className="flex shrink-0 items-center gap-1 border-b border-white/5 px-1.5 h-12">
-        <Select
+        <Selector
+          label="Project"
+          isLabelHidden
+          variant="ghost"
+          size="sm"
+          width="100%"
+          containerXstyle={styles.projectFilter}
           value={projectFilter ?? ALL_PROJECTS}
-          onValueChange={(value) =>
+          onChange={(value) =>
             setProjectFilter(value === ALL_PROJECTS ? null : value)
           }
-        >
-          <SelectTrigger
-            size="sm"
-            className="h-auto! min-w-0 flex-1 border-none bg-transparent px-3 py-2 text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-          >
-            <SelectValue placeholder="All projects" />
-          </SelectTrigger>
-          <SelectContent align="start" className="p-1">
-            <SelectItem value={ALL_PROJECTS} className="px-3 py-2">
-              All projects
-            </SelectItem>
-            {recentProjects.map((p) => (
-              <SelectItem
-                key={p.path}
-                value={p.path}
-                className="px-3 py-2 cursor-pointer"
-              >
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={[
+            { value: ALL_PROJECTS, label: "All projects" },
+            ...recentProjects.map((p) => ({ value: p.path, label: p.name })),
+          ]}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

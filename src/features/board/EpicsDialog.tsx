@@ -1,3 +1,5 @@
+import { TextInput } from "@astryxdesign/core/TextInput";
+import * as stylex from "@stylexjs/stylex";
 import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -9,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import { Input } from "@/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { api, type Epic } from "../../lib/tauriApi";
 import { EpicDot } from "./TaskMeta";
@@ -62,6 +63,10 @@ function ColorPicker({
   );
 }
 
+const styles = stylex.create({
+  grow: { flex: 1, minWidth: 0 },
+});
+
 function EpicRow({ epic }: { epic: Epic }) {
   const [title, setTitle] = useState(epic.title);
   return (
@@ -75,10 +80,13 @@ function EpicRow({ epic }: { epic: Epic }) {
         color={epic.color}
         onChange={(color) => void api.updateEpic(epic.id, { color })}
       />
-      <Input
-        variant="unstyled"
+      <TextInput
+        label="Epic title"
+        isLabelHidden
+        size="sm"
+        containerXstyle={styles.grow}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={setTitle}
         onBlur={() => {
           if (title.trim() && title !== epic.title) {
             void api.updateEpic(epic.id, { title });
@@ -89,7 +97,6 @@ function EpicRow({ epic }: { epic: Epic }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="flex-1 px-1 py-1"
       />
       <Button
         variant="ghost"
@@ -154,9 +161,12 @@ export default function EpicsDialog({
           ))}
         </div>
         <form onSubmit={add} className="flex gap-2">
-          <Input
+          <TextInput
+            label="New epic"
+            isLabelHidden
+            containerXstyle={styles.grow}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={setTitle}
             placeholder="New epic"
           />
           <Button
