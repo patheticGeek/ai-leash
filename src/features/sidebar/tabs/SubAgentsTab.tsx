@@ -1,9 +1,9 @@
+import { List, ListItem } from "@astryxdesign/core/List";
 import { Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSubAgents } from "@/data/subAgents";
 import { formatDuration, formatTime } from "@/lib/format";
 import { Button, revealOnGroupHover } from "@/ui/button";
-import { Card } from "@/ui/card";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import SubAgentStatusBadge from "../../chat/SubAgentStatusBadge";
@@ -41,65 +41,52 @@ export default function SubAgentsTab() {
   const sorted = [...tasks].sort((a, b) => b.startedAt - a.startedAt);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-2 gap-2">
-      {sorted.map((task) => {
-        const running = task.status === "running";
-        const duration = formatDuration(
-          ((running ? now : (task.endedAt ?? now)) - task.startedAt) / 1000,
-        );
-        return (
-          <Card
-            key={task.subSessionId}
-            interactive
-            className="group flex-row items-stretch gap-0 rounded-md py-0 text-xs"
-          >
-            <Button
-              variant="unstyled"
-              size="none"
+    <div className="flex h-full flex-col overflow-y-auto p-2">
+      <List density="compact" hasDividers>
+        {sorted.map((task) => {
+          const running = task.status === "running";
+          const duration = formatDuration(
+            ((running ? now : (task.endedAt ?? now)) - task.startedAt) / 1000,
+          );
+          return (
+            <ListItem
+              key={task.subSessionId}
+              // `group` drives the hover-revealed Stop/Delete button.
+              className="group"
               onClick={() => openChatTab(task.subSessionId, task.description)}
-              className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
-            >
-              <div className="flex w-full items-center gap-2">
-                <SubAgentStatusBadge status={task.status} />
-                <span className="min-w-0 flex-1 truncate text-zinc-300">
-                  {task.description}
-                </span>
-              </div>
-              <div className="mt-1 w-full truncate text-[10px] text-zinc-600">
-                started {formatTime(task.startedAt)} ·{" "}
-                {running ? "running" : "ran"} for {duration} · {task.model}
-                {task.effort ? ` (${task.effort})` : ""}
-              </div>
-            </Button>
-            <div className="flex shrink-0 items-center pr-2">
-              {running ? (
-                <Button
-                  variant="danger"
-                  size="icon-sm"
-                  title="Stop sub-agent"
-                  onClick={() => void api.cancelPrompt(task.subSessionId)}
-                  className={revealOnGroupHover}
-                >
-                  <Square size={12} />
-                </Button>
-              ) : (
-                <Button
-                  variant="danger"
-                  size="icon-sm"
-                  title="Delete sub-agent"
-                  onClick={() =>
-                    activeSessionId &&
-                    deleteSubAgentTask(activeSessionId, task.subSessionId)
-                  }
-                  className={revealOnGroupHover}
-                >
-                  <Trash2 size={12} />
-                </Button>
-              )}
-            </div>
-          </Card>
-        );
-      })}
+              startContent={<SubAgentStatusBadge status={task.status} />}
+              label={task.description}
+              description={`started ${formatTime(task.startedAt)} · ${running ? "running" : "ran"} for ${duration} · ${task.model}${task.effort ? ` (${task.effort})` : ""}`}
+              endContent={
+                running ? (
+                  <Button
+                    variant="danger"
+                    size="icon-sm"
+                    title="Stop sub-agent"
+                    onClick={() => void api.cancelPrompt(task.subSessionId)}
+                    className={revealOnGroupHover}
+                  >
+                    <Square size={12} />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="danger"
+                    size="icon-sm"
+                    title="Delete sub-agent"
+                    onClick={() =>
+                      activeSessionId &&
+                      deleteSubAgentTask(activeSessionId, task.subSessionId)
+                    }
+                    className={revealOnGroupHover}
+                  >
+                    <Trash2 size={12} />
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
+      </List>
     </div>
   );
 }

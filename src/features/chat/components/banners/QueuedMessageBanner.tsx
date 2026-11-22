@@ -1,5 +1,7 @@
+import { HStack } from "@astryxdesign/core/HStack";
+import { Text } from "@astryxdesign/core/Text";
+import { VStack } from "@astryxdesign/core/VStack";
 import { X } from "lucide-react";
-import { AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
 import DockedBanner from "./DockedBanner";
 
@@ -17,15 +19,26 @@ export default function QueuedMessagesBanner({
   onCancel,
 }: QueuedMessagesBannerProps) {
   return (
-    <DockedBanner variant="info">
-      <AlertDescription className="flex flex-col gap-1">
+    <DockedBanner
+      status="info"
+      title={
+        messages.length === 1
+          ? "1 queued message"
+          : `${messages.length} queued messages`
+      }
+    >
+      <VStack gap={1}>
         {messages.map((text, i) => (
-          <div
+          <HStack
             // biome-ignore lint/suspicious/noArrayIndexKey: purely a FIFO display list, position is the identity that matters (top = next out)
             key={i}
-            className="flex items-center justify-between gap-3"
+            align="center"
+            justify="between"
+            gap={3}
           >
-            <span className="truncate">Queued: {text}</span>
+            <Text type="supporting" maxLines={1}>
+              {text}
+            </Text>
             <Button
               size="icon-sm"
               variant="ghost"
@@ -35,9 +48,9 @@ export default function QueuedMessagesBanner({
             >
               <X size={14} />
             </Button>
-          </div>
+          </HStack>
         ))}
-      </AlertDescription>
+      </VStack>
     </DockedBanner>
   );
 }

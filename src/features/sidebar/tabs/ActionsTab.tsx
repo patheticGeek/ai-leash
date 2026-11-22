@@ -1,9 +1,11 @@
+import { HStack } from "@astryxdesign/core/HStack";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/ui/badge";
 import { Button, revealOnGroupHover } from "@/ui/button";
-import { Card } from "@/ui/card";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 import { useActions } from "../../actions/useActions";
@@ -24,20 +26,21 @@ function RunStatusBadge({ action }: { action: ActionSummary }) {
         ? `exited ${action.exitCode}`
         : "exited"
       : "stopped";
-  return (
-    <Badge
+  const token = (
+    <Token
       size="sm"
-      variant={action.running ? "warning" : failed ? "danger" : "muted"}
-      outline
-      className="shrink-0"
-      title={
-        action.endedAt
-          ? `Ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`
-          : undefined
-      }
+      color={action.running ? "yellow" : failed ? "red" : "gray"}
+      label={label}
+    />
+  );
+  return action.endedAt ? (
+    <Tooltip
+      content={`Ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`}
     >
-      {label}
-    </Badge>
+      {token}
+    </Tooltip>
+  ) : (
+    token
   );
 }
 
@@ -106,59 +109,52 @@ export default function ActionsTab() {
           </div>
         </div>
       )}
-      {actions.map((action) => (
-        <Card
-          key={action.id}
-          interactive
-          className="group flex-row items-stretch gap-0 rounded-md py-0 text-xs"
-        >
-          <Button
-            variant="unstyled"
-            size="none"
-            onClick={() => openTerminal(action)}
-            className="min-w-0 flex-1 flex-col items-start px-2.5 py-2 text-left"
-          >
-            <div className="flex w-full items-center gap-2">
-              <RunStatusBadge action={action} />
-              <span className="min-w-0 flex-1 truncate text-zinc-300">
-                {action.name}
-              </span>
-            </div>
-            <div className="mt-1 w-full truncate text-xs text-zinc-600">
-              {action.command}
-            </div>
-          </Button>
-          <div className="flex shrink-0 items-center gap-1 pr-2">
-            <Button
-              variant="danger"
-              size="icon-sm"
-              title="Delete"
-              onClick={() => remove(action.id)}
-              className={revealOnGroupHover}
-            >
-              <Trash2 size={12} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="Edit"
-              onClick={() => startEdit(action)}
-              className={revealOnGroupHover}
-            >
-              <Pencil size={12} />
-            </Button>
-            <Button
-              variant={action.running ? "danger" : "secondary"}
-              size="icon-sm"
-              title={action.running ? "Stop action" : "Run action"}
-              onClick={() => toggle(action)}
-              className="shrink-0"
-            >
-              {action.running ? <Square size={12} /> : <Play size={12} />}
-            </Button>
-          </div>
-        </Card>
-      ))}
+      {actions.length > 0 && (
+        <List density="compact" hasDividers>
+          {actions.map((action) => (
+            <ListItem
+              key={action.id}
+              // `group` drives the hover-revealed Delete/Edit buttons.
+              className="group"
+              onClick={() => openTerminal(action)}
+              startContent={<RunStatusBadge action={action} />}
+              label={action.name}
+              description={action.command}
+              endContent={
+                <HStack gap={1} align="center">
+                  <Button
+                    variant="danger"
+                    size="icon-sm"
+                    title="Delete"
+                    onClick={() => remove(action.id)}
+                    className={revealOnGroupHover}
+                  >
+                    <Trash2 size={12} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Edit"
+                    onClick={() => startEdit(action)}
+                    className={revealOnGroupHover}
+                  >
+                    <Pencil size={12} />
+                  </Button>
+                  <Button
+                    variant={action.running ? "danger" : "secondary"}
+                    size="icon-sm"
+                    title={action.running ? "Stop action" : "Run action"}
+                    onClick={() => toggle(action)}
+                    className="shrink-0"
+                  >
+                    {action.running ? <Square size={12} /> : <Play size={12} />}
+                  </Button>
+                </HStack>
+              }
+            />
+          ))}
+        </List>
+      )}
       {showForm ? (
         <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
           <TextInput

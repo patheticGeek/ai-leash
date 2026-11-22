@@ -1,5 +1,8 @@
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
 import {
   Bot,
   Check,
@@ -14,7 +17,6 @@ import type { ComponentType } from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/ui/button";
-import { Card } from "@/ui/card";
 import {
   deleteBackend,
   saveBackend,
@@ -353,75 +355,58 @@ export default function AgentsSettingsTab() {
         Agents
       </div>
       <div className="flex flex-col gap-2">
-        {cards.map((c) => {
-          const meta = TYPE_META[c.kind];
-          const active = c.enabled && c.id === defaultBackendId;
-          return (
-            <Card
-              key={c.id}
-              interactive
-              selected={active}
-              className={cn(
-                "flex-row items-stretch gap-0 rounded-md py-0 text-sm",
-                !c.enabled && "opacity-60",
-              )}
-            >
-              <Button
-                variant="unstyled"
-                size="none"
-                onClick={() => void setDefaultBackend(c.id)}
-                disabled={!c.enabled}
-                title={
-                  !c.enabled
-                    ? "Turned off"
-                    : active
-                      ? "Default for new conversations"
-                      : "Make default for new conversations"
+        <List hasDividers>
+          {cards.map((c) => {
+            const meta = TYPE_META[c.kind];
+            const active = c.enabled && c.id === defaultBackendId;
+            return (
+              <ListItem
+                key={c.id}
+                isSelected={active}
+                // Turned-off agents can't be made the default, but their
+                // controls (turn back on, edit, delete) stay live.
+                onClick={
+                  c.enabled ? () => void setDefaultBackend(c.id) : undefined
                 }
-                className="min-w-0 flex-1 flex-col items-start gap-1.5 px-3 py-2.5 text-left"
-              >
-                <span className="flex w-full items-center gap-2">
-                  <meta.icon size={15} className="shrink-0 text-zinc-500" />
-                  <span className="min-w-0 flex-1 truncate text-zinc-200">
-                    {c.label}
+                className={cn(!c.enabled && "opacity-60")}
+                startContent={<meta.icon size={15} />}
+                label={c.label}
+                description={subtitle(c)}
+                endContent={
+                  <HStack gap={1} align="center">
                     {active && (
-                      <span className="ml-1.5 text-xs text-primary-hover">
-                        default
-                      </span>
+                      <Token size="sm" color="purple" label="default" />
                     )}
-                  </span>
-                </span>
-                <span className="w-full truncate pl-[23px] text-xs text-zinc-600">
-                  {subtitle(c)}
-                </span>
-              </Button>
-              <div className="flex shrink-0 items-center gap-1 pr-2">
-                <CheckboxInput
-                  label={`Enable ${c.label}`}
-                  isLabelHidden
-                  value={c.enabled}
-                  onChange={(enabled) => void saveBackend({ ...c, enabled })}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Edit"
-                  onClick={() => startEdit(c)}
-                >
-                  <Pencil size={13} />
-                </Button>
-                <Button
-                  variant="danger"
-                  size="icon-sm"
-                  title="Delete"
-                  onClick={() => void deleteBackend(c.id)}
-                >
-                  <Trash2 size={13} />
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
+                    <CheckboxInput
+                      label={`Enable ${c.label}`}
+                      isLabelHidden
+                      value={c.enabled}
+                      onChange={(enabled) =>
+                        void saveBackend({ ...c, enabled })
+                      }
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Edit"
+                      onClick={() => startEdit(c)}
+                    >
+                      <Pencil size={13} />
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="icon-sm"
+                      title="Delete"
+                      onClick={() => void deleteBackend(c.id)}
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                  </HStack>
+                }
+              />
+            );
+          })}
+        </List>
         <Button
           variant="unstyled"
           size="none"

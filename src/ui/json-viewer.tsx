@@ -1,5 +1,75 @@
+import {
+  colorVars,
+  radiusVars,
+  spacingVars,
+  typographyVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+
+const styles = stylex.create({
+  root: {
+    fontFamily: typographyVars["--font-family-code"],
+    // The user's code font size (Settings → Preferences, `fontPreferences`).
+    fontSize: "var(--al-code-size)",
+  },
+  leaf: {
+    paddingInlineStart: spacingVars["--spacing-4"],
+    lineHeight: 1.625,
+  },
+  toggle: {
+    display: "flex",
+    alignItems: "center",
+    gap: spacingVars["--spacing-1"],
+    // Pulled out by its own chevron column so keys line up with leaves.
+    marginInlineStart: `calc(-1 * ${spacingVars["--spacing-4"]})`,
+    width: `calc(100% + ${spacingVars["--spacing-4"]})`,
+    paddingInlineStart: spacingVars["--spacing-4"],
+    paddingBlock: 0,
+    paddingInlineEnd: 0,
+    borderWidth: 0,
+    borderRadius: radiusVars["--radius-inner"],
+    backgroundColor: "transparent",
+    color: "inherit",
+    font: "inherit",
+    lineHeight: 1.625,
+    textAlign: "start",
+  },
+  toggleActive: {
+    cursor: "pointer",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": colorVars["--color-overlay-hover"],
+    },
+  },
+  chevron: {
+    width: spacingVars["--spacing-3"],
+    flexShrink: 0,
+    color: colorVars["--color-text-disabled"],
+  },
+  key: { color: colorVars["--color-text-secondary"] },
+  punctuation: { color: colorVars["--color-text-disabled"] },
+  count: {
+    marginInlineStart: spacingVars["--spacing-1"],
+    color: colorVars["--color-text-disabled"],
+  },
+  children: {
+    marginInlineStart: spacingVars["--spacing-1-5"],
+    paddingInlineStart: spacingVars["--spacing-2"],
+    borderInlineStartWidth: 1,
+    borderInlineStartStyle: "solid",
+    borderInlineStartColor: colorVars["--color-border"],
+  },
+  closing: {
+    paddingInlineStart: spacingVars["--spacing-4"],
+    color: colorVars["--color-text-disabled"],
+  },
+  nullish: { color: colorVars["--color-text-disabled"] },
+  string: { color: colorVars["--color-text-green"] },
+  number: { color: colorVars["--color-text-blue"] },
+  boolean: { color: colorVars["--color-text-yellow"] },
+  other: { color: colorVars["--color-text-secondary"] },
+});
 
 function isExpandable(
   value: unknown,
@@ -7,17 +77,17 @@ function isExpandable(
   return typeof value === "object" && value !== null;
 }
 
-function valueClassName(value: unknown): string {
-  if (value === null || value === undefined) return "text-zinc-600";
+function valueStyle(value: unknown) {
+  if (value === null || value === undefined) return styles.nullish;
   switch (typeof value) {
     case "string":
-      return "text-emerald-400";
+      return styles.string;
     case "number":
-      return "text-sky-400";
+      return styles.number;
     case "boolean":
-      return "text-amber-400";
+      return styles.boolean;
     default:
-      return "text-zinc-400";
+      return styles.other;
   }
 }
 
@@ -46,11 +116,13 @@ function JsonNode({
 
   if (!expandable) {
     return (
-      <div className="pl-4 leading-relaxed">
+      <div {...stylex.props(styles.leaf)}>
         {label !== undefined && (
-          <span className="text-zinc-500">{label}: </span>
+          <span {...stylex.props(styles.key)}>{label}: </span>
         )}
-        <span className={valueClassName(value)}>{formatPrimitive(value)}</span>
+        <span {...stylex.props(valueStyle(value))}>
+          {formatPrimitive(value)}
+        </span>
       </div>
     );
   }
@@ -68,30 +140,27 @@ function JsonNode({
         type="button"
         onClick={() => setExpanded((e) => !e)}
         disabled={empty}
-        className={cn(
-          "-ml-4 flex w-[calc(100%+1rem)] items-center gap-1 rounded pl-4 text-left leading-relaxed",
-          !empty && "cursor-pointer hover:bg-white/5",
-        )}
+        {...stylex.props(styles.toggle, !empty && styles.toggleActive)}
       >
-        <span className="w-3 shrink-0 text-zinc-600">
+        <span {...stylex.props(styles.chevron)}>
           {!empty && (expanded ? "▾" : "▸")}
         </span>
         {label !== undefined && (
-          <span className="text-zinc-500">{label}: </span>
+          <span {...stylex.props(styles.key)}>{label}: </span>
         )}
-        <span className="text-zinc-600">
+        <span {...stylex.props(styles.punctuation)}>
           {open}
           {!expanded && !empty && "…"}
           {(empty || !expanded) && close}
           {!expanded && !empty && (
-            <span className="ml-1 text-zinc-700">
+            <span {...stylex.props(styles.count)}>
               {entries.length} {isArray ? "items" : "keys"}
             </span>
           )}
         </span>
       </button>
       {expanded && !empty && (
-        <div className="ml-1.5 border-l border-white/5 pl-2">
+        <div {...stylex.props(styles.children)}>
           {entries.map(([key, val]) => (
             <JsonNode
               key={key}
@@ -101,7 +170,7 @@ function JsonNode({
               defaultCollapseDepth={defaultCollapseDepth}
             />
           ))}
-          <div className="pl-4 text-zinc-600">{close}</div>
+          <div {...stylex.props(styles.closing)}>{close}</div>
         </div>
       )}
     </div>
@@ -112,18 +181,17 @@ function JsonNode({
  * can be toggled open or closed, rather than dumping the whole structure as
  * one long preformatted blob. `defaultCollapseDepth` controls how many
  * levels start expanded (0 = everything starts collapsed, including the
- * root). */
+ * root). Hand-written (no Astryx/registry equivalent), styled with StyleX +
+ * Astryx tokens. */
 export function JsonViewer({
   data,
   defaultCollapseDepth = 2,
-  className,
 }: {
   data: unknown;
   defaultCollapseDepth?: number;
-  className?: string;
 }) {
   return (
-    <div className={cn("font-mono text-code", className)}>
+    <div {...stylex.props(styles.root)}>
       <JsonNode
         value={data}
         depth={0}

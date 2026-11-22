@@ -1,6 +1,6 @@
+import { HStack } from "@astryxdesign/core/HStack";
 import { useEffect, useState } from "react";
 import { formatClockTime } from "@/lib/format";
-import { AlertAction, AlertDescription } from "@/ui/alert";
 import { Button } from "@/ui/button";
 import DockedBanner from "./DockedBanner";
 
@@ -34,18 +34,20 @@ export default function ClaudeRateLimitBanner({
   }, [rateLimit.resetAt]);
   const alreadyReset = rateLimit.resetAt <= now;
   return (
-    <DockedBanner variant="warning">
-      <AlertDescription>
-        {autoResumeArmed
+    <DockedBanner
+      status="warning"
+      title="Claude session limit"
+      description={
+        autoResumeArmed
           ? alreadyReset
             ? `Claude's session limit reset at ${formatClockTime(rateLimit.resetAt)}. Resuming now.`
             : `Claude hit its session limit. Will auto-resume at ${formatClockTime(rateLimit.resetAt)}.`
           : alreadyReset
             ? `Claude's session limit has reset (${formatClockTime(rateLimit.resetAt)}). Continue now?`
-            : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`}
-      </AlertDescription>
-      <AlertAction>
-        {autoResumeArmed ? (
+            : `Claude hit its session limit (resets ${formatClockTime(rateLimit.resetAt)}). Auto-resume then?`
+      }
+      endContent={
+        autoResumeArmed ? (
           <Button
             size="sm"
             variant="chip-warning"
@@ -55,7 +57,7 @@ export default function ClaudeRateLimitBanner({
             Cancel
           </Button>
         ) : (
-          <>
+          <HStack gap={2}>
             <Button
               size="sm"
               variant="chip-danger"
@@ -72,9 +74,9 @@ export default function ClaudeRateLimitBanner({
             >
               {alreadyReset ? "Yes, continue" : "Yes, resume automatically"}
             </Button>
-          </>
-        )}
-      </AlertAction>
-    </DockedBanner>
+          </HStack>
+        )
+      }
+    />
   );
 }

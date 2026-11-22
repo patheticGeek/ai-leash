@@ -132,7 +132,7 @@ export function SortableTab({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("shrink-0", isDragging && "opacity-40")}
+      className={cn("relative shrink-0", isDragging && "opacity-40")}
       {...listeners}
     >
       {children}
