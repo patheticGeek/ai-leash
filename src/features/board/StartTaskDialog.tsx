@@ -1,7 +1,7 @@
+import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { Play } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -104,18 +104,14 @@ export default function StartTaskDialog({
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" size="md" onClick={onClose}>
-            Cancel
-          </Button>
+          <Button variant="ghost" label="Cancel" onClick={onClose} />
           <Button
             variant="primary"
-            size="md"
-            disabled={starting}
+            label={starting ? "Starting…" : "Start"}
+            icon={<Play size={14} />}
+            isDisabled={starting}
             onClick={start}
-          >
-            <Play size={14} />
-            {starting ? "Starting…" : "Start"}
-          </Button>
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

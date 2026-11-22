@@ -1,9 +1,9 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Folder as FolderIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { GitWorktree } from "@/lib/tauriApi";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAsyncAction } from "../../../hooks/useAsyncAction";
 import { useGitBranches } from "../../../hooks/useGitBranches";
@@ -145,18 +145,16 @@ export default function WorktreePicker({
             <div className="flex gap-1">
               <Button
                 size="sm"
-                variant={mode === "new" ? "default" : "outline"}
+                variant={mode === "new" ? "primary" : "secondary"}
+                label="New branch"
                 onClick={() => setMode("new")}
-              >
-                New branch
-              </Button>
+              />
               <Button
                 size="sm"
-                variant={mode === "existing" ? "default" : "outline"}
+                variant={mode === "existing" ? "primary" : "secondary"}
+                label="Existing branch"
                 onClick={() => setMode("existing")}
-              >
-                Existing branch
-              </Button>
+              />
             </div>
             {mode === "new" ? (
               <NewBranchFields

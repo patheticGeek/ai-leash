@@ -1,8 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
 import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import { useId } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 
 interface ActivityRowProps {
   /** Leading icon (tool, agent, …). Turns red when `status="failed"`. */
@@ -97,15 +97,19 @@ function ActivityRow({
       {expandable ? (
         <Button
           variant="quiet"
-          size="xs"
+          size="sm"
+          label={typeof label === "string" ? label : "Show details"}
           aria-expanded={expanded}
           aria-controls={expanded && children ? detailId : undefined}
           onClick={onToggle}
+          width="100%"
           // No left padding, so the chevron lines up with the start of
           // the transcript's text.
-          className="w-full min-w-0 justify-start rounded-md pl-0 text-left"
+          className="h-auto justify-start py-0.5 pl-0 text-xs"
         >
-          {header}
+          <span className="flex w-full min-w-0 items-center gap-1.5 text-left">
+            {header}
+          </span>
         </Button>
       ) : (
         <div className="inline-flex items-center gap-1.5 py-0.5 pr-1 text-zinc-600">

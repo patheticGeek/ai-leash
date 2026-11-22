@@ -440,6 +440,67 @@
     color: var(--color-on-error-muted);
   }
 
+  .astryx-button[data-variant="quiet"] {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+  }
+
+  .astryx-button[data-variant="quiet"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    background-image: none;
+    color: var(--color-text-primary);
+  }
+
+  .astryx-button[data-variant="danger"] {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+  }
+
+  .astryx-button[data-variant="danger"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    background-color: var(--color-error-muted);
+    background-image: none;
+    color: var(--color-text-error);
+  }
+
+  .astryx-button[data-variant="success"] {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+  }
+
+  .astryx-button[data-variant="success"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    background-color: var(--color-success-muted);
+    background-image: none;
+    color: var(--color-text-success);
+  }
+
+  .astryx-button[data-variant="chip"] {
+    background-color: var(--color-overlay-hover);
+    color: var(--color-text-secondary);
+  }
+
+  .astryx-button[data-variant="chip"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-button[data-variant="chip-primary"] {
+    background-color: var(--color-accent-muted);
+    color: var(--color-text-accent);
+  }
+
+  .astryx-button[data-variant="chip-danger"] {
+    background-color: var(--color-error-muted);
+    color: var(--color-text-error);
+  }
+
+  .astryx-button[data-variant="chip-warning"] {
+    background-color: var(--color-warning-muted);
+    color: var(--color-text-warning);
+  }
+
+  .astryx-button[data-variant="chip-success"] {
+    background-color: var(--color-success-muted);
+    color: var(--color-text-success);
+  }
+
   .astryx-badge[data-variant="neutral"] {
     background-color: var(--color-background-gray);
     color: var(--color-text-gray);

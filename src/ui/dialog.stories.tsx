@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "./button";
 import {
   Dialog,
   DialogContent,
@@ -22,9 +22,7 @@ export const Default: Story = {
   render: () => (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="secondary" size="md">
-          Open dialog
-        </Button>
+        <Button variant="secondary" label="Open dialog" />
       </DialogTrigger>
       <DialogContent showCloseButton>
         <DialogHeader>
@@ -32,12 +30,8 @@ export const Default: Story = {
           <DialogDescription>This cannot be undone.</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" size="md">
-            Cancel
-          </Button>
-          <Button variant="danger" size="md">
-            Delete
-          </Button>
+          <Button variant="ghost" label="Cancel" />
+          <Button variant="destructive" label="Delete" />
         </DialogFooter>
       </DialogContent>
     </Dialog>

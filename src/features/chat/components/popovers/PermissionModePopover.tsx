@@ -1,6 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
 import { ShieldCheck, ShieldOff } from "lucide-react";
 import { useRef } from "react";
-import { Button } from "@/ui/button";
 import { Command, CommandItem, CommandList } from "@/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
@@ -59,14 +59,11 @@ export default function PermissionModePopover({
       <PopoverTrigger asChild>
         <Button
           variant={warn ? "chip-warning" : "chip"}
-          bordered={false}
           size="sm"
-          title="Tool-call permission mode"
-          className="flex min-w-0"
-        >
-          {warn ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
-          {active?.label ?? value}
-        </Button>
+          label={active?.label ?? value}
+          icon={warn ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
+          tooltip="Tool-call permission mode"
+        />
       </PopoverTrigger>
       <PopoverContent
         side="top"

@@ -1,8 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import type { PanelEntry } from "../../hooks/useChatStream";
 
 interface ActivityGroupProps {
@@ -43,19 +43,20 @@ export default function ActivityGroup({
       {showToggle && (
         <Button
           variant="quiet"
-          size="xs"
+          size="sm"
+          label={expanded ? "Hide" : `Show all (${summary})`}
+          icon={
+            <ChevronDown
+              size={11}
+              className={cn(
+                "transition-transform duration-200 ease-out",
+                expanded ? "rotate-180" : "",
+              )}
+            />
+          }
           onClick={() => setExpanded((v) => !v)}
-          className="rounded-md pl-0"
-        >
-          <ChevronDown
-            size={11}
-            className={cn(
-              "transition-transform duration-200 ease-out",
-              expanded ? "rotate-180" : "",
-            )}
-          />
-          {expanded ? "Hide" : `Show all (${summary})`}
-        </Button>
+          className="h-auto self-start py-0.5 pl-0 text-xs"
+        />
       )}
     </>
   );

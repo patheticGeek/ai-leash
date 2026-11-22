@@ -1,8 +1,8 @@
 import { Badge } from "@astryxdesign/core/Badge";
+import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { useSubAgents } from "@/data/subAgents";
-import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { PICKER_TAB_KINDS } from "../tabs/tabKinds";
 
@@ -38,12 +38,12 @@ export default function TabPicker({
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
       >
         {PICKER_TAB_KINDS.map((tile) => (
-          <Button
+          <ClickableCard
             key={tile.kind}
-            variant="card"
-            size="none"
+            label={tile.label ?? tile.kind}
+            padding={3}
             onClick={() => onPick(tile.kind)}
-            className="relative"
+            className="flex min-w-0 flex-col items-start gap-1.5 text-left"
           >
             {tile.kind === "subagents" && runningSubAgents > 0 && (
               <Badge
@@ -59,7 +59,7 @@ export default function TabPicker({
             <span className="whitespace-normal w-full text-[11px] text-zinc-600">
               {tile.hint}
             </span>
-          </Button>
+          </ClickableCard>
         ))}
       </div>
     </div>

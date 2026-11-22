@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Undo2 } from "lucide-react";
-import { Button } from "@/ui/button";
 import { useBoard } from "../../../../data/board";
 import { useConversation } from "../../../../data/conversations";
 import { api } from "../../../../lib/tauriApi";
@@ -33,12 +33,11 @@ export default function TaskLinkBanner({
         <Button
           variant="chip-primary"
           size="sm"
+          label="Hand back to project chat"
+          icon={<Undo2 size={13} />}
           className="shrink-0"
           onClick={() => void api.setTaskEngaged(task.id, true)}
-        >
-          <Undo2 size={13} />
-          Hand back to project chat
-        </Button>
+        />
       }
     />
   );

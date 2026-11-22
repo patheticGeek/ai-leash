@@ -1,3 +1,4 @@
+import { Button } from "@astryxdesign/core/Button";
 import type { ISODateString } from "@astryxdesign/core/Calendar";
 import {
   CheckboxList,
@@ -9,6 +10,7 @@ import {
   type ISODateTimeString,
 } from "@astryxdesign/core/DateTimeInput";
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
 import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
 import { Text } from "@astryxdesign/core/Text";
@@ -18,7 +20,6 @@ import * as stylex from "@stylexjs/stylex";
 import { MessageCircleQuestion, X } from "lucide-react";
 import type { RefObject } from "react";
 import { useMemo, useState } from "react";
-import { Button } from "@/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
 import {
   collectAnswers,
@@ -294,20 +295,18 @@ export default function ElicitationPopover({
           <Button
             variant="ghost"
             size="sm"
-            title="Decline to answer"
+            label="Decline"
+            tooltip="Decline to answer"
             onClick={() => onRespond({ action: "decline" })}
-          >
-            Decline
-          </Button>
-          <Button
+          />
+          <IconButton
             variant="ghost"
             size="sm"
-            title="Dismiss without answering (Esc)"
-            aria-label="Dismiss"
+            label="Dismiss"
+            tooltip="Dismiss without answering (Esc)"
+            icon={<X size={13} />}
             onClick={() => onRespond({ action: "cancel" })}
-          >
-            <X size={13} />
-          </Button>
+          />
         </div>
         <div className="flex flex-1 select-text flex-col gap-3 overflow-auto px-3 py-2">
           <p className="text-sm whitespace-pre-wrap text-zinc-300">
@@ -349,11 +348,9 @@ export default function ElicitationPopover({
                 {stepIndex > 0 && (
                   <Button
                     variant="ghost"
-                    size="md"
+                    label="Previous"
                     onClick={() => setStepIndex(stepIndex - 1)}
-                  >
-                    Previous
-                  </Button>
+                  />
                 )}
                 <HStack
                   gap={2}
@@ -362,13 +359,13 @@ export default function ElicitationPopover({
                   xstyle={styles.end}
                 >
                   {step && !step.field.required && (
-                    <Button variant="ghost" size="md" onClick={skip}>
-                      Skip
-                    </Button>
+                    <Button variant="ghost" label="Skip" onClick={skip} />
                   )}
-                  <Button variant="primary" size="md" onClick={advance}>
-                    {isLast ? "Submit" : "Next"}
-                  </Button>
+                  <Button
+                    variant="primary"
+                    label={isLast ? "Submit" : "Next"}
+                    onClick={advance}
+                  />
                 </HStack>
               </HStack>
             </VStack>
@@ -378,10 +375,9 @@ export default function ElicitationPopover({
               <Button
                 variant="primary"
                 size="sm"
+                label="Accept"
                 onClick={() => onRespond({ action: "accept", content: {} })}
-              >
-                Accept
-              </Button>
+              />
             </div>
           )}
         </div>

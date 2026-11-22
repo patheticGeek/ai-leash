@@ -1,6 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -80,12 +80,17 @@ export default function BoardSettingsDialog({
         )}
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" size="md" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="md" disabled={saving} onClick={save}>
-            Save
-          </Button>
+          <Button
+            variant="ghost"
+            label="Cancel"
+            onClick={() => onOpenChange(false)}
+          />
+          <Button
+            variant="primary"
+            label="Save"
+            isDisabled={saving}
+            onClick={save}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

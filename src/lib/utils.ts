@@ -9,3 +9,8 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs: Array<string | false | null | undefined>) {
   return twMerge(inputs.filter(Boolean).join(" "));
 }
+
+// Shared by row actions that only appear on hover of their nearest ancestor
+// `.group` (delete/edit buttons). Needs a *named* group (`group-hover/name:`)
+// instead? Compose your own className — this only covers the common case.
+export const revealOnGroupHover = "shrink-0 opacity-0 group-hover:opacity-100";

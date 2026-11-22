@@ -1,8 +1,8 @@
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { X } from "lucide-react";
-import { Button } from "@/ui/button";
 import DockedBanner from "./DockedBanner";
 
 interface QueuedMessagesBannerProps {
@@ -39,15 +39,15 @@ export default function QueuedMessagesBanner({
             <Text type="supporting" maxLines={1}>
               {text}
             </Text>
-            <Button
-              size="icon-sm"
+            <IconButton
               variant="ghost"
+              size="sm"
+              label="Cancel queued message"
+              tooltip="Cancel queued message"
+              icon={<X size={14} />}
               onClick={() => onCancel(i)}
-              title="Cancel queued message"
               className="shrink-0"
-            >
-              <X size={14} />
-            </Button>
+            />
           </HStack>
         ))}
       </VStack>

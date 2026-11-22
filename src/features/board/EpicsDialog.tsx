@@ -1,9 +1,10 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import * as stylex from "@stylexjs/stylex";
 import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -38,25 +39,28 @@ function ColorPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" title="Colour">
-          <EpicDot color={color} className="size-3" />
-        </Button>
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Colour"
+          tooltip="Colour"
+          icon={<EpicDot color={color} className="size-3" />}
+        />
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-auto gap-1 p-1.5">
         {EPIC_COLORS.map((c) => (
-          <Button
+          <IconButton
             key={c}
-            variant="ghost"
-            size="icon-sm"
-            title={c}
+            variant={c === color ? "secondary" : "ghost"}
+            size="sm"
+            label={c}
+            tooltip={c}
+            icon={<EpicDot color={c} className="size-3" />}
             onClick={() => {
               onChange(c);
               setOpen(false);
             }}
-            className={cn(c === color && "bg-white/10")}
-          >
-            <EpicDot color={c} className="size-3" />
-          </Button>
+          />
         ))}
       </PopoverContent>
     </Popover>
@@ -98,24 +102,26 @@ function EpicRow({ epic }: { epic: Epic }) {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
       />
-      <Button
+      <IconButton
         variant="ghost"
-        size="icon-sm"
-        title={epic.archived ? "Unarchive" : "Archive"}
+        size="sm"
+        label={epic.archived ? "Unarchive" : "Archive"}
+        tooltip={epic.archived ? "Unarchive" : "Archive"}
+        icon={
+          epic.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />
+        }
         onClick={() =>
           void api.updateEpic(epic.id, { archived: !epic.archived })
         }
-      >
-        {epic.archived ? <ArchiveRestore /> : <Archive />}
-      </Button>
-      <Button
+      />
+      <IconButton
         variant="danger"
-        size="icon-sm"
-        title="Delete epic (its tasks stay, ungrouped)"
+        size="sm"
+        label="Delete epic"
+        tooltip="Delete epic (its tasks stay, ungrouped)"
+        icon={<Trash2 size={14} />}
         onClick={() => void api.deleteEpic(epic.id)}
-      >
-        <Trash2 />
-      </Button>
+      />
     </div>
   );
 }
@@ -172,12 +178,10 @@ export default function EpicsDialog({
           <Button
             type="submit"
             variant="chip-primary"
-            size="md"
-            disabled={!title.trim()}
-          >
-            <Plus size={14} />
-            Add
-          </Button>
+            label="Add"
+            icon={<Plus size={14} />}
+            isDisabled={!title.trim()}
+          />
         </form>
       </DialogContent>
     </Dialog>

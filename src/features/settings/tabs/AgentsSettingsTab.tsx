@@ -1,5 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
@@ -16,7 +19,6 @@ import {
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
 import {
   deleteBackend,
   saveBackend,
@@ -170,22 +172,21 @@ export default function AgentsSettingsTab() {
           <Button
             variant="ghost"
             size="sm"
+            label="Cancel"
+            icon={<X size={14} />}
             onClick={() => setView({ step: "grid" })}
-          >
-            <X size={14} />
-            Cancel
-          </Button>
+          />
         </div>
         <div className="flex flex-col gap-2">
           {(Object.keys(TYPE_META) as CardType[]).map((type) => {
             const meta = TYPE_META[type];
             return (
-              <Button
+              <ClickableCard
                 key={type}
-                variant="card"
-                size="none"
+                label={meta.label}
+                padding={3}
                 onClick={() => startAdd(type)}
-                className="w-full"
+                className="flex w-full min-w-0 flex-col items-start gap-1.5 text-left"
               >
                 <div className="flex w-full items-center gap-2">
                   <meta.icon size={16} className="text-zinc-500" />
@@ -196,7 +197,7 @@ export default function AgentsSettingsTab() {
                 <span className="whitespace-normal w-full text-[11px] text-zinc-600">
                   {meta.hint}
                 </span>
-              </Button>
+              </ClickableCard>
             );
           })}
         </div>
@@ -231,16 +232,16 @@ export default function AgentsSettingsTab() {
             <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
-                size="md"
+                label="Cancel"
+                icon={<X size={14} />}
                 onClick={() => setView({ step: "grid" })}
-              >
-                <X size={14} />
-                Cancel
-              </Button>
-              <Button variant="primary" size="md" onClick={saveForm}>
-                <Check size={14} />
-                Save
-              </Button>
+              />
+              <Button
+                variant="primary"
+                label="Save"
+                icon={<Check size={14} />}
+                onClick={saveForm}
+              />
             </div>
           </div>
         )}
@@ -293,16 +294,16 @@ export default function AgentsSettingsTab() {
             <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
-                size="md"
+                label="Cancel"
+                icon={<X size={14} />}
                 onClick={() => setView({ step: "grid" })}
-              >
-                <X size={14} />
-                Cancel
-              </Button>
-              <Button variant="primary" size="md" onClick={saveForm}>
-                <Check size={14} />
-                Save
-              </Button>
+              />
+              <Button
+                variant="primary"
+                label="Save"
+                icon={<Check size={14} />}
+                onClick={saveForm}
+              />
             </div>
           </div>
         )}
@@ -332,16 +333,16 @@ export default function AgentsSettingsTab() {
             <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
-                size="md"
+                label="Cancel"
+                icon={<X size={14} />}
                 onClick={() => setView({ step: "grid" })}
-              >
-                <X size={14} />
-                Cancel
-              </Button>
-              <Button variant="primary" size="md" onClick={saveForm}>
-                <Check size={14} />
-                Save
-              </Button>
+              />
+              <Button
+                variant="primary"
+                label="Save"
+                icon={<Check size={14} />}
+                onClick={saveForm}
+              />
             </div>
           </div>
         )}
@@ -385,22 +386,22 @@ export default function AgentsSettingsTab() {
                         void saveBackend({ ...c, enabled })
                       }
                     />
-                    <Button
+                    <IconButton
                       variant="ghost"
-                      size="icon-sm"
-                      title="Edit"
+                      size="sm"
+                      label="Edit"
+                      tooltip="Edit"
+                      icon={<Pencil size={13} />}
                       onClick={() => startEdit(c)}
-                    >
-                      <Pencil size={13} />
-                    </Button>
-                    <Button
+                    />
+                    <IconButton
                       variant="danger"
-                      size="icon-sm"
-                      title="Delete"
+                      size="sm"
+                      label="Delete"
+                      tooltip="Delete"
+                      icon={<Trash2 size={13} />}
                       onClick={() => void deleteBackend(c.id)}
-                    >
-                      <Trash2 size={13} />
-                    </Button>
+                    />
                   </HStack>
                 }
               />
@@ -408,14 +409,13 @@ export default function AgentsSettingsTab() {
           })}
         </List>
         <Button
-          variant="unstyled"
-          size="none"
+          variant="quiet"
+          label="Add"
+          icon={<Plus size={16} />}
+          width="100%"
           onClick={() => setView({ step: "pickType" })}
-          className="flex w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-zinc-700 px-3 py-2.5 text-zinc-500 cursor-pointer hover:border-zinc-500 hover:text-zinc-300"
-        >
-          <Plus size={16} />
-          <span className="text-sm">Add</span>
-        </Button>
+          className="h-auto flex-col gap-1.5 border border-dashed border-zinc-700 py-2.5 hover:border-zinc-500"
+        />
       </div>
       <div className="text-xs text-zinc-600">
         Click a card to make it the default for new conversations. Each

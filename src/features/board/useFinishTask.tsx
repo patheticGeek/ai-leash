@@ -1,5 +1,5 @@
+import { Button } from "@astryxdesign/core/Button";
 import { type ReactNode, useState } from "react";
-import { Button } from "@/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -105,20 +105,16 @@ export function useFinishTask(): {
         <DialogFooter>
           <Button
             variant="ghost"
-            size="md"
-            disabled={working}
+            label="Keep it open"
+            isDisabled={working}
             onClick={() => setPending(null)}
-          >
-            Keep it open
-          </Button>
+          />
           <Button
-            variant="chip-danger"
-            size="md"
-            disabled={working}
+            variant="destructive"
+            label={working ? "Removing…" : "Remove and mark done"}
+            isDisabled={working}
             onClick={confirm}
-          >
-            {working ? "Removing…" : "Remove and mark done"}
-          </Button>
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

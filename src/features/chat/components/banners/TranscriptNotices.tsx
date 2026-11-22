@@ -1,7 +1,7 @@
 import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { Button } from "@/ui/button";
 
 // Pinned to the top of the transcript. The z-index keeps later messages from
 // painting over a sticky notice as they scroll past it.
@@ -55,9 +55,12 @@ export default function TranscriptNotices({
           title="Couldn't restore the previous session"
           description={`${acpRestoreFailed}. This agent no longer remembers this conversation.`}
           endContent={
-            <Button size="sm" variant="outline" onClick={onRetryAcpSession}>
-              Start new session
-            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              label="Start new session"
+              onClick={onRetryAcpSession}
+            />
           }
           collapsible={false}
           xstyle={styles.sticky}

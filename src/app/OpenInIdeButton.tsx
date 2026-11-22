@@ -1,7 +1,7 @@
+import { Button } from "@astryxdesign/core/Button";
 import { CodeXml } from "lucide-react";
 import { useState } from "react";
 import { usePreference } from "@/data/preferences";
-import { Button } from "@/ui/button";
 import { api } from "../lib/tauriApi";
 import { useActiveCheckoutPath } from "../lib/useActiveCheckoutPath";
 
@@ -27,15 +27,12 @@ export default function OpenInIdeButton() {
 
   return (
     <Button
-      variant="chip"
-      bordered={false}
+      variant={error ? "chip-warning" : "chip"}
       size="sm"
+      label="Open"
+      icon={<CodeXml size={12} />}
       onClick={handleClick}
-      title={error ?? `Open in IDE (${ideCommand})`}
-      className={error ? "text-warning" : undefined}
-    >
-      <CodeXml size={12} />
-      <span>Open</span>
-    </Button>
+      tooltip={error ?? `Open in IDE (${ideCommand})`}
+    />
   );
 }

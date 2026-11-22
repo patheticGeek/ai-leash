@@ -1,8 +1,8 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { ReactNode } from "react";
 import type { GitBranch } from "@/lib/tauriApi";
-import { Button } from "@/ui/button";
 
 // The "create" view shared by both checkout pickers: a scrolling form body
 // (with the failure message, if any) over a Back / Create footer.
@@ -28,16 +28,14 @@ export function CreatePanel({
         {error && <span className="text-red-400">{error}</span>}
       </div>
       <div className="flex justify-end gap-2 border-t border-white/5 p-2">
-        <Button size="sm" variant="outline" onClick={onBack}>
-          Back
-        </Button>
+        <Button size="sm" variant="ghost" label="Back" onClick={onBack} />
         <Button
           size="sm"
-          disabled={!canSubmit || submitting}
+          variant="primary"
+          label={submitting ? "Creating…" : "Create"}
+          isDisabled={!canSubmit || submitting}
           onClick={onSubmit}
-        >
-          {submitting ? "Creating…" : "Create"}
-        </Button>
+        />
       </div>
     </>
   );

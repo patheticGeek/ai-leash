@@ -1,9 +1,9 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Bot, Loader, MessageSquare, Play } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button, revealOnGroupHover } from "@/ui/button";
+import { cn, revealOnGroupHover } from "@/lib/utils";
 import { useBackends } from "../../data/backends";
 import { formatDuration } from "../../lib/format";
 import { useGenerating } from "../../lib/generatingQuery";
@@ -124,26 +124,26 @@ export default function TaskCard({
         actions={
           <>
             {startable && (
-              <Button
+              <IconButton
                 variant="ghost"
-                size="icon-sm"
-                title="Start: give it a chat (and worktree) and get going"
+                size="sm"
+                label="Start"
+                tooltip="Start: give it a chat (and worktree) and get going"
+                icon={<Play size={14} />}
                 onClick={onStart}
                 className={cn("relative z-10", revealOnGroupHover)}
-              >
-                <Play />
-              </Button>
+              />
             )}
             {task.conversationId && (
-              <Button
+              <IconButton
                 variant="ghost"
-                size="icon-sm"
-                title="Open its chat"
+                size="sm"
+                label="Open its chat"
+                tooltip="Open its chat"
+                icon={<MessageSquare size={14} />}
                 onClick={onOpenChat}
                 className="relative z-10"
-              >
-                <MessageSquare />
-              </Button>
+              />
             )}
           </>
         }

@@ -1,6 +1,6 @@
+import { Button } from "@astryxdesign/core/Button";
 import { Check, FilePenLine, ShieldAlert, Terminal, X } from "lucide-react";
 import type { RefObject } from "react";
-import { Button } from "@/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/ui/popover";
 import type { PermissionRequestPayload } from "../../../../lib/tauriApi";
 
@@ -80,14 +80,20 @@ export default function PermissionPopover({
           )}
         </div>
         <div className="flex items-center justify-end gap-1.5 px-3 py-2">
-          <Button variant="ghost" size="sm" onClick={() => onRespond(false)}>
-            <X size={13} />
-            Deny
-          </Button>
-          <Button variant="primary" size="sm" onClick={() => onRespond(true)}>
-            <Check size={13} />
-            Approve
-          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Deny"
+            icon={<X size={13} />}
+            onClick={() => onRespond(false)}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            label="Approve"
+            icon={<Check size={13} />}
+            onClick={() => onRespond(true)}
+          />
         </div>
       </PopoverContent>
     </Popover>

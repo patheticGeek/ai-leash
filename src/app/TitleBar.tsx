@@ -1,3 +1,4 @@
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { Token } from "@astryxdesign/core/Token";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -5,7 +6,6 @@ import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
-import { Button } from "@/ui/button";
 import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
@@ -47,33 +47,33 @@ function WindowControls() {
 
   return (
     <div className="flex h-full shrink-0 items-center">
-      <Button
+      <IconButton
         variant="ghost"
-        size="icon"
+        size="sm"
+        label="Minimize"
+        tooltip="Minimize"
+        icon={<Minus size={14} />}
         className="h-full w-10 rounded-none"
-        title="Minimize"
         onClick={() => tauriWindow()?.minimize()}
-      >
-        <Minus size={14} />
-      </Button>
-      <Button
+      />
+      <IconButton
         variant="ghost"
-        size="icon"
+        size="sm"
+        label={maximized ? "Restore" : "Maximize"}
+        tooltip={maximized ? "Restore" : "Maximize"}
+        icon={maximized ? <Copy size={12} /> : <Square size={12} />}
         className="h-full w-10 rounded-none"
-        title={maximized ? "Restore" : "Maximize"}
         onClick={() => tauriWindow()?.toggleMaximize()}
-      >
-        {maximized ? <Copy size={12} /> : <Square size={12} />}
-      </Button>
-      <Button
+      />
+      <IconButton
         variant="ghost"
-        size="icon"
+        size="sm"
+        label="Close"
+        tooltip="Close"
+        icon={<X size={14} />}
         className="h-full w-10 rounded-none hover:bg-red-500 hover:text-white"
-        title="Close"
         onClick={() => tauriWindow()?.close()}
-      >
-        <X size={14} />
-      </Button>
+      />
     </div>
   );
 }
@@ -160,14 +160,14 @@ export default function TitleBar({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon-lg"
-            title="Start a new thread in the current project"
+            size="lg"
+            label="New thread"
+            tooltip="Start a new thread in the current project"
+            icon={<SquarePen size={17} />}
             onClick={onNewThread}
-          >
-            <SquarePen size={17} />
-          </Button>
+          />
         </div>
       </div>
       <div
@@ -220,15 +220,15 @@ export default function TitleBar({
         className="flex shrink-0 items-center justify-end"
       >
         {debugModeEnabled && (
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
-            title={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
+            size="sm"
+            label={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
+            tooltip={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
+            icon={<Bug size={15} />}
             onClick={() => setDebugPanelOpen(!debugPanelOpen)}
             className="h-full w-10 rounded-none text-amber-400 hover:text-amber-300"
-          >
-            <Bug size={15} />
-          </Button>
+          />
         )}
         <WindowControls />
       </div>

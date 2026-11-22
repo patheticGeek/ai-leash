@@ -1,4 +1,5 @@
 import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import {
   colorVars,
   fontWeightVars,
@@ -18,7 +19,6 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
-import { Button } from "./button";
 
 // Flattens a rendered node back to the source text it came from.
 function nodeText(node: ReactNode): string {
@@ -166,23 +166,23 @@ function CodeBlock({ children }: { children?: ReactNode }) {
         <span>{language ?? "text"}</span>
         <HStack align="center">
           {runCommand && language && SHELL_LANGUAGES.has(language) && (
-            <Button
+            <IconButton
               variant="quiet"
-              size="icon-sm"
-              title="Open in a new terminal"
+              size="sm"
+              label="Open in a new terminal"
+              tooltip="Open in a new terminal"
+              icon={<Play size={13} />}
               onClick={() => runCommand(text)}
-            >
-              <Play size={13} />
-            </Button>
+            />
           )}
-          <Button
+          <IconButton
             variant="quiet"
-            size="icon-sm"
-            title="Copy"
+            size="sm"
+            label="Copy"
+            tooltip="Copy"
+            icon={copied ? <Check size={13} /> : <Copy size={13} />}
             onClick={() => copy(text)}
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-          </Button>
+          />
         </HStack>
       </HStack>
       <pre {...stylex.props(styles.pre)}>{children}</pre>
