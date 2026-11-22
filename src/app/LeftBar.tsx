@@ -1,3 +1,4 @@
+import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { ContextMenu } from "@astryxdesign/core/ContextMenu";
@@ -9,11 +10,23 @@ import {
   DropdownMenuRadioItem,
 } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Item } from "@astryxdesign/core/Item";
+import type { ResizableRegion } from "@astryxdesign/core/Resizable";
 import { Selector } from "@astryxdesign/core/Selector";
+import { SideNav } from "@astryxdesign/core/SideNav";
+import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
+import {
+  borderVars,
+  colorVars,
+  radiusVars,
+  sizeVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -23,7 +36,6 @@ import {
   FolderPlus,
   GitBranch,
   ListFilter,
-  Loader,
   MessageCircleQuestion,
   SettingsIcon,
   ShieldAlert,
@@ -32,7 +44,6 @@ import {
   Undo2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { cn, revealOnGroupHover } from "@/lib/utils";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
 import { useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
@@ -60,6 +71,31 @@ const ALL_PROJECTS = "all";
 const styles = stylex.create({
   // Fills the header row beside the filter menu button.
   projectFilter: { flex: 1, minWidth: 0 },
+  // The filter button stays lit while a task-chat filter is on.
+  filterOn: { color: colorVars["--color-text-accent"] },
+  settings: { justifyContent: "flex-start" },
+  showMore: { alignSelf: "flex-start" },
+  empty: { paddingBlock: spacingVars["--spacing-6"] },
+});
+
+const rowStyles = stylex.create({
+  grow: { flex: 1, minWidth: 0 },
+  branch: { flexShrink: 0, maxWidth: "7rem" },
+  // The board task number chip before a task chat's title.
+  taskNumber: {
+    flexShrink: 0,
+    paddingInline: spacingVars["--spacing-1"],
+    borderRadius: radiusVars["--radius-inner"],
+    backgroundColor: colorVars["--color-overlay-hover"],
+  },
+  // Keeps the end slot the height of a "done" button, so rows don't jump
+  // when it appears under the pointer.
+  status: { minHeight: sizeVars["--size-element-sm"] },
+  working: { color: colorVars["--color-text-info"] },
+  // A row whose agent is waiting on the user: an amber ring and glow.
+  attention: {
+    boxShadow: `inset 0 0 0 ${borderVars["--border-width"]} ${colorVars["--color-border-warning"]}, 0 0 ${spacingVars["--spacing-2"]} ${spacingVars["--spacing-0-5"]} color-mix(in srgb, ${colorVars["--color-icon-warning"]} 45%, transparent)`,
+  },
 });
 
 // How long the row's turn has been running, next to its spinner. Ticks its
@@ -75,9 +111,9 @@ function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
   }, []);
 
   return (
-    <span className="text-xs tabular-nums">
+    <Text type="supporting" size="xsm" color="inherit" hasTabularNumbers>
       {formatDuration((now - startedAtMs) / 1000)}
-    </span>
+    </Text>
   );
 }
 
@@ -151,94 +187,98 @@ function ConversationRow({
       : "primary");
 
   return (
-    <ConversationContextMenu onDelete={onDelete}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
-          hover affordance that swaps the status icon for "Mark as done".
-          There's no keyboard equivalent yet (the context menu only has
-          delete), so keyboard users can't reach it. */}
-      <div
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => setHovering(false)}
-        title={
-          awaitingApproval
-            ? `${projectName} — needs your approval`
-            : awaitingAnswer
-              ? `${projectName} — has a question for you`
-              : projectName
-        }
-        className={cn(
-          "group mx-1.5 mb-1.5 rounded-md text-sm",
-          needsAttention
-            ? "ring-1 ring-inset ring-amber-400/80 shadow-[0_0_10px_2px_rgba(251,191,36,0.45)]"
-            : "",
-        )}
-      >
+    <Tooltip
+      content={
+        awaitingApproval
+          ? `${projectName} — needs your approval`
+          : awaitingAnswer
+            ? `${projectName} — has a question for you`
+            : projectName
+      }
+      placement="end"
+      delay={600}
+      hasHoverIndication={false}
+    >
+      <ConversationContextMenu onDelete={onDelete}>
         <Item
+          // Mouse-only hover affordance that swaps the status icon for
+          // "Mark as done". There's no keyboard equivalent yet (the context
+          // menu only has delete), so keyboard users can't reach it.
+          onMouseEnter={() => setHovering(true)}
+          onMouseLeave={() => setHovering(false)}
           onClick={onClick}
           isSelected={active}
+          xstyle={needsAttention ? rowStyles.attention : undefined}
           label={
-            <span className="flex w-full items-center gap-1.5">
+            <HStack align="center" gap={1.5}>
               {conversation.taskNumber != null && (
-                <span
-                  title="Board task"
-                  className="shrink-0 rounded bg-white/[0.06] px-1 text-[11px] tabular-nums text-zinc-400"
+                <Text
+                  type="supporting"
+                  size="xsm"
+                  color="secondary"
+                  hasTabularNumbers
+                  aria-label={`Board task ${conversation.taskNumber}`}
+                  xstyle={rowStyles.taskNumber}
                 >
                   #{conversation.taskNumber}
-                </span>
+                </Text>
               )}
-              <span className="min-w-0 flex-1 truncate">
+              <Text maxLines={1} xstyle={rowStyles.grow}>
                 {conversation.title || "New conversation"}
-              </span>
-            </span>
+              </Text>
+            </HStack>
           }
           description={
-            <span className="flex w-full items-center gap-1 text-xs text-zinc-500">
-              <Folder className="size-2.5 shrink-0" />
-              <span
-                className="min-w-0 flex-1 truncate"
-                title={projectAndWorkspace}
+            <HStack align="center" gap={1}>
+              <Icon icon={Folder} size="xsm" color="secondary" />
+              <Text
+                type="supporting"
+                size="xsm"
+                color="secondary"
+                maxLines={1}
+                xstyle={rowStyles.grow}
               >
                 {projectAndWorkspace}
-              </span>
+              </Text>
               {branchName && (
                 <>
-                  <GitBranch className="size-2.5 shrink-0" />
-                  <span
-                    className="max-w-28 shrink-0 truncate"
-                    title={branchName}
+                  <Icon icon={GitBranch} size="xsm" color="secondary" />
+                  <Text
+                    type="supporting"
+                    size="xsm"
+                    color="secondary"
+                    maxLines={1}
+                    xstyle={rowStyles.branch}
                   >
                     {branchName}
-                  </span>
+                  </Text>
                 </>
               )}
-            </span>
+            </HStack>
           }
           endContent={
-            <span className="flex h-7 items-center">
+            <HStack align="center" xstyle={rowStyles.status}>
               {awaitingApproval ? (
-                <span
-                  title="Permission required"
-                  className="shrink-0 text-amber-400"
-                >
-                  <ShieldAlert size={12} />
-                </span>
+                <Icon
+                  icon={ShieldAlert}
+                  size="sm"
+                  color="warning"
+                  label="Permission required"
+                />
               ) : awaitingAnswer ? (
-                <span
-                  title="Waiting for your answer"
-                  className="shrink-0 text-amber-400"
-                >
-                  <MessageCircleQuestion size={12} />
-                </span>
+                <Icon
+                  icon={MessageCircleQuestion}
+                  size="sm"
+                  color="warning"
+                  label="Waiting for your answer"
+                />
               ) : generating ? (
-                <span
-                  title="Working"
-                  className="flex shrink-0 items-center gap-1 text-blue-400"
-                >
+                <HStack align="center" gap={1} xstyle={rowStyles.working}>
                   {startedAtMs != null && (
                     <ElapsedTime startedAtMs={startedAtMs} />
                   )}
-                  <Loader size={12} className="animate-spin" />
-                </span>
+                  <Spinner size="sm" aria-label="Working" />
+                </HStack>
               ) : hovering ? (
                 <Button
                   variant="success"
@@ -247,14 +287,13 @@ function ConversationRow({
                   tooltip="Mark as done"
                   icon={<Check size={12} />}
                   onClick={onMarkDone}
-                  className={revealOnGroupHover}
                 />
               ) : null}
-            </span>
+            </HStack>
           }
         />
-      </div>
-    </ConversationContextMenu>
+      </ConversationContextMenu>
+    </Tooltip>
   );
 }
 
@@ -275,30 +314,25 @@ function DoneConversationRow({
 }) {
   return (
     <ConversationContextMenu onDelete={onDelete}>
-      <div
-        title={conversation.title || "New conversation"}
-        className="mx-1.5 rounded-md text-sm"
-      >
-        <Item
-          density="compact"
-          onClick={onClick}
-          isSelected={active}
-          label={conversation.title || "New conversation"}
-          endContent={
-            <IconButton
-              variant="quiet"
-              size="sm"
-              label="Mark as not done"
-              tooltip="Mark as not done"
-              icon={<Undo2 size={14} />}
-              onClick={(event) => {
-                event.stopPropagation();
-                onUndo();
-              }}
-            />
-          }
-        />
-      </div>
+      <Item
+        density="compact"
+        onClick={onClick}
+        isSelected={active}
+        label={conversation.title || "New conversation"}
+        endContent={
+          <IconButton
+            variant="quiet"
+            size="sm"
+            label="Mark as not done"
+            tooltip="Mark as not done"
+            icon={<Undo2 size={14} />}
+            onClick={(event) => {
+              event.stopPropagation();
+              onUndo();
+            }}
+          />
+        }
+      />
     </ConversationContextMenu>
   );
 }
@@ -318,12 +352,10 @@ const sectionStyles = stylex.create({
 function SidebarSectionCollapsible({
   section,
   label,
-  className,
   children,
 }: {
   section: SidebarSection;
   label: string;
-  className?: string;
   children: ReactNode;
 }) {
   const collapsed = useAppStore((s) => s.sidebarCollapsed[section]);
@@ -333,7 +365,6 @@ function SidebarSectionCollapsible({
       isOpen={!collapsed}
       onOpenChange={(open) => setCollapsed(section, !open)}
       chevronPosition="start"
-      className={className}
       xstyle={sectionStyles.root}
       trigger={
         <HStack gap={1.5} align="center">
@@ -370,37 +401,37 @@ function ProjectBoardRow({
       density="compact"
       onClick={onClick}
       isSelected={active}
-      className="mx-1.5 mb-1 text-sm"
-      startContent={<SquareKanban size={14} className="text-zinc-500" />}
+      startContent={<Icon icon={SquareKanban} size="sm" color="secondary" />}
       label={name}
       endContent={
-        <span className="flex items-center gap-2">
-          {generating && (
-            <Loader size={12} className="shrink-0 animate-spin text-blue-400" />
-          )}
+        <HStack align="center" gap={2}>
+          {generating && <Spinner size="sm" aria-label="Working" />}
           {!!summary?.inProgress && (
-            <span
-              title={`${summary.inProgress} in progress`}
-              className="shrink-0 rounded bg-blue-400/10 px-1 text-[11px] tabular-nums text-blue-400"
-            >
-              {summary.inProgress}
-            </span>
+            <Badge
+              variant="info"
+              label={summary.inProgress}
+              aria-label={`${summary.inProgress} in progress`}
+            />
           )}
           {!!summary?.review && (
-            <span
-              title={`${summary.review} in review`}
-              className="shrink-0 rounded bg-warning/10 px-1 text-[11px] tabular-nums text-warning"
-            >
-              {summary.review}
-            </span>
+            <Badge
+              variant="warning"
+              label={summary.review}
+              aria-label={`${summary.review} in review`}
+            />
           )}
-        </span>
+        </HStack>
       }
     />
   );
 }
 
-export default function LeftBar() {
+export default function LeftBar({
+  resizable,
+}: {
+  // The sidebar's width, shared with the title bar's corner above it.
+  resizable: ResizableRegion;
+}) {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const conversations = useConversations();
   const recentProjects = useAppStore((s) => s.recentProjects);
@@ -531,177 +562,186 @@ export default function LeftBar() {
   const hiddenBoardCount = boardProjects.length - collapsedBoards.size;
 
   return (
-    <div className="relative flex h-full flex-col bg-sunken">
-      <div className="flex shrink-0 items-center gap-1 border-b border-white/5 px-1.5 h-12">
-        <Selector
-          label="Project"
-          isLabelHidden
-          variant="ghost"
-          size="sm"
-          width="100%"
-          containerXstyle={styles.projectFilter}
-          value={projectFilter ?? ALL_PROJECTS}
-          onChange={(value) =>
-            setProjectFilter(value === ALL_PROJECTS ? null : value)
-          }
-          options={[
-            { value: ALL_PROJECTS, label: "All projects" },
-            ...recentProjects.map((p) => ({ value: p.path, label: p.name })),
-          ]}
-        />
-        <DropdownMenu
-          placement="below"
-          alignment="end"
-          renderTrigger={(triggerProps) => (
-            <IconButton
-              {...triggerProps}
-              variant="ghost"
-              size="lg"
-              label="Filters"
-              tooltip="Filters"
-              icon={<ListFilter size={17} />}
-              className={cn(
-                "shrink-0 text-zinc-500 hover:text-zinc-200",
-                taskChats !== "all" && "text-primary-hover",
-              )}
-            />
-          )}
-        >
-          <DropdownMenuGroup title="Task chats">
-            <DropdownMenuRadioGroup
-              label="Task chats"
-              value={taskChats}
-              onChange={(value) =>
-                setPreferences({
-                  sidebarTaskChats: value as Preferences["sidebarTaskChats"],
-                })
-              }
-            >
-              <DropdownMenuRadioItem value="all" label="Show all chats" />
-              <DropdownMenuRadioItem
-                value="top"
-                label="Group task chats at top"
-              />
-              <DropdownMenuRadioItem value="hide" label="Hide task chats" />
-            </DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
-        </DropdownMenu>
-        <IconButton
-          variant="ghost"
-          size="lg"
-          label="Add project"
-          tooltip="Add project"
-          icon={<FolderPlus size={17} />}
-          onClick={onAddProject}
-          className="shrink-0 text-zinc-500 hover:text-zinc-200"
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-2">
-        {boardProjects.length > 0 && (
-          <SidebarSectionCollapsible section="boards" label="Project boards">
-            {visibleBoards.map((p) => {
-              const chat = boardChatFor(p.path);
-              return (
-                <ProjectBoardRow
-                  key={p.path}
-                  name={p.name}
-                  summary={boardSummaries.find((b) => b.projectRoot === p.path)}
-                  chatId={chat?.id}
-                  active={!!chat && chat.id === activeSessionId}
-                  onClick={() => void openProjectBoard(p.path)}
-                />
-              );
-            })}
-            {hiddenBoardCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                label={
-                  boardsExpanded
-                    ? "Show less"
-                    : `More boards (${hiddenBoardCount})`
-                }
-                onClick={() => setBoardsExpanded((v) => !v)}
-                className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
+    <SideNav
+      aria-label="Conversations"
+      resizable={resizable}
+      header={
+        <HStack align="center" gap={1}>
+          <Selector
+            label="Project"
+            isLabelHidden
+            variant="ghost"
+            size="sm"
+            width="100%"
+            containerXstyle={styles.projectFilter}
+            value={projectFilter ?? ALL_PROJECTS}
+            onChange={(value) =>
+              setProjectFilter(value === ALL_PROJECTS ? null : value)
+            }
+            options={[
+              { value: ALL_PROJECTS, label: "All projects" },
+              ...recentProjects.map((p) => ({ value: p.path, label: p.name })),
+            ]}
+          />
+          <DropdownMenu
+            placement="below"
+            alignment="end"
+            renderTrigger={(triggerProps) => (
+              <IconButton
+                {...triggerProps}
+                variant="quiet"
+                size="lg"
+                label="Filters"
+                tooltip="Filters"
+                icon={<ListFilter size={17} />}
+                xstyle={taskChats !== "all" ? styles.filterOn : undefined}
               />
             )}
-          </SidebarSectionCollapsible>
-        )}
-        <SidebarSectionCollapsible
-          section="chats"
-          label="Chats"
-          className="mt-3"
-        >
-          {sortedConversations.length === 0 &&
-            doneConversations.length === 0 && (
-              <div className="px-3 py-6 text-center text-xs text-zinc-600">
-                {projectFilter
-                  ? "No conversations for this project"
-                  : "No conversations yet"}
-              </div>
-            )}
-          {sortedConversations.map((c) => (
-            <ConversationRow
-              key={c.id}
-              conversation={c}
-              projectName={
-                recentProjects.find((p) => p.path === c.projectRoot)?.name ??
-                c.projectRoot
-              }
-              active={c.id === activeSessionId}
-              onClick={() => openConversation(c.id)}
-              onDelete={() => setPendingDelete(c)}
-              onMarkDone={() => setConversationDone(c.id, true)}
-            />
-          ))}
-        </SidebarSectionCollapsible>
-        {doneConversations.length > 0 && (
-          <SidebarSectionCollapsible
-            section="done"
-            label="Done"
-            className="mt-3"
           >
-            {visibleDoneConversations.map((c) => (
-              <DoneConversationRow
-                key={c.id}
-                conversation={c}
-                active={c.id === activeSessionId}
-                onClick={() => openConversation(c.id)}
-                onDelete={() => setPendingDelete(c)}
-                onUndo={() => setConversationDone(c.id, false)}
-              />
-            ))}
-            {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-              <Button
-                variant="ghost"
-                size="sm"
-                label={
-                  doneExpanded
-                    ? "Show less"
-                    : `Show all (${doneConversations.length})`
+            <DropdownMenuGroup title="Task chats">
+              <DropdownMenuRadioGroup
+                label="Task chats"
+                value={taskChats}
+                onChange={(value) =>
+                  setPreferences({
+                    sidebarTaskChats: value as Preferences["sidebarTaskChats"],
+                  })
                 }
-                onClick={() => setDoneExpanded((v) => !v)}
-                className="mx-1.5 mb-1.5 flex items-center justify-start bg-transparent text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300"
-              />
-            )}
-          </SidebarSectionCollapsible>
-        )}
-      </div>
-      <div className="shrink-0 border-t border-white/[0.06] p-2">
+              >
+                <DropdownMenuRadioItem value="all" label="Show all chats" />
+                <DropdownMenuRadioItem
+                  value="top"
+                  label="Group task chats at top"
+                />
+                <DropdownMenuRadioItem value="hide" label="Hide task chats" />
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+          </DropdownMenu>
+          <IconButton
+            variant="quiet"
+            size="lg"
+            label="Add project"
+            tooltip="Add project"
+            icon={<FolderPlus size={17} />}
+            onClick={onAddProject}
+          />
+        </HStack>
+      }
+      footer={
         <Button
-          variant="ghost"
+          variant="quiet"
           label="Settings"
           tooltip="Settings"
           icon={<SettingsIcon size={15} />}
           onClick={() => setSettingsModalOpen(true)}
-          className="w-full justify-start gap-2 text-zinc-500 hover:text-zinc-200"
+          width="100%"
+          xstyle={styles.settings}
         />
-      </div>
+      }
+    >
+      <VStack gap={3}>
+        {boardProjects.length > 0 && (
+          <SidebarSectionCollapsible section="boards" label="Project boards">
+            <VStack gap={1}>
+              {visibleBoards.map((p) => {
+                const chat = boardChatFor(p.path);
+                return (
+                  <ProjectBoardRow
+                    key={p.path}
+                    name={p.name}
+                    summary={boardSummaries.find(
+                      (b) => b.projectRoot === p.path,
+                    )}
+                    chatId={chat?.id}
+                    active={!!chat && chat.id === activeSessionId}
+                    onClick={() => void openProjectBoard(p.path)}
+                  />
+                );
+              })}
+              {hiddenBoardCount > 0 && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  label={
+                    boardsExpanded
+                      ? "Show less"
+                      : `More boards (${hiddenBoardCount})`
+                  }
+                  onClick={() => setBoardsExpanded((v) => !v)}
+                  xstyle={styles.showMore}
+                />
+              )}
+            </VStack>
+          </SidebarSectionCollapsible>
+        )}
+        <SidebarSectionCollapsible section="chats" label="Chats">
+          <VStack gap={1.5}>
+            {sortedConversations.length === 0 &&
+              doneConversations.length === 0 && (
+                <Text
+                  type="supporting"
+                  size="xsm"
+                  color="secondary"
+                  justify="center"
+                  display="block"
+                  xstyle={styles.empty}
+                >
+                  {projectFilter
+                    ? "No conversations for this project"
+                    : "No conversations yet"}
+                </Text>
+              )}
+            {sortedConversations.map((c) => (
+              <ConversationRow
+                key={c.id}
+                conversation={c}
+                projectName={
+                  recentProjects.find((p) => p.path === c.projectRoot)?.name ??
+                  c.projectRoot
+                }
+                active={c.id === activeSessionId}
+                onClick={() => openConversation(c.id)}
+                onDelete={() => setPendingDelete(c)}
+                onMarkDone={() => setConversationDone(c.id, true)}
+              />
+            ))}
+          </VStack>
+        </SidebarSectionCollapsible>
+        {doneConversations.length > 0 && (
+          <SidebarSectionCollapsible section="done" label="Done">
+            <VStack gap={0.5}>
+              {visibleDoneConversations.map((c) => (
+                <DoneConversationRow
+                  key={c.id}
+                  conversation={c}
+                  active={c.id === activeSessionId}
+                  onClick={() => openConversation(c.id)}
+                  onDelete={() => setPendingDelete(c)}
+                  onUndo={() => setConversationDone(c.id, false)}
+                />
+              ))}
+              {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  label={
+                    doneExpanded
+                      ? "Show less"
+                      : `Show all (${doneConversations.length})`
+                  }
+                  onClick={() => setDoneExpanded((v) => !v)}
+                  xstyle={styles.showMore}
+                />
+              )}
+            </VStack>
+          </SidebarSectionCollapsible>
+        )}
+      </VStack>
       <DeleteConversationDialog
         conversation={pendingDelete}
         onCancel={() => setPendingDelete(null)}
         onConfirm={deleteConversation}
       />
-    </div>
+    </SideNav>
   );
 }

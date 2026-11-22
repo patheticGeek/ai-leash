@@ -1,3 +1,8 @@
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
+import { ResizeHandle } from "@astryxdesign/core/Resizable";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useEffect } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useBackendModels, useBackendsListener } from "../data/backends";
@@ -22,10 +27,26 @@ import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
-import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
-import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
+import TitleBar from "./TitleBar";
+
+const styles = stylex.create({
+  // Dev/preview builds get a thin warning-coloured frame round the whole
+  // window, so they can't be mistaken for the release app.
+  buildFrame: {
+    "::after": {
+      content: '""',
+      position: "fixed",
+      inset: 0,
+      zIndex: 999,
+      pointerEvents: "none",
+      borderWidth: borderVars["--border-width"],
+      borderStyle: "solid",
+      borderColor: colorVars["--color-border-warning"],
+    },
+  },
+});
 
 function App() {
   const viewEpoch = useAppStore((s) => s.viewEpoch);
@@ -77,20 +98,8 @@ function App() {
   // conversation switches.
   useBackendModels();
 
-  const [leftBarWidth, leftBarResize] = useResizableWidth(
-    LS_KEYS.leftBarWidth,
-    220,
-    160,
-    400,
-    1,
-  );
-  const [rightPanelWidth, rightPanelResize] = useResizableWidth(
-    LS_KEYS.rightPanelWidth,
-    360,
-    240,
-    720,
-    -1,
-  );
+  const leftBar = useResizableWidth(LS_KEYS.leftBarWidth, 220, 160, 400);
+  const rightPanel = useResizableWidth(LS_KEYS.rightPanelWidth, 360, 240, 720);
 
   useEffect(() => {
     initializeStartupSession();
@@ -126,42 +135,56 @@ function App() {
   }, []);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col text-zinc-200">
-      {BUILD_LABEL && (
-        <div className="pointer-events-none fixed inset-0 z-[999] border border-amber-500/50" />
-      )}
-      <TitleBar
-        leftBarWidth={leftBarWidth}
-        rightPanelWidth={boardView ? null : rightPanelWidth}
-      />
+    <>
+      <AppShell
+        variant="wash"
+        // A desktop window, not a responsive page: the sidebar stays inline
+        // however narrow the window gets, never a mobile drawer.
+        mobileNav={{ breakpoint: "none", hasToggle: false }}
+        xstyle={BUILD_LABEL ? styles.buildFrame : undefined}
+        topNav={
+          <TitleBar
+            leftBarWidth={leftBar.size}
+            rightPanelWidth={boardView ? null : rightPanel.size}
+          />
+        }
+        sideNav={<LeftBar resizable={leftBar} />}
+      >
+        <TabDndProvider>
+          <Layout
+            content={
+              <LayoutContent isScrollable={false}>
+                {/* Per switch, not per id: a new thread getting its id on its
+                    first message must not remount the panel — see
+                    `viewEpoch`. */}
+                <CenterPanel key={viewEpoch} />
+              </LayoutContent>
+            }
+            end={
+              !boardView && (
+                <>
+                  <ResizeHandle
+                    isReversed
+                    resizable={rightPanel}
+                    label="Resize side panel"
+                  />
+                  <LayoutPanel
+                    resizable={rightPanel}
+                    isScrollable={false}
+                    label="Side panel"
+                  >
+                    <SidePanel />
+                  </LayoutPanel>
+                </>
+              )
+            }
+          />
+        </TabDndProvider>
+      </AppShell>
       <SettingsModal />
       <DebugDevtoolsOverlay />
-      <div
-        className="flex flex-1 min-h-0"
-        style={{ marginTop: TITLEBAR_HEIGHT }}
-      >
-        <div style={{ width: leftBarWidth }} className="shrink-0">
-          <LeftBar />
-        </div>
-        <ResizeHandle width={leftBarWidth} {...leftBarResize} />
-        <TabDndProvider>
-          <div className="flex-1 min-w-0">
-            {/* Per switch, not per id: a new thread getting its id on its
-                first message must not remount the panel — see `viewEpoch`. */}
-            <CenterPanel key={viewEpoch} />
-          </div>
-          {!boardView && (
-            <>
-              <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
-              <div style={{ width: rightPanelWidth }} className="shrink-0">
-                <SidePanel />
-              </div>
-            </>
-          )}
-        </TabDndProvider>
-      </div>
       <TabContentHost />
-    </div>
+    </>
   );
 }
 

@@ -8,6 +8,7 @@ import {
   horizontalListSortingStrategy,
   SortableContext,
 } from "@dnd-kit/sortable";
+import type { StyleXStyles } from "@stylexjs/stylex";
 import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
 import { useSubAgents } from "@/data/subAgents";
@@ -43,12 +44,14 @@ export default function TabStrip({
   value,
   onSelect,
   className,
+  xstyle,
 }: {
   tabs: WorkspaceTab[];
   /** The selected tab id ("" for none). */
   value: string;
   onSelect: (id: string) => void;
   className?: string;
+  xstyle?: StyleXStyles;
 }) {
   const closeTab = useAppStore((s) => s.closeTab);
   const openFiles = useAppStore((s) => s.openFiles);
@@ -67,7 +70,7 @@ export default function TabStrip({
   ).length;
 
   return (
-    <HStack className={cn("min-w-0", className)} align="center">
+    <HStack className={cn("min-w-0", className)} xstyle={xstyle} align="center">
       <TabList
         value={value}
         onChange={onSelect}

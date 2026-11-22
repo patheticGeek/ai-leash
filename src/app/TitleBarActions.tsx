@@ -1,11 +1,12 @@
 import { Button } from "@astryxdesign/core/Button";
+import { ButtonGroup } from "@astryxdesign/core/ButtonGroup";
 import {
   DropdownMenu,
   DropdownMenuItem,
 } from "@astryxdesign/core/DropdownMenu";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, Play, Square } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
@@ -14,6 +15,12 @@ import { useAppStore } from "../store";
 // survives a stop or app restart) is "current" and shown on the collapsed
 // button; falls back to the first action defined when none has ever been run
 // or the last-run one was deleted.
+const styles = stylex.create({
+  group: { flexShrink: 0 },
+  // A long action name truncates instead of crowding the title.
+  current: { minWidth: 0, maxWidth: "10rem" },
+});
+
 function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
   return actions.find((a) => a.lastRun) ?? actions[0] ?? null;
 }
@@ -42,7 +49,7 @@ export default function TitleBarActions() {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-px">
+    <ButtonGroup label="Actions" size="sm" xstyle={styles.group}>
       <Button
         variant={current.running ? "chip-warning" : "chip"}
         size="sm"
@@ -52,10 +59,7 @@ export default function TitleBarActions() {
         tooltip={
           current.running ? `Stop ${current.name}` : `Run ${current.name}`
         }
-        className={cn(
-          "min-w-0 max-w-[160px]",
-          rest.length > 0 && "rounded-r-none",
-        )}
+        xstyle={styles.current}
       />
       {rest.length > 0 && (
         <DropdownMenu
@@ -70,7 +74,6 @@ export default function TitleBarActions() {
               label="Other actions"
               tooltip="Other actions"
               icon={<ChevronDown size={12} />}
-              className="rounded-l-none"
             />
           )}
         >
@@ -97,6 +100,6 @@ export default function TitleBarActions() {
           ))}
         </DropdownMenu>
       )}
-    </div>
+    </ButtonGroup>
   );
 }

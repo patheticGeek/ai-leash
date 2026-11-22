@@ -557,7 +557,7 @@ export const leashTheme = {
       "base": {},
       "variant:wash": {
         "@dark": {
-          "backgroundColor": "#101114"
+          "backgroundColor": "#0b0c0e"
         }
       },
       "variant:surface": {
@@ -580,7 +580,7 @@ export const leashTheme = {
       "base": {},
       "variant:wash": {
         "@dark": {
-          "backgroundColor": "#101114"
+          "backgroundColor": "#0b0c0e"
         }
       },
       "variant:surface": {
@@ -603,7 +603,7 @@ export const leashTheme = {
       "base": {},
       "variant:wash": {
         "@dark": {
-          "backgroundColor": "#101114"
+          "backgroundColor": "#0b0c0e"
         }
       },
       "variant:surface": {
@@ -689,6 +689,29 @@ export const leashTheme = {
       "base": {
         "gap": "4px",
         "paddingInline": "6px"
+      }
+    },
+    "layout-panel": {
+      "base": {},
+      "variant:surface": {
+        "@dark": {
+          "backgroundColor": "#0b0c0e"
+        }
+      },
+      "variant:wash": {
+        "@dark": {
+          "backgroundColor": "#0b0c0e"
+        }
+      },
+      "variant:section": {
+        "@dark": {
+          "backgroundColor": "#0b0c0e"
+        }
+      },
+      "variant:elevated": {
+        "@dark": {
+          "backgroundColor": "#0b0c0e"
+        }
       }
     }
   },
