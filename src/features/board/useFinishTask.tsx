@@ -1,12 +1,4 @@
-import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
-import {
-  HStack,
-  Layout,
-  LayoutContent,
-  LayoutFooter,
-  VStack,
-} from "@astryxdesign/core/Layout";
+import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { type ReactNode, useState } from "react";
 import {
   getConversations,
@@ -21,16 +13,32 @@ interface Pending {
   changes: WorktreeChanges;
 }
 
-function ChangeList({ title, lines }: { title: string; lines: string[] }) {
-  if (lines.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-zinc-400">{title}</span>
-      <pre className="max-h-40 overflow-auto rounded-md bg-sunken px-2 py-1.5 font-mono text-xs text-zinc-300">
-        {lines.join("\n")}
-      </pre>
-    </div>
-  );
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
+// AlertDialog's description is plain text, so the files and commits are
+// summarised in it: counts, plus the first few of each.
+function describe(task: Task, changes: WorktreeChanges): string {
+  const sample = (lines: string[]) =>
+    lines.length === 0
+      ? ""
+      : ` (${lines.slice(0, 3).join(", ")}${lines.length > 3 ? ", …" : ""})`;
+  const parts: string[] = [];
+  if (changes.uncommitted.length > 0) {
+    parts.push(
+      `${plural(changes.uncommitted.length, "uncommitted file", "uncommitted files")}${sample(changes.uncommitted)}`,
+    );
+  }
+  if (changes.unmergedCommits.length > 0) {
+    parts.push(
+      `${plural(changes.unmergedCommits.length, "commit", "commits")} not merged anywhere${sample(changes.unmergedCommits)}`,
+    );
+  }
+  const consequence =
+    changes.uncommitted.length > 0
+      ? "Removing it deletes the uncommitted changes; its branch and commits are kept."
+      : "Removing it keeps its branch, so the commits stay reachable.";
+  return `Task #${task.number}'s worktree has ${parts.join(" and ")}. ${consequence} Keeping it leaves the task where it is.`;
 }
 
 // Moving a task to Done goes through here: it removes the task's worktree,
@@ -76,68 +84,32 @@ export function useFinishTask(): {
     }
   }
 
-  const dialog = (
-    // A destructive confirm, but not `AlertDialog`: it lists the changes
-    // that would be lost, and AlertDialog's description is plain text.
-    <Dialog
-      isOpen={pending !== null}
-      role="alertdialog"
-      width={512}
-      onOpenChange={(open) => {
-        if (!open && !working) {
-          setPending(null);
-          setError(null);
-        }
-      }}
-    >
-      <Layout
-        header={
-          <DialogHeader
-            title={`Remove #${pending?.task.number ?? ""}'s worktree?`}
-            subtitle="Moving the task to Done removes its worktree. Its branch is kept."
-            onOpenChange={() => {
-              if (!working) {
-                setPending(null);
-                setError(null);
-              }
-            }}
-          />
-        }
-        content={
-          <LayoutContent>
-            <VStack gap={4}>
-              <ChangeList
-                title="Uncommitted changes — lost when the worktree goes"
-                lines={pending?.changes.uncommitted ?? []}
-              />
-              <ChangeList
-                title="Commits not merged anywhere — they stay on the branch"
-                lines={pending?.changes.unmergedCommits ?? []}
-              />
-              {error && <p className="text-xs text-destructive">{error}</p>}
-            </VStack>
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter>
-            <HStack gap={2} hAlign="end">
-              <Button
-                variant="ghost"
-                label="Keep it open"
-                isDisabled={working}
-                onClick={() => setPending(null)}
-              />
-              <Button
-                variant="destructive"
-                label={working ? "Removing…" : "Remove and mark done"}
-                isDisabled={working}
-                onClick={confirm}
-              />
-            </HStack>
-          </LayoutFooter>
-        }
-      />
-    </Dialog>
+  const close = () => {
+    if (working) return;
+    setPending(null);
+    setError(null);
+  };
+
+  const dialog = pending && (
+    <AlertDialog
+      isOpen
+      onOpenChange={(open) => !open && close()}
+      title={
+        pending.changes.uncommitted.length > 0
+          ? `Finish task #${pending.task.number} with uncommitted changes?`
+          : `Finish task #${pending.task.number} with unmerged commits?`
+      }
+      description={
+        error
+          ? `${describe(pending.task, pending.changes)} Couldn't remove it: ${error}`
+          : describe(pending.task, pending.changes)
+      }
+      cancelLabel="Keep it open"
+      actionLabel="Remove worktree"
+      isActionLoading={working}
+      onAction={confirm}
+      width={480}
+    />
   );
 
   return { finish: (task, beforeId) => run(task, beforeId, false), dialog };

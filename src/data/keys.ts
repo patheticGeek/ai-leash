@@ -25,6 +25,11 @@ export const qk = {
   // see `src/data/conversationHistory.ts`.
   conversationHistory: (sessionId: string) =>
     ["conversation", sessionId, "history"] as const,
+  // The last agent reply in a task's chat, for its details dialog
+  // (`TaskDetailsDialog`). Separate from `conversationHistory`, which the
+  // chat consumes and drops.
+  taskLastReply: (sessionId: string) =>
+    ["conversation", sessionId, "last-reply"] as const,
   // One project's board — tasks, epics and settings (`data/board.ts`). Under
   // `boardOf(projectRoot)` so a `board://changed` for that project
   // invalidates both the recent-Done and the full-Done variants.
