@@ -137,6 +137,10 @@ export function useChatStream(
   const [historyLoaded, setHistoryLoaded] = useState(
     prefetched !== undefined || startedAsNewThread,
   );
+  // Why the saved transcript couldn't be read, if it couldn't; the
+  // transcript shows it with a Try again (`reloadHistory`).
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyAttempt, setHistoryAttempt] = useState(0);
   // Per session id: resolves once the `chat://{id}/...` listeners below are
   // registered with Tauri (`listening`), or the resolver for a
   // `whenListening` call made before they were (`waiting`).
@@ -187,6 +191,7 @@ export function useChatStream(
     };
   }, [sessionId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `historyAttempt` is trigger-only — bumping it re-runs the load for the transcript's Try again
   useEffect(() => {
     if (!sessionId || startedAsNewThread) return;
     if (prefetched) {
@@ -195,6 +200,7 @@ export function useChatStream(
       return;
     }
     let cancelled = false;
+    setHistoryError(null);
     api
       .loadConversationHistory(sessionId)
       .then((messages) => {
@@ -206,13 +212,16 @@ export function useChatStream(
         // send a message before the UI has mounted — but it's a cheap check).
         setEntries((prev) => (prev.length === 0 ? loaded : prev));
       })
+      .catch((e: unknown) => {
+        if (!cancelled) setHistoryError(String(e));
+      })
       .finally(() => {
         if (!cancelled) setHistoryLoaded(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [sessionId, prefetched, startedAsNewThread]);
+  }, [sessionId, prefetched, startedAsNewThread, historyAttempt]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -492,6 +501,11 @@ export function useChatStream(
     entries,
     setEntries,
     historyLoaded,
+    historyError,
+    reloadHistory: () => {
+      setHistoryLoaded(false);
+      setHistoryAttempt((n) => n + 1);
+    },
     usage,
     setUsage,
     sessionTitle,
