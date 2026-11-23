@@ -21,6 +21,7 @@ import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -64,6 +65,9 @@ const styles = stylex.create({
   hidden: { visibility: "hidden" },
   // The ListItem slot is a flex child; without this the icon gets squeezed.
   noShrink: { flexShrink: 0 },
+  // The sm IconButton is taller than a compact row's text line. Pull it into
+  // the row's own block padding so it never sets the row height.
+  rowAction: { marginBlock: `calc(-1 * ${spacingVars["--spacing-1"]})` },
 });
 
 function SearchField({ placeholder }: { placeholder: string }) {
@@ -101,7 +105,7 @@ function PickerRow({
             // isLayoutPreserved: the button's box is always there (only its
             // opacity changes), so revealing it doesn't change the row height.
             <HStack as="span" {...getContentRevealProps({ isLayoutPreserved: true })}>
-              <IconButton variant="ghost" size="sm" label={`Delete ${label}`} icon={<Icon icon={TrashIcon} size="sm" />} />
+              <IconButton variant="ghost" size="sm" label={`Delete ${label}`} icon={<Icon icon={TrashIcon} size="sm" />} xstyle={styles.rowAction} />
             </HStack>
           ) : undefined
         }
@@ -143,7 +147,8 @@ function PickerList({ search, children, createLabel, onCreate }: { search: strin
   return (
     <VStack gap={2}>
       <SearchField placeholder={search} />
-      <List density="compact" edge="flush">
+      {/* padded: the check sits inset from the edge with an even gap to the name */}
+      <List density="compact" edge="padded">
         {children}
       </List>
       <Divider />
