@@ -1,17 +1,5 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
-
-// Pinned to the top of the transcript. The z-index keeps later messages from
-// painting over a sticky notice as they scroll past it.
-const styles = stylex.create({
-  sticky: {
-    position: "sticky",
-    top: spacingVars["--spacing-1"],
-    zIndex: 10,
-  },
-});
 
 interface TranscriptNoticesProps {
   chatError: string | null;
@@ -25,10 +13,13 @@ interface TranscriptNoticesProps {
   acpAgentLabel: string | null;
 }
 
-// The sticky error/warning strips pinned to the top of the transcript:
-// provider error, failed ACP session restore, and the "this agent can't
-// resume history" heads-up. Top-level-conversation-only — a sub-agent's
-// transcript never renders any of them.
+// The conversation's error/warning notices — provider error, failed ACP
+// session restore, and the "this agent can't resume history" heads-up — as
+// stock `Banner`s at the top of the banner stack above the composer
+// (`ChatComposer`'s `notices`), errors first, then the warning; the
+// stack's own info/warning strips follow. The theme backs banner frames
+// with the solid card surface, so they read over the transcript.
+// Top-level-conversation-only — a sub-agent's transcript has none.
 export default function TranscriptNotices({
   chatError,
   acpRestoreFailed,
@@ -45,7 +36,6 @@ export default function TranscriptNotices({
           title="Error"
           description={chatError}
           collapsible={false}
-          xstyle={styles.sticky}
         />
       )}
       {acpRestoreFailed && (
@@ -63,7 +53,6 @@ export default function TranscriptNotices({
             />
           }
           collapsible={false}
-          xstyle={styles.sticky}
         />
       )}
       {acpHistoryTruncated && (
@@ -72,7 +61,6 @@ export default function TranscriptNotices({
           title="Earlier history not shared"
           description={`${acpAgentLabel ?? "This agent"} doesn't support resuming a previous session, so this conversation's earlier history won't be visible to it.`}
           collapsible={false}
-          xstyle={styles.sticky}
         />
       )}
     </>

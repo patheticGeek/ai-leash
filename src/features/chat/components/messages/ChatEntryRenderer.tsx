@@ -1,18 +1,19 @@
-import { Inbox } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat";
+import { Icon } from "@astryxdesign/core/Icon";
+import { Inbox, Info } from "lucide-react";
 import Markdown from "../../../../ui/Markdown";
 import type { PanelEntry } from "../../hooks/useChatStream";
-import { ActivityRow } from "./ActivityRow";
 import FromChat, { useChatLabel } from "./FromChat";
 import MessageFooter from "./MessageFooter";
-import ToolEntry from "./ToolEntry";
+import SystemNotice from "./SystemNotice";
+import { toolCallFor } from "./toolCalls";
 
 export interface ChatEntryRendererProps {
   entry: PanelEntry;
+  /** Its index in `entries` (a stable key for its tool-call row). */
+  index: number;
   isLast: boolean;
   sending: boolean;
-  expanded: boolean;
-  onToggleExpand: () => void;
   copied: boolean;
   onCopy: () => void;
   onRetry: () => void;
@@ -25,48 +26,50 @@ export interface ChatEntryRendererProps {
   allowRetry: boolean;
 }
 
-// Renders one transcript entry ("info"/"text"/"thinking"/"tool") — the
-// counterpart to `ChatEntryList.tsx`'s iteration over the whole array
-// (grouping lives in `entryGrouping.ts`). Also reused as-is by
-// `SubAgentChatTab.tsx` (via `ChatEntryList`) so a sub-agent's own transcript
-// shows tool calls/thinking identically to a top-level conversation's, just
-// with `allowRetry` forced off and no system-prompt/provider-error/ACP-restore
-// banners.
-// A note another chat left (`board::messaging`) — collapsed to its sender
-// and first line until opened.
-function NoteRow({
-  from,
-  content,
-  expanded,
-  onToggle,
-}: {
-  from: string | null;
-  content: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
+function firstLine(text: string): string {
+  return text.trim().split("\n")[0] ?? "";
+}
+
+// A note another chat left (`board::messaging`): its sender and first line,
+// with Show for the whole note.
+function NoteRow({ from, content }: { from: string | null; content: string }) {
   const label = useChatLabel(from);
   return (
-    <ActivityRow
-      icon={<Inbox />}
+    <SystemNotice
+      icon={<Icon icon={Inbox} size="sm" />}
       label={`Note from ${label}`}
-      summary={content.split("\n")[0]}
-      expanded={expanded}
-      onToggle={onToggle}
+      summary={firstLine(content)}
     >
-      <div className="select-text">
-        <Markdown content={content} />
-      </div>
-    </ActivityRow>
+      <Markdown content={content} />
+    </SystemNotice>
   );
 }
 
+// A local notice ("Conversation compacted: …"): its first line, with Show
+// for the rest when there is more.
+function InfoRow({ content }: { content: string }) {
+  const [head, ...rest] = content.trim().split("\n");
+  const body = rest.join("\n").trim();
+  return (
+    <SystemNotice icon={<Icon icon={Info} size="sm" />} label={head ?? ""}>
+      {body ? <Markdown content={body} /> : undefined}
+    </SystemNotice>
+  );
+}
+
+// Renders one transcript entry as its Astryx chat part — the counterpart to
+// `ChatEntryList.tsx`, which groups entries (`entryGrouping.ts`) and wraps
+// them in `ChatMessage`s. A user message is a filled bubble (with "From …"
+// in its name slot when another chat sent it); an assistant reply is a
+// full-width ghost bubble; notes and local notices are `SystemNotice`s; a
+// lone thinking/tool entry is a one-row `ChatToolCalls` (runs of them go
+// through `ActivityGroup`). Also reused as-is by `SubAgentChatTab.tsx` (via
+// `ChatEntryList`) with `allowRetry` off.
 export default function ChatEntryRenderer({
   entry,
+  index,
   isLast,
   sending,
-  expanded,
-  onToggleExpand,
   copied,
   onCopy,
   onRetry,
@@ -74,82 +77,44 @@ export default function ChatEntryRenderer({
   showFooter,
   allowRetry,
 }: ChatEntryRendererProps) {
-  if (entry.kind === "info") {
-    return (
-      <div className="select-text rounded-md bg-raised px-3 py-2 text-xs text-zinc-400">
-        <Markdown content={entry.content} />
-      </div>
-    );
-  }
+  if (entry.kind === "info") return <InfoRow content={entry.content} />;
 
   if (entry.kind === "note") {
-    return (
-      <NoteRow
-        from={entry.from}
-        content={entry.content}
-        expanded={expanded}
-        onToggle={onToggleExpand}
-      />
-    );
+    return <NoteRow from={entry.from} content={entry.content} />;
   }
 
   if (entry.kind === "text") {
     const isUser = entry.role === "user";
-    return (
-      <div
-        className={cn(
-          "group flex flex-col",
-          isUser ? "items-end text-zinc-200" : "items-start text-zinc-300",
-        )}
-      >
-        {entry.from && <FromChat id={entry.from} />}
-        <div
-          className={cn(
-            "select-text",
-            isUser
-              ? "rounded-2xl px-3 py-2 bg-raised max-w-4/5"
-              : "min-w-0 max-w-full",
-            entry.from && "shadow-[0_0_0_1px_var(--primary)] bg-primary/5",
-          )}
+    const footer = showFooter ? (
+      <MessageFooter
+        time={entry.time}
+        copied={copied}
+        onCopy={onCopy}
+        showRetry={!isUser && !sending && isLast && allowRetry}
+        onRetry={onRetry}
+        turnDuration={isUser ? undefined : turnDuration}
+      />
+    ) : undefined;
+    if (isUser) {
+      return (
+        <ChatMessageBubble
+          name={entry.from ? <FromChat id={entry.from} /> : undefined}
+          metadata={footer}
         >
           <Markdown content={entry.content} />
-        </div>
-
-        {showFooter && (
-          <MessageFooter
-            isUser={isUser}
-            time={entry.time}
-            copied={copied}
-            onCopy={onCopy}
-            showRetry={!sending && isLast && allowRetry}
-            onRetry={onRetry}
-            turnDuration={isUser ? undefined : turnDuration}
-          />
-        )}
-      </div>
-    );
-  }
-
-  if (entry.kind === "thinking") {
-    const thinking = !entry.done && isLast;
+        </ChatMessageBubble>
+      );
+    }
     return (
-      <ActivityRow
-        italic
-        shine={thinking}
-        label={thinking ? "Thinking…" : "Thought"}
-        expanded={expanded}
-        onToggle={onToggleExpand}
-      >
-        <div className="whitespace-pre-wrap italic">{entry.content}</div>
-      </ActivityRow>
+      <>
+        <ChatMessageBubble variant="ghost" width="100%">
+          <Markdown content={entry.content} />
+        </ChatMessageBubble>
+        {footer}
+      </>
     );
   }
 
-  return (
-    <ToolEntry
-      entry={entry}
-      expanded={expanded}
-      onToggleExpand={onToggleExpand}
-    />
-  );
+  const call = toolCallFor(entry, index, isLast);
+  return call ? <ChatToolCalls calls={[call]} /> : null;
 }

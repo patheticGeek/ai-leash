@@ -1,25 +1,28 @@
-import { useState } from "react";
-import { ActivityRow } from "./ActivityRow";
+import { CodeBlock } from "@astryxdesign/core/CodeBlock";
+import { Icon } from "@astryxdesign/core/Icon";
+import { FileText } from "lucide-react";
+import SystemNotice from "./SystemNotice";
 
-// The collapsible "system prompt" line at the top of a top-level
-// conversation's transcript. Owns its own open/closed state — nothing else
-// reads it.
+// The "System prompt" line at the top of a top-level conversation's
+// transcript; Show opens the whole prompt.
 export default function SystemPromptRow({
   systemPrompt,
 }: {
   systemPrompt: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
   return (
-    <ActivityRow
-      italic
-      label="system prompt"
-      expanded={expanded}
-      onToggle={() => setExpanded((v) => !v)}
+    <SystemNotice
+      icon={<Icon icon={FileText} size="sm" />}
+      label="System prompt"
     >
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-code">
-        {systemPrompt}
-      </pre>
-    </ActivityRow>
+      <CodeBlock
+        code={systemPrompt}
+        hasLanguageLabel={false}
+        size="sm"
+        width="100%"
+        maxHeight={320}
+        isWrapped
+      />
+    </SystemNotice>
   );
 }
