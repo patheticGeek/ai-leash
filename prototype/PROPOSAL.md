@@ -228,6 +228,8 @@ Screenshots: `new.png`, `new-slash.png` (vs `ref-ai-chat-landing.png`)
             ┌ Run the tests and fix…   ┐ ┌ Explain how a part works┐
 ```
 
+The heading's project name is a picker: a ghost, label-less `Selector` inline in the heading (Recent projects with their paths, then "Add project…"). Choosing a project re-targets the checkout bar under the composer (primary worktree + that project's branch), the breadcrumb and the "starts with" row.
+
 The template's centred 720 column, greeting, composer and card grid; its
 category `ToggleButtonGroup` is replaced by the "starts with" context row
 (what ai leash folds into the system prompt). `/` opens the slash command

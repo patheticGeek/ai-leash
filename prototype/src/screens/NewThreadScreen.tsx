@@ -16,7 +16,9 @@ import { Button } from "@astryxdesign/core/Button";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
-import { PaperClipIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { useState } from "react";
+import { Selector } from "@astryxdesign/core/Selector";
+import { FolderIcon, FolderPlusIcon, PaperClipIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { CheckoutBar, ComposerPickers, commandTrigger, fileTrigger } from "../chat/Composer";
 import AppFrame from "../shell/AppFrame";
 import SidePanel from "../shell/SidePanel";
@@ -35,13 +37,62 @@ const STARTERS = [
   { heading: "Explain how a part works", body: "Trace a feature through the code and docs" },
 ];
 
+// The project the thread starts in. Picking one re-targets the checkout bar
+// (its primary worktree + current branch), the breadcrumb and the context row.
+const PROJECT_INFO: Record<string, { path: string; branch: string; startsWith: string[] }> = {
+  "ai-leash": { path: "~/Projects/ai-leash", branch: "astryx-migration", startsWith: ["AGENTS.md", "docs/AGENTS.md", "Project memory", "3 skills", "4 actions"] },
+  tidepool: { path: "~/Projects/tidepool", branch: "main", startsWith: ["AGENTS.md", "Project memory", "1 action"] },
+  dotfiles: { path: "~/dotfiles", branch: "master", startsWith: ["Project memory"] },
+};
+
+/**
+ * The heading's project picker: a ghost, label-less Selector inline in the
+ * heading (work-item-detail's field-row pattern), sized to the heading.
+ * Options: recent projects with their path, a divider, then "Add project…".
+ */
+function ProjectPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Selector
+      label="Project"
+      isLabelHidden
+      variant="ghost"
+      size="lg"
+      value={value}
+      onChange={(v) => {
+        if (v && v !== "add") onChange(v);
+      }}
+      options={[
+        {
+          type: "section",
+          title: "Recent projects",
+          options: Object.entries(PROJECT_INFO).map(([name, info]) => ({
+            value: name,
+            label: name,
+            description: info.path,
+            icon: FolderIcon,
+          })),
+        },
+        { type: "divider" },
+        { value: "add", label: "Add project…", icon: FolderPlusIcon },
+      ]}
+      renderValue={(o) => (
+        <Text type="large" as="span">
+          {o.label}
+        </Text>
+      )}
+    />
+  );
+}
+
 export default function NewThreadScreen() {
+  const [project, setProject] = useState("ai-leash");
+  const info = PROJECT_INFO[project];
   return (
     <AppFrame
       selection={{ kind: "new" }}
       titleBar={
         <TitleBar
-          crumbs={[{ label: "ai-leash", href: "#/board" }, { label: "New thread" }]}
+          crumbs={[{ label: project, href: "#/board" }, { label: "New thread" }]}
           controls={<RunControls />}
         />
       }
@@ -56,11 +107,12 @@ export default function NewThreadScreen() {
               <LayoutContent role="main">
                 <VStack gap={8} vAlign="center" xstyle={styles.page}>
                   <VStack gap={1}>
-                    <HStack gap={2} vAlign="center">
+                    <HStack gap={1} vAlign="center">
                       <Icon icon={SparklesIcon} size="md" color="accent" />
                       <Text type="large" as="h2">
-                        New thread in ai-leash
+                        New thread in
                       </Text>
+                      <ProjectPicker value={project} onChange={setProject} />
                     </HStack>
                     <Text type="display-2" as="h1">
                       What should the agent work on?
@@ -77,7 +129,7 @@ export default function NewThreadScreen() {
                       }
                       footerActions={<ComposerPickers />}
                     />
-                    <CheckoutBar worktree="primary" branch="astryx-migration" />
+                    <CheckoutBar key={project} worktree="primary" branch={info.branch} />
                   </VStack>
 
                   <VStack gap={6} paddingInline={3}>
@@ -86,11 +138,9 @@ export default function NewThreadScreen() {
                         The agent starts with
                       </Text>
                       <HStack gap={1} wrap="wrap">
-                        <Token label="AGENTS.md" />
-                        <Token label="docs/AGENTS.md" />
-                        <Token label="Project memory" />
-                        <Token label="3 skills" />
-                        <Token label="4 actions" />
+                        {info.startsWith.map((t) => (
+                          <Token key={t} label={t} />
+                        ))}
                       </HStack>
                     </VStack>
                     <Grid columns={{ minWidth: 280 }} gap={3}>
