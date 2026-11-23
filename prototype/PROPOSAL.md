@@ -18,7 +18,9 @@ file tree, terminal and editor are there to support the agent chat.
   `chat-question`, `new`, `new-slash`, `board`, `board-epics`,
   `board-epics-drag`, `board-epics-scrolled`, `task`, `task-new`,
   `task-details`, `task-details-todo`, `chat-collapsed`, `chat-subagent-tab`,
-  `settings/<agents|chat|fonts|editor|debug|crashlog|about>`, `ref/<template>`
+  `settings/<agents|chat|fonts|editor|debug|crashlog|about>`, `ref/<template>`,
+  plus the chat-states gallery in §2.8 (`strip-*`, `popup-*`, `prompt-*`,
+  `toasts`, `confirm-*`, `tooltip`, `state-*`, `pill-*`)
 - Reshoot everything: `npm i --no-save playwright && npx playwright install
   chromium-headless-shell`, then `node scripts/shoot-all.mjs`
 
@@ -299,64 +301,58 @@ Screenshots: `board.png` (Both, with the project chat docked),
 - **Both** layout: the project chat docks in the end panel with a compact
   composer (pickers collapse to icons).
 
-### 2.6 Task modals — `work-item-detail` content in Astryx dialogs
+### 2.6 Task modals — one design, `work-item-detail` content in a Dialog
 
 Screenshots: `task-new.png`, `task-details.png` (running),
 `task-details-todo.png` (not started); full-page view for comparison:
 `task.png` (vs `ref-work-item-detail.png`)
 
-Both dialogs follow the `DialogFormDialog` block (a `Layout` inside the
-`Dialog`: `DialogHeader` / `LayoutContent` / `LayoutFooter`, actions at the
-end) with `purpose="form"`, so a stray backdrop click can't throw edits away.
+New task and Task details are **one modal in three states**: "new" is the
+editable, empty version of "details". Same frame, same regions, same field
+positions; only the values and the footer change.
 
-**New task** (`#/task-new`, the board's New task button), width 640:
+- **Frame:** the `DialogFormDialog` block (a `Layout` inside the `Dialog`:
+  `DialogHeader` / `LayoutContent` / `LayoutFooter`, actions at the end),
+  `purpose="form"`. **Width 1120, maxHeight 85dvh**: the settings-dialog
+  template's own width.
+  At 1400×900 it leaves a 140px gutter each side, so the rail gets 320px and
+  the content column about 770px.
+- **Main column** (work-item-detail's header and content): the title (a
+  `TextInput size="lg"`, "Task title", when new; `Heading 2` + edit when
+  set), then the **label-less field row** the template uses: `Selector`s
+  with `isLabelHidden`, showing a status dot, a priority `Badge`, an effort
+  value and an epic `Token`. Empty fields show an icon plus a placeholder
+  ("Priority", "Effort", "Epic") and can be cleared while drafting. Then the
+  Description (a 12-row `TextArea`, Markdown, when new; rendered `Markdown` +
+  edit when set), then **Its chat** (details only).
+- **Rail** (`LayoutPanel` 320, divider): `MetadataList`s like the template's
+  rail. **Agent**: Agent / Model / Thinking / Permission as ghost `sm`
+  `Selector`s with icons on "Board default" (new and not started), plain
+  values once the chat is running. **Checkout**: worktree / branch ("Created
+  on start" until then). **Details** (not on new): created, created by.
+- **Footer:** new → "Start it right away" checkbox, then Cancel and Create
+  task; details → Delete task (destructive, confirmed by an `AlertDialog`),
+  then Close. Fields save as they change, so details has no Save.
 
 ```
- New task                                                              ×
- ai-leash board
- Title · Required        [Board: keyboard moves between columns        ]
- Description             Markdown. The task's chat gets this as its first message.
-                         [ multi-line TextArea                          ]
- Status      Priority    Effort      Epic                 4-column Grid, labelled
- [● Todo ▾]  [Low ▾]     [M ▾]       [Project board ▾]
- ──────────────────────────────────────────────────────────────────────
- Who works on it   Optional. Board default uses the board's settings.
- Agent [Board default ▾]          Model [Board default ▾]
- Thinking [Board default ▾]       Permission [Board default ▾]
-                                                  [Cancel] [Create task]
+ ┌ Dialog 1120 ───────────────────────────────────────────────────────────────────────────┐
+ │ New task  |  Task #42                                                        (…)   ×  │ DialogHeader
+ │ ai-leash board                                                                        │
+ │ ┌ content ─────────────────────────────────────────┐ ┌ rail 320 ──────────────────────┐│
+ │ │ [Task title            ]  |  Astryx: board on…  ✎ │ │ Agent                           ││
+ │ │ [● Todo▾] [⚑ Priority▾] [⚖ Effort▾] [▤ Epic▾]     │ │  Agent      ⚙ Board default ▾   ││  new / not started:
+ │ │                                                   │ │  Model      ✦ Board default ▾   ││  ghost Selectors;
+ │ │ Description                                    ✎ │ │  Thinking   ◌ Board default ▾   ││  running: plain values
+ │ │ [ TextArea, Markdown ]  |  rendered Markdown      │ │  Permission ⛉ Board default ▾   ││
+ │ │                                                   │ │ Checkout                        ││
+ │ │ Its chat  (details only)                          │ │  Worktree   Created on start    ││
+ │ │ ┌ ● Not started · Start ┐ | ┌ ● Working for 3:12 ┐│ │  Branch     Created on start    ││
+ │ │ └───────────────────────┘   └ Stop · Open chat   ┘│ │ Details (details only)          ││
+ │ └───────────────────────────────────────────────────┘ └─────────────────────────────────┘│
+ │ ☐ Start it right away      [Cancel] [Create task]  |  [🗑 Delete task]          [Close] │ LayoutFooter
+ └───────────────────────────────────────────────────────────────────────────────────────┘
+   left of "|" = New task, right = Task details
 ```
-
-**Task details** (`#/task-details`, clicking a card), width 960 — the
-template's header, content column and end rail:
-
-```
- Astryx: board on the kanban template                              …  ×
- #42 · ai-leash board
- [● In progress ▾] [High ▾] [Effort L ▾] [Astryx migration ▾] │ Checkout
-                                                               │  Worktree  task-42
- Description                                         ✎        │  Branch    task/42-astryx-board
-  rendered Markdown                                            │ Agent
- ──────────────────────────────────────────────────            │  Agent / Model / Thinking / Permission
- Its chat                                                      │  (Selectors, "Board default", until started)
- ┌ ● Working for 3:12                    [Stop] [Open chat] ┐   │ Details
- │   edit BoardView.tsx · 2 sub-agents running              │   │  Created / Created by
- │ ──────────────────────────────────────────────────────── │   │
- │ Last reply · 10:07  Columns done. Working on the swimlanes│   │
- └──────────────────────────────────────────────────────────┘   │
- [🗑 Delete task]                                                          [Close]
-```
-
-- The field row is the template's inline-editable `Selector` row: changes
-  save as you make them, so the footer only has Close (no Save).
-- **Its chat:** not started → "Not started · Starting creates worktree
-  task-47" + **Start** (`task-details-todo.png`); started → pulsing
-  `StatusDot`, elapsed time, current activity, Stop + **Open chat**, last
-  reply.
-- Agent settings are `Selector`s ("Board default") until the task starts,
-  then read-only `MetadataList` rows, since the chat is running with them.
-- **Delete task** is the destructive button at the footer's start, confirmed
-  by an `AlertDialog` (the one nesting Astryx allows). The `…` menu in the
-  header holds Copy link / Move to Review / Finish task.
 
 **Recommendation: drop the full-page task view.** Everything it showed now
 fits the details dialog, which keeps the board (and its drag targets) in
@@ -383,6 +379,42 @@ reload / copy / delete.
 
 ---
 
+### 2.8 Chat banners, popups and alerts — one route each
+
+Every transient piece of the chat, mocked on the real chat screen
+(`src/screens/ChatStatesScreen.tsx`), each built from one stock Astryx
+component so they share a look. Screenshot = `shots-v2/<route>.png`.
+
+| Route | What | Astryx part |
+|---|---|---|
+| `strip-queued-1`, `strip-queued-3` | Queued messages, 1 and 3 | `ChatComposerDrawer` of removable `Token`s (the composer's own drawer; collapse handle because it has a count) |
+| `strip-rate-limit` | Claude session limit, counting down to auto-resume ("resuming in 1:42:07", Don't resume / Try now) | `Banner status="warning"` |
+| `strip-task-link` | "The project chat isn't following this task" + Hand back to project chat | `Banner status="info"` |
+| `strip-error-crash` | Agent process crashed (Show log / Restart agent) | `Banner status="error"` |
+| `strip-error-connection` | Connection lost, retrying in 5s (Retry now) | `Banner status="error"` |
+| `popup-slash` | `/` command menu | `ChatComposerInput` trigger → `Typeahead` + `TypeaheadItem` (name + description) |
+| `popup-mention` | `@` file mention (planned) | same trigger pattern as Astryx's `ChatComposerInputMentionTrigger` block; file/folder icon + path |
+| `popup-model`, `popup-effort`, `popup-permission` | The three composer pickers | `DropdownMenu` (sections per agent for models) |
+| `prompt-permission`, `prompt-question` | Permission prompt and elicitation question, in the composer's place | muted-elevation `Card` (Heading 4, supporting subtitle, content, actions end-aligned) |
+| `toasts` | "Task #42 moved to Review" (Open), "Copied", error toast | `useToast()`; the app mounts `ToastViewport position="topEnd"` under the title bar, because the default bottom-end sits on the composer's send/stop corner |
+| `confirm-delete-conversation` | Delete conversation | `AlertDialog` (destructive action; Cancel focused) |
+| `confirm-finish-task` | Finish a task with uncommitted changes: Keep it open / Remove worktree | `AlertDialog` with `cancelLabel` = the safe choice |
+| `tooltip` | Tooltip on an icon button (Open in external editor) | `IconButton tooltip` |
+| `state-empty`, `state-loading`, `state-error` | Transcript + Sub agents list: empty, loading, error | `EmptyState` (compact in the panel), `Skeleton` rows in each list's own shape; errors say what failed and offer Try again |
+| `state-actions-empty`, `state-actions-loading`, `state-actions-error` | Actions list: empty (with Add action), loading, error | same |
+| `pill-subagents`, `pill-subagents-open` | Running sub-agents above the composer (planned): "3 sub-agents running", expanding to the list with stop buttons and Stop all | ghost `Button` (Spinner + count + chevron); open = muted `Card` with the Sub agents tab's compact `List` |
+
+The rules they share:
+- **Severity is the Banner's `status`** (warning = needs a decision, info =
+  state you can change, error = something broke). Actions are always on the
+  end: secondary ghost first, then the one recommended action.
+- **Popups anchor to what opened them** (input caret, picker button) and use
+  the menu surface; nothing custom.
+- **Toasts confirm, they never ask**; anything needing a decision is a
+  Banner or an AlertDialog.
+- **States use the content's own shape:** skeletons mimic bubbles, prose and
+  list rows; empty states say what will appear and how.
+
 ## 3. Implementation tasks
 
 Each task updates the `docs/features/*.md` page for its surface, then
@@ -396,9 +428,9 @@ Each task updates the `docs/features/*.md` page for its surface, then
 | 3 | **Side panel:** Files (search + compact `TreeList`), Sub agents / Actions as compact `List`s, terminal look | `src/features/sidebar/SidePanel.tsx`, `TabPicker.tsx`, `tabs/*`, `src/features/tabs/TabContent.tsx`; docs `ui-shell.md`, `actions.md`, `terminal.md` |
 | 4 | **New thread:** landing column, "starts with" tokens, starter cards | `src/features/chat/components/empty-states/*`, `ChatPanel.tsx`; docs `agent-chat.md` |
 | 5 | **Transcript:** `ChatMessageList` / `ChatMessage` / `ChatToolCalls` / `ChatSystemMessage` / `ChatMessageMetadata` mapping (§2.4). Grouping untouched | `src/features/chat/components/messages/*`, `banners/TranscriptNotices.tsx`, `SubAgentChatTab.tsx`, `src/ui/Markdown.tsx`; docs `agent-chat.md` |
-| 6 | **Composer:** `ChatComposer` slots, queued drawer, `Banner` notices, checkout bar, permission / question prompts, slash menu, pickers | `src/features/chat/components/composer/*`, `banners/*`, `popovers/*`; docs `agent-chat.md`, `tools.md` |
+| 6 | **Composer:** `ChatComposer` slots, queued drawer, `Banner` notices (rate limit with countdown, task link, crash / connection errors), checkout bar, permission / question prompts, slash menu, `@` file mention (new), pickers, running sub-agents pill (new), app-wide top-end `ToastViewport`; the transcript / panel empty-loading-error states go with tasks 5 and 3 (§2.8) | `src/features/chat/components/composer/*`, `banners/*`, `popovers/*`; docs `agent-chat.md`, `tools.md` |
 | 7 | **Board:** toolbar, columns, cards, epic swimlanes with sticky labels, drag ghost, project-chat dock | `src/features/board/*` (`BoardView`, `TaskCard`, `TaskMeta`, `ProjectBoardView`, `boardLayout.ts`, dialogs); docs `project-board.md` |
-| 8 | **Task modals:** New task dialog and Task details dialog (opens on card click; inline-editable fields, chat state, checkout, agent settings, Delete with AlertDialog). No full-page view | `src/features/board/TaskDialog.tsx` (split into new + details), `AgentFields.tsx`, `TaskCard.tsx` (click → details), `StartTaskDialog.tsx`; docs `project-board.md` |
+| 8 | **Task modals:** one 1120-wide modal in new / not-started / running states (label-less field row, Markdown description, chat state, agent + checkout rail, Delete with AlertDialog); opens from New task and on card click. No full-page view | `src/features/board/TaskDialog.tsx` (split into new + details), `AgentFields.tsx`, `TaskCard.tsx` (click → details), `StartTaskDialog.tsx`; docs `project-board.md` |
 | 9 | **Settings:** dialog shell with search, Preferences split into four panels, agent rows | `src/features/settings/*`; docs `ui-shell.md`, `agent-chat.md`, `debug-mode.md`, `crash-logging.md` |
 
 Order: **0 first** (everything else is designed against stock), then
@@ -472,3 +504,11 @@ New in v2:
     thread, Add project, one folder per project, Done, Settings). Is that
     enough, or should collapse hide the rail completely,
     leaving only the title-bar toggle?
+17. **Toast position:** top-end under the title bar (so toasts never cover
+    the composer) instead of Astryx's bottom-end default. OK?
+18. **Planned pieces mocked here:** the `@` file mention and the running
+    sub-agents pill aren't in the app yet. Build them as part of task 6, or
+    as separate board tasks?
+19. **Task modal "Start it right away":** is a checkbox in the New task
+    footer the right place, or should Create have a split button
+    (Create / Create and start)?

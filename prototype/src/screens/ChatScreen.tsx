@@ -1,6 +1,6 @@
 // Chat — app frame + ide split; the centre is the ai-chat template's
 // ChatLayout with the composer dock in its composer slot.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { ChatLayout } from "@astryxdesign/core/Chat";
 import { Layout, LayoutContent, LayoutHeader } from "@astryxdesign/core/Layout";
@@ -15,7 +15,7 @@ import {
 import Transcript from "../chat/Transcript";
 import AppFrame from "../shell/AppFrame";
 import PaneTabs from "../shell/PaneTabs";
-import SidePanel, { type PanelTab } from "../shell/SidePanel";
+import SidePanel, { type ListState, type PanelTab } from "../shell/SidePanel";
 import TitleBar, { RunControls } from "../shell/TitleBar";
 import Workspace from "../shell/Workspace";
 import { VStack } from "@astryxdesign/core/Stack";
@@ -32,18 +32,32 @@ const CENTER_TABS = [
   { value: "file", label: "BoardView.tsx", isClosable: true },
 ];
 
+/** Per-route overrides, used by the chat-state gallery (ChatStatesScreen). */
+export interface ChatOverrides {
+  top?: ReactNode;
+  box?: ReactNode;
+  transcript?: ReactNode;
+  panelTab?: PanelTab;
+  listState?: ListState;
+  /** Dialogs, toasts and the like, rendered over the screen. */
+  overlay?: ReactNode;
+}
+
 export default function ChatScreen({
   variant = "working",
   isSidebarCollapsed,
   initialTab = "agent",
+  overrides = {},
 }: {
   variant?: ChatVariant;
   isSidebarCollapsed?: boolean;
   initialTab?: string;
+  overrides?: ChatOverrides;
 }) {
   const [centerTab, setCenterTab] = useState(initialTab);
-  const panelTab: PanelTab = variant === "working" ? "files" : variant === "permission" ? "subagents" : "actions";
-  const box =
+  const panelTab: PanelTab =
+    overrides.panelTab ?? (variant === "working" ? "files" : variant === "permission" ? "subagents" : "actions");
+  const defaultBox =
     variant === "permission" ? (
       <PermissionPrompt />
     ) : variant === "question" ? (
@@ -51,15 +65,18 @@ export default function ChatScreen({
     ) : (
       <MessageComposer isWorking queued={["Also run the board tests once the edit lands"]} />
     );
-  const top =
+  const box = overrides.box ?? defaultBox;
+  const defaultTop =
     variant === "permission" ? (
       <VStack gap={2}>
         <RateLimitNotice />
         <TaskLinkNotice />
       </VStack>
     ) : undefined;
+  const top = "top" in overrides ? overrides.top : defaultTop;
 
   return (
+    <>
     <AppFrame
       selection={{ kind: "chat", id: "c42" }}
       isSidebarCollapsed={isSidebarCollapsed}
@@ -92,14 +109,16 @@ export default function ChatScreen({
                     />
                   }
                 >
-                  <Transcript />
+                  {overrides.transcript ?? <Transcript />}
                 </ChatLayout>
               </LayoutContent>
             }
           />
         }
-        panel={<SidePanel initialTab={panelTab} />}
+        panel={<SidePanel initialTab={panelTab} listState={overrides.listState} />}
       />
     </AppFrame>
+    {overrides.overlay}
+    </>
   );
 }

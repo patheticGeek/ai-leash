@@ -17,24 +17,34 @@ import {
   ChatSystemMessage,
   ChatToolCalls,
 } from "@astryxdesign/core/Chat";
+import * as stylex from "@stylexjs/stylex";
+import { Button } from "@astryxdesign/core/Button";
 import { CodeBlock } from "@astryxdesign/core/CodeBlock";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Skeleton } from "@astryxdesign/core/Skeleton";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Markdown } from "@astryxdesign/core/Markdown";
 import { Spinner } from "@astryxdesign/core/Spinner";
-import { HStack } from "@astryxdesign/core/Stack";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
+  ChatBubbleLeftRightIcon,
+  ExclamationTriangleIcon,
   ClipboardDocumentIcon,
   DocumentTextIcon,
   InboxArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { SUB_AGENTS } from "../data";
+
+const stateStyles = stylex.create({
+  fill: { minHeight: "100%" },
+});
 
 function Time({ at }: { at: string }) {
   return <Timestamp value={`2026-11-23T${at}:00`} format="time" />;
@@ -209,5 +219,61 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
         )}
       </ChatMessage>
     </ChatMessageList>
+  );
+}
+
+/** Transcript empty / loading / error: EmptyState and Skeleton per Astryx. */
+export function TranscriptState({ state }: { state: "empty" | "loading" | "error" }) {
+  if (state === "loading") {
+    // Skeletons in the transcript's own shapes: a user bubble on the end,
+    // agent prose lines across the column, a tool row.
+    return (
+      <VStack gap={8} paddingBlock={6}>
+        <HStack hAlign="end">
+          <Skeleton width={360} height={56} radius={4} />
+        </HStack>
+        <VStack gap={2}>
+          <Skeleton width="92%" height={14} index={1} />
+          <Skeleton width="84%" height={14} index={2} />
+          <Skeleton width="60%" height={14} index={3} />
+        </VStack>
+        <Skeleton width={280} height={12} index={4} />
+        <HStack hAlign="end">
+          <Skeleton width={240} height={40} radius={4} index={5} />
+        </HStack>
+        <VStack gap={2}>
+          <Skeleton width="88%" height={14} index={6} />
+          <Skeleton width="48%" height={14} index={7} />
+        </VStack>
+      </VStack>
+    );
+  }
+  const isError = state === "error";
+  return (
+    <VStack vAlign="center" xstyle={stateStyles.fill}>
+      <EmptyState
+        icon={
+          <Icon
+            icon={isError ? ExclamationTriangleIcon : ChatBubbleLeftRightIcon}
+            size="lg"
+            color={isError ? "error" : "secondary"}
+          />
+        }
+        title={isError ? "Couldn't load this conversation" : "No messages yet"}
+        description={
+          isError
+            ? "conversations/7f3a2c.json isn't valid JSON (line 1, column 2048). Nothing was deleted."
+            : "Ask the agent something. It starts with AGENTS.md, project memory, 3 skills and 4 actions."
+        }
+        actions={
+          isError ? (
+            <HStack gap={2}>
+              <Button label="Show file" variant="secondary" />
+              <Button label="Try again" variant="primary" icon={<Icon icon={ArrowPathIcon} size="sm" />} />
+            </HStack>
+          ) : undefined
+        }
+      />
+    </VStack>
   );
 }

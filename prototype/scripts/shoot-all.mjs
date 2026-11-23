@@ -18,6 +18,17 @@ const typeSlash = async (page) => {
   await page.keyboard.type("/");
 };
 
+const typeInComposer = (text) => async (page) => {
+  await page.click("[contenteditable=true], textarea");
+  await page.keyboard.type(text);
+};
+const clickButton = (name) => async (page) => {
+  await page.getByRole("button", { name }).first().click();
+};
+const hoverButton = (name) => async (page) => {
+  await page.getByRole("button", { name }).first().hover();
+  await page.waitForTimeout(900);
+};
 const hoverTab = (text) => async (page) => {
   await page.getByText(text, { exact: true }).first().hover();
 };
@@ -35,6 +46,32 @@ const SHOTS = [
   ["board-epics"],
   ["board-epics-drag"],
   ["board-epics-scrolled", scrollBoard],
+  // Chat states gallery (src/screens/ChatStatesScreen.tsx)
+  ["strip-queued-1"],
+  ["strip-queued-3"],
+  ["strip-rate-limit"],
+  ["strip-task-link"],
+  ["strip-error-crash"],
+  ["strip-error-connection"],
+  ["popup-slash", typeInComposer("/")],
+  ["popup-mention", typeInComposer("@board")],
+  ["popup-model", clickButton("Claude Code · Opus 5.5")],
+  ["popup-effort", clickButton("Effort: High")],
+  ["popup-permission", clickButton("Permissions: Accept edits")],
+  ["prompt-permission"],
+  ["prompt-question"],
+  ["toasts"],
+  ["confirm-delete-conversation"],
+  ["confirm-finish-task"],
+  ["tooltip", hoverButton("Open in external editor")],
+  ["state-empty"],
+  ["state-loading"],
+  ["state-error"],
+  ["state-actions-empty"],
+  ["state-actions-loading"],
+  ["state-actions-error"],
+  ["pill-subagents"],
+  ["pill-subagents-open"],
   ["task"],
   ["task-new"],
   ["task-details"],

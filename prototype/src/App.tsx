@@ -7,6 +7,7 @@ import BoardScreen from "./screens/BoardScreen";
 import { TaskDetailsScreen, TaskNewScreen, TaskViewScreen } from "./screens/TaskScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import NewThreadScreen from "./screens/NewThreadScreen";
+import ChatStatesScreen, { CHAT_STATES } from "./screens/ChatStatesScreen";
 
 const routes: Record<string, React.ComponentType> = {
   chat: () => <ChatScreen />,
@@ -30,6 +31,7 @@ const routes: Record<string, React.ComponentType> = {
   "new-slash": () => <NewThreadScreen />,
   "chat-permission": () => <ChatScreen variant="permission" />,
   "chat-question": () => <ChatScreen variant="question" />,
+  ...Object.fromEntries(Object.keys(CHAT_STATES).map((k) => [k, () => <ChatStatesScreen state={k} />])),
   "ref/ide": lazy(() => import("./ref/ide")),
   "ref/shell-side-nav": lazy(() => import("./ref/shell-side-nav")),
   "ref/ai-chat-landing": lazy(() => import("./ref/ai-chat-landing")),

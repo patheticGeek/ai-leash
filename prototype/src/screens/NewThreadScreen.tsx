@@ -7,7 +7,6 @@ import * as stylex from "@stylexjs/stylex";
 import {
   ChatComposer,
   ChatComposerInput,
-  type ChatComposerTrigger,
 } from "@astryxdesign/core/Chat";
 import { ClickableCard } from "@astryxdesign/core/ClickableCard";
 import { Grid } from "@astryxdesign/core/Grid";
@@ -17,9 +16,8 @@ import { Button } from "@astryxdesign/core/Button";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
-import { createStaticSource, TypeaheadItem, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import { PaperClipIcon, SparklesIcon } from "@heroicons/react/24/outline";
-import { CheckoutBar, ComposerPickers } from "../chat/Composer";
+import { CheckoutBar, ComposerPickers, commandTrigger, fileTrigger } from "../chat/Composer";
 import AppFrame from "../shell/AppFrame";
 import SidePanel from "../shell/SidePanel";
 import TitleBar, { RunControls } from "../shell/TitleBar";
@@ -29,23 +27,6 @@ const styles = stylex.create({
   page: { minHeight: "100%" },
   composerInput: { minHeight: 84 },
 });
-
-const COMMANDS: SearchableItem<{ description: string }>[] = [
-  { id: "clear", label: "clear", auxiliaryData: { description: "Delete this conversation's transcript and start fresh" } },
-  { id: "model", label: "model", auxiliaryData: { description: "Open the model and agent picker" } },
-  { id: "help", label: "help", auxiliaryData: { description: "Show local commands and the agent's commands" } },
-  { id: "review", label: "review", auxiliaryData: { description: "Claude Code · Review the current diff" } },
-  { id: "init", label: "init", auxiliaryData: { description: "Claude Code · Write an AGENTS.md for this project" } },
-];
-
-const commandTrigger: ChatComposerTrigger = {
-  character: "/",
-  searchSource: createStaticSource(COMMANDS),
-  renderItem: (item) => (
-    <TypeaheadItem item={item} description={(item.auxiliaryData as { description: string })?.description} />
-  ),
-  onSelect: (item) => ({ value: `/${item.label}`, label: `/${item.label}`, variant: "yellow" }),
-};
 
 const STARTERS = [
   { heading: "Plan this as board tasks", body: "Break a goal into tasks on the ai-leash board" },
@@ -90,7 +71,7 @@ export default function NewThreadScreen() {
                     <ChatComposer
                       onSubmit={() => {}}
                       placeholder="Describe the task, / for commands, ! for shell"
-                      input={<ChatComposerInput triggers={[commandTrigger]} xstyle={styles.composerInput} />}
+                      input={<ChatComposerInput triggers={[commandTrigger, fileTrigger]} xstyle={styles.composerInput} />}
                       headerActions={
                         <Button label="Attach" variant="ghost" size="sm" icon={<Icon icon={PaperClipIcon} size="sm" />} isIconOnly />
                       }

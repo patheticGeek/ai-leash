@@ -17,7 +17,13 @@ import {
   ChatComposer,
   ChatComposerDrawer,
   ChatComposerInput,
+  type ChatComposerTrigger,
 } from "@astryxdesign/core/Chat";
+import { createStaticSource, TypeaheadItem, type SearchableItem } from "@astryxdesign/core/Typeahead";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { Spinner } from "@astryxdesign/core/Spinner";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { CodeBlock } from "@astryxdesign/core/CodeBlock";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { Icon } from "@astryxdesign/core/Icon";
@@ -28,13 +34,64 @@ import { Text, Heading } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
 import {
+  ArrowPathIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   CpuChipIcon,
+  DocumentIcon,
+  FolderIcon,
+  StopIcon,
   LightBulbIcon,
   PaperClipIcon,
   QueueListIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import { BranchIcon, WorktreeIcon } from "./icons";
+
+// Input triggers, the ChatComposerInputMentionTrigger block's pattern: a
+// character opens a Typeahead menu above the input; picking an item inserts a
+// token. "/" = slash commands (local + the agent's), "@" = file mention
+// (planned).
+const COMMANDS: SearchableItem<{ description: string }>[] = [
+  { id: "clear", label: "clear", auxiliaryData: { description: "Delete this conversation's transcript and start fresh" } },
+  { id: "model", label: "model", auxiliaryData: { description: "Open the model and agent picker" } },
+  { id: "help", label: "help", auxiliaryData: { description: "Show local commands and the agent's commands" } },
+  { id: "review", label: "review", auxiliaryData: { description: "Claude Code · Review the current diff" } },
+  { id: "init", label: "init", auxiliaryData: { description: "Claude Code · Write an AGENTS.md for this project" } },
+];
+
+export const commandTrigger: ChatComposerTrigger = {
+  character: "/",
+  searchSource: createStaticSource(COMMANDS),
+  renderItem: (item) => (
+    <TypeaheadItem item={item} description={(item.auxiliaryData as { description: string })?.description} />
+  ),
+  onSelect: (item) => ({ value: `/${item.label}`, label: `/${item.label}`, variant: "yellow" }),
+};
+
+const FILES: SearchableItem<{ dir: string; isDir?: boolean }>[] = [
+  { id: "f1", label: "BoardView.tsx", auxiliaryData: { dir: "src/features/board" } },
+  { id: "f2", label: "boardLayout.ts", auxiliaryData: { dir: "src/features/board" } },
+  { id: "f3", label: "board", auxiliaryData: { dir: "src/features", isDir: true } },
+  { id: "f4", label: "project-board.md", auxiliaryData: { dir: "docs/features" } },
+  { id: "f5", label: "BoardSettingsDialog.tsx", auxiliaryData: { dir: "src/features/board" } },
+];
+
+export const fileTrigger: ChatComposerTrigger = {
+  character: "@",
+  searchSource: createStaticSource(FILES),
+  renderItem: (item) => {
+    const d = item.auxiliaryData as { dir: string; isDir?: boolean };
+    return (
+      <TypeaheadItem
+        item={item}
+        description={d.dir}
+        icon={<Icon icon={d.isDir ? FolderIcon : DocumentIcon} size="sm" color="secondary" />}
+      />
+    );
+  },
+  onSelect: (item) => ({ value: `@${(item.auxiliaryData as { dir: string }).dir}/${item.label}`, label: item.label, variant: "blue" }),
+};
 
 export function ComposerPickers({ isCompact }: { isCompact?: boolean }) {
   const model = isCompact ? "Opus 5.5" : "Claude Code · Opus 5.5";
@@ -101,7 +158,23 @@ export function CheckoutBar({ worktree, branch }: { worktree: string; branch: st
   );
 }
 
-export function RateLimitNotice() {
+export function RateLimitNotice({ isCountingDown }: { isCountingDown?: boolean }) {
+  if (isCountingDown) {
+    return (
+      <Banner
+        status="warning"
+        collapsible={false}
+        title="Claude session limit reached · resuming in 1:42:07"
+        description="Resets at 14:00. This turn picks up automatically then."
+        endContent={
+          <HStack gap={1}>
+            <Button label="Don't resume" variant="ghost" size="sm" />
+            <Button label="Try now" size="sm" />
+          </HStack>
+        }
+      />
+    );
+  }
   return (
     <Banner
       status="warning"
@@ -118,7 +191,18 @@ export function RateLimitNotice() {
   );
 }
 
-export function TaskLinkNotice() {
+export function TaskLinkNotice({ isUnfollowed }: { isUnfollowed?: boolean }) {
+  if (isUnfollowed) {
+    return (
+      <Banner
+        status="info"
+        collapsible={false}
+        title="The project chat isn't following this task"
+        description="Hand it back so the project chat picks up this task's worktree and replies."
+        endContent={<Button label="Hand back to project chat" size="sm" />}
+      />
+    );
+  }
   return (
     <Banner
       status="info"
@@ -127,6 +211,88 @@ export function TaskLinkNotice() {
       description="The project chat is linked to this task's worktree until you hand it back."
       endContent={<Button label="Hand back to project chat" size="sm" />}
     />
+  );
+}
+
+export function AgentErrorNotice({ kind }: { kind: "crash" | "connection" }) {
+  if (kind === "connection") {
+    return (
+      <Banner
+        status="error"
+        collapsible={false}
+        title="Lost the connection to Local Ollama · retrying in 5s"
+        description="http://localhost:11434 refused the connection. Your message is kept and is sent when it's back."
+        endContent={<Button label="Retry now" size="sm" icon={<Icon icon={ArrowPathIcon} size="sm" />} />}
+      />
+    );
+  }
+  return (
+    <Banner
+      status="error"
+      collapsible={false}
+      title="Claude Code stopped unexpectedly"
+      description="The agent process exited with code 1 during this turn. Restarting resumes the same session."
+      endContent={
+        <HStack gap={1}>
+          <Button label="Show log" variant="ghost" size="sm" />
+          <Button label="Restart agent" size="sm" icon={<Icon icon={ArrowPathIcon} size="sm" />} />
+        </HStack>
+      }
+    />
+  );
+}
+
+// Planned: running sub-agents, docked above the composer. Collapsed it's one
+// quiet line (Spinner + count + toggle); expanded, the same compact List the
+// side panel's Sub agents tab uses, on a muted Card.
+const PILL_AGENTS = [
+  { id: "a", label: "Check drag between epic rows against dnd-kit", detail: "claude-sonnet-5-5 · grep -rn onDragEnd", elapsed: "1:04" },
+  { id: "b", label: "List every place that reads task.epic", detail: "claude-haiku-5-5 · read src/store/boardSlice.ts", elapsed: "0:38" },
+  { id: "c", label: "Find the board's scroll container", detail: "claude-haiku-5-5 · read src/features/board/BoardView.tsx", elapsed: "0:12" },
+];
+
+export function SubAgentsPill({ isOpen: initialOpen = false }: { isOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(initialOpen);
+  const toggle = (
+    <Button
+      label={isOpen ? "Hide sub-agents" : "Show sub-agents"}
+      variant="ghost"
+      size="sm"
+      icon={<Spinner size="sm" aria-label="Running" />}
+      endContent={<Icon icon={isOpen ? ChevronDownIcon : ChevronUpIcon} size="sm" />}
+      onClick={() => setIsOpen((v) => !v)}
+    >
+      3 sub-agents running
+    </Button>
+  );
+  if (!isOpen) return <HStack hAlign="start">{toggle}</HStack>;
+  return (
+    <Card variant="muted" padding={0}>
+      <VStack gap={0}>
+        <HStack hAlign="between" vAlign="center" paddingInline={1} paddingBlock={1}>
+          {toggle}
+          <Button label="Stop all" variant="ghost" size="sm" icon={<Icon icon={StopIcon} size="sm" />} />
+        </HStack>
+        <List density="compact" edge="padded">
+          {PILL_AGENTS.map((a) => (
+            <ListItem
+              key={a.id}
+              label={a.label}
+              description={a.detail}
+              startContent={<StatusDot variant="accent" isPulsing label="Running" />}
+              endContent={
+                <HStack gap={1} vAlign="center">
+                  <Text type="supporting" color="secondary" hasTabularNumbers>
+                    {a.elapsed}
+                  </Text>
+                  <IconButton variant="ghost" size="sm" label="Stop sub-agent" icon={<Icon icon={StopIcon} size="sm" />} />
+                </HStack>
+              }
+            />
+          ))}
+        </List>
+      </VStack>
+    </Card>
   );
 }
 
@@ -148,7 +314,7 @@ export function MessageComposer({
       onStop={() => {}}
       isStopShown={isWorking}
       placeholder={placeholder}
-      input={<ChatComposerInput />}
+      input={<ChatComposerInput triggers={[commandTrigger, fileTrigger]} />}
       drawer={
         items.length > 0 ? (
           <ChatComposerDrawer label="Queued" count={items.length}>
