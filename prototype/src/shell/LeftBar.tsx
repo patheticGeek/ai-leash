@@ -14,6 +14,7 @@ import { Kbd } from "@astryxdesign/core/Kbd";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import {
   SideNav,
+  SideNavCollapseButton,
   SideNavHeading,
   SideNavItem,
   SideNavSection,
@@ -32,6 +33,7 @@ import {
   ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import appIcon from "../assets/app-icon.svg";
+import { useSidebarCollapse } from "./sidebarCollapse";
 import { BOARDS, CHATS, DONE_CHATS, PROJECTS, type ChatRow } from "../data";
 
 const styles = stylex.create({
@@ -95,15 +97,17 @@ function ConversationItem({ chat, isSelected }: { chat: ChatRow; isSelected: boo
 }
 
 export default function LeftBar({ selection }: { selection: LeftBarSelection }) {
+  const collapse = useSidebarCollapse();
   return (
     <SideNav
-      collapsible
+      collapsible={collapse}
       resizable={{ defaultWidth: 272, minWidth: 220, maxWidth: 420 }}
       header={
         <SideNavHeading
           heading="ai leash"
           headingHref="#/new"
           icon={<Avatar src={appIcon} name="ai leash" size="sm" shape="rounded" tooltip={false} />}
+          headerEndContent={<SideNavCollapseButton size="sm" label="Collapse sidebar" />}
         />
       }
       footer={

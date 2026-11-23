@@ -3,9 +3,7 @@
 import { useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { ChatLayout } from "@astryxdesign/core/Chat";
-import { Icon } from "@astryxdesign/core/Icon";
 import { Layout, LayoutContent, LayoutHeader } from "@astryxdesign/core/Layout";
-import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
 import {
   ComposerDock,
   ElicitationPrompt,
@@ -30,11 +28,20 @@ export type ChatVariant = "working" | "permission" | "question";
 
 const CENTER_TABS = [
   { value: "agent", label: "Agent" },
-  { value: "sub", label: "Check drag between epic rows" },
+  { value: "sub", label: "Check drag between epic rows", isClosable: true },
+  { value: "file", label: "BoardView.tsx", isClosable: true },
 ];
 
-export default function ChatScreen({ variant = "working" }: { variant?: ChatVariant }) {
-  const [centerTab, setCenterTab] = useState("agent");
+export default function ChatScreen({
+  variant = "working",
+  isSidebarCollapsed,
+  initialTab = "agent",
+}: {
+  variant?: ChatVariant;
+  isSidebarCollapsed?: boolean;
+  initialTab?: string;
+}) {
+  const [centerTab, setCenterTab] = useState(initialTab);
   const panelTab: PanelTab = variant === "working" ? "files" : variant === "permission" ? "subagents" : "actions";
   const box =
     variant === "permission" ? (
@@ -55,11 +62,10 @@ export default function ChatScreen({ variant = "working" }: { variant?: ChatVari
   return (
     <AppFrame
       selection={{ kind: "chat", id: "c42" }}
+      isSidebarCollapsed={isSidebarCollapsed}
       titleBar={
         <TitleBar
-          icon={<Icon icon={ChatBubbleLeftRightIcon} size="sm" color="secondary" />}
-          title="#42 Astryx: board on the kanban template"
-          subtitle="ai-leash · task-42 · Claude Code"
+          crumbs={[{ label: "ai-leash", href: "#/board" }, { label: "#42 Astryx: board on the kanban template" }]}
           controls={<RunControls />}
         />
       }

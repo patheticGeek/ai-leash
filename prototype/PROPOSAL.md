@@ -16,7 +16,8 @@ file tree, terminal and editor are there to support the agent chat.
 - Run it: `cd prototype && npm install && npm run dev`, then open
   `http://localhost:5199/#/<route>` — routes `chat`, `chat-permission`,
   `chat-question`, `new`, `new-slash`, `board`, `board-epics`,
-  `board-epics-drag`, `board-epics-scrolled`, `task`, `task-dialog`,
+  `board-epics-drag`, `board-epics-scrolled`, `task`, `task-new`,
+  `task-details`, `task-details-todo`, `chat-collapsed`, `chat-subagent-tab`,
   `settings/<agents|chat|fonts|editor|debug|crashlog|about>`, `ref/<template>`
 - Reshoot everything: `npm i --no-save playwright && npx playwright install
   chromium-headless-shell`, then `node scripts/shoot-all.mjs`
@@ -47,10 +48,11 @@ v2 goes the other way: **the templates win**.
 | Spacing | Template gaps/paddings shrunk per screen (2–4 instead of 6) | Template frames, gaps and paddings kept as scaffolded |
 | Accent | Blue `#3a5f8f` everywhere selected | Neutral's monochrome: selection is a muted fill, primary actions are the light button |
 | Tabs | Pill tabs (leash) | `TabList` underline tabs, as in ide / settings |
-| Chat | Avatars dropped, compact, full width, composer header row dropped | Template's `ChatMessage` with avatar, ghost bubbles, centred transcript; `ChatComposer` with its own header (attach, context %), footer (pickers) and drawer (queued) |
+| Chat | Avatars dropped, compact, full width, composer header row dropped | Template's `ChatMessage` / ghost bubbles, centred transcript, **no agent avatar** (agent replies span the transcript column); `ChatComposer` with its own header (attach, context %), footer (pickers) and drawer (queued) |
 | Strips above the composer | Hand-built one-line strips from layout primitives | Stock `Banner` (warning / info) with actions; permission and question prompts on the composer's card surface |
 | Board | Coloured priority `Token`s | Priority `Badge`, as kanban-board does; epics as tinted `Token`s |
-| Title bar | Breadcrumb text | `TopNav`-style title + supporting subtitle (project · worktree · agent) |
+| Title bar | Breadcrumb text | One-line Astryx `Breadcrumbs` (`project / page`), sidebar expand toggle in front of it while the rail is collapsed |
+| Tasks | Dialog for new, full page for existing | Two `Dialog`s: New task, and Task details (opens on card click); full-page view not recommended |
 
 The result is one designed system: one surface ramp (wash rail → body →
 muted card → raised overlay), one radius scale, the template's spacing
@@ -128,10 +130,10 @@ Screenshots: `shots-v2/chat.png` (vs `ref-ide.png`, `ref-shell-side-nav.png`)
 
 ```
 ┌──────────────────┬───────────────────────────────────────────┬──────────────────────────┐
-│ [ai] ai leash    │ ▢ #42 Astryx: board on the kanban template│ </> [▶ dev ▾]  – □ ×     │ title bar
-│                  │   ai-leash · task-42 · Claude Code         │                          │ (title + subtitle)
-│ ✎ New thread ^N  ├───────────────────────────────────────────┼──────────────────────────┤
-│ ⊕ Add project    │ Agent   Check drag between epic rows       │ Files  Sub agents  Act… +│ TabList sm
+│ [ai] ai leash  ‹ │ ai-leash / #42 Astryx: board on the kanb… │ </> [▶ dev ▾]  – □ ×     │ title bar (Breadcrumbs)
+│                  ├───────────────────────────────────────────┼──────────────────────────┤
+│ ✎ New thread ^N  │───────────────────────────────────────────┼──────────────────────────┤
+│ ⊕ Add project    │ Agent  Check drag… ×  BoardView.tsx        │ Files  Sub agents  Act… +│ TabList sm (× = close)
 │ ──────────────── ├───────────────────────────────────────────┼──────────────────────────┤
 │ Projects       ⏷ │                                           │ [⌕ Search files       ]  │
 │ ▾ ai-leash       │        transcript (ChatMessageList)        │ ▾ src                    │
@@ -144,19 +146,38 @@ Screenshots: `shots-v2/chat.png` (vs `ref-ide.png`, `ref-shell-side-nav.png`)
 │ ▸ Done        3  │  │ Ask the agent…                      │  │                          │
 │                  │  │ ⚙ Claude Code·Opus ▾ High ▾ Edits ▾ Queue ■│                       │
 │ ⚙ Settings       │  └─────────────────────────────────────┘  │                          │
-│ «                │   ⎇ task-42 ▾            task/42-… ▾      │                          │
+│                  │   ⎇ task-42 ▾            task/42-… ▾      │                          │
 └──────────────────┴───────────────────────────────────────────┴──────────────────────────┘
  SideNav (wash)        centre                                    end LayoutPanel, resizable
 ```
 
 - **Frame:** `AppShell` + the side-nav template's `SideNav` (wash rail,
-  collapsible, `SideNavCollapseButton` at the foot), then `Layout` with the
-  centre in `content` and the ide template's inspector as an end
-  `LayoutPanel` behind `ResizeHandle hasDivider`.
-- **Title bar:** an icon, the conversation title and a supporting subtitle
-  (project · worktree · agent), then Open in editor, the Actions split
-  button and window controls. On a board, Open/Actions give way to the
+  collapsible), then `Layout` with the centre in `content` and the ide
+  template's inspector as an end `LayoutPanel` behind `ResizeHandle hasDivider`.
+- **Sidebar collapse** (`chat.png` expanded, `chat-sidebar-collapsed.png`
+  collapsed): the SideNav's own foot button is turned off (`hasButton:
+  false`) and one controlled collapse config is shared, as the
+  `SideNavCollapseButton` docs describe for a button outside the nav.
+  Expanded, the `‹` toggle sits at the top of the rail beside the logo
+  (`SideNavHeading headerEndContent`). Collapsed, the rail shrinks to its
+  icons and the heading's end slot is hidden, so the `›` toggle leads the
+  title bar's breadcrumb, at the same spot just right of the rail.
+  (`src/shell/sidebarCollapse.tsx`)
+- **Title bar:** a one-line `Breadcrumbs` trail, the last item `isCurrent`:
+  `ai-leash / #42 Astryx: board on the kanban template`, `ai-leash / Board`,
+  `ai-leash / New thread`. No subtitle (worktree and branch are in the
+  checkout bar, agent in the pickers). Then Open in editor, the Actions split
+  button and window controls; on a board, Open/Actions give way to the
   Board / Both / Chat `SegmentedControl`.
+- **Closing tabs** (`chat-tabs-close.png`): a `Tab` is a `<button>`, so an
+  `IconButton` can't go in its `endContent`, and putting one *beside* the tab
+  breaks the hover pill and the selected underline. So the × is part of the
+  tab, like a browser tab: a plain icon in `endContent`, visible on the
+  selected tab and on hover/focus (its box is reserved so tabs don't shift).
+  A click on the × closes (the Tab's `onClick` checks the target); so does
+  middle-click anywhere on the tab, and Delete / Ctrl+W on a focused tab
+  (`aria-keyshortcuts`), which is the keyboard path. Home tabs (Agent, Files,
+  Sub agents, Actions) have no ×. (`src/shell/PaneTabs.tsx`)
 - **Sidebar** (`shell-side-nav`): New thread (with `Kbd`) and Add project as
   the template's top menu; then one collapsible `SideNavItem` per project
   holding its **Board** (count `Badge` = tasks waiting for review) and its
@@ -222,7 +243,7 @@ ai-chat part instead of being a restyled lookalike:
 | `spawn_sub_agent` + its threads | `ChatToolCalls` row; the threads are a compact `List` in `resultDetail` (status dot, description, model, elapsed, open) |
 | System context row, notes, messages from other chats | `ChatSystemMessage` with an icon; "From Project chat" uses the user bubble's `name` slot |
 | Message footer / Working for | `ChatMessageMetadata` (timestamp + copy/retry; `Spinner` + "Working for 3:12" while running) |
-| Assistant prose | `ChatMessageBubble variant="ghost"` + `Markdown density="compact"`, avatar on the turn |
+| Assistant prose | `ChatMessageBubble variant="ghost" width="100%"` + `Markdown density="compact"`; no avatar, so the reply, its tool rows and timestamp start at the transcript's left edge |
 
 Composer dock (top → bottom):
 
@@ -278,28 +299,73 @@ Screenshots: `board.png` (Both, with the project chat docked),
 - **Both** layout: the project chat docks in the end panel with a compact
   composer (pickers collapse to icons).
 
-### 2.6 Task view and task dialog — `work-item-detail`
+### 2.6 Task modals — `work-item-detail` content in Astryx dialogs
 
-Screenshots: `task.png`, `task-dialog.png` (vs `ref-work-item-detail.png`)
+Screenshots: `task-new.png`, `task-details.png` (running),
+`task-details-todo.png` (not started); full-page view for comparison:
+`task.png` (vs `ref-work-item-detail.png`)
+
+Both dialogs follow the `DialogFormDialog` block (a `Layout` inside the
+`Dialog`: `DialogHeader` / `LayoutContent` / `LayoutFooter`, actions at the
+end) with `purpose="form"`, so a stray backdrop click can't throw edits away.
+
+**New task** (`#/task-new`, the board's New task button), width 640:
 
 ```
- ← ai-leash board | #42 | Astryx migration                  ✎  …  [Open its chat]
- Astryx: board on the kanban template                                  Heading 1
- [● In progress ▾] [High ▾] [Effort L ▾] [Astryx migration ▾]          Selectors
- ───────────────────────────────────────────────────────┬──────────────────────
- Description                                            │ Details
-  (Markdown, "Done when" checklist)                     │  Created / Started / Created by
- ───────────────────────────────────────────────────────│ Agent
- Its chat                              [Stop][Open chat]│  Agent / Model / Thinking / Permission
-  ● Working for 3:12 · edit BoardView.tsx · 2 sub-agents│ Checkout
-  Last reply · 10:07  ┌ muted card with the reply ┐     │  Worktree / Branch / Project chat
- ───────────────────────────────────────────────────────│ (MetadataList, end LayoutPanel 340)
- Activity (chat-to-chat messages, status moves)         │
+ New task                                                              ×
+ ai-leash board
+ Title · Required        [Board: keyboard moves between columns        ]
+ Description             Markdown. The task's chat gets this as its first message.
+                         [ multi-line TextArea                          ]
+ Status      Priority    Effort      Epic                 4-column Grid, labelled
+ [● Todo ▾]  [Low ▾]     [M ▾]       [Project board ▾]
+ ──────────────────────────────────────────────────────────────────────
+ Who works on it   Optional. Board default uses the board's settings.
+ Agent [Board default ▾]          Model [Board default ▾]
+ Thinking [Board default ▾]       Permission [Board default ▾]
+                                                  [Cancel] [Create task]
 ```
 
-The dialog (`task-dialog.png`) is a `Dialog` form: Title, a row of
-Status / Priority / Effort / Epic selectors, Description, then "Who works on
-it" (Agent / Model / Thinking / Permission, each defaulting to the board's).
+**Task details** (`#/task-details`, clicking a card), width 960 — the
+template's header, content column and end rail:
+
+```
+ Astryx: board on the kanban template                              …  ×
+ #42 · ai-leash board
+ [● In progress ▾] [High ▾] [Effort L ▾] [Astryx migration ▾] │ Checkout
+                                                               │  Worktree  task-42
+ Description                                         ✎        │  Branch    task/42-astryx-board
+  rendered Markdown                                            │ Agent
+ ──────────────────────────────────────────────────            │  Agent / Model / Thinking / Permission
+ Its chat                                                      │  (Selectors, "Board default", until started)
+ ┌ ● Working for 3:12                    [Stop] [Open chat] ┐   │ Details
+ │   edit BoardView.tsx · 2 sub-agents running              │   │  Created / Created by
+ │ ──────────────────────────────────────────────────────── │   │
+ │ Last reply · 10:07  Columns done. Working on the swimlanes│   │
+ └──────────────────────────────────────────────────────────┘   │
+ [🗑 Delete task]                                                          [Close]
+```
+
+- The field row is the template's inline-editable `Selector` row: changes
+  save as you make them, so the footer only has Close (no Save).
+- **Its chat:** not started → "Not started · Starting creates worktree
+  task-47" + **Start** (`task-details-todo.png`); started → pulsing
+  `StatusDot`, elapsed time, current activity, Stop + **Open chat**, last
+  reply.
+- Agent settings are `Selector`s ("Board default") until the task starts,
+  then read-only `MetadataList` rows, since the chat is running with them.
+- **Delete task** is the destructive button at the footer's start, confirmed
+  by an `AlertDialog` (the one nesting Astryx allows). The `…` menu in the
+  header holds Copy link / Move to Review / Finish task.
+
+**Recommendation: drop the full-page task view.** Everything it showed now
+fits the details dialog, which keeps the board (and its drag targets) in
+place behind it. Astryx's Dialog guidance ("keep dialogs focused on a single
+task; if the content grows beyond what fits, consider a full page") only
+argues for a page once a task holds more than this. The page's one extra,
+the Activity feed, has no backend yet (Q4). If it's built later and makes
+the dialog too long, that's the time to bring the page back, opened from the
+dialog's `…` menu.
 
 ### 2.7 Settings — `settings-dialog`
 
@@ -325,14 +391,14 @@ Each task updates the `docs/features/*.md` page for its surface, then
 | # | Task | Main files |
 |---|---|---|
 | 0 | **Theme: switch from `leash` to stock Astryx.** Create `ai-leash` with `--like neutral` and the six 12px chrome settings (§1), `npx astryx theme add ai-leash`, make it the default, remove the `leash` theme (`themes/leash/`, `src/themes/leash/`, its entry in `src/astryx-themes.ts`) Leave the `--al-*` / shadcn variables in `src/index.css` alone: they colour the not-yet-migrated Tailwind surfaces and go away with them (the font preference bridge stays, see Q6). **Replace the AGENTS.md rule** "The `leash` theme should look like ai-leash, not like stock Astryx" with: "The theme is stock Astryx (`neutral`, dark). Don't recolour or respace it; build each surface from its Astryx template and keep the template's frame, gaps and padding. The only theme edit is chrome text on the 12px scale step — change the theme only through `astryx experimental theme editor`, with a reason from Astryx's docs." Expect every surface not yet migrated to look different (blue accent gone) until its task lands. | `themes/*`, `src/themes/*`, `src/astryx-themes.ts`, `src/main.tsx`, `src/index.css`, `AGENTS.md` |
-| 1 | **App shell:** title bar (title + subtitle), New thread / Add project into the sidebar, `TabList` tabs in centre and panel, end panel frame | `src/app/App.tsx`, `TitleBar.tsx`, `TitleBarActions.tsx`, `CenterPanel.tsx`, `src/features/tabs/TabStrip.tsx`, `src/features/board/BoardLayoutSwitch.tsx`; docs `ui-shell.md` |
+| 1 | **App shell:** title bar `Breadcrumbs`, sidebar collapse toggle (rail top ↔ title bar), New thread / Add project into the sidebar, `TabList` tabs with the in-tab × / middle-click / Delete close, end panel frame | `src/app/App.tsx`, `TitleBar.tsx`, `TitleBarActions.tsx`, `CenterPanel.tsx`, `src/features/tabs/TabStrip.tsx`, `src/features/board/BoardLayoutSwitch.tsx`; docs `ui-shell.md` |
 | 2 | **Sidebar:** project groups (Board + chats), status end slots, reveal `MoreMenu`, Done group, the `contain` fix | `src/app/LeftBar.tsx`, `NewConversationPopover.tsx`, `DeleteConversationDialog.tsx`, sidebar state in `src/store/*`; docs `ui-shell.md`, `project-board.md`, `conversation-history.md` |
 | 3 | **Side panel:** Files (search + compact `TreeList`), Sub agents / Actions as compact `List`s, terminal look | `src/features/sidebar/SidePanel.tsx`, `TabPicker.tsx`, `tabs/*`, `src/features/tabs/TabContent.tsx`; docs `ui-shell.md`, `actions.md`, `terminal.md` |
 | 4 | **New thread:** landing column, "starts with" tokens, starter cards | `src/features/chat/components/empty-states/*`, `ChatPanel.tsx`; docs `agent-chat.md` |
 | 5 | **Transcript:** `ChatMessageList` / `ChatMessage` / `ChatToolCalls` / `ChatSystemMessage` / `ChatMessageMetadata` mapping (§2.4). Grouping untouched | `src/features/chat/components/messages/*`, `banners/TranscriptNotices.tsx`, `SubAgentChatTab.tsx`, `src/ui/Markdown.tsx`; docs `agent-chat.md` |
 | 6 | **Composer:** `ChatComposer` slots, queued drawer, `Banner` notices, checkout bar, permission / question prompts, slash menu, pickers | `src/features/chat/components/composer/*`, `banners/*`, `popovers/*`; docs `agent-chat.md`, `tools.md` |
 | 7 | **Board:** toolbar, columns, cards, epic swimlanes with sticky labels, drag ghost, project-chat dock | `src/features/board/*` (`BoardView`, `TaskCard`, `TaskMeta`, `ProjectBoardView`, `boardLayout.ts`, dialogs); docs `project-board.md` |
-| 8 | **Task view + dialog:** new full task view, header selectors, rail; dialog rebuilt; Activity (see Q4) | new `src/features/board/TaskView.tsx`, `TaskDialog.tsx`, `AgentFields.tsx`, store routing; docs `project-board.md` |
+| 8 | **Task modals:** New task dialog and Task details dialog (opens on card click; inline-editable fields, chat state, checkout, agent settings, Delete with AlertDialog). No full-page view | `src/features/board/TaskDialog.tsx` (split into new + details), `AgentFields.tsx`, `TaskCard.tsx` (click → details), `StartTaskDialog.tsx`; docs `project-board.md` |
 | 9 | **Settings:** dialog shell with search, Preferences split into four panels, agent rows | `src/features/settings/*`; docs `ui-shell.md`, `agent-chat.md`, `debug-mode.md`, `crash-logging.md` |
 
 Order: **0 first** (everything else is designed against stock), then
@@ -355,10 +421,10 @@ From v1 (still open):
 3. **Side panel drawer (ide vs our tab model):** dock terminal / Action
    output in a bottom drawer as the ide template does, or keep terminals as
    plain tabs that can move between centre and panel (v2 shows tabs)?
-4. **Task view:** open existing tasks in a full view (work-item-detail) and
-   keep the dialog for New task / quick edit only? Is the **Activity** feed
-   worth a backend board-event log, or should it show only the chat-to-chat
-   messages that already exist?
+4. **Task view:** *now proposed:* details in a dialog, no full page (§2.6).
+   Still open: is an **Activity** feed (status moves, chat-to-chat messages)
+   worth a backend board-event log? If so it would be a section in the
+   details dialog.
 5. **Settings split:** split Preferences into Chat / Fonts / External editor
    / Debug, rename "IDE" to "External editor", and add search?
 6. **Text size preference:** Settings > Fonts defaults the interface size to
@@ -368,9 +434,9 @@ From v1 (still open):
    the project's skills and Actions, or drop them and keep only the "starts
    with" row?
 8. **Template conflicts from v1** — v2 settles them by following the
-   template: assistant avatars are back, the transcript is centred, priority
-   is the template's `Badge`, and the composer keeps its header row (attach +
-   context %). OK?
+   template: the transcript is centred, priority is the template's `Badge`,
+   and the composer keeps its header row (attach + context %). Agent avatars
+   are dropped (your call after review). OK?
 
 New in v2:
 
@@ -379,10 +445,12 @@ New in v2:
    take an accent later (through `editor set ai-leash accent …`, as one
    theme setting, never per screen)?
 10. **Underline tabs instead of pills:** v2 uses `TabList`'s stock underline
-    tabs everywhere. The real `TabStrip` needs a close control and drag
-    reordering; a `Tab` can't hold an `IconButton` (button in a button), so
-    the close mark sits beside the tab. OK, or keep a hand-built tab strip
-    for the centre only?
+    tabs everywhere, with the in-tab × (§2.1). Two side effects to accept:
+    the × is a pointer target inside the tab button rather than its own
+    focusable button (keyboard close is Delete / Ctrl+W), and hovering one
+    tab hides the selected tab's underline (stock `TabList` behaviour,
+    visible in `chat-tabs-close.png`). Drag reordering still needs adding.
+    OK?
 11. **Template spacing is roomier** than today's app (e.g. sidebar rows,
     settings rows, board card padding). v2 keeps it as the templates
     scaffold it. If it's too airy, the fix is one theme setting
@@ -395,6 +463,12 @@ New in v2:
     collapse handle at the top of the composer. Keep it collapsible (handle
     visible), or drop the count so the drawer is always open and the handle
     goes away?
-14. **Title bar subtitle** (project · worktree · agent) repeats what the
-    checkout bar and pickers show. Keep it for orientation, or show only the
-    title?
+14. ~~Title bar subtitle~~ — dropped; the title bar is a one-line
+    breadcrumb.
+15. **Breadcrumb links:** `ai-leash` in the breadcrumb goes to the project's
+    board. Is that right, or should it open a project menu
+    (`BreadcrumbItem menu`: switch project, open board, project settings)?
+16. **Collapsed rail:** collapsed, the sidebar keeps an icon rail (New
+    thread, Add project, one folder per project, Done, Settings). Is that
+    enough, or should collapse hide the rail completely,
+    leaving only the title-bar toggle?

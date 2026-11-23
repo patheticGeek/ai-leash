@@ -39,7 +39,7 @@ const TABS = [
   { value: "files", label: "Files" },
   { value: "subagents", label: "Sub agents" },
   { value: "actions", label: "Actions" },
-  { value: "terminal", label: "Terminal" },
+  { value: "terminal", label: "Terminal", isClosable: true },
 ];
 
 function buildTree(): TreeListItemData[] {

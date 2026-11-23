@@ -4,12 +4,14 @@ import { lazy, Suspense, useEffect, useState } from "react";
 // the raw Astryx templates the screens are compared against.
 import ChatScreen from "./screens/ChatScreen";
 import BoardScreen from "./screens/BoardScreen";
-import { TaskDialogScreen, TaskViewScreen } from "./screens/TaskScreen";
+import { TaskDetailsScreen, TaskNewScreen, TaskViewScreen } from "./screens/TaskScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import NewThreadScreen from "./screens/NewThreadScreen";
 
 const routes: Record<string, React.ComponentType> = {
   chat: () => <ChatScreen />,
+  "chat-collapsed": () => <ChatScreen isSidebarCollapsed />,
+  "chat-subagent-tab": () => <ChatScreen initialTab="sub" />,
   new: () => <NewThreadScreen />,
   board: () => <BoardScreen />,
   "board-epics": () => <BoardScreen variant="epics" />,
@@ -20,7 +22,9 @@ const routes: Record<string, React.ComponentType> = {
       () => <SettingsScreen panel={p} />,
     ]),
   ),
-  "task-dialog": () => <TaskDialogScreen />,
+  "task-new": () => <TaskNewScreen />,
+  "task-details": () => <TaskDetailsScreen />,
+  "task-details-todo": () => <TaskDetailsScreen isStarted={false} />,
   "board-epics-drag": () => <BoardScreen variant="epics-drag" />,
   "board-epics-scrolled": () => <BoardScreen variant="epics-scrolled" />,
   "new-slash": () => <NewThreadScreen />,

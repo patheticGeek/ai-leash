@@ -40,7 +40,6 @@ import {
   PlusIcon,
   RectangleStackIcon,
   ArrowPathIcon,
-  ViewColumnsIcon,
 } from "@heroicons/react/24/outline";
 import { ComposerDock, MessageComposer } from "../chat/Composer";
 import { COLUMNS, EPICS, PRIORITY_META, TASKS, epicColor, type Status, type Task } from "../data";
@@ -199,7 +198,14 @@ function TaskCardAction({ task }: { task: Task }) {
 
 function TaskCard({ task, showEpic }: { task: Task; showEpic: boolean }) {
   return (
-    <Card padding={3} xstyle={styles.card}>
+    // Clicking the card (not one of its buttons) opens the task details dialog.
+    <Card
+      padding={3}
+      xstyle={styles.card}
+      onClick={(e) => {
+        if (!(e.target as HTMLElement).closest("button")) window.location.hash = "#/task-details";
+      }}
+    >
       <TaskCardBody task={task} showEpic={showEpic} />
     </Card>
   );
@@ -348,7 +354,7 @@ function BoardHeader({ isGrouped, showDone }: { isGrouped: boolean; showDone: bo
               <ToggleButton label="Show done" isIconOnly isPressed={showDone} icon={<Icon icon={CheckCircleIcon} size="sm" />} />
               <IconButton variant="ghost" label="Board settings" tooltip="Board settings" icon={<Icon icon={AdjustmentsHorizontalIcon} size="sm" />} />
             </HStack>
-            <Button label="New task" variant="primary" icon={<Icon icon={PlusIcon} size="sm" />} />
+            <Button label="New task" variant="primary" icon={<Icon icon={PlusIcon} size="sm" />} onClick={() => (window.location.hash = "#/task-new")} />
           </HStack>
         }
       />
@@ -380,7 +386,7 @@ function ProjectChat() {
                 </ChatMessageBubble>
               </ChatMessage>
               <ChatMessage sender="assistant">
-                <ChatMessageBubble variant="ghost">
+                <ChatMessageBubble variant="ghost" width="100%">
                   <Markdown density="compact">{`Added **#42–#45** to the board under *Astryx migration* and started **#42** with Claude Code in worktree \`task-42\`.`}</Markdown>
                 </ChatMessageBubble>
               </ChatMessage>
@@ -435,9 +441,7 @@ export default function BoardScreen({ variant = "both" }: { variant?: BoardVaria
       selection={{ kind: "board", project: "ai-leash" }}
       titleBar={
         <TitleBar
-          icon={<Icon icon={ViewColumnsIcon} size="sm" color="secondary" />}
-          title="ai-leash board"
-          subtitle="Project chat · Claude Code · 3 tasks in progress"
+          crumbs={[{ label: "ai-leash", href: "#/new" }, { label: "Board" }]}
           controls={
             <SegmentedControl label="Board layout" value={variant === "both" ? "both" : "board"} onChange={() => {}} size="sm">
               <SegmentedControlItem label="Board" value="board" />

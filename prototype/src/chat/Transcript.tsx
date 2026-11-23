@@ -7,8 +7,8 @@
 //   system-context row, notes                    -> ChatSystemMessage with an icon
 //   messages from other chats                    -> user bubble with its name slot
 //   message footer, Working-for                  -> ChatMessageMetadata
+// Agent turns have no avatar: their bubbles span the transcript column.
 // Grouping logic (entryGrouping.ts in the app) is unchanged; only the parts.
-import { Avatar } from "@astryxdesign/core/Avatar";
 import {
   ChatMessage,
   ChatMessageBubble,
@@ -35,8 +35,6 @@ import {
   InboxArrowDownIcon,
 } from "@heroicons/react/24/outline";
 import { SUB_AGENTS } from "../data";
-
-const agentAvatar = <Avatar name="Claude Code" size="md" />;
 
 function Time({ at }: { at: string }) {
   return <Timestamp value={`2026-11-23T${at}:00`} format="time" />;
@@ -118,7 +116,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
       </ChatMessage>
 
       {/* A finished turn: its activity folds into one Worked-for row. */}
-      <ChatMessage sender="assistant" avatar={agentAvatar}>
+      <ChatMessage sender="assistant">
         <ChatToolCalls
           label="Worked for 4m 51s · 1 thought, 4 tools used"
           calls={[
@@ -129,7 +127,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
             { name: "bash", target: "npx tsc --noEmit", status: "complete", duration: "6.1s" },
           ]}
         />
-        <ChatMessageBubble variant="ghost">
+        <ChatMessageBubble variant="ghost" width="100%">
           <Markdown density="compact">{`The board now renders on the template's frame: a \`LayoutHeader\` toolbar, one muted \`Card\` per column with a status dot and count, and cards with number, priority and effort.
 
 - **Group by epic** draws one swimlane per epic under a shared column header
@@ -154,7 +152,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
       </ChatMessage>
 
       {/* The turn in progress. */}
-      <ChatMessage sender="assistant" avatar={agentAvatar}>
+      <ChatMessage sender="assistant">
         <ChatToolCalls
           calls={[
             {
@@ -177,7 +175,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
             },
           ]}
         />
-        <ChatMessageBubble variant="ghost">
+        <ChatMessageBubble variant="ghost" width="100%">
           While those run I'll make the lane label sticky inside the scroller.
         </ChatMessageBubble>
         <ChatToolCalls

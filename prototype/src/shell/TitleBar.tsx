@@ -2,18 +2,20 @@
 // "Toolbar instead of LayoutHeader when the header carries interactive
 // controls"), not a TopNav: the side nav stays full height as in the
 // shell-side-nav template, and this bar only spans the region it titles.
-// Start content copies the ai-chat template's artifact toolbar (icon + label
-// title + supporting subtitle); the divider between control groups copies the
-// kanban-board toolbar's.
+// Start content is a one-line Breadcrumbs trail (project / page, the last item
+// isCurrent); while the sidebar is collapsed the expand toggle leads it. The
+// divider between control groups copies the kanban-board toolbar's.
 import type { ReactNode } from "react";
+import { useSidebarCollapse } from "./sidebarCollapse";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { ButtonGroup } from "@astryxdesign/core/ButtonGroup";
 import { Divider } from "@astryxdesign/core/Divider";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { HStack, VStack } from "@astryxdesign/core/Stack";
-import { Text } from "@astryxdesign/core/Text";
+import { BreadcrumbItem, Breadcrumbs } from "@astryxdesign/core/Breadcrumbs";
+import { SideNavCollapseButton } from "@astryxdesign/core/SideNav";
+import { HStack } from "@astryxdesign/core/Stack";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { Toolbar } from "@astryxdesign/core/Toolbar";
 import {
@@ -62,33 +64,35 @@ export function RunControls() {
   );
 }
 
+export interface Crumb {
+  label: string;
+  href?: string;
+}
+
 export default function TitleBar({
-  icon,
-  title,
-  subtitle,
+  crumbs,
   controls,
 }: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
+  /** project / page; the last crumb is the current page. */
+  crumbs: Crumb[];
   /** Screen-specific controls, before the window controls. */
   controls?: ReactNode;
 }) {
+  const collapse = useSidebarCollapse();
   return (
     <Toolbar
       label="Title bar"
       dividers={["bottom"]}
       startContent={
-        <HStack gap={3} vAlign="center">
-          {icon}
-          <VStack gap={0}>
-            <Text type="label" weight="semibold" maxLines={1}>
-              {title}
-            </Text>
-            <Text type="supporting" color="secondary" maxLines={1}>
-              {subtitle}
-            </Text>
-          </VStack>
+        <HStack gap={2} vAlign="center">
+          {collapse.isCollapsed && <SideNavCollapseButton collapsible={collapse} size="sm" label="Expand sidebar" />}
+          <Breadcrumbs label="Location">
+            {crumbs.map((c, i) => (
+              <BreadcrumbItem key={c.label} href={c.href} isCurrent={i === crumbs.length - 1}>
+                {c.label}
+              </BreadcrumbItem>
+            ))}
+          </Breadcrumbs>
         </HStack>
       }
       endContent={

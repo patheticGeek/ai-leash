@@ -35,8 +35,9 @@ import {
   ArrowLeftIcon,
   ArrowTopRightOnSquareIcon,
   PencilIcon,
+  PlayIcon,
   StopIcon,
-  ViewColumnsIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { COLUMNS, EPICS, epicColor } from "../data";
 import AppFrame from "../shell/AppFrame";
@@ -72,11 +73,11 @@ const EPIC_OPTIONS = [
 ];
 
 /** The template's inline-editable header row, reused by the dialog. */
-function FieldRow({ hasLabels }: { hasLabels?: boolean }) {
-  const [status, setStatus] = useState("in_progress");
-  const [priority, setPriority] = useState("high");
-  const [effort, setEffort] = useState("L");
-  const [epic, setEpic] = useState("Astryx migration");
+function FieldRow({ hasLabels, isStarted = true }: { hasLabels?: boolean; isStarted?: boolean }) {
+  const [status, setStatus] = useState(isStarted ? "in_progress" : "todo");
+  const [priority, setPriority] = useState(isStarted ? "high" : "low");
+  const [effort, setEffort] = useState(isStarted ? "L" : "M");
+  const [epic, setEpic] = useState(isStarted ? "Astryx migration" : "Project board");
   return (
     <HStack gap={1} vAlign="end" wrap="wrap">
       <Selector label="Status" isLabelHidden={!hasLabels} value={status} onChange={(v) => setStatus(v!)} options={STATUS_OPTIONS} />
@@ -311,9 +312,7 @@ export function TaskViewScreen() {
       selection={{ kind: "board", project: "ai-leash" }}
       titleBar={
         <TitleBar
-          icon={<Icon icon={ViewColumnsIcon} size="sm" color="secondary" />}
-          title="ai-leash board"
-          subtitle="Project chat · Claude Code · 3 tasks in progress"
+          crumbs={[{ label: "ai-leash", href: "#/new" }, { label: "Board", href: "#/board" }, { label: "#42 Astryx: board on the kanban template" }]}
           controls={
             <SegmentedControl label="Board layout" value="board" onChange={() => {}} size="sm">
               <SegmentedControlItem label="Board" value="board" />
@@ -349,32 +348,98 @@ export function TaskViewScreen() {
   );
 }
 
-function TaskDialogBody() {
+// ---------------------------------------------------------------------------
+// Task modals. Both follow the DialogFormDialog block (Layout in the Dialog:
+// DialogHeader / LayoutContent / LayoutFooter with actions on the end) and
+// carry work-item-detail's content. purpose="form": inputs, so a stray
+// backdrop click doesn't throw edits away.
+
+const AGENT_FIELDS = [
+  { label: "Agent", options: ["Claude Code", "GitHub Copilot", "Local Ollama"] },
+  { label: "Model", options: ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5"] },
+  { label: "Thinking", options: ["Low", "Medium", "High", "Max"] },
+  { label: "Permission", options: ["Ask every time", "Accept edits", "Plan only", "Bypass permissions"] },
+];
+
+function AgentSelect({ label, options, value = "default" }: { label: string; options: string[]; value?: string }) {
+  const [v, setV] = useState(value);
+  return (
+    <Selector
+      label={label}
+      value={v}
+      onChange={(x) => setV(x!)}
+      width="100%"
+      options={[{ value: "default", label: "Board default" }, { type: "divider" }, ...options]}
+    />
+  );
+}
+
+/** Status / priority / effort / epic as labelled fields on one aligned grid. */
+function FieldGrid() {
+  const [status, setStatus] = useState("todo");
+  const [priority, setPriority] = useState("low");
+  const [effort, setEffort] = useState("M");
+  const [epic, setEpic] = useState("Project board");
+  return (
+    <Grid columns={4} gap={3}>
+      <Selector label="Status" value={status} onChange={(v) => setStatus(v!)} options={STATUS_OPTIONS} width="100%" />
+      <Selector
+        label="Priority"
+        value={priority}
+        onChange={(v) => setPriority(v!)}
+        width="100%"
+        options={PRIORITY_OPTIONS.map((p) => ({ value: p.value, label: p.label }))}
+        renderValue={(o) => <PriorityBadge value={o.value} />}
+        renderOption={(o) => <PriorityBadge value={o.value} />}
+      />
+      <Selector label="Effort" value={effort} onChange={(v) => setEffort(v!)} options={EFFORTS} width="100%" />
+      <Selector
+        label="Epic"
+        value={epic}
+        onChange={(v) => setEpic(v!)}
+        options={EPIC_OPTIONS}
+        width="100%"
+        renderValue={(o) => (o.value === "none" ? <Text>No epic</Text> : <Token size="sm" label={o.label as string} color={epicColor(o.value)} />)}
+      />
+    </Grid>
+  );
+}
+
+const NEW_DESCRIPTION = `Move the focused card one column left or right with **Alt+←/→**, and announce the move to screen readers.
+
+- Works in group-by-epic swimlanes too
+- \`docs/features/project-board.md\` lists the shortcut`;
+
+function NewTaskBody() {
   const [title, setTitle] = useState("Board: keyboard moves between columns");
-  const [description, setDescription] = useState(
-    "Move the focused card one column left or right with Alt+Arrow keys, and announce the move.",
-  );
-  const agentSelect = (label: string, options: string[]) => (
-    <Selector label={label} value="default" onChange={() => {}} options={[{ value: "default", label: "Board default" }, { type: "divider" }, ...options]} />
-  );
+  const [description, setDescription] = useState(NEW_DESCRIPTION);
   return (
     <Layout
       header={<DialogHeader title="New task" subtitle="ai-leash board" onOpenChange={() => {}} />}
       content={
         <LayoutContent>
           <VStack gap={4}>
-            <TextInput label="Title" value={title} onChange={setTitle} />
-            <FieldRow hasLabels />
-            <TextArea label="Description" value={description} onChange={setDescription} rows={4} />
-            <VStack gap={2}>
-              <Text type="supporting" weight="semibold" color="secondary">
-                Who works on it
-              </Text>
+            <TextInput label="Title" isRequired value={title} onChange={setTitle} />
+            <TextArea
+              label="Description"
+              description="Markdown. The task's chat gets this as its first message."
+              value={description}
+              onChange={setDescription}
+              rows={6}
+            />
+            <FieldGrid />
+            <Divider />
+            <VStack gap={3}>
+              <VStack gap={0.5}>
+                <Heading level={4}>Who works on it</Heading>
+                <Text type="supporting" color="secondary">
+                  Optional. Anything left on Board default uses the board's settings when the task starts.
+                </Text>
+              </VStack>
               <Grid columns={2} gap={3}>
-                {agentSelect("Agent", ["Claude Code", "GitHub Copilot", "Local Ollama"])}
-                {agentSelect("Model", ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5"])}
-                {agentSelect("Thinking", ["Low", "Medium", "High", "Max"])}
-                {agentSelect("Permission", ["Ask every time", "Accept edits", "Plan only"])}
+                {AGENT_FIELDS.map((f) => (
+                  <AgentSelect key={f.label} {...f} />
+                ))}
               </Grid>
             </VStack>
           </VStack>
@@ -392,12 +457,196 @@ function TaskDialogBody() {
   );
 }
 
-export function TaskDialogScreen() {
+export function TaskNewScreen() {
   return (
     <>
       <BoardScreen variant="board" />
       <Dialog isOpen onOpenChange={() => {}} purpose="form" width={640}>
-        <TaskDialogBody />
+        <NewTaskBody />
+      </Dialog>
+    </>
+  );
+}
+
+// Task details: work-item-detail inside the dialog. The template's header
+// (ref, Heading title, inline-editable Selector row), its content sections
+// split by Dividers, and its end rail of MetadataLists; footer = Delete on the
+// start (destructive, confirmed by an AlertDialog), Close on the end.
+
+function ChatState({ isStarted }: { isStarted: boolean }) {
+  if (!isStarted) {
+    return (
+      <Card variant="muted" padding={4}>
+        <HStack gap={3} vAlign="center">
+          <StatusDot variant="neutral" label="Not started" />
+          <StackItem size="fill">
+            <VStack gap={0}>
+              <Text weight="semibold">Not started</Text>
+              <Text type="supporting" color="secondary">
+                Starting creates worktree task-47 and opens its chat.
+              </Text>
+            </VStack>
+          </StackItem>
+          <Button label="Start" variant="primary" icon={<Icon icon={PlayIcon} size="sm" />} />
+        </HStack>
+      </Card>
+    );
+  }
+  return (
+    <Card variant="muted" padding={4}>
+      <VStack gap={3}>
+        <HStack gap={3} vAlign="center">
+          <StatusDot variant="accent" isPulsing label="Working" />
+          <StackItem size="fill">
+            <VStack gap={0}>
+              <Text weight="semibold" hasTabularNumbers>
+                Working for 3:12
+              </Text>
+              <Text type="supporting" color="secondary">
+                edit src/features/board/BoardView.tsx · 2 sub-agents running
+              </Text>
+            </VStack>
+          </StackItem>
+          <Button label="Stop" icon={<Icon icon={StopIcon} size="sm" />} />
+          <Button label="Open chat" variant="primary" icon={<Icon icon={ArrowTopRightOnSquareIcon} size="sm" />} />
+        </HStack>
+        <Divider />
+        <VStack gap={1}>
+          <Text type="supporting" color="secondary">
+            Last reply · <Timestamp value="2026-11-23T10:07:00" format="time" type="supporting" color="secondary" />
+          </Text>
+          <Text>Columns done. Working on the epic swimlanes next.</Text>
+        </VStack>
+      </VStack>
+    </Card>
+  );
+}
+
+function DetailsRail({ isStarted }: { isStarted: boolean }) {
+  // Inline padding only: the rail's first heading lines up with the field row,
+  // which starts flush under the dialog header like the content column.
+  return (
+    <VStack gap={6} paddingInline={4}>
+      <VStack gap={3}>
+        <Heading level={4}>Checkout</Heading>
+        <MetadataList>
+          <MetadataListItem label="Worktree">
+            <Text>{isStarted ? "task-42" : "Created on start"}</Text>
+          </MetadataListItem>
+          <MetadataListItem label="Branch">
+            <Text>{isStarted ? "task/42-astryx-board" : "—"}</Text>
+          </MetadataListItem>
+        </MetadataList>
+      </VStack>
+      <VStack gap={3}>
+        <Heading level={4}>Agent</Heading>
+        {isStarted ? (
+          <MetadataList>
+            <MetadataListItem label="Agent">
+              <Text>Claude Code</Text>
+            </MetadataListItem>
+            <MetadataListItem label="Model">
+              <Text>Opus 5.5</Text>
+            </MetadataListItem>
+            <MetadataListItem label="Thinking">
+              <Text>High</Text>
+            </MetadataListItem>
+            <MetadataListItem label="Permission">
+              <Text>Accept edits</Text>
+            </MetadataListItem>
+          </MetadataList>
+        ) : (
+          <VStack gap={3}>
+            {AGENT_FIELDS.map((f) => (
+              <AgentSelect key={f.label} {...f} />
+            ))}
+          </VStack>
+        )}
+      </VStack>
+      <VStack gap={3}>
+        <Heading level={4}>Details</Heading>
+        <MetadataList>
+          <MetadataListItem label="Created">
+            <Timestamp value="2026-11-23T09:31:00" format="date" type="body" color="primary" />
+          </MetadataListItem>
+          <MetadataListItem label="Created by">
+            <Text>Project chat</Text>
+          </MetadataListItem>
+        </MetadataList>
+      </VStack>
+    </VStack>
+  );
+}
+
+const DETAILS = {
+  started: {
+    ref: "#42",
+    title: "Astryx: board on the kanban template",
+    description: `Rebuild \`BoardView\` on the kanban-board template: a \`LayoutHeader\` toolbar, muted column cards with a status dot and count, and cards with number, priority and effort.
+
+Keep dnd-kit for dragging. Add **group by epic** as swimlanes with the epic label pinned left while the board scrolls sideways.`,
+  },
+  todo: {
+    ref: "#47",
+    title: "Board: keyboard moves between columns",
+    description: NEW_DESCRIPTION,
+  },
+};
+
+function TaskDetailsBody({ isStarted }: { isStarted: boolean }) {
+  const t = DETAILS[isStarted ? "started" : "todo"];
+  return (
+    <Layout
+      header={
+        <DialogHeader
+          title={t.title}
+          subtitle={`${t.ref} · ai-leash board`}
+          endContent={<MoreMenu label="Task actions" items={[{ label: "Copy link to task" }, { label: "Move to Review" }, { label: "Finish task" }]} />}
+          onOpenChange={() => {}}
+        />
+      }
+      content={
+        <LayoutContent>
+          <VStack gap={6}>
+            <FieldRow isStarted={isStarted} />
+            <VStack gap={2}>
+              <HStack gap={2} vAlign="center" hAlign="between">
+                <Heading level={4}>Description</Heading>
+                <IconButton variant="ghost" size="sm" label="Edit description" icon={<Icon icon={PencilIcon} size="sm" />} />
+              </HStack>
+              <Markdown density="compact">{t.description}</Markdown>
+            </VStack>
+            <Divider />
+            <VStack gap={2}>
+              <Heading level={4}>Its chat</Heading>
+              <ChatState isStarted={isStarted} />
+            </VStack>
+          </VStack>
+        </LayoutContent>
+      }
+      end={
+        <LayoutPanel width={300} padding={0} hasDivider>
+          <DetailsRail isStarted={isStarted} />
+        </LayoutPanel>
+      }
+      footer={
+        <LayoutFooter>
+          <HStack gap={2} hAlign="between">
+            <Button label="Delete task" variant="destructive" icon={<Icon icon={TrashIcon} size="sm" />} />
+            <Button label="Close" variant="secondary" />
+          </HStack>
+        </LayoutFooter>
+      }
+    />
+  );
+}
+
+export function TaskDetailsScreen({ isStarted = true }: { isStarted?: boolean }) {
+  return (
+    <>
+      <BoardScreen variant="board" />
+      <Dialog isOpen onOpenChange={() => {}} purpose="form" width={960}>
+        <TaskDetailsBody isStarted={isStarted} />
       </Dialog>
     </>
   );

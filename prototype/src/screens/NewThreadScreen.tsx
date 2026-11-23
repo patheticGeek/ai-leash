@@ -18,7 +18,7 @@ import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { createStaticSource, TypeaheadItem, type SearchableItem } from "@astryxdesign/core/Typeahead";
-import { PaperClipIcon, PencilSquareIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { PaperClipIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { CheckoutBar, ComposerPickers } from "../chat/Composer";
 import AppFrame from "../shell/AppFrame";
 import SidePanel from "../shell/SidePanel";
@@ -60,9 +60,7 @@ export default function NewThreadScreen() {
       selection={{ kind: "new" }}
       titleBar={
         <TitleBar
-          icon={<Icon icon={PencilSquareIcon} size="sm" color="secondary" />}
-          title="New thread"
-          subtitle="ai-leash · primary checkout · Claude Code"
+          crumbs={[{ label: "ai-leash", href: "#/board" }, { label: "New thread" }]}
           controls={<RunControls />}
         />
       }
