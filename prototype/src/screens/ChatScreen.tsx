@@ -13,6 +13,7 @@ import {
   TaskLinkNotice,
 } from "../chat/Composer";
 import Transcript from "../chat/Transcript";
+import type { CheckoutState } from "../chat/Checkout";
 import AppFrame from "../shell/AppFrame";
 import PaneTabs from "../shell/PaneTabs";
 import SidePanel, { type ListState, type PanelTab } from "../shell/SidePanel";
@@ -39,6 +40,8 @@ export interface ChatOverrides {
   transcript?: ReactNode;
   panelTab?: PanelTab;
   listState?: ListState;
+  /** Checkout bar state (open picker, create views, locked). */
+  checkout?: Partial<CheckoutState>;
   /** Dialogs, toasts and the like, rendered over the screen. */
   overlay?: ReactNode;
 }
@@ -105,7 +108,7 @@ export default function ChatScreen({
                     <ComposerDock
                       top={top}
                       box={box}
-                      checkout={{ worktree: "task-42", branch: "task/42-astryx-board" }}
+                      checkout={{ worktree: "task-42", branch: "task/42-astryx-board", ...overrides.checkout }}
                     />
                   }
                 >

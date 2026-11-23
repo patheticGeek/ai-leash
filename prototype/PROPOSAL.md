@@ -400,6 +400,10 @@ component so they share a look. Screenshot = `shots-v2/<route>.png`.
 | `strip-error-connection` | Connection lost, retrying in 5s (Retry now) | `Banner status="error"` |
 | `strip-help` | `/help`: the commands list (`!command`, local and agent `/` commands), dismissable | `Banner status="info"` with a compact `List` body |
 | `notice-error`, `notice-restore-failed`, `notice-history-truncated`, `notice-stacked` | The real app's TranscriptNotices: provider error, failed session restore (Start new session), earlier history not shared, and two at once | `Banner` error / error / warning, in the same stack above the composer |
+| `picker-worktree`, `picker-worktree-locked` | Worktree picker: search, worktrees with branch, current checked, delete on hover, dirty one showing the inline Force delete confirm, New worktree…; locked = disabled trigger with "The worktree is fixed once the conversation has started" | ghost `Button` → `Popover` above; `TextInput` search, compact `List`, `useContainerReveal` delete |
+| `new-worktree`, `new-worktree-existing`, `new-worktree-existing-empty`, `new-worktree-busy` | New worktree: New branch (name + Base branch) or Existing branch (unattached branches / "No unattached branches"), Cancel / Create, "Creating…" | inline in the same popover (list view swaps for the form); `SegmentedControl`, `TextInput`, `Selector`, `Button isLoading` |
+| `picker-branch` | Branch picker: search, local branches, current checked, delete on hover, New branch… | same popover pattern |
+| `new-branch`, `new-branch-error` | New branch: name, base branch, Cancel / Create; error "already exists" on the field | inline form; `TextInput status="error"` |
 | `popup-slash` | `/` command menu | `ChatComposerInput` trigger → `Typeahead` + `TypeaheadItem` (name + description) |
 | `popup-mention` | `@` file mention (planned) | same trigger pattern as Astryx's `ChatComposerInputMentionTrigger` block; file/folder icon + path |
 | `popup-model`, `popup-effort`, `popup-permission` | The three composer pickers | `DropdownMenu` (sections per agent for models) |
@@ -411,6 +415,10 @@ component so they share a look. Screenshot = `shots-v2/<route>.png`.
 | `state-empty`, `state-loading`, `state-error` | Transcript + Sub agents list: empty, loading, error | `EmptyState` (compact in the panel), `Skeleton` rows in each list's own shape; errors say what failed and offer Try again |
 | `state-actions-empty`, `state-actions-loading`, `state-actions-error` | Actions list: empty (with Add action), loading, error | same |
 | `pill-subagents`, `pill-subagents-open` | Running sub-agents above the composer (planned): "3 sub-agents running", expanding to the list with stop buttons and Stop all | ghost `Button` (Spinner + count + chevron); open = muted `Card` with the Sub agents tab's compact `List` |
+
+**Create flows stay inline in the picker popover** (not a dialog): the list
+swaps for a two-field form and Cancel swaps back, so creating a worktree or
+branch stays anchored to the bar it changes.
 
 **Transcript notices move to the composer stack:** today they're sticky at the
 top of the transcript; here they join the strips above the composer, so every

@@ -30,7 +30,6 @@ import { CodeBlock } from "@astryxdesign/core/CodeBlock";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { Icon } from "@astryxdesign/core/Icon";
 import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
-import { Selector } from "@astryxdesign/core/Selector";
 import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text, Heading } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -48,7 +47,7 @@ import {
   QueueListIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
-import { BranchIcon, WorktreeIcon } from "./icons";
+import CheckoutBar, { type CheckoutState } from "./Checkout";
 
 // Input triggers, the ChatComposerInputMentionTrigger block's pattern: a
 // character opens a Typeahead menu above the input; picking an item inserts a
@@ -133,32 +132,7 @@ function AttachButton() {
   );
 }
 
-export function CheckoutBar({ worktree, branch }: { worktree: string; branch: string }) {
-  return (
-    <HStack hAlign="between" vAlign="center" paddingInline={1}>
-      <Selector
-        label="Worktree"
-        isLabelHidden
-        variant="ghost"
-        size="sm"
-        startIcon={WorktreeIcon}
-        value={worktree}
-        onChange={() => {}}
-        options={[...[...new Set([worktree, "primary", "task-38"])], { type: "divider" }, { value: "new", label: "New worktree…" }]}
-      />
-      <Selector
-        label="Branch"
-        isLabelHidden
-        variant="ghost"
-        size="sm"
-        startIcon={BranchIcon}
-        value={branch}
-        onChange={() => {}}
-        options={[...[...new Set([branch, "astryx-migration", "master"])], { type: "divider" }, { value: "new", label: "New branch…" }]}
-      />
-    </HStack>
-  );
-}
+export { default as CheckoutBar } from "./Checkout";
 
 export function RateLimitNotice({ isCountingDown }: { isCountingDown?: boolean }) {
   if (isCountingDown) {
@@ -498,7 +472,7 @@ export function ComposerDock({
 }: {
   top?: ReactNode;
   box: ReactNode;
-  checkout?: { worktree: string; branch: string };
+  checkout?: CheckoutState;
 }) {
   return (
     <VStack gap={2}>

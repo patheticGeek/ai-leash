@@ -99,6 +99,16 @@ export const CHAT_STATES: Record<string, ChatOverrides> = {
   "notice-restore-failed": { ...done, top: <RestoreFailedNotice />, box: idleBox },
   "notice-history-truncated": { ...done, top: <HistoryTruncatedNotice />, box: idleBox },
   "notice-stacked": { ...done, top: stack(<ChatErrorNotice key="e" />, <HistoryTruncatedNotice key="h" />), box: idleBox },
+  // Checkout bar pickers and their inline create forms
+  "picker-worktree": { ...done, box: idleBox, checkout: { open: "worktree" } },
+  "picker-worktree-locked": { box: workingBox, checkout: { isWorktreeLocked: true } },
+  "new-worktree": { ...done, box: idleBox, checkout: { open: "worktree", worktreeView: "new" } },
+  "new-worktree-existing": { ...done, box: idleBox, checkout: { open: "worktree", worktreeView: "new-existing" } },
+  "new-worktree-existing-empty": { ...done, box: idleBox, checkout: { open: "worktree", worktreeView: "new-existing", hasNoUnattached: true } },
+  "new-worktree-busy": { ...done, box: idleBox, checkout: { open: "worktree", worktreeView: "busy" } },
+  "picker-branch": { ...done, box: idleBox, checkout: { open: "branch" } },
+  "new-branch": { ...done, box: idleBox, checkout: { open: "branch", branchView: "new" } },
+  "new-branch-error": { ...done, box: idleBox, checkout: { open: "branch", branchView: "error" } },
   // Popups (the screenshot opens them)
   "popup-slash": { ...done, box: idleBox },
   "popup-mention": { ...done, box: idleBox },
