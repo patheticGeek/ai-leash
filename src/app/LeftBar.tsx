@@ -1,3 +1,4 @@
+import { Avatar } from "@astryxdesign/core/Avatar";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Collapsible } from "@astryxdesign/core/Collapsible";
@@ -13,9 +14,16 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Item } from "@astryxdesign/core/Item";
+import { Kbd } from "@astryxdesign/core/Kbd";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
 import { Selector } from "@astryxdesign/core/Selector";
-import { SideNav } from "@astryxdesign/core/SideNav";
+import {
+  SideNav,
+  SideNavCollapseButton,
+  SideNavHeading,
+  SideNavItem,
+  SideNavSection,
+} from "@astryxdesign/core/SideNav";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
@@ -29,7 +37,6 @@ import {
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   Folder,
@@ -40,6 +47,7 @@ import {
   SettingsIcon,
   ShieldAlert,
   SquareKanban,
+  SquarePen,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -63,6 +71,8 @@ import {
   useAppStore,
 } from "../store";
 import DeleteConversationDialog from "./DeleteConversationDialog";
+import { pickAndAddProject, startNewThread } from "./projectActions";
+import type { SidebarCollapse } from "./sidebarCollapse";
 
 // Sentinel for "no project filter", a real option so the selector shows
 // "All projects" by name rather than an empty placeholder.
@@ -73,7 +83,6 @@ const styles = stylex.create({
   projectFilter: { flex: 1, minWidth: 0 },
   // The filter button stays lit while a task-chat filter is on.
   filterOn: { color: colorVars["--color-text-accent"] },
-  settings: { justifyContent: "flex-start" },
   showMore: { alignSelf: "flex-start" },
   empty: { paddingBlock: spacingVars["--spacing-6"] },
 });
@@ -428,9 +437,12 @@ function ProjectBoardRow({
 
 export default function LeftBar({
   resizable,
+  collapse,
 }: {
-  // The sidebar's width, shared with the title bar's corner above it.
+  // The sidebar's width and collapse state (`App.tsx`).
   resizable: ResizableRegion;
+  // Shared with the title bar's expand toggle (`sidebarCollapse.ts`).
+  collapse: SidebarCollapse;
 }) {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const conversations = useConversations();
@@ -444,7 +456,7 @@ export default function LeftBar({
   const [pendingDelete, setPendingDelete] =
     useState<ConversationSummary | null>(null);
   const setConversationDone = useAppStore((s) => s.setConversationDone);
-  const addProject = useAppStore((s) => s.addProject);
+  const isNewThread = useAppStore((s) => s.draft !== null);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const addPendingPermission = useAppStore((s) => s.addPendingPermission);
   const resolvePendingPermission = useAppStore(
@@ -466,13 +478,6 @@ export default function LeftBar({
   // Same idea for Project boards: only boards in use show until expanded.
   const [boardsExpanded, setBoardsExpanded] = useState(false);
   const DEFAULT_VISIBLE_BOARDS = 5;
-
-  async function onAddProject() {
-    const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") {
-      await addProject(dir);
-    }
-  }
 
   // One global event carrying its own `sessionId` (see
   // `tools::request_permission`), same shape as `chat://generating` — so
@@ -565,178 +570,210 @@ export default function LeftBar({
     <SideNav
       aria-label="Conversations"
       resizable={resizable}
+      collapsible={{ hasButton: false }}
       header={
-        <HStack align="center" gap={1}>
-          <Selector
-            label="Project"
-            isLabelHidden
-            variant="ghost"
-            size="sm"
-            width="100%"
-            containerXstyle={styles.projectFilter}
-            value={projectFilter ?? ALL_PROJECTS}
-            onChange={(value) =>
-              setProjectFilter(value === ALL_PROJECTS ? null : value)
-            }
-            options={[
-              { value: ALL_PROJECTS, label: "All projects" },
-              ...recentProjects.map((p) => ({ value: p.path, label: p.name })),
-            ]}
-          />
-          <DropdownMenu
-            placement="below"
-            alignment="end"
-            renderTrigger={(triggerProps) => (
-              <IconButton
-                {...triggerProps}
-                variant="ghost"
-                size="lg"
-                label="Filters"
-                tooltip="Filters"
-                icon={<ListFilter size={17} />}
-                xstyle={taskChats !== "all" ? styles.filterOn : undefined}
-              />
-            )}
-          >
-            <DropdownMenuGroup title="Task chats">
-              <DropdownMenuRadioGroup
-                label="Task chats"
-                value={taskChats}
-                onChange={(value) =>
-                  setPreferences({
-                    sidebarTaskChats: value as Preferences["sidebarTaskChats"],
-                  })
-                }
-              >
-                <DropdownMenuRadioItem value="all" label="Show all chats" />
-                <DropdownMenuRadioItem
-                  value="top"
-                  label="Group task chats at top"
-                />
-                <DropdownMenuRadioItem value="hide" label="Hide task chats" />
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenu>
-          <IconButton
-            variant="ghost"
-            size="lg"
-            label="Add project"
-            tooltip="Add project"
-            icon={<FolderPlus size={17} />}
-            onClick={onAddProject}
-          />
-        </HStack>
-      }
-      footer={
-        <Button
-          variant="ghost"
-          label="Settings"
-          tooltip="Settings"
-          icon={<SettingsIcon size={15} />}
-          onClick={() => setSettingsModalOpen(true)}
-          width="100%"
-          xstyle={styles.settings}
+        // The collapse toggle sits beside the logo; the heading hides its end
+        // slot while collapsed, when the toggle leads the title bar instead.
+        <SideNavHeading
+          heading="ai leash"
+          icon={
+            <Avatar
+              src="/logo.svg"
+              name="ai leash"
+              size="sm"
+              shape="rounded"
+              tooltip={false}
+            />
+          }
+          headerEndContent={
+            <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+          }
         />
       }
+      topContent={
+        <SideNavSection title="Menu" isHeaderHidden>
+          <SideNavItem
+            label="New thread"
+            icon={SquarePen}
+            isSelected={isNewThread}
+            endContent={<Kbd keys="ctrl+n" />}
+            onClick={() => void startNewThread()}
+          />
+          <SideNavItem
+            label="Add project"
+            icon={FolderPlus}
+            onClick={() => void pickAndAddProject()}
+          />
+        </SideNavSection>
+      }
+      footer={
+        <SideNavSection title="App" isHeaderHidden>
+          <SideNavItem
+            label="Settings"
+            icon={SettingsIcon}
+            onClick={() => setSettingsModalOpen(true)}
+          />
+        </SideNavSection>
+      }
     >
-      <VStack gap={3}>
-        {boardProjects.length > 0 && (
-          <SidebarSectionCollapsible section="boards" label="Project boards">
-            <VStack gap={1}>
-              {visibleBoards.map((p) => {
-                const chat = boardChatFor(p.path);
-                return (
-                  <ProjectBoardRow
-                    key={p.path}
-                    name={p.name}
-                    summary={boardSummaries.find(
-                      (b) => b.projectRoot === p.path,
-                    )}
-                    chatId={chat?.id}
-                    active={!!chat && chat.id === activeSessionId}
-                    onClick={() => void openProjectBoard(p.path)}
-                  />
-                );
-              })}
-              {hiddenBoardCount > 0 && (
-                <Button
+      {/* The rail shows only the items with icons while collapsed; the list
+          below gets its rail form with the sidebar rework. */}
+      {!collapse.isCollapsed && (
+        <VStack gap={3}>
+          <HStack align="center" gap={1}>
+            <Selector
+              label="Project"
+              isLabelHidden
+              variant="ghost"
+              size="sm"
+              width="100%"
+              containerXstyle={styles.projectFilter}
+              value={projectFilter ?? ALL_PROJECTS}
+              onChange={(value) =>
+                setProjectFilter(value === ALL_PROJECTS ? null : value)
+              }
+              options={[
+                { value: ALL_PROJECTS, label: "All projects" },
+                ...recentProjects.map((p) => ({
+                  value: p.path,
+                  label: p.name,
+                })),
+              ]}
+            />
+            <DropdownMenu
+              placement="below"
+              alignment="end"
+              renderTrigger={(triggerProps) => (
+                <IconButton
+                  {...triggerProps}
                   variant="ghost"
-                  size="sm"
-                  label={
-                    boardsExpanded
-                      ? "Show less"
-                      : `More boards (${hiddenBoardCount})`
-                  }
-                  onClick={() => setBoardsExpanded((v) => !v)}
-                  xstyle={styles.showMore}
+                  size="lg"
+                  label="Filters"
+                  tooltip="Filters"
+                  icon={<ListFilter size={17} />}
+                  xstyle={taskChats !== "all" ? styles.filterOn : undefined}
                 />
               )}
-            </VStack>
-          </SidebarSectionCollapsible>
-        )}
-        <SidebarSectionCollapsible section="chats" label="Chats">
-          <VStack gap={1.5}>
-            {sortedConversations.length === 0 &&
-              doneConversations.length === 0 && (
-                <Text
-                  type="supporting"
-                  size="xsm"
-                  color="secondary"
-                  justify="center"
-                  display="block"
-                  xstyle={styles.empty}
+            >
+              <DropdownMenuGroup title="Task chats">
+                <DropdownMenuRadioGroup
+                  label="Task chats"
+                  value={taskChats}
+                  onChange={(value) =>
+                    setPreferences({
+                      sidebarTaskChats:
+                        value as Preferences["sidebarTaskChats"],
+                    })
+                  }
                 >
-                  {projectFilter
-                    ? "No conversations for this project"
-                    : "No conversations yet"}
-                </Text>
-              )}
-            {sortedConversations.map((c) => (
-              <ConversationRow
-                key={c.id}
-                conversation={c}
-                projectName={
-                  recentProjects.find((p) => p.path === c.projectRoot)?.name ??
-                  c.projectRoot
-                }
-                active={c.id === activeSessionId}
-                onClick={() => openConversation(c.id)}
-                onDelete={() => setPendingDelete(c)}
-                onMarkDone={() => setConversationDone(c.id, true)}
-              />
-            ))}
-          </VStack>
-        </SidebarSectionCollapsible>
-        {doneConversations.length > 0 && (
-          <SidebarSectionCollapsible section="done" label="Done">
-            <VStack gap={0.5}>
-              {visibleDoneConversations.map((c) => (
-                <DoneConversationRow
+                  <DropdownMenuRadioItem value="all" label="Show all chats" />
+                  <DropdownMenuRadioItem
+                    value="top"
+                    label="Group task chats at top"
+                  />
+                  <DropdownMenuRadioItem value="hide" label="Hide task chats" />
+                </DropdownMenuRadioGroup>
+              </DropdownMenuGroup>
+            </DropdownMenu>
+          </HStack>
+          {boardProjects.length > 0 && (
+            <SidebarSectionCollapsible section="boards" label="Project boards">
+              <VStack gap={1}>
+                {visibleBoards.map((p) => {
+                  const chat = boardChatFor(p.path);
+                  return (
+                    <ProjectBoardRow
+                      key={p.path}
+                      name={p.name}
+                      summary={boardSummaries.find(
+                        (b) => b.projectRoot === p.path,
+                      )}
+                      chatId={chat?.id}
+                      active={!!chat && chat.id === activeSessionId}
+                      onClick={() => void openProjectBoard(p.path)}
+                    />
+                  );
+                })}
+                {hiddenBoardCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    label={
+                      boardsExpanded
+                        ? "Show less"
+                        : `More boards (${hiddenBoardCount})`
+                    }
+                    onClick={() => setBoardsExpanded((v) => !v)}
+                    xstyle={styles.showMore}
+                  />
+                )}
+              </VStack>
+            </SidebarSectionCollapsible>
+          )}
+          <SidebarSectionCollapsible section="chats" label="Chats">
+            <VStack gap={1.5}>
+              {sortedConversations.length === 0 &&
+                doneConversations.length === 0 && (
+                  <Text
+                    type="supporting"
+                    size="xsm"
+                    color="secondary"
+                    justify="center"
+                    display="block"
+                    xstyle={styles.empty}
+                  >
+                    {projectFilter
+                      ? "No conversations for this project"
+                      : "No conversations yet"}
+                  </Text>
+                )}
+              {sortedConversations.map((c) => (
+                <ConversationRow
                   key={c.id}
                   conversation={c}
+                  projectName={
+                    recentProjects.find((p) => p.path === c.projectRoot)
+                      ?.name ?? c.projectRoot
+                  }
                   active={c.id === activeSessionId}
                   onClick={() => openConversation(c.id)}
                   onDelete={() => setPendingDelete(c)}
-                  onUndo={() => setConversationDone(c.id, false)}
+                  onMarkDone={() => setConversationDone(c.id, true)}
                 />
               ))}
-              {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  label={
-                    doneExpanded
-                      ? "Show less"
-                      : `Show all (${doneConversations.length})`
-                  }
-                  onClick={() => setDoneExpanded((v) => !v)}
-                  xstyle={styles.showMore}
-                />
-              )}
             </VStack>
           </SidebarSectionCollapsible>
-        )}
-      </VStack>
+          {doneConversations.length > 0 && (
+            <SidebarSectionCollapsible section="done" label="Done">
+              <VStack gap={0.5}>
+                {visibleDoneConversations.map((c) => (
+                  <DoneConversationRow
+                    key={c.id}
+                    conversation={c}
+                    active={c.id === activeSessionId}
+                    onClick={() => openConversation(c.id)}
+                    onDelete={() => setPendingDelete(c)}
+                    onUndo={() => setConversationDone(c.id, false)}
+                  />
+                ))}
+                {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    label={
+                      doneExpanded
+                        ? "Show less"
+                        : `Show all (${doneConversations.length})`
+                    }
+                    onClick={() => setDoneExpanded((v) => !v)}
+                    xstyle={styles.showMore}
+                  />
+                )}
+              </VStack>
+            </SidebarSectionCollapsible>
+          )}
+        </VStack>
+      )}
       <DeleteConversationDialog
         conversation={pendingDelete}
         onCancel={() => setPendingDelete(null)}
