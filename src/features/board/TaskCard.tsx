@@ -54,16 +54,21 @@ const styles = stylex.create({
   floating: { cursor: "grabbing" },
 });
 
-// Ticks once a second while the task's chat has a turn running.
-function Elapsed({ startedAtMs }: { startedAtMs: number }) {
+// How long its chat's turn has been running ("3m 12s"); ticks once a
+// second. Also the task details dialog's "Working for".
+export function useElapsed(startedAtMs: number): string {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
+  return formatDuration(Math.max(0, now - startedAtMs) / 1000);
+}
+
+function Elapsed({ startedAtMs }: { startedAtMs: number }) {
   return (
     <Text type="supporting" color="secondary" hasTabularNumbers>
-      {formatDuration((now - startedAtMs) / 1000)}
+      {useElapsed(startedAtMs)}
     </Text>
   );
 }
