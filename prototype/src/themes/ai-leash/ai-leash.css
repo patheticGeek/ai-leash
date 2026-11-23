@@ -643,6 +643,10 @@
     font-size: 12px;
   }
 
+  .astryx-banner-frame {
+    background-color: var(--color-background-card);
+  }
+
   .astryx-text[data-color="primary"] { color: var(--color-text-primary); }
 
   .astryx-heading[data-color="primary"] { color: var(--color-text-primary); }

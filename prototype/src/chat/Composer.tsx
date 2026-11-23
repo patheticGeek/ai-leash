@@ -7,7 +7,9 @@
 //   sendActions    Queue (while a turn runs), beside Send / Stop
 //   drawer         queued messages (ChatComposerDrawer of removable Tokens)
 // Notices that need actions (rate limit, task link) are Banners above the
-// box; the worktree/branch bar sits below it. A permission or elicitation
+// box, elevation "low" on an opaque frame (theme: banner-frame background =
+// --color-background-card) so the transcript never shows through the status
+// tint; the worktree/branch bar sits below it. A permission or elicitation
 // prompt takes the box's place, on the same card surface.
 import { useState, type ReactNode } from "react";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -162,6 +164,7 @@ export function RateLimitNotice({ isCountingDown }: { isCountingDown?: boolean }
   if (isCountingDown) {
     return (
       <Banner
+      elevation="low"
         status="warning"
         collapsible={false}
         title="Claude session limit reached · resuming in 1:42:07"
@@ -177,6 +180,7 @@ export function RateLimitNotice({ isCountingDown }: { isCountingDown?: boolean }
   }
   return (
     <Banner
+      elevation="low"
       status="warning"
       collapsible={false}
       title="Claude session limit reached"
@@ -195,6 +199,7 @@ export function TaskLinkNotice({ isUnfollowed }: { isUnfollowed?: boolean }) {
   if (isUnfollowed) {
     return (
       <Banner
+      elevation="low"
         status="info"
         collapsible={false}
         title="The project chat isn't following this task"
@@ -205,6 +210,7 @@ export function TaskLinkNotice({ isUnfollowed }: { isUnfollowed?: boolean }) {
   }
   return (
     <Banner
+      elevation="low"
       status="info"
       collapsible={false}
       title="Following task #38"
@@ -218,6 +224,7 @@ export function AgentErrorNotice({ kind }: { kind: "crash" | "connection" }) {
   if (kind === "connection") {
     return (
       <Banner
+      elevation="low"
         status="error"
         collapsible={false}
         title="Lost the connection to Local Ollama · retrying in 5s"
@@ -228,6 +235,7 @@ export function AgentErrorNotice({ kind }: { kind: "crash" | "connection" }) {
   }
   return (
     <Banner
+      elevation="low"
       status="error"
       collapsible={false}
       title="Claude Code stopped unexpectedly"
@@ -250,6 +258,7 @@ export function AgentErrorNotice({ kind }: { kind: "crash" | "connection" }) {
 export function ChatErrorNotice() {
   return (
     <Banner
+      elevation="low"
       status="error"
       collapsible={false}
       isDismissable
@@ -263,6 +272,7 @@ export function ChatErrorNotice() {
 export function RestoreFailedNotice() {
   return (
     <Banner
+      elevation="low"
       status="error"
       collapsible={false}
       title="Couldn't restore the previous session"
@@ -275,6 +285,7 @@ export function RestoreFailedNotice() {
 export function HistoryTruncatedNotice() {
   return (
     <Banner
+      elevation="low"
       status="warning"
       collapsible={false}
       isDismissable
@@ -300,6 +311,7 @@ const HELP_COMMANDS = [
 export function HelpPanel() {
   return (
     <Banner
+      elevation="low"
       status="info"
       collapsible={false}
       isDismissable

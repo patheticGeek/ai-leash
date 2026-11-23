@@ -90,6 +90,10 @@ npx astryx experimental theme editor set ai-leash font-size 12px --on button --w
 npx astryx experimental theme editor set ai-leash font-size 12px --on selector --when size:sm
 npx astryx experimental theme editor set ai-leash font-size 12px --on text-input --when size:sm
 npx astryx experimental theme editor set ai-leash --text-label-size 12px --on segmented-control --when size:sm
+# Banners: the status tint (--color-*-muted) is ~24% alpha in dark mode, so a
+# Banner docked over the transcript let the messages show through. Back the
+# frame with the solid card surface; the tint then reads as a solid tinted strip.
+npx astryx experimental theme editor set ai-leash background-color "var(--color-background-card)" --on banner-frame
 npx astryx experimental theme editor show ai-leash --png   # pictures checked
 ```
 

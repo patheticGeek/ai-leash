@@ -42,6 +42,12 @@
       "source": "token",
       "on": "segmented-control",
       "when": "size:sm"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-background-card)",
+      "source": "property",
+      "on": "banner-frame"
     }
   ],
   "lifted": []

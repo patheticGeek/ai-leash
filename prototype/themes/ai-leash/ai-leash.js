@@ -544,6 +544,11 @@ export const aiLeashTheme = {
       "size:sm": {
         "fontSize": "12px"
       }
+    },
+    "banner-frame": {
+      "base": {
+        "backgroundColor": "var(--color-background-card)"
+      }
     }
   },
   __onDark: {
