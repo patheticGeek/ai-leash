@@ -18,7 +18,7 @@ import { Heading, Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { useState } from "react";
 import { Selector } from "@astryxdesign/core/Selector";
-import { FolderIcon, FolderPlusIcon, PaperClipIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { FolderIcon, FolderPlusIcon, PaperClipIcon, SparklesIcon } from "../icons-lucide";
 import { CheckoutBar, ComposerPickers, commandTrigger, fileTrigger } from "../chat/Composer";
 import AppFrame from "../shell/AppFrame";
 import SidePanel from "../shell/SidePanel";

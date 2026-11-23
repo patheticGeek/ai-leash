@@ -45,7 +45,7 @@ import {
   SparklesIcon,
   StopIcon,
   TrashIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import { COLUMNS, EPICS, epicColor } from "../data";
 import AppFrame from "../shell/AppFrame";
 import TitleBar from "../shell/TitleBar";

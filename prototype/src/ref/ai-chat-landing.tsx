@@ -37,7 +37,7 @@ import {
   LockClosedIcon as LockIcon,
   ClockIcon,
   LightBulbIcon as LightbulbIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 // Fill the content area so the greeting and composer stay vertically centered.
 const pageStyle: CSSProperties = {minHeight: '100%'};

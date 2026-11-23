@@ -25,7 +25,7 @@ import {
   PlayIcon,
   StopIcon,
   XMarkIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 
 const styles = stylex.create({
   toolbarDivider: {

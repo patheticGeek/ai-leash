@@ -31,7 +31,7 @@ import {
   FunnelIcon,
   PencilSquareIcon,
   ViewColumnsIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import appIcon from "../assets/app-icon.svg";
 import { useSidebarCollapse } from "./sidebarCollapse";
 import { BOARDS, CHATS, DONE_CHATS, PROJECTS, type ChatRow } from "../data";

@@ -55,7 +55,7 @@ import {
   BellIcon as NotificationIcon,
   ShareIcon,
   EyeIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 const styles = stylex.create({
   // A vertical rule has no intrinsic height and the breadcrumb row centers its

@@ -39,7 +39,7 @@ import {
   ClipboardDocumentIcon,
   DocumentTextIcon,
   InboxArrowDownIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import { SUB_AGENTS } from "../data";
 
 const stateStyles = stylex.create({

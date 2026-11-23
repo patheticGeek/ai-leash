@@ -30,7 +30,7 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import { BranchIcon, WorktreeIcon } from "./icons";
 
 export type WorktreeView = "list" | "new" | "new-existing" | "busy";

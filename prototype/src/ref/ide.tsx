@@ -28,7 +28,7 @@ import {
   FolderIcon,
   DocumentTextIcon as DocumentIcon,
   MagnifyingGlassIcon as SearchIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 const styles: Record<string, CSSProperties> = {
   contentFill: {

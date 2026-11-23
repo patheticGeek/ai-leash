@@ -47,7 +47,7 @@ import {
   ServerIcon,
   TagIcon,
   TrashIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import appIcon from "../assets/app-icon.svg";
 import ChatScreen from "./ChatScreen";
 

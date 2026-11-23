@@ -40,7 +40,7 @@ import {
   PlusIcon,
   RectangleStackIcon,
   ArrowPathIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import { ComposerDock, MessageComposer } from "../chat/Composer";
 import { COLUMNS, EPICS, PRIORITY_META, TASKS, epicColor, type Status, type Task } from "../data";
 import AppFrame from "../shell/AppFrame";

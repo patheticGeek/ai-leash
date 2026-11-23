@@ -31,7 +31,7 @@ import {
   PlusIcon,
   StopIcon,
   UserGroupIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import { ACTIONS, SUB_AGENTS } from "../data";
 import PaneTabs from "./PaneTabs";
 

@@ -149,7 +149,7 @@ import {
   UserCircleIcon,
   UserIcon,
   UsersIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 import * as stylex from '@stylexjs/stylex';
 import {
   Children,

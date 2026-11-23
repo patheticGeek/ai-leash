@@ -45,7 +45,7 @@ import {
   CheckCircleIcon as SuccessIcon,
   InboxIcon,
   ClipboardDocumentCheckIcon as ChecklistIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 // ============= TYPES =============
 

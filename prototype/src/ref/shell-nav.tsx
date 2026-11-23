@@ -29,7 +29,7 @@ import {
   MagnifyingGlassIcon as SearchIcon,
   FolderIcon,
   DocumentTextIcon as DocumentIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 const noop = () => {};
 

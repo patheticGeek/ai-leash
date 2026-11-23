@@ -33,7 +33,7 @@ import {
   UserIcon,
   BuildingOffice2Icon as BuildingIcon,
   CodeBracketIcon as CodeIcon,
-} from '@heroicons/react/24/outline';
+} from '../icons-lucide';
 
 type Conversation = {
   label: string;

@@ -46,7 +46,7 @@ import {
   PaperClipIcon,
   QueueListIcon,
   ShieldCheckIcon,
-} from "@heroicons/react/24/outline";
+} from "../icons-lucide";
 import CheckoutBar, { type CheckoutState } from "./Checkout";
 
 // Input triggers, the ChatComposerInputMentionTrigger block's pattern: a
