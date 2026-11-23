@@ -27,51 +27,53 @@ project tools such as files and terminals.
 ### Collapsing the sidebar
 
 The arrow button beside the logo at the top of the sidebar collapses it to a
-narrow strip of icons (New thread, Add project, Settings). While it's
-collapsed, the same button sits at the start of the title bar; click it to
-expand the sidebar again. The sidebar's width and whether it's collapsed are
-remembered, including after a restart. Drag the sidebar's edge to resize it.
+narrow strip of icons: New thread, Add project, a folder for each project,
+Done and Settings. Point at (or click) a project's folder to open a menu with
+its board and chats; Done works the same way. While it's collapsed, the same
+button sits at the start of the title bar; click it to expand the sidebar
+again. The sidebar's width and whether it's collapsed are remembered,
+including after a restart. Drag the sidebar's edge to resize it.
 
 ## Choosing a project and conversation
 
 The top of the sidebar has **New thread** (**Ctrl+N**, or **Command+N** on
 macOS), which starts a new thread in the current project, and **Add
-project**, which asks for a folder to add. Below them, the sidebar has three
-sections:
+project**, which asks for a folder to add. Below them, **Projects** lists one
+group per project. Each group holds:
 
-- **Project boards**: one entry per project. Click it to open that
-  project's [board](./project-board.md) and project chat.
-- **Chats**: your conversations. Each entry shows its title and the project
-  or workspace it belongs to. A chat started for a board task shows the
-  task's number, such as **#12**.
-- **Done**: conversations you've marked as done (see below).
+- **Board** first, which opens that project's [board](./project-board.md)
+  and project chat. It shows how many tasks are in progress (blue) and in
+  review (amber).
+- Then the project's conversations, most recent first. Each is one line with
+  its title; a chat started for a board task starts with the task's number,
+  such as **#12**. Point at a chat to see its project, workspace (worktree
+  or primary checkout) and branch.
 
-The active entry is highlighted. Click a section's header to collapse or
-expand it. Each section collapses on its own, and the app remembers which
-ones you collapsed, including after a restart.
+Projects with no conversations, tasks or project chat yet are tucked behind
+**More projects** at the end of the list. Click a project's name to fold or
+unfold its group; the app remembers which groups you folded, including after
+a restart. The active entry is highlighted.
 
-Use the project menu at the top of the sidebar to switch between:
-
-- **All projects**, which shows conversations from every project.
-- An individual project, which shows only conversations for that project.
-
-The filter button next to it chooses how task chats are listed: mixed in
-with the rest, grouped at the top, or hidden.
+The filter button beside **Projects** chooses how task chats are listed:
+mixed in with the rest, grouped at the top of each project, or hidden.
 
 To add another project, click **Add project** and choose a folder. You can
 then open one of its existing conversations from the sidebar or start a new
 thread in that project with **New thread**.
 
-Conversations that you have marked as done appear in a separate **Done**
-section. You can expand that section to see the full list, reopen a completed
-conversation, or mark it as active again. To delete a conversation, open its
-context menu from the conversation entry.
+Conversations that you have marked as done move into the **Done** group at
+the bottom of the sidebar, which starts folded and shows how many there are.
+Open it to see the most recent ones (**Show all** lists the rest), and use a
+conversation's menu to mark it as not done. Each conversation has a **⋯**
+menu that appears when you point at it (or right-click it), with **Mark as
+done** and **Delete conversation**. **Settings** sits at the bottom of the
+sidebar.
 
 The sidebar can show activity while you are viewing another conversation. A
-working indicator means the agent is still processing that conversation; the
-time next to it is how long the current turn has been running. An
-approval indicator means that conversation is waiting for you to approve a
-requested action. Switch to it to review the request; see
+spinner means the agent is still processing that conversation; the time next
+to it is how long the current turn has been running. An amber dot means that
+conversation is waiting for you: pulsing to approve a requested action, or
+steady when the agent has asked you a question. Switch to it to answer; see
 [Permissions](./tools.md#why-permission-prompts-appear) for more about approvals.
 
 ## The chat area
