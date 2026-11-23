@@ -4,6 +4,7 @@ import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
+import TranscriptNotices from "./components/banners/TranscriptNotices";
 import ChatComposer from "./components/composer/ChatComposer";
 import NewThreadHero from "./components/empty-states/NewThreadHero";
 import ChatEntryList from "./components/messages/ChatEntryList";
@@ -93,6 +94,8 @@ export default function ChatPanel({
     entries,
     setEntries,
     historyLoaded,
+    historyError,
+    reloadHistory,
     usage,
     setUsage,
     sessionTitle,
@@ -302,19 +305,16 @@ export default function ChatPanel({
           <div className="relative flex-1 overflow-hidden">
             <ChatEntryList
               entries={entries}
-              chatError={chatError}
-              acpRestoreFailed={acpRestoreFailed}
-              onRetryAcpSession={retryAcpSession}
-              acpHistoryTruncated={acpHistoryTruncated}
-              acpAgentLabel={backendConfig?.label}
               systemPrompt={systemPrompt}
               historyLoaded={historyLoaded}
+              historyError={historyError}
+              onReloadHistory={reloadHistory}
               sending={sending}
               allowRetry={backend.caps.retry}
               turnDurations={turnDurations}
               replyStartedAt={replyStartedAt}
               onRetry={retry}
-              className={cn("justify-end", compact && "mx-0 max-w-none")}
+              isCompact={compact}
               bottomInset={composerHeight}
             />
           </div>
@@ -325,6 +325,15 @@ export default function ChatPanel({
           session={session}
           sending={sending}
           usage={usage}
+          notices={
+            <TranscriptNotices
+              chatError={chatError}
+              acpRestoreFailed={acpRestoreFailed}
+              onRetryAcpSession={retryAcpSession}
+              acpHistoryTruncated={acpHistoryTruncated}
+              acpAgentLabel={backendConfig?.label ?? null}
+            />
+          }
           claudeRateLimit={{
             rateLimit: claudeRateLimit,
             autoResumeArmed: claudeAutoResumeArmed,

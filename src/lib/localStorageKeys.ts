@@ -26,6 +26,8 @@ export const LS_KEYS = {
   // What a project's board view shows: "board", "chat", or "both" — see
   // `features/board/boardLayout.ts`.
   boardLayout: "ai-leash:boardLayout",
+  // The project chat's width when docked beside the board ("both").
+  projectChatWidth: "ai-leash:projectChatWidth",
   rightPanelWidth: "ai-leash:rightPanelWidth",
   // Per-session draft text — not a standalone key, see `chatDraftKey` in
   // `chatDraft.ts` for how a session id is appended to this.

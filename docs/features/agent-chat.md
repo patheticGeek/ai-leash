@@ -15,7 +15,7 @@ changing the other conversations.
 Open a project and type a request in the chat panel. Press **Send** or use
 the keyboard shortcut shown by the input: **Enter** sends and
 **Shift+Enter** inserts a new line. If you would rather write multi-line
-messages, turn on **Compose mode** in Settings > Preferences > Chat; then
+messages, turn on **Compose mode** in Settings > Chat; then
 **Enter** inserts a new line and **Ctrl+Enter** sends. The conversation is saved with the
 project and can be reopened from the project history; see
 [conversation history](./conversation-history.md).
@@ -35,24 +35,41 @@ in a shell language (such as `bash` or `sh`) also have an **Open in a new
 terminal** button, which opens a terminal tab with the command typed at the
 prompt but not run, so you can review or edit it first.
 
-Thinking and tool activity are collapsed by default so the conversation stays
-readable. Expand an activity group to inspect all of the steps, or expand an
-individual tool entry to see its inputs and output. A failed tool call is
-marked as failed and its output remains available for inspection.
+Thinking and tool activity are compact rows, so the conversation stays
+readable. Each row shows a status icon (a spinner while it runs, a check when
+done, a red mark when it failed), the tool's name and what it acted on — a
+file path, a command, a search. A run of consecutive steps collapses to its
+latest row plus a count; click it to list every step, labelled with how many
+thoughts and tools it holds. Click a single row to open its detail: the
+thought itself, or a tool's input and output. A failed tool call keeps its
+output (titled **Error**) available for inspection.
 
 Once a reply is complete, everything the agent did before its closing
 message — thinking, tool calls and any text in between — folds into a single
-**Worked for** row showing how long the turn took, so only your message and
-the agent's final summary stay on show. Expand the row to see every step.
+**Worked for** row showing how long the turn took and what it did ("1
+thought, 4 tools used"), so only your message and the agent's final summary
+stay on show. Click the row to see every step, grouped as it was while the
+agent worked.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
-Settings > Preferences > Chat.
+Settings > Chat.
 
+Your messages are bubbles on the right; the agent's replies have no avatar
+and use the transcript's full width, lined up with its tool rows. The
+transcript is a centred column (it uses the whole width in a narrow panel).
 Every message has a timestamp and a copy button. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
-there is no **Worked for** row above it already showing that. The
-timing stays accurate if you switch to another conversation while the agent
-works.
+there is no **Worked for** row above it already showing that. While the agent
+works, the end of its reply shows a spinner with **Working for** and the
+elapsed time (**Waiting** until it produces anything). The timing stays
+accurate if you switch to another conversation while the agent works.
+
+Notes another chat left, and local notices such as **Conversation
+compacted**, appear as centred one-line system messages with an icon; click
+**Show** to read the whole note. An empty conversation (for example after
+`/clear`) says so; while a saved conversation loads, the transcript shows
+placeholder rows in the shape of messages, and if it can't be read, it says
+what failed and offers **Try again** (nothing is deleted).
 
 The transcript follows new output while you are at the bottom. Scroll up to
 read earlier messages and it stops following; a **Latest** button appears to
@@ -116,17 +133,20 @@ The built-in agent can use either:
   Settings says so and the key is stored unencrypted in the app's settings
   file instead.
 
-Open Settings from the gear button. Use the provider section to change the
-Ollama host or add, edit, remove, and activate saved OpenAI-compatible
-configurations. Provider settings are used by the conversations that select
+Open Settings from the gear button and select **Agents**. External ACP agents
+and the built-in providers are listed in two groups, one row each, with the
+default agent marked **Default**. Use a row's **⋯** menu to **Make default**,
+**Edit** (for example the Ollama host or an API's base URL, key and model) or
+**Delete** it, and **Add an agent** to add an ACP agent, an Ollama server or an
+OpenAI-compatible API. Provider settings are used by the conversations that select
 that provider; the model or provider selection itself is still
 conversation-specific.
 
-Every provider and external agent card in **Settings > Agents** has a checkbox
-to turn it off. A turned-off card stays saved, but it is hidden from the chat
+Every provider and external agent row in **Settings > Agents** has a switch
+to turn it off. A turned-off agent stays saved, but it is hidden from the chat
 bar picker, skipped by the background connection check and model discovery,
 and cannot be the default for new conversations (the default moves to the
-next enabled card). Turn it back on at any time. A conversation that already
+next enabled agent). Turn it back on at any time. A conversation that already
 uses a turned-off backend keeps it selected, but sending is blocked (a notice
 explains why, and queued messages are dropped) until you turn it back on or
 pick another agent from the chat bar.
@@ -171,8 +191,9 @@ You can switch a conversation from one external agent to another, or to the
 built-in agent, at any time. While the new agent connects, the picker shows a
 spinner and applies the model you chose once the agent is ready. An external
 agent can only resume its own earlier sessions, so after switching to a
-different one, the transcript shows a notice that the agent doesn't support
-resuming a previous session and can't see the conversation's earlier history.
+different one, a warning above the message box says that the agent doesn't
+support resuming a previous session and can't see the conversation's earlier
+history.
 The messages stay visible for you; they are just not part of what the new
 agent knows.
 
@@ -249,11 +270,13 @@ Sub-agents:
 - Return their final result to the main agent, which can then react to it
   automatically.
 
-When a sub-agent is started, its work appears nested under the corresponding
-agent activity entry. Each task has its own labeled thread, and multiple
-threads can run at once. Expand the entry to follow a sub-agent's thinking,
-tool activity, and result. You can also open a sub-agent's full transcript
-from the Sub Agents view; see [the UI shell guide](./ui-shell.md).
+When a sub-agent is started, the `spawn_sub_agent` row says how many it
+started. Open the row to see one line per sub-agent: whether it is running,
+finished or failed, its task, model, how long it ran and its latest step, and
+a button that opens its full transcript in a tab. Multiple sub-agents can run
+at once. You can also open a sub-agent's transcript from the Sub Agents view;
+see [the UI shell guide](./ui-shell.md). The sub-agent's tab shows its status,
+task and model above the same transcript a conversation uses.
 
 The main conversation may briefly show a background activity indicator again
 when a sub-agent finishes and the main agent processes its result. This is an
@@ -388,6 +411,13 @@ previous session, AI Leash offers **Start new session**; this reconnects it
 with a fresh agent-side session while retaining the visible saved transcript
 for reference.
 
+A conversation's errors and warnings — a provider or agent error, a session
+that couldn't be restored, earlier history not shared with the agent — appear
+as banners in the stack directly above the message box, not over the
+transcript, so they stay next to the message they affect and never cover
+messages as you scroll. Errors come first, then warnings, then the stack's
+other notices.
+
 ## Conversation display and persistence
 
 The panel keeps the visible transcript synchronized while a response is
@@ -395,8 +425,9 @@ streaming and restores saved messages when you reopen a project. A
 conversation receives a fallback title from its first request; an external
 agent may later provide a more descriptive title.
 
-The system context used for the conversation can be expanded from the
-transcript when available. It includes applicable project instructions,
+The system context used for the conversation can be opened from the
+**System prompt** line at the top of the transcript (click **Show**) when
+available. It includes applicable project instructions,
 memory, and skills, and is refreshed for subsequent requests so changes to
 those resources can take effect without opening a new conversation. See
 [context and memory](./context-and-memory.md) for details.

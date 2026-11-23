@@ -1,33 +1,16 @@
-import { Button } from "@astryxdesign/core/Button";
-import { HStack } from "@astryxdesign/core/HStack";
-import { StackItem } from "@astryxdesign/core/Stack";
+// The crash log: one row with Refresh / Copy / Clear, the log itself in a
+// wrapped CodeBlock under it (or a compact empty state).
+import { CodeBlock } from "@astryxdesign/core/CodeBlock";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
-import {
-  colorVars,
-  radiusVars,
-  spacingVars,
-  typographyVars,
-} from "@astryxdesign/core/theme/tokens.stylex";
-import { VStack } from "@astryxdesign/core/VStack";
-import * as stylex from "@stylexjs/stylex";
-import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, CircleAlert, Copy, RefreshCw, Trash2 } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { api } from "../../../lib/tauriApi";
-import { Hint, SectionHeading } from "./SettingsParts";
-
-const styles = stylex.create({
-  // The log itself: a sunken, scrolling, selectable monospace block that
-  // keeps the log's own line breaks.
-  log: {
-    backgroundColor: colorVars["--color-background-body"],
-    borderRadius: radiusVars["--radius-element"],
-    padding: spacingVars["--spacing-3"],
-    fontFamily: typographyVars["--font-family-code"],
-    whiteSpace: "pre-wrap",
-    userSelect: "text",
-  },
-});
+import { SettingsCard, SettingsRow } from "../SettingsCard";
 
 export default function CrashLogTab() {
   const [log, setLog] = useState<string | null>(null);
@@ -46,47 +29,77 @@ export default function CrashLogTab() {
     setLog("");
   }
 
+  let detail: ReactNode;
+  if (log === null) {
+    detail = (
+      <Text type="supporting" color="secondary">
+        Loading…
+      </Text>
+    );
+  } else if (log === "") {
+    detail = (
+      <EmptyState
+        isCompact
+        icon={<Icon icon={Check} color="secondary" />}
+        title="No crashes logged"
+        description="Anything that goes wrong shows up here, including crashes from earlier runs."
+      />
+    );
+  } else {
+    detail = (
+      <CodeBlock
+        code={log}
+        language="plaintext"
+        width="100%"
+        size="sm"
+        maxHeight={480}
+        hasCopyButton={false}
+        hasLanguageLabel={false}
+        isWrapped
+      />
+    );
+  }
+
   return (
-    <VStack gap={3} height="100%">
-      <HStack justify="between" vAlign="center" gap={2}>
-        <SectionHeading>Crash log</SectionHeading>
-        <HStack gap={2}>
-          <Button
-            variant="secondary"
-            size="sm"
-            label="Refresh"
-            icon={<RefreshCw size={13} />}
-            onClick={refresh}
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            label={copied ? "Copied" : "Copy"}
-            icon={copied ? <Check size={13} /> : <Copy size={13} />}
-            onClick={() => log && copy(log)}
-            isDisabled={!log}
-          />
-          <Button
-            variant="destructive"
-            size="sm"
-            label="Clear"
-            icon={<Trash2 size={13} />}
-            onClick={clear}
-            isDisabled={!log}
-          />
-        </HStack>
-      </HStack>
-      <Hint>
-        Backend panics and frontend errors (uncaught exceptions, unhandled
-        promise rejections, React crashes) are appended here as they happen —
-        including ones from a previous run, so you can find out what happened
-        after restarting the app.
-      </Hint>
-      <StackItem size="fill" isScrollable xstyle={styles.log}>
-        <Text type="code" color="secondary">
-          {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
-        </Text>
-      </StackItem>
+    <VStack gap={5}>
+      <SettingsCard title="Crash log">
+        <SettingsRow
+          title="Recorded crashes"
+          icon={CircleAlert}
+          description="Backend panics and frontend errors (uncaught exceptions, unhandled promise rejections, React crashes), appended as they happen and kept across restarts."
+          control={
+            <HStack gap={1}>
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Refresh"
+                tooltip="Refresh"
+                icon={<Icon icon={RefreshCw} size="sm" />}
+                onClick={refresh}
+              />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label={copied ? "Copied" : "Copy"}
+                tooltip={copied ? "Copied" : "Copy"}
+                icon={<Icon icon={copied ? Check : Copy} size="sm" />}
+                onClick={() => log && copy(log)}
+                isDisabled={!log}
+              />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Clear"
+                tooltip="Clear"
+                icon={<Icon icon={Trash2} size="sm" />}
+                onClick={clear}
+                isDisabled={!log}
+              />
+            </HStack>
+          }
+          detail={detail}
+        />
+      </SettingsCard>
     </VStack>
   );
 }

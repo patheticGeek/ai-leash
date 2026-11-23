@@ -1,15 +1,18 @@
+import { BreadcrumbItem, Breadcrumbs } from "@astryxdesign/core/Breadcrumbs";
+import { Divider } from "@astryxdesign/core/Divider";
 import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { SideNavCollapseButton } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
+import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { TopNav } from "@astryxdesign/core/TopNav";
-import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open } from "@tauri-apps/plugin-dialog";
-import { Bug, Copy, Minus, Square, SquarePen, X } from "lucide-react";
+import { Bug, Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
@@ -17,41 +20,24 @@ import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
-import Logo from "../ui/Logo";
 import OpenInIdeButton from "./OpenInIdeButton";
+import type { SidebarCollapse } from "./sidebarCollapse";
 import TitleBarActions from "./TitleBarActions";
 
-export const TITLEBAR_HEIGHT = 36;
+// The Toolbar's `md` height: where the floating debug panel stops when
+// dragged up, so it never covers the window controls.
+export const TITLEBAR_HEIGHT = 44;
 
 const styles = stylex.create({
-  nav: { padding: 0, flexWrap: "nowrap", height: TITLEBAR_HEIGHT },
-  // The full window width: a definite size, since the heading slot it sits
-  // in otherwise shrinks to its content.
-  bar: { width: "100vw", height: TITLEBAR_HEIGHT },
-  fullHeight: { height: "100%" },
-  // The corners above the sidebar and the side panel, sized to match them.
-  fixedRegion: { flexShrink: 0 },
-  // Above the centre pane, so it takes the centre's colour.
-  middle: {
-    flex: 1,
-    minWidth: 0,
-    height: "100%",
-    backgroundColor: colorVars["--color-background-body"],
+  // The divider between control groups, copied from the kanban-board
+  // template's toolbar.
+  toolbarDivider: {
+    height: "auto",
+    marginBlock: spacingVars["--spacing-1"],
+    alignSelf: "stretch",
   },
-  actions: { flexShrink: 0, marginInlineStart: "auto" },
-  // Window-chrome buttons fill the bar's height edge to edge, square-cornered.
-  windowButton: {
-    height: "100%",
-    width: spacingVars["--spacing-10"],
-    borderRadius: 0,
-  },
-  closeButton: {
-    backgroundColor: { default: null, ":hover": colorVars["--color-error"] },
-    color: { default: null, ":hover": colorVars["--color-on-error"] },
-  },
-  debugButton: {
-    color: colorVars["--color-text-warning"],
-  },
+  // The breadcrumb takes what the controls leave and truncates.
+  start: { minWidth: 0 },
 });
 
 // `getCurrentWindow()` reads `window.__TAURI_INTERNALS__` synchronously and
@@ -84,59 +70,92 @@ function WindowControls() {
   }, []);
 
   return (
-    <HStack align="center" xstyle={styles.fullHeight}>
+    <>
+      <Divider
+        variant="strong"
+        orientation="vertical"
+        xstyle={styles.toolbarDivider}
+      />
       <IconButton
         variant="ghost"
         size="sm"
         label="Minimize"
-        tooltip="Minimize"
-        icon={<Minus size={14} />}
-        xstyle={styles.windowButton}
+        icon={<Icon icon={Minus} size="sm" />}
         onClick={() => tauriWindow()?.minimize()}
       />
       <IconButton
         variant="ghost"
         size="sm"
         label={maximized ? "Restore" : "Maximize"}
-        tooltip={maximized ? "Restore" : "Maximize"}
-        icon={maximized ? <Copy size={12} /> : <Square size={12} />}
-        xstyle={styles.windowButton}
+        icon={<Icon icon={maximized ? Copy : Square} size="sm" />}
         onClick={() => tauriWindow()?.toggleMaximize()}
       />
       <IconButton
         variant="ghost"
         size="sm"
-        label="Close"
-        tooltip="Close"
-        icon={<X size={14} />}
-        xstyle={[styles.windowButton, styles.closeButton]}
+        label="Close window"
+        icon={<Icon icon={X} size="sm" />}
         onClick={() => tauriWindow()?.close()}
       />
-    </HStack>
+    </>
   );
 }
 
-export default function TitleBar({
-  leftBarWidth,
-  rightPanelWidth,
-}: {
-  leftBarWidth: number;
-  // Null while there's no side panel (the board): its corner then just
-  // fits the window controls.
-  rightPanelWidth: number | null;
-}) {
+// The project id / conversation id / ACP session id line debug mode shows in
+// place of the breadcrumb.
+function DebugIds() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const projectId = useAppStore((s) => s.projectId);
+  const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const debugEvents = useAppStore((s) => s.debugEvents);
+  // Only meaningful once debug mode has captured at least one
+  // `session/new`/`session/load` event for this conversation — see
+  // `latestAcpSessionId`'s doc comment for why this can't just be read off
+  // app state directly.
+  const acpSessionId = latestAcpSessionId(debugEvents, activeSessionId);
+  return (
+    // The project root is the tooltip rather than the line itself:
+    // `projectId` is the project's real identity (it survives the folder
+    // being moved or renamed), but the path is what makes it recognizable
+    // at a glance.
+    <Tooltip
+      hasHoverIndication={false}
+      content={
+        <VStack>
+          <Text>project id / conversation id / session id</Text>
+          <Text>{projectRoot ?? "no project"}</Text>
+        </VStack>
+      }
+    >
+      <Text type="code" size="2xs" color="disabled" maxLines={1}>
+        {projectId ?? "—"} / {activeSessionId ?? "—"} / {acpSessionId ?? "—"}
+      </Text>
+    </Tooltip>
+  );
+}
+
+// The window's title bar: the main region's pinned header (a Toolbar, since
+// it carries controls), not a TopNav — the sidebar runs the full window
+// height as in the shell-side-nav template, and this bar spans only the
+// centre and the side panel. Start: a one-line breadcrumb, `project / chat
+// title`, `project / Board` or `project / New thread`, led by the sidebar's
+// expand toggle while it's collapsed. End: Open in external editor and the
+// Actions split button (on a board, its layout switch instead), then the
+// window controls.
+export default function TitleBar({
+  sidebarCollapse,
+}: {
+  sidebarCollapse: SidebarCollapse;
+}) {
+  const projectRoot = useAppStore((s) => s.projectRoot);
   const recentProjects = useAppStore((s) => s.recentProjects);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const conversations = useConversations();
   const chatTabs = useAppStore((s) => s.chatTabs);
   const activeChatTabId = useAppStore((s) => s.activeChatTabId);
-  const startNewConversation = useAppStore((s) => s.startNewConversation);
-  const addProject = useAppStore((s) => s.addProject);
+  const openProjectBoard = useAppStore((s) => s.openProjectBoard);
   const debugShowIds = usePreference("debugShowIds");
   const debugModeEnabled = usePreference("debugModeEnabled");
-  const debugEvents = useAppStore((s) => s.debugEvents);
   const debugPanelOpen = useAppStore((s) => s.debugPanelOpen);
   const setDebugPanelOpen = useAppStore((s) => s.setDebugPanelOpen);
 
@@ -149,148 +168,79 @@ export default function TitleBar({
   // `isNewThread`.
   const isNewThread = useAppStore((s) => s.draft !== null);
   const activeChatTab = chatTabs.find((t) => t.id === activeChatTabId);
-  const conversationTitle =
-    activeChatTab?.kind === "subagent"
-      ? activeChatTab.label
-      : activeConversation?.role === "project"
-        ? "Board"
+  const pageTitle = isNewThread
+    ? "New thread"
+    : boardView
+      ? "Board"
+      : activeChatTab?.kind === "subagent"
+        ? activeChatTab.label
         : activeConversation?.title;
-  // Only meaningful once debug mode has captured at least one
-  // `session/new`/`session/load` event for this conversation — see
-  // `latestAcpSessionId`'s doc comment for why this can't just be read off
-  // app state directly.
-  const acpSessionId = debugShowIds
-    ? latestAcpSessionId(debugEvents, activeSessionId)
-    : undefined;
 
-  // Starts a fresh thread directly in whatever project is currently open —
-  // no project picker here (see `NewThreadHero.tsx`'s "What are we working on
-  // in {project}?" heading for changing *which* project a still-fresh new
-  // thread targets instead). Falls back to the native folder picker only
-  // when no project has ever been opened yet, since there's nothing to
-  // start a thread in otherwise.
-  async function onNewThread() {
-    if (projectRoot) {
-      startNewConversation(projectRoot);
-      return;
-    }
-    const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") {
-      await addProject(dir);
-    }
-  }
+  const debugLabel = debugPanelOpen ? "Close ACP Events" : "Open ACP Events";
 
   return (
-    <TopNav
+    <Toolbar
       label="Title bar"
+      dividers={["bottom"]}
       // `deep`: a press anywhere in the bar drags the window, except on its
       // buttons and other controls (Tauri's drag script skips those).
       data-tauri-drag-region="deep"
-      xstyle={styles.nav}
-      heading={
-        // The whole bar sits in the heading slot so its three regions can
-        // line up with the panes below: TopNav's own start/end slots size to
-        // their content and wrap, which would neither track the pane widths
-        // nor let the title truncate.
-        <HStack align="center" xstyle={styles.bar}>
-          <HStack
-            align="center"
-            hAlign="between"
-            width={leftBarWidth}
-            paddingInlineStart={3}
-            paddingInlineEnd={1.5}
-            xstyle={styles.fixedRegion}
-          >
-            <HStack align="center" gap={1.5}>
-              <Logo size="sm" />
-              {BUILD_LABEL && (
-                <Token size="sm" color="orange" label={BUILD_LABEL} />
-              )}
-            </HStack>
+      startContent={
+        <HStack align="center" gap={2} xstyle={styles.start}>
+          {sidebarCollapse.isCollapsed && (
+            <SideNavCollapseButton
+              collapsible={sidebarCollapse}
+              size="sm"
+              label="Expand sidebar"
+            />
+          )}
+          {debugShowIds ? (
+            <DebugIds />
+          ) : (
+            project && (
+              <Breadcrumbs label="Location">
+                {/* The project crumb opens the project's board. */}
+                <BreadcrumbItem
+                  isCurrent={!pageTitle}
+                  onClick={() => void openProjectBoard(project.path)}
+                >
+                  {project.name}
+                </BreadcrumbItem>
+                {pageTitle && (
+                  <BreadcrumbItem isCurrent>{pageTitle}</BreadcrumbItem>
+                )}
+              </Breadcrumbs>
+            )
+          )}
+          {BUILD_LABEL && (
+            <Token size="sm" color="orange" label={BUILD_LABEL} />
+          )}
+        </HStack>
+      }
+      endContent={
+        <>
+          {/* A project's board has no checkout of its own to open or run
+              Actions in — just its layout switch. */}
+          {boardView ? (
+            <BoardLayoutSwitch />
+          ) : (
+            <>
+              <OpenInIdeButton />
+              <TitleBarActions />
+            </>
+          )}
+          {debugModeEnabled && (
             <IconButton
               variant="ghost"
-              size="lg"
-              label="New thread"
-              tooltip="Start a new thread in the current project"
-              icon={<SquarePen size={17} />}
-              onClick={onNewThread}
+              size="sm"
+              label={debugLabel}
+              tooltip={debugLabel}
+              icon={<Icon icon={Bug} size="sm" color="warning" />}
+              onClick={() => setDebugPanelOpen(!debugPanelOpen)}
             />
-          </HStack>
-          <HStack align="center" paddingInline={3} xstyle={styles.middle}>
-            {project && !debugShowIds && (
-              <Text size="sm" color="secondary" maxLines={1}>
-                {project.name}
-                {isNewThread ? (
-                  <Text color="disabled"> / New Thread</Text>
-                ) : (
-                  conversationTitle && (
-                    <Text color="disabled"> / {conversationTitle}</Text>
-                  )
-                )}
-              </Text>
-            )}
-            {debugShowIds && (
-              // The project root is the tooltip rather than the line itself:
-              // `projectId` is the project's real identity (it survives the
-              // folder being moved or renamed), but the path is what makes
-              // it recognizable at a glance.
-              <Tooltip
-                hasHoverIndication={false}
-                content={
-                  <VStack>
-                    <Text>project id / conversation id / session id</Text>
-                    <Text>{projectRoot ?? "no project"}</Text>
-                  </VStack>
-                }
-              >
-                <Text type="code" size="2xs" color="disabled" maxLines={1}>
-                  {projectId ?? "—"} / {activeSessionId ?? "—"} /{" "}
-                  {acpSessionId ?? "—"}
-                </Text>
-              </Tooltip>
-            )}
-            <HStack
-              align="center"
-              gap={1.5}
-              paddingInlineStart={3}
-              xstyle={styles.actions}
-            >
-              {/* A project's board has no checkout of its own to open or run
-                  Actions in — just its layout switch. */}
-              {boardView ? (
-                <BoardLayoutSwitch />
-              ) : (
-                <>
-                  <OpenInIdeButton />
-                  <TitleBarActions />
-                </>
-              )}
-            </HStack>
-          </HStack>
-          <HStack
-            align="center"
-            hAlign="end"
-            // Null while there's no side panel (the board): the corner then
-            // just fits the window controls.
-            width={rightPanelWidth ?? undefined}
-            xstyle={[styles.fixedRegion, styles.fullHeight]}
-          >
-            {debugModeEnabled && (
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label={debugPanelOpen ? "Close ACP Events" : "Open ACP Events"}
-                tooltip={
-                  debugPanelOpen ? "Close ACP Events" : "Open ACP Events"
-                }
-                icon={<Bug size={15} />}
-                onClick={() => setDebugPanelOpen(!debugPanelOpen)}
-                xstyle={[styles.windowButton, styles.debugButton]}
-              />
-            )}
-            <WindowControls />
-          </HStack>
-        </HStack>
+          )}
+          <WindowControls />
+        </>
       }
     />
   );

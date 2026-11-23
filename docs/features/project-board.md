@@ -16,9 +16,10 @@ checkout, so it has no worktree or branch picker.
 
 The title bar's **Open** and Actions buttons are hidden here. Switch
 between **Board**, **Both** and **Chat** in the title bar to see
-just the board, the board with the chat docked on its right (a third of
-the width by default; drag the divider to resize it), or just the chat.
-The choice is remembered.
+just the board, the board with the chat docked on its right (380px wide
+by default; drag the divider to resize it, between 300 and 560px), or
+just the chat. The choice and the chat's width are remembered. With the
+chat docked, the columns keep their width and the board scrolls sideways.
 
 ## Columns
 
@@ -30,12 +31,19 @@ Tasks move left to right through five columns:
 - **Review**: work that's finished and waiting for you to check it.
 - **Done**: finished work.
 
-**Done** is hidden by default, since it keeps growing. Click **Show done**
-in the toolbar to see it; the number next to it is how many tasks are done.
-It shows tasks finished in the last 30 days, with a **Load older** button
-for the rest.
+Each column's header has a status dot, the column's name, an ⓘ that says
+what the column is for, how many tasks it holds, and a **+** that adds a
+task straight into it. An empty column says so.
+
+**Done** is hidden by default, since it keeps growing. Turn on **Show
+done** (the ✓ toggle in the toolbar; its tooltip says how many tasks are
+done) to see it. It shows tasks finished in the last 30 days, with a
+**Load N older** button at the bottom of the column for the rest.
 
 Drag a card to reorder it within a column or to move it to another one.
+While you drag, the card follows the pointer and a dashed placeholder
+marks where it came from. A card's **⋯** menu can also move it to any
+other column.
 
 ## Tasks
 
@@ -55,9 +63,12 @@ add a task. A task has:
 Each task also gets a short number, such as **#12**, that stays with it.
 Numbers aren't reused, even after a task is deleted.
 
-Click a card to edit it or delete it. A card shows its number, priority,
-effort and epic, and a spinner with the elapsed time while its chat is
-working.
+Click a card to edit it or delete it (or focus it and press Enter). A
+card shows its number and effort (**#12 · M**), a priority badge, its
+title, its epic, and at the bottom right what's going on with it: a
+**Start** button if it hasn't been started, the elapsed time and a
+pulsing dot while its chat is working, and a chat button once it has a
+chat.
 
 ## Planning by chatting
 
@@ -71,7 +82,7 @@ to use.
 
 ## Starting a task
 
-Hover a card that hasn't been started and click its **▶ Start** button.
+Click the **▶ Start** button on a card that hasn't been started.
 Pick the agent, model, thinking level and permission its chat should
 use — filled in from the task's own agent settings, else the board's —
 whether the project chat follows it (see
@@ -152,7 +163,7 @@ other branch, AI Leash lists them and asks before removing it. Choose
 
 ## Board settings
 
-The gear in the board's toolbar opens its settings. Set the agent, model,
+The settings button in the board's toolbar opens its settings. Set the agent, model,
 thinking level and permission the board's tasks start with when they
 don't pick their own. Anything left at **Default** uses the app's default
 agent (Settings > Agents) with the model last used on it.
@@ -163,9 +174,40 @@ Epics group related tasks. Click **Epics** in the toolbar to add, rename,
 recolour, archive or delete them. Deleting an epic keeps its tasks; they
 just have no epic afterwards. Archived epics can't be picked for new tasks.
 
-Use the epic menu at the left of the toolbar to show one epic's tasks, or
-only tasks with no epic. **Group by epic** splits the board into one row
-per epic; dragging a card into another epic's row moves it to that epic.
+Use the epic menu in the toolbar to show one epic's tasks, or only tasks
+with no epic. **Group by epic** (the toggle next to it) splits the board
+into one row per epic, plus **No epic**, under one shared row of column
+headers. Each row's epic name and task count sit in a column on the left
+that stays pinned while you scroll the board sideways, and the column
+headers stay pinned while you scroll down. Cards in a row don't repeat
+the epic's name. Dragging a card into another epic's row moves it to that
+epic.
+
+## How it's built
+
+The board is the Astryx `kanban-board` template (`BoardView.tsx`): a
+`LayoutHeader` + `Toolbar` (title and count `Badge`, epic `Selector`,
+`ToggleButton`s for Group by epic and Show done, Epics, board settings,
+New task), then fixed-width (260px) muted column `Card`s in a row that
+scrolls sideways. Cards (`TaskCard.tsx`) are `Card`s with a priority
+`Badge`, a `Heading` title, an epic `Token` (`TaskMeta.tsx` maps the
+epic's stored hex colour onto a Token colour) and a `MoreMenu`. Swimlanes
+are one CSS grid — a lane-label column plus one column per status — whose
+header row is `position: sticky; top: 0` and whose label column is
+`position: sticky; left: 0` inside the scroller; the scroller itself has
+no padding, so the sticky cells pin flush to its edge and carry the
+gutter inside them.
+
+Drag and drop is still dnd-kit (`PointerSensor` with a 6px threshold, so
+a click still opens the card; `closestCorners`; one `SortableContext`
+per column or lane cell). The card being dragged stays in place as the
+template's ghost, and `DragOverlay` shows a copy on `elevation="high"`.
+
+`ProjectBoardView.tsx` docks the project chat with the ide template's
+split: an Astryx `Layout` whose `end` is a `ResizeHandle` + `LayoutPanel`
+sized by `useResizableWidth` (`LS_KEYS.projectChatWidth`). Switching
+layouts remounts the chat; its draft (`chatDraft.ts`) and any running
+turn (the backend) live outside it, so nothing is lost.
 
 ## In the sidebar
 

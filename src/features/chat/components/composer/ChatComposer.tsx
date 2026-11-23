@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,9 @@ interface ChatComposerProps {
     onDismiss: () => void;
   };
   checkout: CheckoutBarProps;
+  // Conversation notices (`TranscriptNotices`) shown first in the banner
+  // stack, above its own strips.
+  notices?: ReactNode;
   // A narrow column (see `ChatPanel`'s `compact`): full width of it, with
   // a flush message box.
   compact: boolean;
@@ -72,6 +75,7 @@ export default function ChatComposer({
   usage,
   claudeRateLimit,
   checkout,
+  notices,
   compact,
   showCheckout,
   onSubmit,
@@ -241,6 +245,7 @@ export default function ChatComposer({
       className={cn("w-full", floating && "absolute bottom-0")}
     >
       <div className={cn(compact ? "mt-3" : "mx-auto my-3 max-w-4xl")}>
+        {notices}
         <TaskLinkBanner sessionId={sessionId} />
         <ChatBanners
           helpOpen={helpOpen}

@@ -14,7 +14,6 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type ReactNode, useState } from "react";
-import { cn } from "@/lib/utils";
 import { type TabArea, useAppStore, type WorkspaceTab } from "../../store";
 import { tabAreaOf } from "../../store/panelSlice";
 
@@ -119,23 +118,20 @@ export function useTabDropArea(area: TabArea) {
   return useDroppable({ id: areaDropId(area) }).setNodeRef;
 }
 
-export function SortableTab({
-  id,
-  children,
-}: {
-  id: string;
-  children: ReactNode;
-}) {
+// Makes a tab draggable within its strip and into the other area. Spread the
+// result straight onto the `Tab` (it forwards its ref, style and pointer
+// handlers to its button), so no wrapper sits between the TabList and its
+// tabs. Only the pointer listener: the strip's own arrow-key handling stays
+// the keyboard path, and the tab keeps TabList's roving tab stop.
+export function useSortableTab(id: string) {
   const { setNodeRef, listeners, transform, transition, isDragging } =
     useSortable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("relative shrink-0", isDragging && "opacity-40")}
-      {...listeners}
-    >
-      {children}
-    </div>
-  );
+  return {
+    ref: setNodeRef,
+    // dnd-kit positions the tab while it's dragged; there's no token for a
+    // live pointer offset.
+    style: { transform: CSS.Translate.toString(transform), transition },
+    ...listeners,
+    isDragging,
+  };
 }
