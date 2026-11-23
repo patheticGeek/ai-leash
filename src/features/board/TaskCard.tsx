@@ -1,14 +1,57 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
+import { HStack, StackItem, VStack } from "@astryxdesign/core/Stack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import {
+  borderVars,
+  colorVars,
+  radiusVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bot, Loader, MessageSquare, Play } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
-import { cn, revealOnGroupHover } from "@/lib/utils";
-import { useBackends } from "../../data/backends";
+import * as stylex from "@stylexjs/stylex";
+import { MessageSquare, Play } from "lucide-react";
+import { useEffect, useState } from "react";
+import { STATUS_LABELS, TASK_STATUSES } from "../../data/board";
 import { formatDuration } from "../../lib/format";
 import { useGenerating } from "../../lib/generatingQuery";
-import type { Epic, Task } from "../../lib/tauriApi";
-import { EffortBadge, EpicChip, PriorityIcon } from "./TaskMeta";
+import type { Epic, Task, TaskStatus } from "../../lib/tauriApi";
+import { EpicToken, PriorityBadge } from "./TaskMeta";
+
+const styles = stylex.create({
+  // The kanban-board template's card: grab cursor, lifts on hover.
+  card: {
+    cursor: "grab",
+    userSelect: "none",
+    touchAction: "none",
+    transition: "box-shadow 120ms ease",
+    ":hover": { boxShadow: "var(--shadow-med)" },
+  },
+  sortable: (
+    transform: string | undefined,
+    transition: string | undefined,
+  ) => ({
+    transform: transform ?? null,
+    transition: transition ?? null,
+  }),
+  // The card being carried leaves the template's ghost behind: muted fill,
+  // container radius, and (inside a muted column) a dashed edge for contrast.
+  ghost: {
+    cursor: "grabbing",
+    boxShadow: "none",
+    backgroundColor: colorVars["--color-background-muted"],
+    borderRadius: radiusVars["--radius-container"],
+    borderWidth: borderVars["--border-width"],
+    borderStyle: "dashed",
+    borderColor: colorVars["--color-border-emphasized"],
+  },
+  hidden: { visibility: "hidden" },
+  // The floating clone under the pointer (`DragOverlay`).
+  floating: { cursor: "grabbing" },
+});
 
 // Ticks once a second while the task's chat has a turn running.
 function Elapsed({ startedAtMs }: { startedAtMs: number }) {
@@ -18,144 +61,194 @@ function Elapsed({ startedAtMs }: { startedAtMs: number }) {
     return () => clearInterval(interval);
   }, []);
   return (
-    <span className="tabular-nums">
+    <Text type="supporting" color="secondary" hasTabularNumbers>
       {formatDuration((now - startedAtMs) / 1000)}
-    </span>
+    </Text>
   );
 }
 
-// What a card shows, without any drag behaviour — also the drag overlay.
-export function TaskCardBody({
+export interface TaskCardHandlers {
+  onOpen: (task: Task) => void;
+  onStart: (task: Task) => void;
+  onOpenChat: (task: Task) => void;
+  onMove: (task: Task, status: TaskStatus) => void;
+}
+
+// The card's live state, bottom-end: elapsed + a pulsing dot while its chat
+// is working, the open-chat button once it has a chat, else Start.
+function CardAction({
   task,
-  epic,
-  dragging = false,
-  actions,
+  handlers,
 }: {
   task: Task;
-  epic: Epic | undefined;
-  dragging?: boolean;
-  // Buttons at the end of the card's bottom row.
-  actions?: ReactNode;
+  handlers?: TaskCardHandlers;
 }) {
   const { active: generating, startedAtMs } = useGenerating(
     task.conversationId ?? "",
   );
-  const agentLabel = useBackends().find(
-    (b) => b.id === task.agent.backendId,
-  )?.label;
+  const startable = !task.conversationId && task.status !== "done";
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-1.5 rounded-md bg-raised px-3 py-2.5 text-left text-sm shadow-[0_0_0_1px_rgba(255,255,255,0.04)] transition-shadow group-hover:shadow-[0_0_0_1px_var(--primary)]",
-        dragging && "cursor-grabbing shadow-[0_0_0_1px_var(--primary)]",
-        task.status === "done" && "opacity-60",
+    <HStack gap={1.5} vAlign="center">
+      {generating && (
+        <>
+          {startedAtMs != null && <Elapsed startedAtMs={startedAtMs} />}
+          <StatusDot variant="accent" isPulsing label="Its chat is working" />
+        </>
       )}
-    >
-      <div className="flex items-start gap-1.5">
-        <span className="min-w-0 flex-1 break-words text-zinc-200">
-          {task.title}
-        </span>
-        {generating && (
-          <span
-            title="Working"
-            className="flex shrink-0 items-center gap-1 text-xs text-blue-400"
-          >
-            {startedAtMs != null && <Elapsed startedAtMs={startedAtMs} />}
-            <Loader size={12} className="animate-spin" />
-          </span>
-        )}
-      </div>
-      <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <span className="tabular-nums">#{task.number}</span>
-        <PriorityIcon priority={task.priority} />
-        {task.effort && <EffortBadge effort={task.effort} />}
-        {epic && <EpicChip epic={epic} />}
-        {agentLabel && (
-          <span
-            title={`Starts with ${agentLabel}${task.agent.model ? ` (${task.agent.model})` : ""}`}
-          >
-            <Bot className="size-3.5" />
-          </span>
-        )}
-        {actions && (
-          <span className="ml-auto flex shrink-0 items-center gap-0.5">
-            {actions}
-          </span>
-        )}
-      </div>
-    </div>
+      {task.conversationId && (
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Open its chat"
+          tooltip="Open its chat"
+          icon={<MessageSquare size={14} />}
+          onClick={() => handlers?.onOpenChat(task)}
+        />
+      )}
+      {startable && (
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Start"
+          tooltip="Give it a chat (and worktree) and get going"
+          icon={<Play size={14} />}
+          onClick={() => handlers?.onStart(task)}
+        />
+      )}
+    </HStack>
+  );
+}
+
+// What a card shows, without any drag behaviour — also the drag overlay.
+// `handlers` is left out for the overlay, whose buttons are never pressed.
+export function TaskCardBody({
+  task,
+  epic,
+  showEpic,
+  handlers,
+}: {
+  task: Task;
+  epic: Epic | undefined;
+  // Off in epic swimlanes, where the lane already names it.
+  showEpic: boolean;
+  handlers?: TaskCardHandlers;
+}) {
+  return (
+    <VStack gap={2}>
+      <HStack hAlign="between" vAlign="center">
+        <HStack gap={2} vAlign="center">
+          <Text type="supporting" color="secondary" hasTabularNumbers>
+            #{task.number}
+            {task.effort ? ` · ${task.effort.toUpperCase()}` : ""}
+          </Text>
+          <PriorityBadge priority={task.priority} />
+        </HStack>
+        <MoreMenu
+          label="Task actions"
+          size="sm"
+          alignment="end"
+          items={[
+            { label: "Open", onClick: () => handlers?.onOpen(task) },
+            ...(task.conversationId
+              ? [
+                  {
+                    label: "Open its chat",
+                    onClick: () => handlers?.onOpenChat(task),
+                  },
+                ]
+              : []),
+            { type: "divider" as const },
+            ...TASK_STATUSES.filter((s) => s !== task.status).map((s) => ({
+              label: `Move to ${STATUS_LABELS[s]}`,
+              onClick: () => handlers?.onMove(task, s),
+            })),
+          ]}
+        />
+      </HStack>
+      <Heading level={4} accessibilityLevel={3} maxLines={2}>
+        {task.title}
+      </Heading>
+      <HStack hAlign="between" vAlign="center" gap={2}>
+        {showEpic && epic ? <EpicToken epic={epic} /> : <StackItem />}
+        <CardAction task={task} handlers={handlers} />
+      </HStack>
+    </VStack>
+  );
+}
+
+// The floating card under the pointer while dragging, on --shadow-high.
+export function FloatingTaskCard({
+  task,
+  epic,
+  showEpic,
+  width,
+}: {
+  task: Task;
+  epic: Epic | undefined;
+  showEpic: boolean;
+  width: number;
+}) {
+  return (
+    <Card padding={3} elevation="high" width={width} xstyle={styles.floating}>
+      <TaskCardBody task={task} epic={epic} showEpic={showEpic} />
+    </Card>
   );
 }
 
 // A draggable card. `lane` is the swimlane it sits in (an epic id, "none",
 // or "all" when the board isn't grouped) — dropping it in another lane
-// changes its epic.
+// changes its epic. Clicking the card (not one of its buttons) opens it.
 export default function TaskCard({
   task,
   epic,
   lane,
-  onOpen,
-  onStart,
-  onOpenChat,
+  showEpic,
+  handlers,
 }: {
   task: Task;
   epic: Epic | undefined;
   lane: string;
-  onOpen: () => void;
-  onStart: () => void;
-  onOpenChat: () => void;
+  showEpic: boolean;
+  handlers: TaskCardHandlers;
 }) {
   const { setNodeRef, listeners, transform, transition, isDragging } =
     useSortable({
       id: task.id,
       data: { type: "task", lane, status: task.status },
     });
-  const startable = !task.conversationId && task.status !== "done";
+  const fromButton = (target: EventTarget) =>
+    target instanceof Element &&
+    target.closest("button, a, [role='menu'], [role='menuitem']") !== null;
   return (
-    <div
+    <Card
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("group relative touch-none", isDragging && "opacity-30")}
+      padding={3}
+      tabIndex={0}
+      aria-label={`#${task.number}: ${task.title}`}
+      xstyle={[
+        styles.card,
+        styles.sortable(CSS.Translate.toString(transform), transition),
+        isDragging && styles.ghost,
+      ]}
       {...listeners}
-    >
-      <TaskCardBody
-        task={task}
-        epic={epic}
-        actions={
-          <>
-            {startable && (
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label="Start"
-                tooltip="Start: give it a chat (and worktree) and get going"
-                icon={<Play size={14} />}
-                onClick={onStart}
-                className={cn("relative z-10", revealOnGroupHover)}
-              />
-            )}
-            {task.conversationId && (
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label="Open its chat"
-                tooltip="Open its chat"
-                icon={<MessageSquare size={14} />}
-                onClick={onOpenChat}
-                className="relative z-10"
-              />
-            )}
-          </>
+      onClick={(e) => {
+        if (!fromButton(e.target)) handlers.onOpen(task);
+      }}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && e.key === "Enter") {
+          e.preventDefault();
+          handlers.onOpen(task);
         }
-      />
-      {/* Covers the whole card under the action buttons, so the card itself
-          is one button for keyboard and screen readers. */}
-      <button
-        type="button"
-        onClick={onOpen}
-        title={`Edit #${task.number}`}
-        className="absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      />
-    </div>
+      }}
+    >
+      <VStack xstyle={isDragging && styles.hidden}>
+        <TaskCardBody
+          task={task}
+          epic={epic}
+          showEpic={showEpic}
+          handlers={handlers}
+        />
+      </VStack>
+    </Card>
   );
 }
