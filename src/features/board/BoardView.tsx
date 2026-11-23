@@ -4,6 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { Divider } from "@astryxdesign/core/Divider";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { InfoTip } from "@astryxdesign/core/InfoTip";
 import { Layout, LayoutContent, LayoutHeader } from "@astryxdesign/core/Layout";
@@ -220,7 +221,7 @@ function ColumnHeader({
           size="sm"
           label={`Add a task to ${title}`}
           tooltip={`Add a task to ${title}`}
-          icon={<Plus size={14} />}
+          icon={<Icon icon={Plus} size="sm" />}
           onClick={onAdd}
         />
       </HStack>
@@ -255,7 +256,6 @@ function CardList({
     data: { type: "column", lane, status },
   });
   const meta = COLUMN_META[status];
-  const EmptyIcon = meta.emptyIcon;
   return (
     <VStack
       ref={setNodeRef}
@@ -285,7 +285,7 @@ function CardList({
         <EmptyState
           isCompact
           xstyle={styles.columnEmptyState}
-          icon={<EmptyIcon size={24} />}
+          icon={<Icon icon={meta.emptyIcon} size="lg" color="secondary" />}
           title={meta.emptyTitle}
         />
       )}
@@ -481,34 +481,34 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                 isIconOnly
                 isPressed={groupByEpic}
                 onPressedChange={setGroupByEpic}
-                icon={<Rows3 size={16} />}
+                icon={<Icon icon={Rows3} size="sm" />}
               />
               <ToggleButton
                 label={`Show done (${doneCount})`}
                 isIconOnly
                 isPressed={showDone}
                 onPressedChange={setShowDone}
-                icon={<CircleCheck size={16} />}
+                icon={<Icon icon={CircleCheck} size="sm" />}
               />
               <IconButton
                 variant="ghost"
                 label="Epics"
                 tooltip="Epics"
-                icon={<Layers size={16} />}
+                icon={<Icon icon={Layers} size="sm" />}
                 onClick={() => setEpicsOpen(true)}
               />
               <IconButton
                 variant="ghost"
                 label="Board settings"
                 tooltip="Board settings"
-                icon={<Settings2 size={16} />}
+                icon={<Icon icon={Settings2} size="sm" />}
                 onClick={() => setSettingsOpen(true)}
               />
             </HStack>
             <Button
               variant="primary"
               label="New task"
-              icon={<Plus size={16} />}
+              icon={<Icon icon={Plus} size="sm" />}
               onClick={() =>
                 setEditing({
                   kind: "new",

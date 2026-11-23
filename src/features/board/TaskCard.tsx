@@ -1,5 +1,6 @@
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { HStack, StackItem, VStack } from "@astryxdesign/core/Stack";
@@ -101,7 +102,7 @@ function CardAction({
           size="sm"
           label="Open its chat"
           tooltip="Open its chat"
-          icon={<MessageSquare size={14} />}
+          icon={<Icon icon={MessageSquare} size="sm" />}
           onClick={() => handlers?.onOpenChat(task)}
         />
       )}
@@ -111,7 +112,7 @@ function CardAction({
           size="sm"
           label="Start"
           tooltip="Give it a chat (and worktree) and get going"
-          icon={<Play size={14} />}
+          icon={<Icon icon={Play} size="sm" />}
           onClick={() => handlers?.onStart(task)}
         />
       )}
