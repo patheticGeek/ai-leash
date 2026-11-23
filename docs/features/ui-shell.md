@@ -27,51 +27,53 @@ project tools such as files and terminals.
 ### Collapsing the sidebar
 
 The arrow button beside the logo at the top of the sidebar collapses it to a
-narrow strip of icons (New thread, Add project, Settings). While it's
-collapsed, the same button sits at the start of the title bar; click it to
-expand the sidebar again. The sidebar's width and whether it's collapsed are
-remembered, including after a restart. Drag the sidebar's edge to resize it.
+narrow strip of icons: New thread, Add project, a folder for each project,
+Done and Settings. Point at (or click) a project's folder to open a menu with
+its board and chats; Done works the same way. While it's collapsed, the same
+button sits at the start of the title bar; click it to expand the sidebar
+again. The sidebar's width and whether it's collapsed are remembered,
+including after a restart. Drag the sidebar's edge to resize it.
 
 ## Choosing a project and conversation
 
 The top of the sidebar has **New thread** (**Ctrl+N**, or **Command+N** on
 macOS), which starts a new thread in the current project, and **Add
-project**, which asks for a folder to add. Below them, the sidebar has three
-sections:
+project**, which asks for a folder to add. Below them, **Projects** lists one
+group per project. Each group holds:
 
-- **Project boards**: one entry per project. Click it to open that
-  project's [board](./project-board.md) and project chat.
-- **Chats**: your conversations. Each entry shows its title and the project
-  or workspace it belongs to. A chat started for a board task shows the
-  task's number, such as **#12**.
-- **Done**: conversations you've marked as done (see below).
+- **Board** first, which opens that project's [board](./project-board.md)
+  and project chat. It shows how many tasks are in progress (blue) and in
+  review (amber).
+- Then the project's conversations, most recent first. Each is one line with
+  its title; a chat started for a board task starts with the task's number,
+  such as **#12**. Point at a chat to see its project, workspace (worktree
+  or primary checkout) and branch.
 
-The active entry is highlighted. Click a section's header to collapse or
-expand it. Each section collapses on its own, and the app remembers which
-ones you collapsed, including after a restart.
+Projects with no conversations, tasks or project chat yet are tucked behind
+**More projects** at the end of the list. Click a project's name to fold or
+unfold its group; the app remembers which groups you folded, including after
+a restart. The active entry is highlighted.
 
-Use the project menu at the top of the sidebar to switch between:
-
-- **All projects**, which shows conversations from every project.
-- An individual project, which shows only conversations for that project.
-
-The filter button next to it chooses how task chats are listed: mixed in
-with the rest, grouped at the top, or hidden.
+The filter button beside **Projects** chooses how task chats are listed:
+mixed in with the rest, grouped at the top of each project, or hidden.
 
 To add another project, click **Add project** and choose a folder. You can
 then open one of its existing conversations from the sidebar or start a new
 thread in that project with **New thread**.
 
-Conversations that you have marked as done appear in a separate **Done**
-section. You can expand that section to see the full list, reopen a completed
-conversation, or mark it as active again. To delete a conversation, open its
-context menu from the conversation entry.
+Conversations that you have marked as done move into the **Done** group at
+the bottom of the sidebar, which starts folded and shows how many there are.
+Open it to see the most recent ones (**Show all** lists the rest), and use a
+conversation's menu to mark it as not done. Each conversation has a **⋯**
+menu that appears when you point at it (or right-click it), with **Mark as
+done** and **Delete conversation**. **Settings** sits at the bottom of the
+sidebar.
 
 The sidebar can show activity while you are viewing another conversation. A
-working indicator means the agent is still processing that conversation; the
-time next to it is how long the current turn has been running. An
-approval indicator means that conversation is waiting for you to approve a
-requested action. Switch to it to review the request; see
+spinner means the agent is still processing that conversation; the time next
+to it is how long the current turn has been running. An amber dot means that
+conversation is waiting for you: pulsing to approve a requested action, or
+steady when the agent has asked you a question. Switch to it to answer; see
 [Permissions](./tools.md#why-permission-prompts-appear) for more about approvals.
 
 ## The chat area
@@ -115,26 +117,31 @@ can review or edit it before pressing **Enter**.
 
 For projects in a git repository, a bar below the message box shows which
 worktree the conversation is working in (on the left) and which branch is
-checked out there (on the right). Click either one to open a picker. Both
-pickers have a search box; use the arrow keys to move through the list and
-**Enter** to choose an entry.
+checked out there (on the right). Click either one to open a picker above
+it. Both pickers have a search box; use the arrow keys to move through the
+list and **Enter** to choose an entry. The current entry is checked.
 
 - **Worktree** lists the project's primary checkout and any other worktrees.
   Choose one to work in it, or select **New worktree…** at the bottom of the
   list to create one on a new branch (based on a branch you choose) or on an
-  existing branch that is not already checked out elsewhere. The worktree is
-  fixed once you send the conversation's first message; after that the list
-  can still be browsed but not changed.
+  existing branch that is not already checked out elsewhere. The form opens
+  in the picker itself; **Cancel** returns to the list. The worktree is fixed
+  once you send the conversation's first message; after that the worktree
+  button is disabled, and its tooltip says why.
 - **Branch** lists the branches of the current worktree, the checked-out one
   first and the rest by when they were last checked out in that worktree
   (most recent first; never-checked-out branches last). Choose one to switch
   to it, or select **New branch…** to create a branch from a base branch and
-  switch to it. The branch can be changed at any time.
+  switch to it, in the same inline form. If git refuses the name (for
+  example, a branch by that name already exists), its message shows on the
+  name field. The branch can be changed at any time.
 
-To delete a worktree or branch, click the trash icon on its row and confirm.
-The active worktree and the currently checked-out branch cannot be deleted.
-If git refuses because a worktree has uncommitted changes or a branch is not
-fully merged, the picker shows git's message and offers **Force delete**.
+To delete a worktree or branch, hover its row (or move the highlight to it)
+to reveal the trash icon, click it, and confirm in the card that replaces
+the row. The active worktree and the currently checked-out branch cannot be
+deleted. If git refuses because a worktree has uncommitted changes or a
+branch is not fully merged, the card shows git's message and offers **Force
+delete**, which throws those changes away.
 
 ## The right-hand tool panel
 

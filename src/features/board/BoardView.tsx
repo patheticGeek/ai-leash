@@ -60,10 +60,11 @@ import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { useAppStore } from "../../store";
 import BoardSettingsDialog from "./BoardSettingsDialog";
 import EpicsDialog from "./EpicsDialog";
+import NewTaskDialog from "./NewTaskDialog";
 import StartTaskDialog from "./StartTaskDialog";
 import TaskCard, { FloatingTaskCard, type TaskCardHandlers } from "./TaskCard";
-import TaskDialog from "./TaskDialog";
-import { EpicDot, EpicToken, STATUS_DOT } from "./TaskMeta";
+import TaskDetailsDialog from "./TaskDetailsDialog";
+import { EpicToken, STATUS_DOT } from "./TaskMeta";
 import { useFinishTask } from "./useFinishTask";
 
 // The kanban-board template's fixed column width. Columns never shrink: a
@@ -295,7 +296,7 @@ function CardList({
 }
 
 type Editing =
-  | { kind: "edit"; task: Task }
+  | { kind: "details"; taskId: string }
   | { kind: "new"; status: TaskStatus; epicId: string | null };
 
 // One project's Kanban board, on the kanban-board template: Backlog → Todo →
@@ -311,7 +312,10 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragging, setDragging] = useState<Task | null>(null);
   const [starting, setStarting] = useState<Task | null>(null);
-  const [moveError, setMoveError] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const openConversation = useAppStore((s) => s.openConversation);
   const { finish, dialog: finishDialog } = useFinishTask();
   const board = useBoard(projectRoot, includeOlderDone);
@@ -379,13 +383,15 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     ) : null;
 
   function move(task: Task, status: TaskStatus, beforeId: string | null) {
-    setMoveError(null);
+    setBoardError(null);
     // Into Done from elsewhere: finishing removes the task's worktree.
     const done =
       status === "done" && task.status !== "done"
         ? finish(task, beforeId)
         : moveTask(projectRoot, task.id, status, beforeId);
-    done.catch((err) => setMoveError(String(err)));
+    done.catch((err) =>
+      setBoardError({ title: "Couldn't move the task", message: String(err) }),
+    );
   }
 
   function onDragStart({ active }: DragStartEvent) {
@@ -429,7 +435,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   }
 
   const handlers: TaskCardHandlers = {
-    onOpen: (task) => setEditing({ kind: "edit", task }),
+    onOpen: (task) => setEditing({ kind: "details", taskId: task.id }),
     onStart: (task) => setStarting(task),
     onOpenChat: (task) => {
       if (task.conversationId) void openConversation(task.conversationId);
@@ -462,12 +468,12 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                 { value: ALL_EPICS, label: "All epics" },
                 { value: NO_EPIC, label: "No epic" },
                 ...(epics.length > 0 ? [{ type: "divider" as const }] : []),
-                ...epics.map((e) => ({
-                  value: e.id,
-                  label: e.title,
-                  icon: <EpicDot color={e.color} />,
-                })),
+                ...epics.map((e) => ({ value: e.id, label: e.title })),
               ]}
+              renderOption={(o) => {
+                const epic = epicsById.get(o.value);
+                return epic ? <EpicToken epic={epic} /> : o.label;
+              }}
             />
             <Divider
               variant="strong"
@@ -641,14 +647,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         content={
           <LayoutContent padding={0} isScrollable={false}>
             <VStack height="100%">
-              {moveError && (
+              {boardError && (
                 <Banner
                   status="error"
                   container="section"
-                  title="Couldn't move the task"
-                  description={moveError}
+                  title={boardError.title}
+                  description={boardError.message}
                   isDismissable
-                  onDismiss={() => setMoveError(null)}
+                  onDismiss={() => setBoardError(null)}
                 />
               )}
               <StackItem size="fill" xstyle={styles.fillArea}>
@@ -680,21 +686,30 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           </LayoutContent>
         }
       />
-      <TaskDialog
-        open={editing !== null}
+      <NewTaskDialog
+        open={editing?.kind === "new"}
         onOpenChange={(open) => !open && setEditing(null)}
         projectRoot={projectRoot}
         epics={epics}
+        status={editing?.kind === "new" ? editing.status : undefined}
+        epicId={editing?.kind === "new" ? editing.epicId : undefined}
+        boardDefaults={board?.agentDefaults ?? {}}
+        sharedCheckout={sharedCheckout}
+        onStartFailed={(message) =>
+          setBoardError({ title: "Couldn't start the task", message })
+        }
+      />
+      <TaskDetailsDialog
         task={
-          editing?.kind === "edit"
-            ? (tasks.find((t) => t.id === editing.task.id) ?? editing.task)
+          editing?.kind === "details"
+            ? (tasks.find((t) => t.id === editing.taskId) ?? null)
             : null
         }
-        defaults={
-          editing?.kind === "new"
-            ? { status: editing.status, epicId: editing.epicId }
-            : {}
-        }
+        onClose={() => setEditing(null)}
+        projectRoot={projectRoot}
+        epics={epics}
+        boardDefaults={board?.agentDefaults ?? {}}
+        sharedCheckout={sharedCheckout}
         onFinish={(task) => finish(task, null)}
       />
       <StartTaskDialog

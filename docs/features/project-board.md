@@ -1,12 +1,11 @@
 # Project boards
 
 Every project has a Kanban board for planning work as tasks. Open it from
-the **Project boards** section at the top of the sidebar.
+the **Board** entry at the top of the project's group in the sidebar.
 
-That section only lists boards that are in use — ones with tasks, or whose
-project chat has been opened — and at most five of them. The open board
-always shows. Click **More boards** to see the rest, including projects
-whose board you haven't used yet.
+Projects whose board isn't in use yet — no tasks, no project chat, and no
+conversations — are listed behind **More projects** at the end of the
+sidebar's project list.
 
 The board takes over the window next to the sidebar — there's no tab
 strip or side panel while it's open. Next to it is the **project chat**,
@@ -63,12 +62,43 @@ add a task. A task has:
 Each task also gets a short number, such as **#12**, that stays with it.
 Numbers aren't reused, even after a task is deleted.
 
-Click a card to edit it or delete it (or focus it and press Enter). A
-card shows its number and effort (**#12 · M**), a priority badge, its
+A card shows its number and effort (**#12 · M**), a priority badge, its
 title, its epic, and at the bottom right what's going on with it: a
 **Start** button if it hasn't been started, the elapsed time and a
 pulsing dot while its chat is working, and a chat button once it has a
 chat.
+
+### The task window
+
+New task and a task's details are the same window. On the left are the
+title, a row with the status, priority, effort and epic, and the
+description; on the right, the agent settings and where its chat runs.
+
+- **New task** is the empty version. The column (and epic row) you
+  opened it from is filled in; priority, effort and epic start empty
+  (a task with no priority gets medium). Tick **Start it right away**
+  (off by default) to start the task as soon as it's created, with its
+  agent settings — or the board's — and the project chat following it.
+  Ctrl+Enter creates it from anywhere in the window.
+- **Task details** opens when you click a card, press Enter on it, or
+  pick **Open** from its **⋯** menu. Changes save as you make them, so
+  there's no Save button: pick a new status, priority, effort or epic in
+  the field row (effort and epic can be cleared with their ×), click the
+  pencil to rename it or edit its description. Setting the status to
+  Done finishes the task (see [below](#finishing-a-task)).
+- **Its chat** (details only) shows whether the task has started. If not,
+  **Start** starts it straight away with the settings in the side rail.
+  Once it has a chat, you see whether it's working (with a pulsing dot
+  and how long its turn has run), **Stop** while it works, **Open chat**,
+  and its last reply.
+- The **Agent** settings can be changed until the task starts. After
+  that they show what its chat actually runs with — change those in the
+  chat itself. **Checkout** says "Created on start" until then, and
+  afterwards names the worktree and its current branch.
+- **Delete task** (bottom left, or the **⋯** menu) asks first. Deleting a
+  task keeps its chat, worktree and branch.
+
+There's no separate full-page view of a task.
 
 ## Planning by chatting
 
@@ -82,8 +112,9 @@ to use.
 
 ## Starting a task
 
-Click the **▶ Start** button on a card that hasn't been started.
-Pick the agent, model, thinking level and permission its chat should
+Click the **▶ Start** button on a card that hasn't been started (or
+**Start** in its details, which skips the questions below and uses the
+task's settings). Pick the agent, model, thinking level and permission its chat should
 use — filled in from the task's own agent settings, else the board's —
 whether the project chat follows it (see
 [below](#the-project-chat-and-task-chats)), and whether to open its chat
@@ -158,8 +189,10 @@ removes the task's worktree. The branch is kept, so its commits stay
 reachable; merge or delete it as you usually would.
 
 If the worktree has uncommitted changes, or commits that aren't on any
-other branch, AI Leash lists them and asks before removing it. Choose
-**Keep it open** to deal with them first.
+other branch, AI Leash asks before removing it, saying how many there
+are and naming the first few. Choose **Remove worktree** to go ahead, or
+**Keep it open** to deal with them first; the task then stays where it
+was.
 
 ## Board settings
 
@@ -171,7 +204,8 @@ agent (Settings > Agents) with the model last used on it.
 ## Epics
 
 Epics group related tasks. Click **Epics** in the toolbar to add, rename,
-recolour, archive or delete them. Deleting an epic keeps its tasks; they
+recolour (pick one of eight colours from the menu at the start of its
+row), archive or delete them. Deleting an epic keeps its tasks; they
 just have no epic afterwards. Archived epics can't be picked for new tasks.
 
 Use the epic menu in the toolbar to show one epic's tasks, or only tasks
@@ -209,17 +243,38 @@ sized by `useResizableWidth` (`LS_KEYS.projectChatWidth`). Switching
 layouts remounts the chat; its draft (`chatDraft.ts`) and any running
 turn (the backend) live outside it, so nothing is lost.
 
+The task window is one design in three states — new, not started,
+started — built from the Astryx `DialogFormDialog` block with the
+`work-item-detail` template's content inside (`taskModal.tsx`): a
+1120-wide `Dialog` (`purpose="form"`, `maxHeight` 85dvh) holding a
+`Layout` with `DialogHeader`, `LayoutContent`, a 320px `LayoutPanel`
+rail with a divider, and `LayoutFooter`. The field row is label-less
+`Selector`s (status with its column's `StatusDot`, the priority `Badge`,
+effort, the epic `Token`). `NewTaskDialog.tsx` is the empty, editable
+state; `TaskDetailsDialog.tsx` the other two, saving each change with
+`update_task`. Its "Its chat" card reads the chat's live state from
+`useGenerating`, stops it with `cancel_prompt`, and shows the last
+assistant message from `load_conversation_history` (its own
+`qk.taskLastReply` query, refetched when a turn ends).
+
+`AgentFields.tsx` renders the agent pickers as a `MetadataList` of
+label-less ghost `Selector`s; the task window's rail, the start dialog
+(`StartTaskDialog.tsx`) and board settings (`BoardSettingsDialog.tsx`)
+all use it. `AgentSummary` is the read-only version a started task
+shows. The finish confirm (`useFinishTask.tsx`) and the delete confirm
+are `AlertDialog`s.
+
 ## In the sidebar
 
-Each project in **Project boards** shows how many of its tasks are in
-progress (blue) and in review (amber). Chats started for a task appear
-under **Chats** with the task's number. Use the filter button next to the
-project menu to choose how they're listed:
+Each project's **Board** entry shows how many of its tasks are in progress
+(blue) and in review (amber), and a spinner while the project chat is
+working. Chats started for a task appear in the same project group with the
+task's number. Use the filter button beside **Projects** to choose how
+they're listed:
 
-- **Show all chats**: task chats are mixed in with the rest, most recent
-  first.
-- **Group task chats at top**: task chats come first.
-- **Hide task chats**: only other chats are listed. Open a task's chat from
-  its card instead.
+- **Mixed in**: task chats are mixed in with the rest, most recent first.
+- **Grouped at the top**: task chats come first in each project.
+- **Hidden**: only other chats are listed. Open a task's chat from its card
+  instead.
 
 Removing a project from AI Leash also deletes its board.
