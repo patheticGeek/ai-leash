@@ -125,7 +125,7 @@ export default function ActionsTab() {
               endContent={
                 <HStack gap={1} align="center">
                   <IconButton
-                    variant="danger"
+                    variant="ghost"
                     size="sm"
                     label="Delete"
                     tooltip="Delete"
@@ -143,7 +143,7 @@ export default function ActionsTab() {
                     className={revealOnGroupHover}
                   />
                   <IconButton
-                    variant={action.running ? "danger" : "secondary"}
+                    variant={action.running ? "ghost" : "secondary"}
                     size="sm"
                     label={action.running ? "Stop action" : "Run action"}
                     tooltip={action.running ? "Stop action" : "Run action"}

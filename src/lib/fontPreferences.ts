@@ -31,6 +31,9 @@ function apply(s: Preferences) {
     "--al-font-mono",
     fontStack(s.codeFontFamily, DEFAULT_MONO_STACK),
   );
+  // Astryx's body size (`--font-size-base`, 14px stock); `index.css` points
+  // the theme token at this. The scale still drives the legacy Tailwind sizes.
+  style.setProperty("--al-font-size-base", `${s.uiFontSize}px`);
   style.setProperty(
     "--al-font-scale",
     String(s.uiFontSize / DEFAULT_UI_FONT_SIZE),

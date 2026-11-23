@@ -31,7 +31,7 @@ export default function TaskLinkBanner({
       description="It only gets notes of what happens here."
       endContent={
         <Button
-          variant="chip-primary"
+          variant="primary"
           size="sm"
           label="Hand back to project chat"
           icon={<Undo2 size={13} />}

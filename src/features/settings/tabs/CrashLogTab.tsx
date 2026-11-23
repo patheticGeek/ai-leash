@@ -67,7 +67,7 @@ export default function CrashLogTab() {
             isDisabled={!log}
           />
           <Button
-            variant="danger"
+            variant="destructive"
             size="sm"
             label="Clear"
             icon={<Trash2 size={13} />}

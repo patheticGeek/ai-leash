@@ -61,7 +61,7 @@ export default function SubAgentsTab() {
               endContent={
                 running ? (
                   <IconButton
-                    variant="danger"
+                    variant="ghost"
                     size="sm"
                     label="Stop sub-agent"
                     tooltip="Stop sub-agent"
@@ -71,7 +71,7 @@ export default function SubAgentsTab() {
                   />
                 ) : (
                   <IconButton
-                    variant="danger"
+                    variant="ghost"
                     size="sm"
                     label="Delete sub-agent"
                     tooltip="Delete sub-agent"

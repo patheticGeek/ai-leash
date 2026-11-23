@@ -179,7 +179,12 @@ time you use the app.
 
 AI Leash uses a dark appearance throughout the app, including the window
 controls, chat, editors, and terminals. There is currently no light theme or
-appearance switch. You can change the fonts and text sizes under
+appearance switch. The interface is built on the stock Astryx `neutral` look
+(monochrome, no accent colour); the only change from stock is that app
+chrome — tabs, sidebar rows and small buttons, pickers and inputs — uses
+12px text around 14px content. The theme lives in `themes/ai-leash/` and is
+changed only through `npx astryx experimental theme editor`. Icons are
+`lucide-react` throughout. You can change the fonts and text sizes under
 [Preferences](#preferences), and adjust the panel widths as described above.
 
 ## Preferences
@@ -206,7 +211,9 @@ Each of the two font settings has a font family field and a size in pixels
 (from 8 to 32).
 
 - **Interface text** is used for normal text throughout the app. Its default
-  size is 16px, and changing it scales all interface text proportionally.
+  size is 14px. The size sets the body text size (Astryx's `--font-size-base`,
+  used for body text, labels and the like); surfaces not yet moved to Astryx
+  scale all their text proportionally with it.
 - **Code text** is used for code blocks and inline code, tool output,
   terminals, and the file editor. Its default size is 12px. Open terminals
   resize to fit when you change it.
@@ -227,8 +234,8 @@ conversation's checkout (the project root, or its worktree) in an external
 editor. Settings > Preferences > **IDE** sets the command it runs — `code` by default; any
 launcher on your shell's `PATH` works (`zed`, `cursor`, `idea`, `code -n`).
 The checkout path is appended as the last argument. The command is split
-shell-style but never run through a shell. If it fails to launch, the button
-turns amber and its tooltip shows the error.
+shell-style but never run through a shell. If it fails to launch, the
+button's tooltip shows the error.
 
 ## Debug mode
 

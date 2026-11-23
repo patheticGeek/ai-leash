@@ -69,7 +69,7 @@ export default function NewConversationPopover({
                     className="text-sm"
                     endContent={
                       <IconButton
-                        variant="danger"
+                        variant="ghost"
                         size="sm"
                         label="Forget this project"
                         tooltip="Forget this project"

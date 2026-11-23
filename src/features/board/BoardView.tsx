@@ -279,7 +279,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           ]}
         />
         <Button
-          variant={groupByEpic ? "chip-primary" : "chip"}
+          variant={groupByEpic ? "primary" : "secondary"}
           size="sm"
           label="Group by epic"
           icon={<Rows3 size={13} />}
@@ -287,7 +287,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           tooltip="Group the board into one row per epic"
         />
         <Button
-          variant={showDone ? "chip-primary" : "chip"}
+          variant={showDone ? "primary" : "secondary"}
           size="sm"
           label={showDone ? "Hide done" : "Show done"}
           onClick={() => setShowDone((v) => !v)}
@@ -299,7 +299,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         </Button>
         {showDone && !includeOlderDone && olderDoneHidden > 0 && (
           <Button
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label={`Load ${olderDoneHidden} older`}
             onClick={() => setIncludeOlderDone(true)}
@@ -323,7 +323,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           onClick={() => setEpicsOpen(true)}
         />
         <Button
-          variant="chip-primary"
+          variant="primary"
           size="sm"
           label="New task"
           icon={<Plus size={13} />}

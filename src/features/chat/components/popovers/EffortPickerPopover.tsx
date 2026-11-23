@@ -49,7 +49,7 @@ export default function EffortPickerPopover({
       renderTrigger={(triggerProps) => (
         <Button
           {...triggerProps}
-          variant="chip"
+          variant="secondary"
           size="sm"
           label={active?.name ?? "effort"}
           icon={<EffortIcon size={12} />}

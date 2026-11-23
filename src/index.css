@@ -24,6 +24,7 @@
     "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono",
     Consolas, "Liberation Mono", Menlo, monospace;
   --al-font-scale: 1;
+  --al-font-size-base: 14px;
   --al-code-size: 12px;
 
   /* Tailwind's text sizes, scaled by the UI font size setting. Unlayered, so
@@ -93,14 +94,17 @@
   --radius: 0.5rem;
 }
 
-/* Astryx's theme (`src/themes/leash`, set on the `Theme` element) only takes
-   literal font families, so point its font tokens at the ones Settings >
-   Preferences > Fonts writes at runtime (`lib/fontPreferences.ts`).
+/* Astryx's theme (`src/themes/ai-leash`, set on the `Theme` element) only
+   takes literal font families and a fixed 14px body size, so point its font
+   tokens at the ones Settings > Preferences > Fonts writes at runtime
+   (`lib/fontPreferences.ts`): the families, and the interface text size as
+   `--font-size-base` (body, labels, code in Astryx; default 14).
    Unlayered, so this wins over the theme's `astryx-theme` layer. */
 [data-astryx-theme] {
   --font-family-body: var(--al-font-sans);
   --font-family-heading: var(--al-font-sans);
   --font-family-code: var(--al-font-mono);
+  --font-size-base: var(--al-font-size-base);
 }
 
 html,

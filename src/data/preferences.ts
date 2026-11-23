@@ -8,7 +8,7 @@ import { qk } from "./keys";
 // (`preferences.rs`) owns the real defaults and clamps every write, so keep
 // these in step with it — they only shape the inputs, never the stored value.
 export const DEFAULT_IDE_COMMAND = "code";
-export const DEFAULT_UI_FONT_SIZE = 16;
+export const DEFAULT_UI_FONT_SIZE = 14;
 export const DEFAULT_CODE_FONT_SIZE = 12;
 export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;

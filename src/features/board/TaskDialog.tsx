@@ -242,7 +242,7 @@ export default function TaskDialog({
               <HStack gap={2} justify="between">
                 {task ? (
                   <Button
-                    variant="danger"
+                    variant="destructive"
                     label="Delete"
                     icon={<Trash2 size={14} />}
                     onClick={remove}

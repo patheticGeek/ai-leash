@@ -281,7 +281,7 @@ function ConversationRow({
                 </HStack>
               ) : hovering ? (
                 <Button
-                  variant="success"
+                  variant="ghost"
                   size="sm"
                   label="done"
                   tooltip="Mark as done"
@@ -321,7 +321,7 @@ function DoneConversationRow({
         label={conversation.title || "New conversation"}
         endContent={
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label="Mark as not done"
             tooltip="Mark as not done"
@@ -589,7 +589,7 @@ export default function LeftBar({
             renderTrigger={(triggerProps) => (
               <IconButton
                 {...triggerProps}
-                variant="quiet"
+                variant="ghost"
                 size="lg"
                 label="Filters"
                 tooltip="Filters"
@@ -618,7 +618,7 @@ export default function LeftBar({
             </DropdownMenuGroup>
           </DropdownMenu>
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="lg"
             label="Add project"
             tooltip="Add project"
@@ -629,7 +629,7 @@ export default function LeftBar({
       }
       footer={
         <Button
-          variant="quiet"
+          variant="ghost"
           label="Settings"
           tooltip="Settings"
           icon={<SettingsIcon size={15} />}
@@ -660,7 +660,7 @@ export default function LeftBar({
               })}
               {hiddenBoardCount > 0 && (
                 <Button
-                  variant="quiet"
+                  variant="ghost"
                   size="sm"
                   label={
                     boardsExpanded
@@ -722,7 +722,7 @@ export default function LeftBar({
               ))}
               {doneConversations.length > DEFAULT_VISIBLE_DONE && (
                 <Button
-                  variant="quiet"
+                  variant="ghost"
                   size="sm"
                   label={
                     doneExpanded

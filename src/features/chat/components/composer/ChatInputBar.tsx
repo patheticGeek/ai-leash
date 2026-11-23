@@ -221,7 +221,7 @@ export default function ChatInputBar({
             />
           )}
           <Button
-            variant={sending ? "chip-danger" : "chip-primary"}
+            variant={sending ? "destructive" : "primary"}
             size="sm"
             label={sending ? "Stop" : "Send"}
             icon={

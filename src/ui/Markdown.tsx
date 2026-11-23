@@ -167,7 +167,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
         <HStack align="center">
           {runCommand && language && SHELL_LANGUAGES.has(language) && (
             <IconButton
-              variant="quiet"
+              variant="ghost"
               size="sm"
               label="Open in a new terminal"
               tooltip="Open in a new terminal"
@@ -176,7 +176,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
             />
           )}
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label="Copy"
             tooltip="Copy"

@@ -33,7 +33,7 @@ export default function MessageFooter({
       )}
     >
       <IconButton
-        variant="quiet"
+        variant="ghost"
         size="sm"
         label="Copy"
         tooltip="Copy"
@@ -42,7 +42,7 @@ export default function MessageFooter({
       />
       {showRetry && (
         <IconButton
-          variant="quiet"
+          variant="ghost"
           size="sm"
           label="Retry"
           tooltip="Retry"

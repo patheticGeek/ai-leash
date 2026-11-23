@@ -63,7 +63,7 @@ export default function PermissionModePopover({
       renderTrigger={(triggerProps) => (
         <Button
           {...triggerProps}
-          variant={warn ? "chip-warning" : "chip"}
+          variant="secondary"
           size="sm"
           label={active?.label ?? value}
           icon={warn ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
