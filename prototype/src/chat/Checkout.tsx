@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { Divider } from "@astryxdesign/core/Divider";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -24,6 +25,7 @@ import {
   ArrowLeftIcon,
   CheckIcon,
   ChevronDownIcon,
+  ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
@@ -60,6 +62,8 @@ const PANEL_WIDTH = 340;
 const styles = stylex.create({
   // Keeps the check's box on every row so labels line up.
   hidden: { visibility: "hidden" },
+  // The ListItem slot is a flex child; without this the icon gets squeezed.
+  noShrink: { flexShrink: 0 },
 });
 
 function SearchField({ placeholder }: { placeholder: string }) {
@@ -87,10 +91,16 @@ function PickerRow({
         description={description}
         isSelected={isCurrent}
         onClick={() => {}}
-        startContent={<Icon icon={CheckIcon} size="sm" xstyle={isCurrent ? undefined : styles.hidden} />}
+        startContent={
+          <HStack as="span" vAlign="center" xstyle={[styles.noShrink, !isCurrent && styles.hidden]}>
+            <Icon icon={CheckIcon} size="sm" />
+          </HStack>
+        }
         endContent={
           canDelete && !isCurrent ? (
-            <HStack as="span" {...getContentRevealProps()}>
+            // isLayoutPreserved: the button's box is always there (only its
+            // opacity changes), so revealing it doesn't change the row height.
+            <HStack as="span" {...getContentRevealProps({ isLayoutPreserved: true })}>
               <IconButton variant="ghost" size="sm" label={`Delete ${label}`} icon={<Icon icon={TrashIcon} size="sm" />} />
             </HStack>
           ) : undefined
@@ -100,18 +110,32 @@ function PickerRow({
   );
 }
 
-/** DeletableRow's confirm, inline in place of the row (dirty worktree). */
+/**
+ * DeletableRow's confirm for a dirty worktree, in place of its row: one muted
+ * Card so the warning, the name, the consequence and the two actions read as
+ * a single unit.
+ */
 function ForceDeleteRow({ name }: { name: string }) {
   return (
-    <VStack gap={2} paddingInline={3} paddingBlock={2}>
-      <Text type="supporting">
-        <Text weight="semibold" as="span">{name}</Text> has uncommitted changes. Deleting it throws them away.
-      </Text>
-      <HStack gap={1} hAlign="end">
-        <Button label="Cancel" variant="ghost" size="sm" />
-        <Button label="Force delete" variant="destructive" size="sm" icon={<Icon icon={TrashIcon} size="sm" />} />
-      </HStack>
-    </VStack>
+    <Card variant="muted" padding={3}>
+      <VStack gap={3}>
+        <HStack gap={2} vAlign="start">
+          <HStack as="span" vAlign="center" xstyle={styles.noShrink}>
+            <Icon icon={ExclamationTriangleIcon} size="sm" color="warning" />
+          </HStack>
+          <VStack gap={0.5}>
+            <Text weight="semibold">Delete {name}?</Text>
+            <Text type="supporting" color="secondary">
+              It has uncommitted changes. Deleting it throws them away.
+            </Text>
+          </VStack>
+        </HStack>
+        <HStack gap={1} hAlign="end">
+          <Button label="Cancel" variant="ghost" size="sm" />
+          <Button label="Force delete" variant="destructive" size="sm" />
+        </HStack>
+      </VStack>
+    </Card>
   );
 }
 
@@ -187,7 +211,7 @@ function WorktreePanel({ initialView, hasNoUnattached }: { initialView: Worktree
           w.isDirty ? (
             <ForceDeleteRow key={w.name} name={w.name} />
           ) : (
-            <PickerRow key={w.name} label={w.name} description={w.branch} isCurrent={w.name === "task-42"} canDelete={w.name !== "primary"} />
+            <PickerRow key={w.name} label={w.name} isCurrent={w.name === "task-42"} canDelete={w.name !== "primary"} />
           ),
         )}
       </PickerList>
