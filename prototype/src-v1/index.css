@@ -1,0 +1,14 @@
+/* Same cascade-layer order and font wiring as the app's src/index.css
+   (minus Tailwind, which the prototype doesn't use). */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource-variable/jetbrains-mono";
+
+:root {
+  color-scheme: dark;
+  --font-family-body: "Instrument Sans Variable", system-ui, sans-serif;
+  --font-family-heading: "Instrument Sans Variable", system-ui, sans-serif;
+  --font-family-code: "JetBrains Mono Variable", ui-monospace, monospace;
+}
