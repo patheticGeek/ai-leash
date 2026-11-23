@@ -48,7 +48,7 @@ interface ChatToolbarProps {
 // The pickers along the bottom-left of the message box: which model/agent
 // answers, its effort level, and the permission mode (the agent's own modes,
 // else Ask/Bypass) — composed
-// here and slotted into `ChatInputBar` so that component stays about the
+// here and slotted into the Astryx `ChatComposer`'s footer so the composer stays about the
 // input box itself, not who's picked to answer it.
 export default function ChatToolbar({
   backendOptions,
