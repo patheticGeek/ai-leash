@@ -6,8 +6,8 @@ Leash's own external-agent (ACP) connections while you use the app.
 ## Turning it on
 
 1. Open **Settings**.
-2. Select **Preferences** and scroll to the **Debug** section.
-3. Enable **Enable debug mode**.
+2. Select **Debug** (under Preferences).
+3. Turn on **Debug mode**.
 
 A small bug icon appears in the title bar, before the window controls, while
 debug mode is on. Click it to open or close the **ACP Events** panel; click
@@ -37,7 +37,7 @@ does — nothing here is written to disk or included in conversation history.
 
 ## Showing IDs in the title bar
 
-The **Debug** section also has a **Show IDs in title bar** toggle. When enabled, the title
+The **Debug** panel also has a **Show IDs in the title bar** switch. When enabled, the title
 bar's center section shows:
 
 ```

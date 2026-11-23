@@ -15,7 +15,7 @@ changing the other conversations.
 Open a project and type a request in the chat panel. Press **Send** or use
 the keyboard shortcut shown by the input: **Enter** sends and
 **Shift+Enter** inserts a new line. If you would rather write multi-line
-messages, turn on **Compose mode** in Settings > Preferences > Chat; then
+messages, turn on **Compose mode** in Settings > Chat; then
 **Enter** inserts a new line and **Ctrl+Enter** sends. The conversation is saved with the
 project and can be reopened from the project history; see
 [conversation history](./conversation-history.md).
@@ -46,7 +46,7 @@ message — thinking, tool calls and any text in between — folds into a single
 the agent's final summary stay on show. Expand the row to see every step.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
-Settings > Preferences > Chat.
+Settings > Chat.
 
 Every message has a timestamp and a copy button. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
@@ -116,17 +116,20 @@ The built-in agent can use either:
   Settings says so and the key is stored unencrypted in the app's settings
   file instead.
 
-Open Settings from the gear button. Use the provider section to change the
-Ollama host or add, edit, remove, and activate saved OpenAI-compatible
-configurations. Provider settings are used by the conversations that select
+Open Settings from the gear button and select **Agents**. External ACP agents
+and the built-in providers are listed in two groups, one row each, with the
+default agent marked **Default**. Use a row's **⋯** menu to **Make default**,
+**Edit** (for example the Ollama host or an API's base URL, key and model) or
+**Delete** it, and **Add an agent** to add an ACP agent, an Ollama server or an
+OpenAI-compatible API. Provider settings are used by the conversations that select
 that provider; the model or provider selection itself is still
 conversation-specific.
 
-Every provider and external agent card in **Settings > Agents** has a checkbox
-to turn it off. A turned-off card stays saved, but it is hidden from the chat
+Every provider and external agent row in **Settings > Agents** has a switch
+to turn it off. A turned-off agent stays saved, but it is hidden from the chat
 bar picker, skipped by the background connection check and model discovery,
 and cannot be the default for new conversations (the default moves to the
-next enabled card). Turn it back on at any time. A conversation that already
+next enabled agent). Turn it back on at any time. A conversation that already
 uses a turned-off backend keeps it selected, but sending is blocked (a notice
 explains why, and queued messages are dropped) until you turn it back on or
 pick another agent from the chat bar.
