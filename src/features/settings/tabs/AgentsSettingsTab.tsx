@@ -1,32 +1,30 @@
+// Agents: every configured backend as a settings row — external ACP agents in
+// one card, the built-in providers (Ollama, OpenAI-compatible) in another.
+// Each row has an on/off Switch and a MoreMenu (Make default, Edit, Delete);
+// the default agent carries a "Default" token. "Add an agent" is a menu of the
+// three kinds; Add and Edit swap the panel for that kind's form. Which loop a
+// backend runs on is otherwise not shown — to the user each is "an agent",
+// the same framing the chat bar's picker uses.
 import { Button } from "@astryxdesign/core/Button";
-import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
-import { ClickableCard } from "@astryxdesign/core/ClickableCard";
-import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { IconButton } from "@astryxdesign/core/IconButton";
-import { Item } from "@astryxdesign/core/Item";
+import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
+import { Icon, type IconType } from "@astryxdesign/core/Icon";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
 import {
-  borderVars,
-  colorVars,
-  radiusVars,
-  spacingVars,
-} from "@astryxdesign/core/theme/tokens.stylex";
-import { VStack } from "@astryxdesign/core/VStack";
-import * as stylex from "@stylexjs/stylex";
-import {
-  Bot,
-  Check,
+  Box,
   Cloud,
-  Pencil,
+  KeyRound,
+  Link,
   Plus,
   Server,
-  Trash2,
-  X,
+  SquareTerminal,
+  Tag,
 } from "lucide-react";
-import type { ComponentType, ReactNode, SVGProps } from "react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   deleteBackend,
   saveBackend,
@@ -36,110 +34,83 @@ import {
   useKeyStorageError,
 } from "../../../data/backends";
 import type { BackendConfig } from "../../../lib/tauriApi";
-import { Hint, SectionHeading, SettingsSection } from "./SettingsParts";
+import { SettingsCard, SettingsRow } from "../SettingsCard";
 
-const ring = (color: string) =>
-  `0 0 0 ${borderVars["--border-width"]} ${color}`;
+type Kind = BackendConfig["kind"];
 
-const styles = stylex.create({
-  // An agent card: a tinted, rounded, borderless row on the dialog surface.
-  card: {
-    backgroundColor: colorVars["--color-background-muted"],
-    borderColor: "transparent",
-    borderRadius: radiusVars["--radius-element"],
-  },
-  // The default agent: an accent ring over a faint accent tint.
-  cardDefault: {
-    backgroundColor: `color-mix(in srgb, ${colorVars["--color-accent"]} 10%, ${colorVars["--color-background-muted"]})`,
-    boxShadow: ring(colorVars["--color-accent"]),
-  },
-  // A turned-off agent stays listed (and its controls live), just dimmed.
-  cardOff: { opacity: 0.6 },
-  warning: { color: colorVars["--color-text-warning"] },
-  // The open Add/Edit form: a tinted block with an accent ring.
-  form: {
-    backgroundColor: colorVars["--color-background-muted"],
-    borderRadius: radiusVars["--radius-element"],
-    boxShadow: ring(colorVars["--color-accent"]),
-    padding: spacingVars["--spacing-3"],
-  },
-  // The "Add" tile: a dashed outline that brightens on hover.
-  addTile: {
-    backgroundColor: "transparent",
-    borderStyle: "dashed",
-    borderWidth: borderVars["--border-width"],
-    borderColor: {
-      default: colorVars["--color-border-emphasized"],
-      ":hover": colorVars["--color-text-secondary"],
-    },
-    borderRadius: radiusVars["--radius-element"],
-    color: {
-      default: colorVars["--color-text-secondary"],
-      ":hover": colorVars["--color-text-primary"],
-    },
-  },
-});
-
-// One flat grid of every configured backend — Ollama connections, ACP
-// agents, then OpenAI-compatible APIs — matching what the user asked for
-// ("claude, copilot, ollama" as one set of default cards, not three
-// separate sections). Which underlying loop a card runs on (this app's own
-// tool loop vs. an external ACP subprocess) is never shown here — a card is
-// just "an agent", same framing `useChatSession.ts`'s chat-bar picker
-// already uses.
-type CardType = BackendConfig["kind"];
-
-const TYPE_META: Record<
-  CardType,
+const KIND_META: Record<Kind, { icon: IconType; label: string; hint: string }> =
   {
-    icon: ComponentType<SVGProps<SVGSVGElement>>;
-    label: string;
-    hint: string;
-  }
-> = {
-  ollama: {
-    icon: Server,
-    label: "Ollama",
-    hint: "Connect to a local or remote Ollama server",
-  },
-  acp: {
-    icon: Bot,
-    label: "ACP agent",
-    hint: "Launch an external agent over the Agent Client Protocol",
-  },
-  openAiCompatible: {
-    icon: Cloud,
-    label: "OpenAI-compatible API",
-    hint: "Any OpenAI chat-completions-compatible endpoint",
-  },
-};
+    acp: {
+      icon: SquareTerminal,
+      label: "ACP agent",
+      hint: "An external agent over the Agent Client Protocol",
+    },
+    ollama: {
+      icon: Server,
+      label: "Ollama",
+      hint: "A local or remote Ollama server",
+    },
+    openAiCompatible: {
+      icon: Cloud,
+      label: "OpenAI-compatible API",
+      hint: "Any chat-completions-compatible endpoint",
+    },
+  };
 
 const emptyOllamaForm = { label: "", host: "" };
 const emptyOpenAiForm = { label: "", baseUrl: "", apiKey: "", model: "" };
 const emptyAcpForm = { label: "", launchCommand: "" };
 
-// Where the tab is: the card grid, the "pick a type" step of Add, or a
-// type's form (shared by Add — `id: null` — and Edit — `id` set).
-type View =
-  | { step: "grid" }
-  | { step: "pickType" }
-  | { step: "form"; type: CardType; id: string | null };
+// The list, or one kind's form (Add — `id: null` — or Edit).
+type View = { step: "list" } | { step: "form"; kind: Kind; id: string | null };
+
+function subtitle(config: BackendConfig): string {
+  const where =
+    config.kind === "ollama"
+      ? config.host || "localhost:11434"
+      : config.kind === "acp"
+        ? config.launchCommand
+        : config.baseUrl;
+  return config.enabled ? where : `${where} · turned off`;
+}
+
+/** One full-width field of an Add / Edit form, as a settings row. */
+function FieldRow({
+  title,
+  description,
+  icon,
+  input,
+}: {
+  title: string;
+  description?: ReactNode;
+  icon: IconType;
+  input: ReactNode;
+}) {
+  return (
+    <SettingsRow
+      title={title}
+      description={description}
+      icon={icon}
+      detail={input}
+    />
+  );
+}
 
 export default function AgentsSettingsTab() {
   const backends = useBackends();
   const defaultBackendId = useDefaultBackendId();
   const keyStorageError = useKeyStorageError();
 
-  const [view, setView] = useState<View>({ step: "grid" });
+  const [view, setView] = useState<View>({ step: "list" });
   const [ollamaForm, setOllamaForm] = useState(emptyOllamaForm);
   const [openAiForm, setOpenAiForm] = useState(emptyOpenAiForm);
   const [acpForm, setAcpForm] = useState(emptyAcpForm);
 
-  function startAdd(type: CardType) {
-    if (type === "ollama") setOllamaForm(emptyOllamaForm);
-    if (type === "openAiCompatible") setOpenAiForm(emptyOpenAiForm);
-    if (type === "acp") setAcpForm(emptyAcpForm);
-    setView({ step: "form", type, id: null });
+  function startAdd(kind: Kind) {
+    if (kind === "ollama") setOllamaForm(emptyOllamaForm);
+    if (kind === "openAiCompatible") setOpenAiForm(emptyOpenAiForm);
+    if (kind === "acp") setAcpForm(emptyAcpForm);
+    setView({ step: "form", kind, id: null });
   }
 
   function startEdit(config: BackendConfig) {
@@ -156,18 +127,18 @@ export default function AgentsSettingsTab() {
     } else {
       setAcpForm({ label: config.label, launchCommand: config.launchCommand });
     }
-    setView({ step: "form", type: config.kind, id: config.id });
+    setView({ step: "form", kind: config.kind, id: config.id });
   }
 
   function saveForm() {
     if (view.step !== "form") return;
-    const { type } = view;
+    const { kind } = view;
     const existing = backends.find((b) => b.id === view.id);
     const base = {
       id: view.id ?? crypto.randomUUID(),
       enabled: existing?.enabled ?? true,
     };
-    if (type === "ollama") {
+    if (kind === "ollama") {
       if (!ollamaForm.label.trim() || !ollamaForm.host.trim()) return;
       void saveBackend({
         ...base,
@@ -176,7 +147,7 @@ export default function AgentsSettingsTab() {
         host: ollamaForm.host.trim(),
         model: existing?.kind === "ollama" ? existing.model : "",
       });
-    } else if (type === "openAiCompatible") {
+    } else if (kind === "openAiCompatible") {
       if (!openAiForm.label.trim() || !openAiForm.baseUrl.trim()) return;
       void saveBackend({
         ...base,
@@ -196,294 +167,239 @@ export default function AgentsSettingsTab() {
         launchCommand: acpForm.launchCommand.trim(),
       });
     }
-    setView({ step: "grid" });
-  }
-
-  // Ollama connections, then ACP agents, then OpenAI-compatible APIs.
-  const order: Record<CardType, number> = {
-    ollama: 0,
-    acp: 1,
-    openAiCompatible: 2,
-  };
-  const cards = [...backends].sort((a, b) => order[a.kind] - order[b.kind]);
-
-  function subtitle(config: BackendConfig): string {
-    if (config.kind === "ollama") return config.host || "localhost:11434";
-    if (config.kind === "acp") return config.launchCommand;
-    return config.baseUrl;
-  }
-
-  // The Cancel / Save pair under every form.
-  const formButtons = (
-    <HStack gap={2} justify="end">
-      <Button
-        variant="ghost"
-        label="Cancel"
-        icon={<X size={14} />}
-        onClick={() => setView({ step: "grid" })}
-      />
-      <Button
-        variant="primary"
-        label="Save"
-        icon={<Check size={14} />}
-        onClick={saveForm}
-      />
-    </HStack>
-  );
-
-  if (view.step === "pickType") {
-    return (
-      <SettingsSection
-        title="Add a backend"
-        actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Cancel"
-            icon={<X size={14} />}
-            onClick={() => setView({ step: "grid" })}
-          />
-        }
-      >
-        <VStack gap={3}>
-          {(Object.keys(TYPE_META) as CardType[]).map((type) => {
-            const meta = TYPE_META[type];
-            return (
-              <ClickableCard
-                key={type}
-                label={meta.label}
-                variant="muted"
-                padding={3}
-                onClick={() => startAdd(type)}
-                xstyle={styles.card}
-              >
-                <VStack gap={1}>
-                  <HStack gap={2} vAlign="center">
-                    <Icon icon={meta.icon} size="sm" color="secondary" />
-                    <Text>{meta.label}</Text>
-                  </HStack>
-                  <Text size="sm" color="secondary">
-                    {meta.hint}
-                  </Text>
-                </VStack>
-              </ClickableCard>
-            );
-          })}
-        </VStack>
-      </SettingsSection>
-    );
+    setView({ step: "list" });
   }
 
   if (view.step === "form") {
-    const { type, id } = view;
-    const editingOpenAi = backends.find((b) => b.id === id);
-    let fields: ReactNode;
-    if (type === "ollama") {
-      fields = (
-        <>
-          <TextInput
-            label="Label"
-            isLabelHidden
-            value={ollamaForm.label}
-            onChange={(label) => setOllamaForm({ ...ollamaForm, label })}
-            placeholder="Label, e.g. Local Ollama"
-          />
-          <TextInput
-            label="Host"
-            isLabelHidden
-            value={ollamaForm.host}
-            onChange={(host) => setOllamaForm({ ...ollamaForm, host })}
-            placeholder="localhost:11434"
-          />
-        </>
-      );
-    } else if (type === "openAiCompatible") {
-      fields = (
-        <>
-          <TextInput
-            label="Label"
-            isLabelHidden
-            value={openAiForm.label}
-            onChange={(label) => setOpenAiForm({ ...openAiForm, label })}
-            placeholder="Label, e.g. OpenRouter"
-          />
-          <TextInput
-            label="Base URL"
-            isLabelHidden
-            value={openAiForm.baseUrl}
-            onChange={(baseUrl) => setOpenAiForm({ ...openAiForm, baseUrl })}
-            placeholder="https://api.openai.com/v1"
-          />
-          <TextInput
-            label="API key"
-            isLabelHidden
-            value={openAiForm.apiKey}
-            onChange={(apiKey) => setOpenAiForm({ ...openAiForm, apiKey })}
-            type="password"
-            placeholder={
-              editingOpenAi?.kind === "openAiCompatible" &&
-              editingOpenAi.apiKeySaved
-                ? "API key saved — leave blank to keep it"
-                : "API key"
-            }
-          />
-          {keyStorageError ? (
-            <Text display="block" size="sm" xstyle={styles.warning}>
-              {`Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`}
-            </Text>
-          ) : (
-            <Hint>Stored in the system keychain.</Hint>
+    const { kind, id } = view;
+    const editing = backends.find((b) => b.id === id);
+    const input = (
+      label: string,
+      value: string,
+      onChange: (v: string) => void,
+      placeholder: string,
+      extra?: { type?: "password" },
+    ) => (
+      <TextInput
+        label={label}
+        isLabelHidden
+        size="sm"
+        width="100%"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        hasSpellCheck={false}
+        autoComplete="off"
+        {...extra}
+      />
+    );
+    let rows: ReactNode;
+    if (kind === "ollama") {
+      rows = [
+        <FieldRow
+          key="label"
+          title="Name"
+          icon={Tag}
+          input={input(
+            "Name",
+            ollamaForm.label,
+            (label) => setOllamaForm({ ...ollamaForm, label }),
+            "Local Ollama",
           )}
-          <TextInput
-            label="Model"
-            isLabelHidden
-            value={openAiForm.model}
-            onChange={(model) => setOpenAiForm({ ...openAiForm, model })}
-            placeholder="Model id, e.g. gpt-4.1"
-          />
-        </>
-      );
+        />,
+        <FieldRow
+          key="host"
+          title="Host"
+          icon={Link}
+          input={input(
+            "Host",
+            ollamaForm.host,
+            (host) => setOllamaForm({ ...ollamaForm, host }),
+            "localhost:11434",
+          )}
+        />,
+      ];
+    } else if (kind === "openAiCompatible") {
+      rows = [
+        <FieldRow
+          key="label"
+          title="Name"
+          icon={Tag}
+          input={input(
+            "Name",
+            openAiForm.label,
+            (label) => setOpenAiForm({ ...openAiForm, label }),
+            "OpenRouter",
+          )}
+        />,
+        <FieldRow
+          key="baseUrl"
+          title="Base URL"
+          icon={Link}
+          input={input(
+            "Base URL",
+            openAiForm.baseUrl,
+            (baseUrl) => setOpenAiForm({ ...openAiForm, baseUrl }),
+            "https://api.openai.com/v1",
+          )}
+        />,
+        <FieldRow
+          key="apiKey"
+          title="API key"
+          icon={KeyRound}
+          description={
+            keyStorageError
+              ? `Couldn't use the system keychain (${keyStorageError}), so API keys are stored unencrypted in this app's settings file.`
+              : "Stored in the system keychain."
+          }
+          input={input(
+            "API key",
+            openAiForm.apiKey,
+            (apiKey) => setOpenAiForm({ ...openAiForm, apiKey }),
+            editing?.kind === "openAiCompatible" && editing.apiKeySaved
+              ? "Saved — leave blank to keep it"
+              : "API key",
+            { type: "password" },
+          )}
+        />,
+        <FieldRow
+          key="model"
+          title="Model"
+          icon={Box}
+          input={input(
+            "Model",
+            openAiForm.model,
+            (model) => setOpenAiForm({ ...openAiForm, model }),
+            "gpt-4.1",
+          )}
+        />,
+      ];
     } else {
-      fields = (
-        <>
-          <TextInput
-            label="Label"
-            isLabelHidden
-            value={acpForm.label}
-            onChange={(label) => setAcpForm({ ...acpForm, label })}
-            placeholder="Label, e.g. Claude Code"
-          />
-          <TextInput
-            label="Launch command"
-            isLabelHidden
-            value={acpForm.launchCommand}
-            onChange={(launchCommand) =>
-              setAcpForm({ ...acpForm, launchCommand })
-            }
-            placeholder="npx -y @agentclientprotocol/claude-agent-acp@latest"
-          />
-          <Hint>
-            Runs as an external agent process — model/tool behavior depends on
-            what it exposes. If it advertises a model list, that shows up in the
-            chat bar once a conversation using it starts.
-          </Hint>
-        </>
-      );
+      rows = [
+        <FieldRow
+          key="label"
+          title="Name"
+          icon={Tag}
+          input={input(
+            "Name",
+            acpForm.label,
+            (label) => setAcpForm({ ...acpForm, label }),
+            "Claude Code",
+          )}
+        />,
+        <FieldRow
+          key="launchCommand"
+          title="Launch command"
+          icon={SquareTerminal}
+          description="Runs as an external agent process. If it advertises a model list, the chat bar shows it once a conversation using it starts."
+          input={input(
+            "Launch command",
+            acpForm.launchCommand,
+            (launchCommand) => setAcpForm({ ...acpForm, launchCommand }),
+            "npx -y @agentclientprotocol/claude-agent-acp@latest",
+          )}
+        />,
+      ];
     }
     return (
-      <SettingsSection
-        title={`${id ? "Edit" : "Add"} ${TYPE_META[type].label}`}
-      >
-        <VStack gap={2} xstyle={styles.form}>
-          {fields}
-          {formButtons}
-        </VStack>
-      </SettingsSection>
+      <VStack gap={5}>
+        <SettingsCard title={`${id ? "Edit" : "Add"} ${KIND_META[kind].label}`}>
+          {rows}
+        </SettingsCard>
+        <HStack gap={2} justify="end">
+          <Button
+            variant="ghost"
+            label="Cancel"
+            onClick={() => setView({ step: "list" })}
+          />
+          <Button variant="primary" label="Save" onClick={saveForm} />
+        </HStack>
+      </VStack>
     );
   }
 
-  return (
-    <VStack gap={3}>
-      <SectionHeading>Agents</SectionHeading>
-      <VStack gap={3}>
-        {cards.map((c) => {
-          const meta = TYPE_META[c.kind];
-          const active = c.enabled && c.id === defaultBackendId;
-          return (
-            <ClickableCard
-              key={c.id}
-              label={
-                !c.enabled
-                  ? `${c.label} (turned off)`
-                  : active
-                    ? `${c.label}, default for new conversations`
-                    : `Make ${c.label} the default for new conversations`
-              }
-              padding={0}
-              // Turned-off agents can't be made the default, but their
-              // controls (turn back on, edit, delete) stay live.
-              onClick={
-                c.enabled ? () => void setDefaultBackend(c.id) : undefined
-              }
-              xstyle={[
-                styles.card,
-                active && styles.cardDefault,
-                !c.enabled && styles.cardOff,
+  const agentRow = (c: BackendConfig) => {
+    const isDefault = c.enabled && c.id === defaultBackendId;
+    return (
+      <SettingsRow
+        key={c.id}
+        title={c.label}
+        titleAccessory={isDefault ? <Token size="sm" label="Default" /> : null}
+        icon={KIND_META[c.kind].icon}
+        description={subtitle(c)}
+        control={
+          <HStack gap={2} vAlign="center">
+            <Switch
+              label={`Turn ${c.label} on`}
+              isLabelHidden
+              value={c.enabled}
+              onChange={(enabled) => void saveBackend({ ...c, enabled })}
+            />
+            <MoreMenu
+              size="sm"
+              label={`${c.label} options`}
+              items={[
+                ...(c.enabled && !isDefault
+                  ? [
+                      {
+                        label: "Make default",
+                        onClick: () => void setDefaultBackend(c.id),
+                      },
+                    ]
+                  : []),
+                { label: "Edit", onClick: () => startEdit(c) },
+                { type: "divider" as const },
+                {
+                  label: "Delete",
+                  variant: "destructive" as const,
+                  onClick: () => void deleteBackend(c.id),
+                },
               ]}
-            >
-              <Item
-                align="first-line"
-                startContent={
-                  <Icon icon={meta.icon} size="sm" color="secondary" />
-                }
-                label={
-                  <HStack gap={2} vAlign="center">
-                    <Text weight="medium" maxLines={1}>
-                      {c.label}
-                    </Text>
-                    {active && (
-                      <Text size="sm" color="accent">
-                        default
-                      </Text>
-                    )}
-                  </HStack>
-                }
-                description={
-                  <Text size="sm" color="secondary" maxLines={1}>
-                    {subtitle(c)}
-                  </Text>
-                }
-                endContent={
-                  <HStack gap={1} vAlign="center">
-                    <CheckboxInput
-                      label={`Enable ${c.label}`}
-                      isLabelHidden
-                      size="sm"
-                      value={c.enabled}
-                      onChange={(enabled) =>
-                        void saveBackend({ ...c, enabled })
-                      }
-                    />
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      label="Edit"
-                      tooltip="Edit"
-                      icon={<Pencil size={13} />}
-                      onClick={() => startEdit(c)}
-                    />
-                    <IconButton
-                      variant="ghost"
-                      size="sm"
-                      label="Delete"
-                      tooltip="Delete"
-                      icon={<Trash2 size={13} />}
-                      onClick={() => void deleteBackend(c.id)}
-                    />
-                  </HStack>
-                }
-              />
-            </ClickableCard>
-          );
-        })}
-        <ClickableCard
-          label="Add an agent"
-          padding={3}
-          onClick={() => setView({ step: "pickType" })}
-          xstyle={styles.addTile}
-        >
-          <VStack gap={1} hAlign="center">
-            <Plus size={16} />
-            <Text color="inherit">Add</Text>
-          </VStack>
-        </ClickableCard>
-      </VStack>
-      <Hint>
-        Click a card to make it the default for new conversations. Each
-        conversation remembers its own choice once you pick one from the chat
-        bar. Untick a card to turn it off — it stays saved but is hidden from
-        the chat bar and no longer checked in the background.
-      </Hint>
+            />
+          </HStack>
+        }
+      />
+    );
+  };
+
+  const acp = backends.filter((b) => b.kind === "acp");
+  // Ollama connections first, then OpenAI-compatible APIs.
+  const providers = backends
+    .filter((b) => b.kind !== "acp")
+    .sort((a, b) => Number(a.kind !== "ollama") - Number(b.kind !== "ollama"));
+
+  return (
+    <VStack gap={5}>
+      {acp.length > 0 && (
+        <SettingsCard title="External agents (ACP)">
+          {acp.map(agentRow)}
+        </SettingsCard>
+      )}
+      {providers.length > 0 && (
+        <SettingsCard title="Built-in providers">
+          {providers.map(agentRow)}
+        </SettingsCard>
+      )}
+      <HStack>
+        <DropdownMenu
+          button={{
+            label: "Add an agent",
+            icon: <Icon icon={Plus} size="sm" />,
+          }}
+          items={(Object.keys(KIND_META) as Kind[]).map((kind) => ({
+            label: KIND_META[kind].label,
+            description: KIND_META[kind].hint,
+            icon: <Icon icon={KIND_META[kind].icon} size="sm" />,
+            onClick: () => startAdd(kind),
+          }))}
+        />
+      </HStack>
+      <Text type="supporting" color="secondary">
+        The default agent is the one new conversations start with; each
+        conversation remembers its own once you pick one from the chat bar. A
+        turned-off agent stays saved but is hidden from the chat bar and no
+        longer checked in the background.
+      </Text>
     </VStack>
   );
 }
