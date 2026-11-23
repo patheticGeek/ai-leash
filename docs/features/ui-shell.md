@@ -115,26 +115,31 @@ can review or edit it before pressing **Enter**.
 
 For projects in a git repository, a bar below the message box shows which
 worktree the conversation is working in (on the left) and which branch is
-checked out there (on the right). Click either one to open a picker. Both
-pickers have a search box; use the arrow keys to move through the list and
-**Enter** to choose an entry.
+checked out there (on the right). Click either one to open a picker above
+it. Both pickers have a search box; use the arrow keys to move through the
+list and **Enter** to choose an entry. The current entry is checked.
 
 - **Worktree** lists the project's primary checkout and any other worktrees.
   Choose one to work in it, or select **New worktree…** at the bottom of the
   list to create one on a new branch (based on a branch you choose) or on an
-  existing branch that is not already checked out elsewhere. The worktree is
-  fixed once you send the conversation's first message; after that the list
-  can still be browsed but not changed.
+  existing branch that is not already checked out elsewhere. The form opens
+  in the picker itself; **Cancel** returns to the list. The worktree is fixed
+  once you send the conversation's first message; after that the worktree
+  button is disabled, and its tooltip says why.
 - **Branch** lists the branches of the current worktree, the checked-out one
   first and the rest by when they were last checked out in that worktree
   (most recent first; never-checked-out branches last). Choose one to switch
   to it, or select **New branch…** to create a branch from a base branch and
-  switch to it. The branch can be changed at any time.
+  switch to it, in the same inline form. If git refuses the name (for
+  example, a branch by that name already exists), its message shows on the
+  name field. The branch can be changed at any time.
 
-To delete a worktree or branch, click the trash icon on its row and confirm.
-The active worktree and the currently checked-out branch cannot be deleted.
-If git refuses because a worktree has uncommitted changes or a branch is not
-fully merged, the picker shows git's message and offers **Force delete**.
+To delete a worktree or branch, hover its row (or move the highlight to it)
+to reveal the trash icon, click it, and confirm in the card that replaces
+the row. The active worktree and the currently checked-out branch cannot be
+deleted. If git refuses because a worktree has uncommitted changes or a
+branch is not fully merged, the card shows git's message and offers **Force
+delete**, which throws those changes away.
 
 ## The right-hand tool panel
 
