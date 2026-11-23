@@ -1,3 +1,4 @@
+import { Icon } from "@astryxdesign/core/Icon";
 import {
   SegmentedControl,
   SegmentedControlItem,
@@ -14,7 +15,8 @@ const styles = stylex.create({
   root: { flexShrink: 0 },
 });
 
-// Board / Both / Chat, in the title bar while a project's board is open.
+// Board / Both / Chat, in the title bar's end slot while a project's board
+// is open, in place of Open in external editor and the Actions button.
 export default function BoardLayoutSwitch() {
   const layout = useBoardLayout();
   return (
@@ -28,17 +30,17 @@ export default function BoardLayoutSwitch() {
       <SegmentedControlItem
         value="board"
         label="Board"
-        icon={<SquareKanban size={14} />}
+        icon={<Icon icon={SquareKanban} size="sm" />}
       />
       <SegmentedControlItem
         value="both"
         label="Both"
-        icon={<Columns2 size={14} />}
+        icon={<Icon icon={Columns2} size="sm" />}
       />
       <SegmentedControlItem
         value="chat"
         label="Chat"
-        icon={<MessageSquare size={14} />}
+        icon={<Icon icon={MessageSquare} size="sm" />}
       />
     </SegmentedControl>
   );

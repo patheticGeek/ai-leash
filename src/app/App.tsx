@@ -29,6 +29,8 @@ import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
+import { startNewThread } from "./projectActions";
+import { useSidebarCollapse } from "./sidebarCollapse";
 import TitleBar from "./TitleBar";
 
 const styles = stylex.create({
@@ -98,12 +100,28 @@ function App() {
   // conversation switches.
   useBackendModels();
 
-  const leftBar = useResizableWidth(LS_KEYS.leftBarWidth, 220, 160, 400);
+  // Collapsible: the sidebar folds to its icon rail (see `sidebarCollapse`).
+  const leftBar = useResizableWidth(LS_KEYS.leftBarWidth, 260, 180, 420, true);
+  const sidebarCollapse = useSidebarCollapse(leftBar);
   const rightPanel = useResizableWidth(LS_KEYS.rightPanelWidth, 360, 240, 720);
 
   useEffect(() => {
     initializeStartupSession();
   }, [initializeStartupSession]);
+
+  // Ctrl+N (Command+N on macOS) starts a new thread, the shortcut the
+  // sidebar's New thread item shows.
+  useEffect(() => {
+    function handleNewThread(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.repeat) return;
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== "n") return;
+      e.preventDefault();
+      void startNewThread();
+    }
+    document.addEventListener("keydown", handleNewThread);
+    return () => document.removeEventListener("keydown", handleNewThread);
+  }, []);
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no
@@ -138,48 +156,62 @@ function App() {
     <>
       <AppShell
         variant="wash"
+        contentPadding={0}
         // A desktop window, not a responsive page: the sidebar stays inline
         // however narrow the window gets, never a mobile drawer.
         mobileNav={{ breakpoint: "none", hasToggle: false }}
         xstyle={BUILD_LABEL ? styles.buildFrame : undefined}
-        topNav={
-          <TitleBar
-            leftBarWidth={leftBar.size}
-            rightPanelWidth={boardView ? null : rightPanel.size}
-          />
-        }
-        sideNav={<LeftBar resizable={leftBar} />}
+        sideNav={<LeftBar resizable={leftBar} collapse={sidebarCollapse} />}
       >
-        <TabDndProvider>
-          <Layout
-            content={
-              <LayoutContent isScrollable={false}>
-                {/* Per switch, not per id: a new thread getting its id on its
-                    first message must not remount the panel — see
-                    `viewEpoch`. */}
-                <CenterPanel key={viewEpoch} />
-              </LayoutContent>
-            }
-            end={
-              !boardView && (
-                <>
-                  <ResizeHandle
-                    isReversed
-                    resizable={rightPanel}
-                    label="Resize side panel"
-                  />
-                  <LayoutPanel
-                    resizable={rightPanel}
-                    isScrollable={false}
-                    label="Side panel"
-                  >
-                    <SidePanel />
-                  </LayoutPanel>
-                </>
-              )
-            }
-          />
-        </TabDndProvider>
+        {/* The shell-side-nav template's frame: the sidebar runs the full
+            window height and the title bar is the main region's pinned
+            header, spanning the centre and the side panel. Below it, the ide
+            template's split: the centre fills, the side panel sits in the
+            end slot behind a ResizeHandle that owns the divider. */}
+        <Layout
+          height="fill"
+          header={<TitleBar sidebarCollapse={sidebarCollapse} />}
+          content={
+            <LayoutContent padding={0} isScrollable={false}>
+              <TabDndProvider>
+                <Layout
+                  height="fill"
+                  content={
+                    <LayoutContent padding={0} isScrollable={false}>
+                      {/* Per switch, not per id: a new thread getting its id
+                          on its first message must not remount the panel —
+                          see `viewEpoch`. */}
+                      <CenterPanel key={viewEpoch} />
+                    </LayoutContent>
+                  }
+                  end={
+                    !boardView && (
+                      <>
+                        <ResizeHandle
+                          direction="horizontal"
+                          hasDivider
+                          isReversed
+                          isAlwaysVisible={false}
+                          resizable={rightPanel}
+                          label="Resize side panel"
+                        />
+                        <LayoutPanel
+                          resizable={rightPanel}
+                          hasDivider={false}
+                          padding={0}
+                          isScrollable={false}
+                          label="Side panel"
+                        >
+                          <SidePanel />
+                        </LayoutPanel>
+                      </>
+                    )
+                  }
+                />
+              </TabDndProvider>
+            </LayoutContent>
+          }
+        />
       </AppShell>
       <SettingsModal />
       <DebugDevtoolsOverlay />

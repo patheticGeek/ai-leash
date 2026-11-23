@@ -11,7 +11,6 @@ import {
 } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-react";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TabBody } from "../features/tabs/TabContent";
@@ -19,6 +18,7 @@ import { useTabDropArea } from "../features/tabs/TabDnd";
 import TabStrip from "../features/tabs/TabStrip";
 import { useAppStore } from "../store";
 import { PRIMARY_TAB_ID } from "../store/panelSlice";
+import { pickAndAddProject } from "./projectActions";
 
 const styles = stylex.create({
   fill: { height: "100%" },
@@ -39,15 +39,6 @@ const styles = stylex.create({
 });
 
 function NoProjectState() {
-  const addProject = useAppStore((s) => s.addProject);
-
-  async function pickProject() {
-    const dir = await open({ directory: true, multiple: false });
-    if (typeof dir === "string") {
-      await addProject(dir);
-    }
-  }
-
   return (
     <Center padding={6} xstyle={styles.fill}>
       <VStack gap={3} hAlign="center" maxWidth={512}>
@@ -75,11 +66,11 @@ function NoProjectState() {
             variant="primary"
             label="Open a project folder"
             icon={<FolderOpen size={15} />}
-            onClick={pickProject}
+            onClick={() => void pickAndAddProject()}
           />
         </VStack>
         <Text type="supporting" size="xsm" color="secondary">
-          You can also use the + button in the sidebar header.
+          You can also use Add project at the top of the sidebar.
         </Text>
       </VStack>
     </Center>
@@ -105,6 +96,7 @@ export default function CenterPanel() {
     <VStack ref={dropRef} xstyle={styles.fill}>
       {!boardView && (
         <TabStrip
+          label="Chat tabs"
           tabs={chatTabs}
           value={activeChatTabId}
           onSelect={activateTab}

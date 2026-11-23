@@ -1,4 +1,5 @@
-import { Button } from "@astryxdesign/core/Button";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { CodeXml } from "lucide-react";
 import { useState } from "react";
 import { usePreference } from "@/data/preferences";
@@ -26,13 +27,13 @@ export default function OpenInIdeButton() {
   }
 
   return (
-    <Button
-      variant="secondary"
+    <IconButton
+      variant="ghost"
       size="sm"
-      label="Open"
-      icon={<CodeXml size={12} />}
+      label="Open in external editor"
+      icon={<Icon icon={CodeXml} size="sm" />}
       onClick={handleClick}
-      tooltip={error ?? `Open in IDE (${ideCommand})`}
+      tooltip={error ?? `Open in external editor (${ideCommand})`}
     />
   );
 }

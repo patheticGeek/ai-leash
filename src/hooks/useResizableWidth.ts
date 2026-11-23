@@ -15,6 +15,9 @@ export function useResizableWidth(
   defaultWidth: number,
   min: number,
   max: number,
+  // Lets the region collapse (to the SideNav's icon rail, say); the
+  // collapse state is saved with the width.
+  collapsible = false,
 ) {
   const legacy = Number(localStorage.getItem(storageKey));
   return useResizable({
@@ -22,5 +25,6 @@ export function useResizableWidth(
     minSize: min,
     maxSize: max,
     autoSaveId: storageKey,
+    collapsible,
   });
 }

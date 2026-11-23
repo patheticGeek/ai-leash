@@ -4,7 +4,9 @@ import {
   DropdownMenu,
   DropdownMenuItem,
 } from "@astryxdesign/core/DropdownMenu";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, Play, Square } from "lucide-react";
 import { useActions } from "../features/actions/useActions";
@@ -51,10 +53,9 @@ export default function TitleBarActions() {
   return (
     <ButtonGroup label="Actions" size="sm" xstyle={styles.group}>
       <Button
-        variant="secondary"
         size="sm"
         label={current.name}
-        icon={current.running ? <Square size={11} /> : <Play size={11} />}
+        icon={<Icon icon={current.running ? Square : Play} size="sm" />}
         onClick={() => handleToggle(current)}
         tooltip={
           current.running ? `Stop ${current.name}` : `Run ${current.name}`
@@ -69,30 +70,21 @@ export default function TitleBarActions() {
           renderTrigger={(triggerProps) => (
             <IconButton
               {...triggerProps}
-              variant="secondary"
               size="sm"
               label="Other actions"
               tooltip="Other actions"
-              icon={<ChevronDown size={12} />}
+              icon={<Icon icon={ChevronDown} size="sm" />}
             />
           )}
         >
           {rest.map((action) => (
             <DropdownMenuItem
               key={action.id}
-              icon={
-                action.running ? (
-                  <Square size={11} className="shrink-0 text-warning" />
-                ) : (
-                  <Play size={11} className="shrink-0 text-zinc-500" />
-                )
-              }
+              icon={<Icon icon={action.running ? Square : Play} size="sm" />}
               label={action.name}
               endContent={
                 action.running && (
-                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-warning">
-                    running
-                  </span>
+                  <StatusDot variant="warning" isPulsing label="Running" />
                 )
               }
               onClick={() => void handleToggle(action)}
