@@ -63,10 +63,10 @@ export default function PermissionModePopover({
       renderTrigger={(triggerProps) => (
         <Button
           {...triggerProps}
-          variant="secondary"
+          variant="ghost"
           size="sm"
           label={active?.label ?? value}
-          icon={warn ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
+          icon={warn ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
           tooltip="Tool-call permission mode"
         />
       )}

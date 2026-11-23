@@ -1,7 +1,15 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
+import {
+  ChatComposer as AstryxChatComposer,
+  ChatSendButton,
+} from "@astryxdesign/core/Chat";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
+import { Clock } from "lucide-react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
-import { cn } from "@/lib/utils";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
@@ -15,11 +23,42 @@ import { useSessionPermissions } from "../../hooks/useSessionPermissions";
 import { useSlashCommands } from "../../hooks/useSlashCommands";
 import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
-import TaskLinkBanner from "../banners/TaskLinkBanner";
-import ChatInputBar from "./ChatInputBar";
+import type { TranscriptNoticesProps } from "../banners/TranscriptNotices";
+import ElicitationPrompt from "../popovers/ElicitationPrompt";
+import PermissionPrompt from "../popovers/PermissionPrompt";
+import SlashCommandMenu from "../popovers/SlashCommandMenu";
 import ChatToolbar from "./ChatToolbar";
-import ContextUsageRing from "./ContextUsageRing";
+import ComposerInput from "./ComposerInput";
+import ContextUsage from "./ContextUsage";
 import CheckoutBar, { type CheckoutBarProps } from "./checkout/CheckoutBar";
+import QueuedDrawer from "./QueuedDrawer";
+
+// The transcript column's width (`ChatEntryList`'s `COLUMN_WIDTH`), so the
+// dock lines up with the messages above it.
+const COLUMN_WIDTH = 800;
+
+const styles = stylex.create({
+  dock: {
+    width: "100%",
+    paddingBlock: spacingVars["--spacing-3"],
+    paddingInline: spacingVars["--spacing-4"],
+  },
+  // Pinned over the bottom of the transcript, centred on its column.
+  floating: {
+    position: "absolute",
+    insetBlockEnd: 0,
+    insetInline: 0,
+  },
+  column: {
+    maxWidth: COLUMN_WIDTH,
+    marginInline: "auto",
+  },
+  compact: {
+    paddingInline: spacingVars["--spacing-2"],
+    paddingBlockStart: spacingVars["--spacing-2"],
+    paddingBlockEnd: spacingVars["--spacing-2"],
+  },
+});
 
 interface ChatComposerProps {
   // null for a new thread that hasn't sent its first message yet.
@@ -40,11 +79,11 @@ interface ChatComposerProps {
     onDismiss: () => void;
   };
   checkout: CheckoutBarProps;
-  // Conversation notices (`TranscriptNotices`) shown first in the banner
-  // stack, above its own strips.
-  notices?: ReactNode;
+  // The conversation's own notices (`TranscriptNotices`), sorted into the
+  // banner stack by severity with the composer's own.
+  notices?: TranscriptNoticesProps;
   // A narrow column (see `ChatPanel`'s `compact`): full width of it, with
-  // a flush message box.
+  // a compact composer.
   compact: boolean;
   showCheckout: boolean;
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
@@ -61,9 +100,13 @@ interface ChatComposerProps {
   onHeightChange: (height: number) => void;
 }
 
-// The whole bottom dock of a conversation: the strips above the message box,
-// the box itself with its pickers, the permission ask and slash-command
-// autocomplete, the context-usage ring, and the checkout bar beneath it.
+// The whole bottom dock of a conversation, top to bottom: the banner stack
+// (`ChatBanners`), the Astryx `ChatComposer` — header (context usage; the
+// `@` mention button, #24, goes in its header actions), our textarea in its
+// input slot, the queued messages in its drawer, the pickers in its footer —
+// or, while the agent is asking something, the permission / question prompt
+// in its place, and the checkout bar beneath. The running sub-agents pill
+// (#26) goes between the banners and the composer.
 // Owns all the state that's only about *typing a message* — the draft text,
 // slash autocomplete, "/help" overlay, the queue of messages typed
 // mid-turn, permission mode — and interprets what a submit means.
@@ -87,6 +130,8 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const composeMode = usePreference("composeMode");
   const dockRef = useElementHeight<HTMLDivElement>(onHeightChange);
+  // What the slash menu anchors to: the composer's frame.
+  const composerRef = useRef<HTMLDivElement>(null);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
   const permissions = useSessionPermissions(
@@ -96,8 +141,8 @@ export default function ChatComposer({
   );
   const elicitation = useSessionElicitation(sessionId, onError);
   const queue = useMessageQueue(sending, onSubmit);
-  // "/help" shows an overlay over the messages area rather than adding an
-  // entry to the transcript — closed by its own X button or, more usually,
+  // "/help" shows a banner above the composer rather than adding an entry
+  // to the transcript — closed by its own dismiss button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
   const [helpOpen, setHelpOpen] = useState(false);
   // Lives here (not in `ChatToolbar`) so "/model" can open the picker
@@ -201,7 +246,7 @@ export default function ChatComposer({
     textareaRef.current?.focus();
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (slash.showPopover) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -238,48 +283,77 @@ export default function ChatComposer({
   }
 
   const usedTokens = usage ? usage.prompt + usage.completion : null;
+  const showQueue = sending && input.trim().length > 0;
+  const sendDisabled = !input.trim() || !backendReady;
+  const { pendingPermission, respondPermission } = permissions;
+  const { pendingElicitation, respondElicitation } = elicitation;
 
   return (
-    <div
+    <VStack
       ref={dockRef}
-      className={cn("w-full", floating && "absolute bottom-0")}
+      gap={2}
+      xstyle={[
+        styles.dock,
+        floating && styles.floating,
+        compact ? styles.compact : styles.column,
+      ]}
     >
-      <div className={cn(compact ? "mt-3" : "mx-auto my-3 max-w-4xl")}>
-        {notices}
-        <TaskLinkBanner sessionId={sessionId} />
-        <ChatBanners
-          helpOpen={helpOpen}
-          commands={allCommands}
-          onCloseHelp={() => setHelpOpen(false)}
-          claudeRateLimit={claudeRateLimit.rateLimit}
-          claudeAutoResumeArmed={claudeRateLimit.autoResumeArmed}
-          onArmAutoResume={claudeRateLimit.onArmAutoResume}
-          onDismissRateLimit={claudeRateLimit.onDismiss}
-          queuedMessages={queue.queued}
-          onCancelQueued={queue.remove}
+      <ChatBanners
+        sessionId={sessionId}
+        notices={notices}
+        claudeRateLimit={claudeRateLimit.rateLimit}
+        claudeAutoResumeArmed={claudeRateLimit.autoResumeArmed}
+        onArmAutoResume={claudeRateLimit.onArmAutoResume}
+        onDismissRateLimit={claudeRateLimit.onDismiss}
+        helpOpen={helpOpen}
+        commands={allCommands}
+        onCloseHelp={() => setHelpOpen(false)}
+      />
+      {pendingPermission ? (
+        <PermissionPrompt
+          request={pendingPermission}
+          onRespond={respondPermission}
         />
-        <ChatInputBar
-          flush={compact}
-          input={input}
+      ) : pendingElicitation ? (
+        <ElicitationPrompt
+          key={pendingElicitation.id}
+          request={pendingElicitation}
+          onRespond={respondElicitation}
+        />
+      ) : (
+        <AstryxChatComposer
+          ref={composerRef}
+          value={input}
           onChange={setInput}
-          onKeyDown={onKeyDown}
-          textareaRef={textareaRef}
-          shellMode={shellMode}
-          pendingPermission={permissions.pendingPermission}
-          onRespondPermission={permissions.respondPermission}
-          pendingElicitation={elicitation.pendingElicitation}
-          onRespondElicitation={elicitation.respondElicitation}
-          showSlashPopover={slash.showPopover}
-          slashMatches={slash.matches}
-          slashActiveIndex={slash.activeIndex}
-          onAcceptSlash={acceptSlashCommand}
-          onSlashActiveIndexChange={slash.setActiveIndex}
-          sending={sending}
-          onSend={send}
-          onStop={stop}
-          onQueue={queueMessage}
-          sendDisabled={!input.trim() || !backendReady}
-          toolbarLeft={
+          // Send / Stop go through `ChatSendButton` below and Enter through
+          // `onKeyDown`; this is only the shell's own submit path.
+          onSubmit={() => void send()}
+          onStop={() => void stop()}
+          isStopShown={sending}
+          density={compact ? "compact" : "balanced"}
+          drawer={
+            queue.queued.length > 0 ? (
+              <QueuedDrawer messages={queue.queued} onCancel={queue.remove} />
+            ) : undefined
+          }
+          headerContext={
+            usedTokens !== null ? (
+              <ContextUsage
+                usedTokens={usedTokens}
+                contextLength={usage?.contextLength ?? session.contextLength}
+              />
+            ) : undefined
+          }
+          input={
+            <ComposerInput
+              value={input}
+              onChange={setInput}
+              onKeyDown={onKeyDown}
+              textareaRef={textareaRef}
+              shellMode={shellMode}
+            />
+          }
+          footerActions={
             <ChatToolbar
               backendOptions={session.backendOptions}
               activeBackendKey={session.activeBackendKey}
@@ -302,17 +376,38 @@ export default function ChatComposer({
               onModelChange={session.setModel}
             />
           }
-          contextUsage={
-            usedTokens !== null && (
-              <ContextUsageRing
-                usedTokens={usedTokens}
-                contextLength={usage?.contextLength ?? session.contextLength}
+          sendActions={
+            showQueue ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                label="Queue"
+                icon={<Clock size={14} />}
+                onClick={queueMessage}
+                tooltip="Send after the current turn finishes (Ctrl+Enter)"
               />
-            )
+            ) : undefined
+          }
+          sendButton={
+            <ChatSendButton
+              isStopShown={sending}
+              isDisabled={!sending && sendDisabled}
+              onSend={() => void send()}
+              onStop={() => void stop()}
+            />
           }
         />
-        {showCheckout && <CheckoutBar {...checkout} />}
-      </div>
-    </div>
+      )}
+      {slash.showPopover && !pendingPermission && !pendingElicitation && (
+        <SlashCommandMenu
+          matches={slash.matches}
+          activeIndex={slash.activeIndex}
+          onSelect={acceptSlashCommand}
+          onActiveIndexChange={slash.setActiveIndex}
+          anchorRef={composerRef}
+        />
+      )}
+      {showCheckout && <CheckoutBar {...checkout} />}
+    </VStack>
   );
 }

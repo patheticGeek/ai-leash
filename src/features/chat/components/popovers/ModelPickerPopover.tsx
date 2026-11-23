@@ -5,12 +5,14 @@ import {
 } from "@astryxdesign/core/CommandPalette";
 import { VStack } from "@astryxdesign/core/Layout";
 import { Popover } from "@astryxdesign/core/Popover";
+import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import {
   createStaticSource,
   type SearchableItem,
 } from "@astryxdesign/core/Typeahead";
-import { Bot, Loader } from "lucide-react";
+import * as stylex from "@stylexjs/stylex";
+import { Bot } from "lucide-react";
 import { useMemo } from "react";
 
 export interface PickerOption {
@@ -43,6 +45,11 @@ interface ModelPickerPopoverProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const styles = stylex.create({
+  // A long "Agent · model" label truncates rather than crowding the footer.
+  trigger: { maxWidth: "16rem" },
+});
 
 type ModelItem = SearchableItem<{ group: string; subtitle: string }>;
 
@@ -126,19 +133,19 @@ export default function ModelPickerPopover({
       }
     >
       <Button
-        variant={dangerMessage ? "destructive" : "secondary"}
+        variant={dangerMessage ? "destructive" : "ghost"}
         size="sm"
         label={triggerLabel}
         icon={
           loading ? (
-            <Loader size={12} className="animate-spin" />
+            <Spinner size="sm" aria-label="Connecting" />
           ) : (
-            <Bot size={12} />
+            <Bot size={14} />
           )
         }
         tooltip={dangerMessage ?? undefined}
         isDisabled={disabled}
-        className="max-w-[160px]"
+        xstyle={styles.trigger}
       />
     </Popover>
   );
