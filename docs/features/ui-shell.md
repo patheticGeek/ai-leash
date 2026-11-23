@@ -14,7 +14,7 @@ AI Leash is arranged as a conversation workspace with three main areas:
 
 The top bar shows the current project and conversation. It also includes a
 button for starting a new thread, an **Open** button for your external
-editor (see [Open in IDE](#open-in-ide)), the quick-run control for
+editor (see [Open in external editor](#open-in-external-editor)), the quick-run control for
 [Actions](./actions.md), and the window controls. The center of the
 window is where you chat with the agent. The panel on the right contains
 project tools such as files and terminals.
@@ -185,30 +185,53 @@ chrome — tabs, sidebar rows and small buttons, pickers and inputs — uses
 12px text around 14px content. The theme lives in `themes/ai-leash/` and is
 changed only through `npx astryx experimental theme editor`. Icons are
 `lucide-react` throughout. You can change the fonts and text sizes under
-[Preferences](#preferences), and adjust the panel widths as described above.
+[Settings](#settings), and adjust the panel widths as described above.
+
+## Settings
+
+Open **Settings** from the gear at the bottom of the sidebar. It is one
+dialog (Astryx's `settings-dialog` template, `src/features/settings/`): a
+side nav on the left and the selected panel on the right, with a close
+button pinned to the panel's top corner. The nav has three groups:
+
+- **Agents**: the agents the chat bar can pick from; see
+  [Agent chat](./agent-chat.md#built-in-providers).
+- **Preferences**: **Chat**, **Fonts**, **External editor** and **Debug**
+  (below).
+- **App**: **Crash log** (see [Crash logging](./crash-logging.md)) and
+  **About** (version, commit, app id, and links to the source code and
+  website).
+
+Type in **Search settings** at the top of the nav to find a setting by name
+or by a word you'd use for it ("ide", "monospace", "send"). The nav is
+replaced by the matching settings while you type; use the arrow keys and
+**Enter**, or click one, to open its panel. **Escape** clears the search
+first, then closes the dialog. The searchable list lives in
+`src/features/settings/panels.ts`, next to the panel registry.
 
 ## Preferences
 
-**Settings > Preferences** collects the app's personal settings in four
-sections. Changes apply immediately and are remembered in the app's config
-folder (`preferences.json`, with a `.dev` suffix in development builds), so they
+The Preferences panels hold the app's personal settings. Changes apply
+immediately and are remembered in the app's config folder
+(`preferences.json`, with a `.dev` suffix in development builds), so they
 survive a restart and are not tied to the window.
 
 - **Chat**: turn on **Compose mode** to make **Enter** insert a new line in
   the message box and **Ctrl+Enter** (**Command+Enter** on macOS) send the message. It is off by
   default, when **Enter** sends and **Shift+Enter** adds a new line. **Max chat
   box height** sets how many lines the message box grows to before it
-  scrolls (3 to 12, default 6).
+  scrolls (3 to 12, default 6). **Collapse finished turns** folds a finished
+  turn's thinking, tool calls and earlier messages into one "Worked for" row.
 - **Fonts**: choose a font family and size for **Interface text** and for
   **Code text**. See [Fonts](#fonts).
-- **IDE**: the command behind the title bar's Open button; see
-  [Open in IDE](#open-in-ide).
+- **External editor**: the command behind the title bar's Open button; see
+  [Open in external editor](#open-in-external-editor).
 - **Debug**: see [Debug mode](./debug-mode.md).
 
 ### Fonts
 
-Each of the two font settings has a font family field and a size in pixels
-(from 8 to 32).
+Interface text and code text each have a font family and a size in pixels
+(from 8 to 32), with a live preview under the family.
 
 - **Interface text** is used for normal text throughout the app. Its default
   size is 14px. The size sets the body text size (Astryx's `--font-size-base`,
@@ -218,20 +241,19 @@ Each of the two font settings has a font family field and a size in pixels
   terminals, and the file editor. Its default size is 12px. Open terminals
   resize to fit when you change it.
 
-You can type any font name, or a comma-separated list such as
-`Inter, sans-serif`. Leave the family empty to use the built-in font
-(Instrument Sans for interface text, JetBrains Mono for code). If a font you
-type is not installed, AI Leash falls back to the built-in font.
+The family picker lists the fonts installed on your computer, with a search
+box; the code picker lists monospaced fonts first. The first entry is the
+built-in font (Instrument Sans for interface text, JetBrains Mono for code).
+A family set before the picker existed — a comma-separated list such as
+`Inter, sans-serif`, or a font that has since been uninstalled — stays in the
+list as a **Custom** entry until you pick another; a font that isn't installed
+falls back to the built-in one.
 
-Select **Browse** beside a family field to pick from the fonts installed on
-your computer. The picker has a search box and previews the highlighted font;
-the code picker lists monospaced fonts first.
-
-## Open in IDE
+## Open in external editor
 
 The title bar has an **Open** button (code icon, tooltip "Open in IDE") that opens the active
 conversation's checkout (the project root, or its worktree) in an external
-editor. Settings > Preferences > **IDE** sets the command it runs — `code` by default; any
+editor. **Settings > External editor** sets the command it runs — `code` by default; any
 launcher on your shell's `PATH` works (`zed`, `cursor`, `idea`, `code -n`).
 The checkout path is appended as the last argument. The command is split
 shell-style but never run through a shell. If it fails to launch, the
@@ -239,6 +261,6 @@ button's tooltip shows the error.
 
 ## Debug mode
 
-Settings > Preferences has a **Debug** section for inspecting the app's own behavior; see
+**Settings > Debug** has the settings for inspecting the app's own behavior; see
 [Debug mode](./debug-mode.md) for the ACP Events devtools panel and the
 title bar's id display.

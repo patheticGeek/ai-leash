@@ -28,7 +28,7 @@ side panel. If the shell itself exits, the tab shows a dimmed
 **[process exited]** line; close the tab and open a new terminal to start
 again.
 
-Terminal text uses the code font from **Settings > Preferences > Fonts**; see
+Terminal text uses the code font from **Settings > Fonts**; see
 [Fonts](./ui-shell.md#fonts).
 
 ## Use multiple terminal tabs
