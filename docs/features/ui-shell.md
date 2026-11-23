@@ -18,7 +18,7 @@ chat and the right-hand panel and shows where you are as a breadcrumb:
 **project / New thread** for a thread that has no messages yet. Click the
 project name to open that project's [board](./project-board.md). Drag the
 title bar to move the window. Its right end has an **Open in external
-editor** button (see [Open in IDE](#open-in-ide)), the quick-run control for
+editor** button (see [Open in external editor](#open-in-external-editor)), the quick-run control for
 [Actions](./actions.md), and the window controls; on a board those two
 buttons give way to the **Board / Both / Chat** layout switch. The center of
 the window is where you chat with the agent. The panel on the right contains
@@ -227,7 +227,7 @@ survive a restart and are not tied to the window.
 - **Fonts**: choose a font family and size for **Interface text** and for
   **Code text**. See [Fonts](#fonts).
 - **IDE**: the command behind the title bar's Open in external editor button; see
-  [Open in IDE](#open-in-ide).
+  [Open in external editor](#open-in-external-editor).
 - **Debug**: see [Debug mode](./debug-mode.md).
 
 ### Fonts
@@ -252,7 +252,7 @@ Select **Browse** beside a family field to pick from the fonts installed on
 your computer. The picker has a search box and previews the highlighted font;
 the code picker lists monospaced fonts first.
 
-## Open in IDE
+## Open in external editor
 
 The title bar has an **Open in external editor** button (code icon) that opens the active
 conversation's checkout (the project root, or its worktree) in an external
