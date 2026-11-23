@@ -3,44 +3,64 @@ import { LS_KEYS } from "../lib/localStorageKeys";
 import type { AppStore } from "./index";
 import { localStorageJson } from "./localStorageJson";
 
-// The left sidebar's collapsible sections — see `LeftBar.tsx`.
-export type SidebarSection = "boards" | "chats" | "done";
+// Which of the left sidebar's groups are folded — see `LeftBar.tsx`. Project
+// groups default to open, so only the folded ones are stored (a project added
+// later starts open); Done defaults to folded, so only "open" is stored.
+interface StoredSidebarGroups {
+  collapsedProjects: string[];
+  isDoneOpen: boolean;
+}
 
-const SIDEBAR_SECTIONS: readonly SidebarSection[] = ["boards", "chats", "done"];
-
-// Only collapsed sections are stored, so every section (including any added
-// later) defaults to expanded.
-function loadCollapsedSections(): Record<SidebarSection, boolean> {
-  const parsed = localStorageJson.read<unknown>(
-    LS_KEYS.sidebarCollapsedSections,
-    [],
+function loadSidebarGroups(): StoredSidebarGroups {
+  const parsed = localStorageJson.read<Partial<StoredSidebarGroups> | null>(
+    LS_KEYS.sidebarGroups,
+    null,
   );
-  const stored = Array.isArray(parsed) ? parsed : [];
-  return Object.fromEntries(
-    SIDEBAR_SECTIONS.map((section) => [section, stored.includes(section)]),
-  ) as Record<SidebarSection, boolean>;
+  return {
+    collapsedProjects: Array.isArray(parsed?.collapsedProjects)
+      ? parsed.collapsedProjects.filter((p) => typeof p === "string")
+      : [],
+    isDoneOpen: parsed?.isDoneOpen === true,
+  };
 }
 
 export interface SidebarSlice {
-  sidebarCollapsed: Record<SidebarSection, boolean>;
-  setSidebarSectionCollapsed: (
-    section: SidebarSection,
-    collapsed: boolean,
-  ) => void;
+  // Project roots whose sidebar group is folded.
+  sidebarCollapsedProjects: string[];
+  // Whether the Done group at the bottom of the sidebar is open.
+  sidebarDoneOpen: boolean;
+  setSidebarProjectCollapsed: (projectRoot: string, collapsed: boolean) => void;
+  setSidebarDoneOpen: (open: boolean) => void;
 }
 
 export const sidebarSlice: StateCreator<AppStore, [], [], SidebarSlice> = (
   set,
   get,
-) => ({
-  sidebarCollapsed: loadCollapsedSections(),
+) => {
+  const initial = loadSidebarGroups();
+  const persist = () =>
+    localStorageJson.write(LS_KEYS.sidebarGroups, {
+      collapsedProjects: get().sidebarCollapsedProjects,
+      isDoneOpen: get().sidebarDoneOpen,
+    } satisfies StoredSidebarGroups);
 
-  setSidebarSectionCollapsed: (section, collapsed) => {
-    const next = { ...get().sidebarCollapsed, [section]: collapsed };
-    set({ sidebarCollapsed: next });
-    localStorageJson.write(
-      LS_KEYS.sidebarCollapsedSections,
-      SIDEBAR_SECTIONS.filter((s) => next[s]),
-    );
-  },
-});
+  return {
+    sidebarCollapsedProjects: initial.collapsedProjects,
+    sidebarDoneOpen: initial.isDoneOpen,
+
+    setSidebarProjectCollapsed: (projectRoot, collapsed) => {
+      const others = get().sidebarCollapsedProjects.filter(
+        (p) => p !== projectRoot,
+      );
+      set({
+        sidebarCollapsedProjects: collapsed ? [...others, projectRoot] : others,
+      });
+      persist();
+    },
+
+    setSidebarDoneOpen: (open) => {
+      set({ sidebarDoneOpen: open });
+      persist();
+    },
+  };
+};

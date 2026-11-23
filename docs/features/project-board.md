@@ -1,12 +1,11 @@
 # Project boards
 
 Every project has a Kanban board for planning work as tasks. Open it from
-the **Project boards** section at the top of the sidebar.
+the **Board** entry at the top of the project's group in the sidebar.
 
-That section only lists boards that are in use — ones with tasks, or whose
-project chat has been opened — and at most five of them. The open board
-always shows. Click **More boards** to see the rest, including projects
-whose board you haven't used yet.
+Projects whose board isn't in use yet — no tasks, no project chat, and no
+conversations — are listed behind **More projects** at the end of the
+sidebar's project list.
 
 The board takes over the window next to the sidebar — there's no tab
 strip or side panel while it's open. Next to it is the **project chat**,
@@ -211,15 +210,15 @@ turn (the backend) live outside it, so nothing is lost.
 
 ## In the sidebar
 
-Each project in **Project boards** shows how many of its tasks are in
-progress (blue) and in review (amber). Chats started for a task appear
-under **Chats** with the task's number. Use the filter button next to the
-project menu to choose how they're listed:
+Each project's **Board** entry shows how many of its tasks are in progress
+(blue) and in review (amber), and a spinner while the project chat is
+working. Chats started for a task appear in the same project group with the
+task's number. Use the filter button beside **Projects** to choose how
+they're listed:
 
-- **Show all chats**: task chats are mixed in with the rest, most recent
-  first.
-- **Group task chats at top**: task chats come first.
-- **Hide task chats**: only other chats are listed. Open a task's chat from
-  its card instead.
+- **Mixed in**: task chats are mixed in with the rest, most recent first.
+- **Grouped at the top**: task chats come first in each project.
+- **Hidden**: only other chats are listed. Open a task's chat from its card
+  instead.
 
 Removing a project from AI Leash also deletes its board.
