@@ -181,7 +181,7 @@ Screenshots: `shots-v2/chat.png` (vs `ref-ide.png`, `ref-shell-side-nav.png`)
   tab, like a browser tab: a plain icon in `endContent`, visible on the
   selected tab and on hover/focus (its box is reserved so tabs don't shift).
   A click on the × closes (the Tab's `onClick` checks the target); so does
-  middle-click anywhere on the tab, and Delete / Ctrl+W on a focused tab
+  middle-click anywhere on the tab, and Ctrl+W on a focused tab (decided: not Delete)
   (`aria-keyshortcuts`), which is the keyboard path. Home tabs (Agent, Files,
   Sub agents, Actions) have no ×. (`src/shell/PaneTabs.tsx`)
 - **Sidebar** (`shell-side-nav`): New thread (with `Kbd`) and Add project as
@@ -408,7 +408,7 @@ component so they share a look. Screenshot = `shots-v2/<route>.png`.
 | `popup-mention` | `@` file mention (planned) | same trigger pattern as Astryx's `ChatComposerInputMentionTrigger` block; file/folder icon + path |
 | `popup-model`, `popup-effort`, `popup-permission` | The three composer pickers | `DropdownMenu` (sections per agent for models) |
 | `prompt-permission`, `prompt-question` | Permission prompt and elicitation question, in the composer's place | muted-elevation `Card` (Heading 4, supporting subtitle, content, actions end-aligned) |
-| `toasts` | "Task #42 moved to Review" (Open), "Copied", error toast | `useToast()`; the app mounts `ToastViewport position="topEnd"` under the title bar, because the default bottom-end sits on the composer's send/stop corner |
+| `toasts` | "Task #42 moved to Review" (Open), "Copied", error toast | `useToast()`; decided: the app mounts `ToastViewport` at the default bottom-end (the prototype shows top-end) |
 | `confirm-delete-conversation` | Delete conversation | `AlertDialog` (destructive action; Cancel focused) |
 | `confirm-finish-task` | Finish a task with uncommitted changes: Keep it open / Remove worktree | `AlertDialog` with `cancelLabel` = the safe choice |
 | `tooltip` | Tooltip on an icon button (Open in external editor) | `IconButton tooltip` |
@@ -445,14 +445,14 @@ Each task updates the `docs/features/*.md` page for its surface, then
 | # | Task | Main files |
 |---|---|---|
 | 0 | **Theme: switch from `leash` to stock Astryx.** Create `ai-leash` with `--like neutral` and the six 12px chrome settings (§1), `npx astryx theme add ai-leash`, make it the default, remove the `leash` theme (`themes/leash/`, `src/themes/leash/`, its entry in `src/astryx-themes.ts`) Leave the `--al-*` / shadcn variables in `src/index.css` alone: they colour the not-yet-migrated Tailwind surfaces and go away with them (the font preference bridge stays, see Q6). **Replace the AGENTS.md rule** "The `leash` theme should look like ai-leash, not like stock Astryx" with: "The theme is stock Astryx (`neutral`, dark). Don't recolour or respace it; build each surface from its Astryx template and keep the template's frame, gaps and padding. The only theme edit is chrome text on the 12px scale step — change the theme only through `astryx experimental theme editor`, with a reason from Astryx's docs." Expect every surface not yet migrated to look different (blue accent gone) until its task lands. | `themes/*`, `src/themes/*`, `src/astryx-themes.ts`, `src/main.tsx`, `src/index.css`, `AGENTS.md` |
-| 1 | **App shell:** title bar `Breadcrumbs`, sidebar collapse toggle (rail top ↔ title bar), New thread / Add project into the sidebar, `TabList` tabs with the in-tab × / middle-click / Delete close, end panel frame | `src/app/App.tsx`, `TitleBar.tsx`, `TitleBarActions.tsx`, `CenterPanel.tsx`, `src/features/tabs/TabStrip.tsx`, `src/features/board/BoardLayoutSwitch.tsx`; docs `ui-shell.md` |
+| 1 | **App shell:** title bar `Breadcrumbs`, sidebar collapse toggle (rail top ↔ title bar), New thread / Add project into the sidebar, `TabList` tabs with the in-tab × / middle-click / Ctrl+W close, selected underline stays visible while hovering other tabs, drag reordering, end panel frame | `src/app/App.tsx`, `TitleBar.tsx`, `TitleBarActions.tsx`, `CenterPanel.tsx`, `src/features/tabs/TabStrip.tsx`, `src/features/board/BoardLayoutSwitch.tsx`; docs `ui-shell.md` |
 | 2 | **Sidebar:** project groups (Board + chats), status end slots, reveal `MoreMenu`, Done group, the `contain` fix | `src/app/LeftBar.tsx`, `NewConversationPopover.tsx`, `DeleteConversationDialog.tsx`, sidebar state in `src/store/*`; docs `ui-shell.md`, `project-board.md`, `conversation-history.md` |
 | 3 | **Side panel:** Files (search + compact `TreeList`), Sub agents / Actions as compact `List`s, terminal look | `src/features/sidebar/SidePanel.tsx`, `TabPicker.tsx`, `tabs/*`, `src/features/tabs/TabContent.tsx`; docs `ui-shell.md`, `actions.md`, `terminal.md` |
-| 4 | **New thread:** landing column, "starts with" tokens, starter cards | `src/features/chat/components/empty-states/*`, `ChatPanel.tsx`; docs `agent-chat.md` |
+| 4 | **New thread:** landing column, project dropdown in the heading, "starts with" tokens (starter cards are a follow-up) | `src/features/chat/components/empty-states/*`, `ChatPanel.tsx`; docs `agent-chat.md` |
 | 5 | **Transcript:** `ChatMessageList` / `ChatMessage` / `ChatToolCalls` / `ChatSystemMessage` / `ChatMessageMetadata` mapping (§2.4). Grouping untouched | `src/features/chat/components/messages/*`, `banners/TranscriptNotices.tsx`, `SubAgentChatTab.tsx`, `src/ui/Markdown.tsx`; docs `agent-chat.md` |
-| 6 | **Composer:** `ChatComposer` slots, queued drawer, `Banner` notices (rate limit with countdown, task link, crash / connection errors), checkout bar, permission / question prompts, slash menu, `@` file mention (new), pickers, running sub-agents pill (new), app-wide top-end `ToastViewport`; the transcript / panel empty-loading-error states go with tasks 5 and 3 (§2.8) | `src/features/chat/components/composer/*`, `banners/*`, `popovers/*`; docs `agent-chat.md`, `tools.md` |
+| 6 | **Composer:** `ChatComposer` slots, queued drawer, `Banner` notices (rate limit with countdown, task link, crash / connection errors), checkout bar, permission / question prompts, slash menu, pickers (leave room for the `@` file mention #24 and running sub-agents pill #26, built separately), app-wide bottom-end `ToastViewport`, queued drawer always open (no handle); the transcript / panel empty-loading-error states go with tasks 5 and 3 (§2.8) | `src/features/chat/components/composer/*`, `banners/*`, `popovers/*`; docs `agent-chat.md`, `tools.md` |
 | 7 | **Board:** toolbar, columns, cards, epic swimlanes with sticky labels, drag ghost, project-chat dock | `src/features/board/*` (`BoardView`, `TaskCard`, `TaskMeta`, `ProjectBoardView`, `boardLayout.ts`, dialogs); docs `project-board.md` |
-| 8 | **Task modals:** one 1120-wide modal in new / not-started / running states (label-less field row, Markdown description, chat state, agent + checkout rail, Delete with AlertDialog); opens from New task and on card click. No full-page view | `src/features/board/TaskDialog.tsx` (split into new + details), `AgentFields.tsx`, `TaskCard.tsx` (click → details), `StartTaskDialog.tsx`; docs `project-board.md` |
+| 8 | **Task modals:** one 1120-wide modal in new / not-started / running states (label-less field row, Markdown description, chat state, agent + checkout rail, Delete with AlertDialog; "Start it right away" checkbox in the New task footer, off by default); opens from New task and on card click. No full-page view | `src/features/board/TaskDialog.tsx` (split into new + details), `AgentFields.tsx`, `TaskCard.tsx` (click → details), `StartTaskDialog.tsx`; docs `project-board.md` |
 | 9 | **Settings:** dialog shell with search, Preferences split into four panels, agent rows | `src/features/settings/*`; docs `ui-shell.md`, `agent-chat.md`, `debug-mode.md`, `crash-logging.md` |
 
 Order: **0 first** (everything else is designed against stock), then
@@ -461,76 +461,41 @@ run them in parallel), 7 → 8, and 9 any time after 0.
 
 ---
 
-## 4. Open questions
+## 4. Decisions (settled 2026-11-23)
 
-From v1 (still open):
+The prototype is approved to implement as is, with these calls on the open
+questions:
 
-1. **Sidebar grouping:** group chats under their project (the side-nav
-   template; the "Project boards" section goes away), or keep today's flat
-   **Project boards / Chats / Done** sections? Grouping drops the
-   cross-project "most recent first" order in All projects.
-2. **Chat rows on one line:** OK to drop the project · worktree · branch
-   line (project = group, branch = checkout bar), maybe keeping it as a
-   tooltip?
-3. **Side panel drawer (ide vs our tab model):** dock terminal / Action
-   output in a bottom drawer as the ide template does, or keep terminals as
-   plain tabs that can move between centre and panel (v2 shows tabs)?
-4. **Task view:** *now proposed:* details in a dialog, no full page (§2.6).
-   Still open: is an **Activity** feed (status moves, chat-to-chat messages)
-   worth a backend board-event log? If so it would be a section in the
-   details dialog.
-5. **Settings split:** split Preferences into Chat / Fonts / External editor
-   / Debug, rename "IDE" to "External editor", and add search?
-6. **Text size preference:** Settings > Fonts defaults the interface size to
-   16px, while Astryx sizes text from a 14px base. Default the preference to
-   14 and have it drive `--font-size-base`, so the setting and the theme agree?
-7. **New-thread starter cards:** keep four fixed prompts, generate them from
-   the project's skills and Actions, or drop them and keep only the "starts
-   with" row?
-8. **Template conflicts from v1** — v2 settles them by following the
-   template: the transcript is centred, priority is the template's `Badge`,
-   and the composer keeps its header row (attach + context %). Agent avatars
-   are dropped (your call after review). OK?
-
-New in v2:
-
-9. **Stock look vs ai leash identity:** with neutral's monochrome palette
-   the only brand colour left is the logo. Acceptable, or should the theme
-   take an accent later (through `editor set ai-leash accent …`, as one
-   theme setting, never per screen)?
-10. **Underline tabs instead of pills:** v2 uses `TabList`'s stock underline
-    tabs everywhere, with the in-tab × (§2.1). Two side effects to accept:
-    the × is a pointer target inside the tab button rather than its own
-    focusable button (keyboard close is Delete / Ctrl+W), and hovering one
-    tab hides the selected tab's underline (stock `TabList` behaviour,
-    visible in `chat-tabs-close.png`). Drag reordering still needs adding.
-    OK?
-11. **Template spacing is roomier** than today's app (e.g. sidebar rows,
-    settings rows, board card padding). v2 keeps it as the templates
-    scaffold it. If it's too airy, the fix is one theme setting
-    (`editor set ai-leash spacing tight`), not per-page padding — want that?
-12. **Board in Both layout:** at 1400px the board area fits ~2.5 columns,
-    so the third is cut at the panel edge and scrolls sideways. Accept, make
-    columns narrower in Both (template uses 300), or default boards to the
-    Board layout with the chat as a toggle?
-13. **Composer queued drawer:** `ChatComposerDrawer` with a count shows its
-    collapse handle at the top of the composer. Keep it collapsible (handle
-    visible), or drop the count so the drawer is always open and the handle
-    goes away?
-14. ~~Title bar subtitle~~ — dropped; the title bar is a one-line
-    breadcrumb.
-15. **Breadcrumb links:** `ai-leash` in the breadcrumb goes to the project's
-    board. Is that right, or should it open a project menu
-    (`BreadcrumbItem menu`: switch project, open board, project settings)?
-16. **Collapsed rail:** collapsed, the sidebar keeps an icon rail (New
-    thread, Add project, one folder per project, Done, Settings). Is that
-    enough, or should collapse hide the rail completely,
-    leaving only the title-bar toggle?
-17. **Toast position:** top-end under the title bar (so toasts never cover
-    the composer) instead of Astryx's bottom-end default. OK?
-18. **Planned pieces mocked here:** the `@` file mention and the running
-    sub-agents pill aren't in the app yet. Build them as part of task 6, or
-    as separate board tasks?
-19. **Task modal "Start it right away":** is a checkbox in the New task
-    footer the right place, or should Create have a split button
-    (Create / Create and start)?
+1. **Sidebar grouping:** group chats under their project, as prototyped.
+   A setting to switch between grouped and a flat list comes after the
+   migration (separate board task).
+2. **Chat rows:** one line; project · worktree · branch moves to a tooltip.
+3. **Terminal:** stays a normal tab that can move between centre and side
+   panel. No bottom drawer.
+4. **Task activity feed:** not now; separate backlog task (needs a board-event
+   log in the backend).
+5. **Settings:** split Preferences into Chat / Fonts / External editor /
+   Debug, rename "IDE" to "External editor", add search.
+6. **Text size preference:** defaults to 14 and drives `--font-size-base`.
+7. **Starter cards:** follow-up task. The first pass of the new-thread screen
+   ships with the "starts with" row only.
+8. **Template choices:** centred transcript, priority `Badge`, composer header
+   row (attach + context %), no agent avatars. Accepted.
+9. **No accent:** stock neutral, monochrome. An accent can come later as one
+   theme setting.
+10. **Tabs:** underline `TabList` tabs with the in-tab ×. Close with the ×,
+    middle-click or **Ctrl+W** (not Delete). **Hovering another tab must not
+    hide the selected tab's underline**: override the stock behaviour so the
+    selected underline always stays. Add drag reordering.
+11. **Spacing:** keep the templates' spacing. If it feels too airy in the
+    real app, the fix is one `spacing tight` theme setting.
+12. **Board in Both layout:** columns keep their width; the board just scrolls
+    sideways.
+13. **Queued drawer:** always open, no collapse handle.
+15. **Breadcrumb:** the project crumb opens the project's board.
+16. **Collapsed sidebar:** keeps the icon rail.
+17. **Toasts:** bottom-end (Astryx default), not top-end.
+18. **`@` file mention and running sub-agents pill:** separate board tasks
+    (#24, #26). The composer task leaves room for them; it doesn't build them.
+19. **"Start it right away":** checkbox in the New task footer as prototyped,
+    **off by default**.
