@@ -21,6 +21,7 @@ const routes: Record<string, React.ComponentType> = {
     ]),
   ),
   "task-dialog": () => <TaskDialogScreen />,
+  "board-epics-drag": () => <BoardScreen variant="epics-drag" />,
   "board-epics-scrolled": () => <BoardScreen variant="epics-scrolled" />,
   "new-slash": () => <NewThreadScreen />,
   "chat-permission": () => <ChatScreen variant="permission" />,

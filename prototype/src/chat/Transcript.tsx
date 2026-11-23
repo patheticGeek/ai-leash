@@ -9,7 +9,6 @@
 //   message footer, Working-for                  -> ChatMessageMetadata
 // Grouping logic (entryGrouping.ts in the app) is unchanged; only the parts.
 import { Avatar } from "@astryxdesign/core/Avatar";
-import { Button } from "@astryxdesign/core/Button";
 import {
   ChatMessage,
   ChatMessageBubble,
@@ -139,12 +138,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
         </ChatMessageBubble>
         <ChatMessageMetadata
           timestamp={<Time at="10:07" />}
-          footer={
-            <HStack gap={2} vAlign="center">
-              <MessageActions />
-              <Button label="Worked for 4m 51s" variant="ghost" size="sm" />
-            </HStack>
-          }
+          footer={<MessageActions />}
         />
       </ChatMessage>
 
@@ -212,12 +206,7 @@ export default function Transcript({ isWorking = true }: { isWorking?: boolean }
         ) : (
           <ChatMessageMetadata
             timestamp={<Time at="10:16" />}
-            footer={
-              <HStack gap={2} vAlign="center">
-                <MessageActions canRetry />
-                <Button label="Worked for 5m 03s" variant="ghost" size="sm" />
-              </HStack>
-            }
+            footer={<MessageActions canRetry />}
           />
         )}
       </ChatMessage>

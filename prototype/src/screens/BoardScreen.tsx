@@ -400,12 +400,12 @@ function ProjectChat() {
   );
 }
 
-export type BoardVariant = "both" | "board" | "epics" | "epics-scrolled";
+export type BoardVariant = "both" | "board" | "epics" | "epics-drag" | "epics-scrolled";
 
 export default function BoardScreen({ variant = "both" }: { variant?: BoardVariant }) {
   const isGrouped = variant.startsWith("epics");
   const showDone = isGrouped;
-  const isDragging = variant === "epics";
+  const isDragging = variant === "epics-drag";
   const columns = showDone ? COLUMNS : COLUMNS.filter((c) => c.id !== "done");
   const board: ReactNode = (
     <Layout
