@@ -17,6 +17,10 @@ import { VStack } from "@astryxdesign/core/Stack";
 import { useToast } from "@astryxdesign/core/Toast";
 import {
   AgentErrorNotice,
+  ChatErrorNotice,
+  HelpPanel,
+  HistoryTruncatedNotice,
+  RestoreFailedNotice,
   ElicitationPrompt,
   MessageComposer,
   PermissionPrompt,
@@ -89,6 +93,12 @@ export const CHAT_STATES: Record<string, ChatOverrides> = {
   "strip-task-link": { ...done, top: <TaskLinkNotice isUnfollowed />, box: idleBox },
   "strip-error-crash": { ...done, top: <AgentErrorNotice kind="crash" />, box: idleBox },
   "strip-error-connection": { ...done, top: <AgentErrorNotice kind="connection" />, box: idleBox },
+  "strip-help": { ...done, top: <HelpPanel />, box: idleBox },
+  // Conversation notices (were sticky at the transcript top; now in the stack)
+  "notice-error": { ...done, top: <ChatErrorNotice />, box: idleBox },
+  "notice-restore-failed": { ...done, top: <RestoreFailedNotice />, box: idleBox },
+  "notice-history-truncated": { ...done, top: <HistoryTruncatedNotice />, box: idleBox },
+  "notice-stacked": { ...done, top: stack(<ChatErrorNotice key="e" />, <HistoryTruncatedNotice key="h" />), box: idleBox },
   // Popups (the screenshot opens them)
   "popup-slash": { ...done, box: idleBox },
   "popup-mention": { ...done, box: idleBox },

@@ -242,6 +242,80 @@ export function AgentErrorNotice({ kind }: { kind: "crash" | "connection" }) {
   );
 }
 
+// Conversation notices (the real app's TranscriptNotices, today sticky at the
+// top of the transcript). Here they join the composer's Banner stack: one
+// place for every notice, next to the send they affect, and nothing overlays
+// the transcript while it scrolls. Same Banner, same status rules as the
+// other strips.
+export function ChatErrorNotice() {
+  return (
+    <Banner
+      status="error"
+      collapsible={false}
+      isDismissable
+      dismissLabel="Dismiss"
+      title="Error"
+      description="OpenRouter returned HTTP 429: Rate limit exceeded for anthropic/claude-sonnet-5-5. Try again in 20s."
+    />
+  );
+}
+
+export function RestoreFailedNotice() {
+  return (
+    <Banner
+      status="error"
+      collapsible={false}
+      title="Couldn't restore the previous session"
+      description="session/load failed: session 9c41e2 not found. This agent no longer remembers this conversation."
+      endContent={<Button label="Start new session" size="sm" />}
+    />
+  );
+}
+
+export function HistoryTruncatedNotice() {
+  return (
+    <Banner
+      status="warning"
+      collapsible={false}
+      isDismissable
+      dismissLabel="Dismiss"
+      title="Earlier history not shared"
+      description="Claude Code doesn't support resuming a previous session, so this conversation's earlier history won't be visible to it."
+    />
+  );
+}
+
+// /help: the commands this chat accepts, docked above the composer. An info
+// Banner whose body is the compact List the side panel uses; dismiss = close.
+const HELP_COMMANDS = [
+  { name: "!command", description: "Run a shell command directly: no permission prompt, the result is shown as a tool call" },
+  { name: "/clear", description: "Delete this conversation's transcript and start fresh" },
+  { name: "/model", description: "Open the model and agent picker" },
+  { name: "/help", description: "Show local commands and the agent's commands" },
+  { name: "/review", description: "Claude Code · Review the current diff" },
+  { name: "/init", description: "Claude Code · Write an AGENTS.md for this project" },
+  { name: "/compact [instructions]", description: "Claude Code · Summarise the conversation to free up context" },
+];
+
+export function HelpPanel() {
+  return (
+    <Banner
+      status="info"
+      collapsible={false}
+      isDismissable
+      dismissLabel="Close help"
+      title="Commands"
+      description="Type / or ! at the start of a message."
+    >
+      <List density="compact" edge="flush">
+        {HELP_COMMANDS.map((c) => (
+          <ListItem key={c.name} label={c.name} description={c.description} />
+        ))}
+      </List>
+    </Banner>
+  );
+}
+
 // Planned: running sub-agents, docked above the composer. Collapsed it's one
 // quiet line (Spinner + count + toggle); expanded, the same compact List the
 // side panel's Sub agents tab uses, on a muted Card.
