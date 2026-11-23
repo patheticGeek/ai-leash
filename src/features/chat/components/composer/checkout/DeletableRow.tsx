@@ -73,7 +73,7 @@ export default function DeletableRow({
             />
             <IconButton
               size="sm"
-              variant="danger"
+              variant="destructive"
               label={`Delete ${label}`}
               icon={<Check size={12} />}
               isDisabled={phase === "deleting"}
@@ -100,7 +100,7 @@ export default function DeletableRow({
             />
             <Button
               size="sm"
-              variant="danger"
+              variant="destructive"
               label="Force delete"
               onClick={() => runDelete(true)}
             />
@@ -123,7 +123,7 @@ export default function DeletableRow({
         <HStack gap={1} align="center">
           {deletable && (
             <IconButton
-              variant="danger"
+              variant="ghost"
               size="sm"
               label={`Delete ${label}`}
               icon={<Trash2 size={12} />}

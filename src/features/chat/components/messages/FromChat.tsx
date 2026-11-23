@@ -21,7 +21,7 @@ export default function FromChat({ id }: { id: string }) {
   const openConversation = useAppStore((s) => s.openConversation);
   return (
     <Button
-      variant="quiet"
+      variant="ghost"
       size="sm"
       label={`From ${label}`}
       tooltip={`Open ${label}`}

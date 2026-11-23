@@ -153,7 +153,7 @@ export default function PreferencesSettingsTab() {
       <SettingsSection title="Fonts">
         <FontRow
           label="Interface text"
-          hint="Used for all normal text; every text size in the app scales with it."
+          hint="Used for all normal text; the size sets the body text size (14 by default)."
           monospace={false}
           family={uiFontFamily}
           familyPlaceholder="Instrument Sans"

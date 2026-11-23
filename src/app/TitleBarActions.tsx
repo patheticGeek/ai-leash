@@ -51,7 +51,7 @@ export default function TitleBarActions() {
   return (
     <ButtonGroup label="Actions" size="sm" xstyle={styles.group}>
       <Button
-        variant={current.running ? "chip-warning" : "chip"}
+        variant="secondary"
         size="sm"
         label={current.name}
         icon={current.running ? <Square size={11} /> : <Play size={11} />}
@@ -69,7 +69,7 @@ export default function TitleBarActions() {
           renderTrigger={(triggerProps) => (
             <IconButton
               {...triggerProps}
-              variant="chip"
+              variant="secondary"
               size="sm"
               label="Other actions"
               tooltip="Other actions"

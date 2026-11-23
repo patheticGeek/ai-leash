@@ -49,7 +49,7 @@ export default function ClaudeRateLimitBanner({
       endContent={
         autoResumeArmed ? (
           <Button
-            variant="chip-warning"
+            variant="secondary"
             size="sm"
             label="Cancel"
             onClick={onDismiss}
@@ -57,13 +57,13 @@ export default function ClaudeRateLimitBanner({
         ) : (
           <HStack gap={2}>
             <Button
-              variant="chip-danger"
+              variant="destructive"
               size="sm"
               label="No"
               onClick={onDismiss}
             />
             <Button
-              variant="chip-success"
+              variant="primary"
               size="sm"
               label={
                 alreadyReset ? "Yes, continue" : "Yes, resume automatically"

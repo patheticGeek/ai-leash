@@ -123,7 +123,7 @@ function EpicRow({ epic }: { epic: Epic }) {
         }
       />
       <IconButton
-        variant="danger"
+        variant="ghost"
         size="sm"
         label="Delete epic"
         tooltip="Delete epic (its tasks stay, ungrouped)"
@@ -190,7 +190,7 @@ export default function EpicsDialog({
               />
               <Button
                 type="submit"
-                variant="chip-primary"
+                variant="primary"
                 label="Add"
                 icon={<Plus size={14} />}
                 isDisabled={!title.trim()}

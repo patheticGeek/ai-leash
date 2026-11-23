@@ -31,7 +31,7 @@ export default function QueuedMessagesBanner({
             Queued: {text}
           </Text>
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label="Cancel queued message"
             tooltip="Cancel queued message"

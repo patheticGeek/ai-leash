@@ -126,7 +126,7 @@ export default function ModelPickerPopover({
       }
     >
       <Button
-        variant={dangerMessage ? "chip-danger" : "chip"}
+        variant={dangerMessage ? "destructive" : "secondary"}
         size="sm"
         label={triggerLabel}
         icon={

@@ -42,7 +42,7 @@ export default function ActivityGroup({
       {visible.map((idx) => renderEntry(idx))}
       {showToggle && (
         <Button
-          variant="quiet"
+          variant="ghost"
           size="sm"
           label={expanded ? "Hide" : `Show all (${summary})`}
           icon={

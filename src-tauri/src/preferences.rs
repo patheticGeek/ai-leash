@@ -57,7 +57,7 @@ impl Default for Preferences {
             debug_mode_enabled: false,
             debug_show_ids: false,
             ui_font_family: String::new(),
-            ui_font_size: 16.0,
+            ui_font_size: 14.0,
             code_font_family: String::new(),
             code_font_size: 12.0,
             sidebar_task_chats: "all".to_string(),

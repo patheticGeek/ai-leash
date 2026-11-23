@@ -115,7 +115,7 @@ export default function TabStrip({
                   // A sibling of the tab, not inside it — a button can't
                   // contain a button.
                   <IconButton
-                    variant="quiet"
+                    variant="ghost"
                     size="sm"
                     label="Close tab"
                     tooltip="Close tab"

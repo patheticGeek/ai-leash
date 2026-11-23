@@ -27,7 +27,7 @@ export default function OpenInIdeButton() {
 
   return (
     <Button
-      variant={error ? "chip-warning" : "chip"}
+      variant="secondary"
       size="sm"
       label="Open"
       icon={<CodeXml size={12} />}

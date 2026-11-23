@@ -453,7 +453,7 @@ export default function AgentsSettingsTab() {
                       onClick={() => startEdit(c)}
                     />
                     <IconButton
-                      variant="danger"
+                      variant="ghost"
                       size="sm"
                       label="Delete"
                       tooltip="Delete"

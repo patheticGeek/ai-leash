@@ -96,7 +96,7 @@ function ActivityRow({
     <div data-slot="activity-row" className={cn("text-xs", className)}>
       {expandable ? (
         <Button
-          variant="quiet"
+          variant="ghost"
           size="sm"
           label={typeof label === "string" ? label : "Show details"}
           aria-expanded={expanded}

@@ -66,7 +66,7 @@ export default function DebugEventsPanel({
         </div>
         <div className="flex items-center gap-1">
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label="Clear events"
             tooltip="Clear events"
@@ -74,7 +74,7 @@ export default function DebugEventsPanel({
             onClick={clearDebugEvents}
           />
           <IconButton
-            variant="quiet"
+            variant="ghost"
             size="sm"
             label="Close panel"
             tooltip="Close panel"
