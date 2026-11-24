@@ -210,12 +210,14 @@ just have no epic afterwards. Archived epics can't be picked for new tasks.
 
 Use the epic menu in the toolbar to show one epic's tasks, or only tasks
 with no epic. **Group by epic** (the toggle next to it) splits the board
-into one row per epic, plus **No epic**, under one shared row of column
-headers. Each row's epic name and task count sit in a column on the left
-that stays pinned while you scroll the board sideways, and the column
-headers stay pinned while you scroll down. Cards in a row don't repeat
-the epic's name. Dragging a card into another epic's row moves it to that
-epic.
+into one lane per epic, with **No epic** last, under one shared row of
+column headers that stays pinned while you scroll down. Each lane starts
+with a header row across the whole board, set off from the lane above by
+a divider: the epic's name (in its colour) and how many tasks it has.
+The name stays pinned on the left while you scroll the board sideways.
+Click the chevron next to it to collapse or expand that lane; this is
+remembered per epic. Cards in a lane don't repeat the epic's name.
+Dragging a card into another epic's lane moves it to that epic.
 
 ## How it's built
 
@@ -226,11 +228,16 @@ New task), then fixed-width (260px) muted column `Card`s in a row that
 scrolls sideways. Cards (`TaskCard.tsx`) are `Card`s with a priority
 `Badge`, a `Heading` title, an epic `Token` (`TaskMeta.tsx` maps the
 epic's stored hex colour onto a Token colour) and a `MoreMenu`. Swimlanes
-are one CSS grid — a lane-label column plus one column per status — whose
-header row is `position: sticky; top: 0` and whose label column is
-`position: sticky; left: 0` inside the scroller; the scroller itself has
-no padding, so the sticky cells pin flush to its edge and carry the
-gutter inside them.
+are one CSS grid with one column per status. Its first row, the column
+headers, is `position: sticky; top: 0`. Each lane is then a header row
+spanning every column (`grid-column: 1 / -1`: a `Divider` and the epic
+`Token`, count and collapse button), followed by that lane's muted cells,
+one per column. The header's content is `position: sticky; left:
+spacing-4` inside the scroller, so the epic name stays in view while the
+columns scroll past. The scroller itself has no padding, so the sticky
+header row pins flush to its top edge and carries the gutter inside it.
+Collapsed lanes are stored in `LS_KEYS.boardCollapsedLanes` as
+`projectRoot` + lane key (the epic id, or `none`).
 
 Drag and drop is still dnd-kit (`PointerSensor` with a 6px threshold, so
 a click still opens the card; `closestCorners`; one `SortableContext`

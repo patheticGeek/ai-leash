@@ -47,7 +47,10 @@ memory only when it asks for it.
 
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
-chosen.
+chosen. The transcript scrolls under the message box and the worktree/branch
+bar. From the top of the message box down to the bottom of the window,
+the page colour fades in behind them, so messages scrolling past never
+mix with the box or the branch names.
 
 The agent's response appears as it is produced. While it works, the panel can
 show:
@@ -86,7 +89,9 @@ Settings > Chat.
 Your messages are bubbles on the right; the agent's replies have no avatar
 and use the transcript's full width, lined up with its tool rows. The
 transcript is a centred column (it uses the whole width in a narrow panel).
-Every message has a timestamp and a copy button. The final assistant message
+Every message has a timestamp and a copy button, lined up with the
+message's text: under an agent reply they start where the reply's text
+starts, under your bubble they end where its text ends. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
 there is no **Worked for** row above it already showing that. While the agent
 works, the end of its reply shows a spinner with **Working for** and the
@@ -355,8 +360,8 @@ AI Leash does not offer truncate-and-regenerate for those sessions.
 
 ## Context and token usage
 
-When usage information is available, the top-right corner of the message box
-shows how much of the selected model or agent's context window was used by
+When usage information is available, the message box's footer, just left of
+the send button, shows how much of the selected model or agent's context window was used by
 the latest turn ("62% of context"). Hover or focus it to see the used tokens,
 total context size, and a bar of the percentage.
 

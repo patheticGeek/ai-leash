@@ -1,5 +1,9 @@
 import { useChatComposerContext } from "@astryxdesign/core/Chat";
 import { TextArea } from "@astryxdesign/core/TextArea";
+import {
+  spacingVars,
+  typeScaleVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { SquareTerminal } from "lucide-react";
 import {
@@ -21,7 +25,16 @@ const styles = stylex.create({
     padding: 0,
     boxShadow: { default: "none", ":hover": "none", ":focus-within": "none" },
     outline: "none",
-    "--_textarea-inline-padding": "0px",
+    // The text's first line sits in a band as tall as the footer row (the
+    // 32px Send button, --spacing-8) and centred in it, so the visible gap
+    // from the box's top edge to the text mirrors the one from the footer's
+    // labels to the bottom edge, at any interface text size. TextArea's
+    // textarea pads --spacing-1 on all sides: inline that's the ai-chat
+    // template's own input inset (through this variable); block-wise it's
+    // taken back by the margins.
+    "--_textarea-inline-padding": spacingVars["--spacing-1"],
+    marginBlockStart: `calc((${spacingVars["--spacing-8"]} - ${typeScaleVars["--text-body-leading"]} * ${typeScaleVars["--text-body-size"]}) / 2 - ${spacingVars["--spacing-1"]})`,
+    marginBlockEnd: `calc(-1 * ${spacingVars["--spacing-1"]})`,
   },
 });
 

@@ -3,7 +3,7 @@ import {
   ChatComposer as AstryxChatComposer,
   ChatSendButton,
 } from "@astryxdesign/core/Chat";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { Clock } from "lucide-react";
@@ -48,6 +48,36 @@ const styles = stylex.create({
     position: "absolute",
     insetBlockEnd: 0,
     insetInline: 0,
+  },
+  // Behind the box and the checkout bar while the dock floats: the page
+  // colour (the elevated AppShell's surface), fading in from transparent at
+  // the box's top edge to solid 48px down (`ChatLayout`'s fade length at
+  // spacious density), then solid through the checkout bar to the bottom
+  // edge, so messages scrolling under the box never show through the
+  // worktree/branch names. Nothing is painted above the box. The layer
+  // reaches out over the dock's own padding (sides and bottom); `isolation`
+  // keeps it behind this group's content without dropping it under the
+  // transcript.
+  backdrop: {
+    position: "relative",
+    isolation: "isolate",
+    "::before": {
+      content: '""',
+      position: "absolute",
+      zIndex: -1,
+      insetBlockStart: 0,
+      insetBlockEnd: `calc(-1 * ${spacingVars["--spacing-3"]})`,
+      insetInline: `calc(-1 * ${spacingVars["--spacing-4"]})`,
+      backgroundImage: `linear-gradient(to bottom, transparent, ${colorVars["--color-background-surface"]} ${spacingVars["--spacing-12"]})`,
+      pointerEvents: "none",
+    },
+  },
+  // The compact dock's padding (`compact` below).
+  backdropCompact: {
+    "::before": {
+      insetBlockEnd: `calc(-1 * ${spacingVars["--spacing-2"]})`,
+      insetInline: `calc(-1 * ${spacingVars["--spacing-2"]})`,
+    },
   },
   column: {
     maxWidth: COLUMN_WIDTH,
@@ -101,9 +131,10 @@ interface ChatComposerProps {
 }
 
 // The whole bottom dock of a conversation, top to bottom: the banner stack
-// (`ChatBanners`), the Astryx `ChatComposer` — header (context usage; the
+// (`ChatBanners`), the Astryx `ChatComposer` — header (empty for now; the
 // `@` mention button, #24, goes in its header actions), our textarea in its
-// input slot, the queued messages in its drawer, the pickers in its footer —
+// input slot, the queued messages in its drawer, the pickers in its footer
+// and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
 // in its place, and the checkout bar beneath. The running sub-agents pill
 // (#26) goes between the banners and the composer.
@@ -309,105 +340,120 @@ export default function ChatComposer({
         commands={allCommands}
         onCloseHelp={() => setHelpOpen(false)}
       />
-      {pendingPermission ? (
-        <PermissionPrompt
-          request={pendingPermission}
-          onRespond={respondPermission}
-        />
-      ) : pendingElicitation ? (
-        <ElicitationPrompt
-          key={pendingElicitation.id}
-          request={pendingElicitation}
-          onRespond={respondElicitation}
-        />
-      ) : (
-        <AstryxChatComposer
-          ref={composerRef}
-          value={input}
-          onChange={setInput}
-          // Send / Stop go through `ChatSendButton` below and Enter through
-          // `onKeyDown`; this is only the shell's own submit path.
-          onSubmit={() => void send()}
-          onStop={() => void stop()}
-          isStopShown={sending}
-          density={compact ? "compact" : "balanced"}
-          drawer={
-            queue.queued.length > 0 ? (
-              <QueuedDrawer messages={queue.queued} onCancel={queue.remove} />
-            ) : undefined
-          }
-          headerContext={
-            usedTokens !== null ? (
-              <ContextUsage
-                usedTokens={usedTokens}
-                contextLength={usage?.contextLength ?? session.contextLength}
+      <VStack
+        gap={2}
+        xstyle={
+          floating && [styles.backdrop, compact && styles.backdropCompact]
+        }
+      >
+        {pendingPermission ? (
+          <PermissionPrompt
+            request={pendingPermission}
+            onRespond={respondPermission}
+          />
+        ) : pendingElicitation ? (
+          <ElicitationPrompt
+            key={pendingElicitation.id}
+            request={pendingElicitation}
+            onRespond={respondElicitation}
+          />
+        ) : (
+          <AstryxChatComposer
+            ref={composerRef}
+            value={input}
+            onChange={setInput}
+            // Send / Stop go through `ChatSendButton` below and Enter through
+            // `onKeyDown`; this is only the shell's own submit path.
+            onSubmit={() => void send()}
+            onStop={() => void stop()}
+            isStopShown={sending}
+            density={compact ? "compact" : "balanced"}
+            drawer={
+              queue.queued.length > 0 ? (
+                <QueuedDrawer messages={queue.queued} onCancel={queue.remove} />
+              ) : undefined
+            }
+            input={
+              <ComposerInput
+                value={input}
+                onChange={setInput}
+                onKeyDown={onKeyDown}
+                textareaRef={textareaRef}
+                shellMode={shellMode}
               />
-            ) : undefined
-          }
-          input={
-            <ComposerInput
-              value={input}
-              onChange={setInput}
-              onKeyDown={onKeyDown}
-              textareaRef={textareaRef}
-              shellMode={shellMode}
-            />
-          }
-          footerActions={
-            <ChatToolbar
-              backendOptions={session.backendOptions}
-              activeBackendKey={session.activeBackendKey}
-              activeBackendLabel={session.activeBackendLabel}
-              sendBlockedReason={session.sendBlockedReason}
-              onSelectBackend={session.selectBackendOption}
-              modelSwitchPending={session.modelSwitchPending}
-              modelPickerOpen={modelPickerOpen}
-              onModelPickerOpenChange={setModelPickerOpen}
-              effortOptions={session.effortOptions}
-              effortChoice={session.effortChoice}
-              onSelectEffort={session.selectEffort}
-              permissionMode={permissions.permissionMode}
-              onSelectPermissionMode={permissions.setPermissionMode}
-              modeOptions={session.modeOptions}
-              modeChoice={session.modeChoice}
-              onSelectMode={session.selectMode}
-              showModelIdInput={backend.caps.freeTextModel}
-              model={model}
-              onModelChange={session.setModel}
-            />
-          }
-          sendActions={
-            showQueue ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                label="Queue"
-                icon={<Clock size={14} />}
-                onClick={queueMessage}
-                tooltip="Send after the current turn finishes (Ctrl+Enter)"
+            }
+            footerActions={
+              <ChatToolbar
+                backendOptions={session.backendOptions}
+                activeBackendKey={session.activeBackendKey}
+                activeBackendLabel={session.activeBackendLabel}
+                sendBlockedReason={session.sendBlockedReason}
+                onSelectBackend={session.selectBackendOption}
+                modelSwitchPending={session.modelSwitchPending}
+                modelPickerOpen={modelPickerOpen}
+                onModelPickerOpenChange={setModelPickerOpen}
+                effortOptions={session.effortOptions}
+                effortChoice={session.effortChoice}
+                onSelectEffort={session.selectEffort}
+                permissionMode={permissions.permissionMode}
+                onSelectPermissionMode={permissions.setPermissionMode}
+                modeOptions={session.modeOptions}
+                modeChoice={session.modeChoice}
+                onSelectMode={session.selectMode}
+                showModelIdInput={backend.caps.freeTextModel}
+                model={model}
+                onModelChange={session.setModel}
               />
-            ) : undefined
-          }
-          sendButton={
-            <ChatSendButton
-              isStopShown={sending}
-              isDisabled={!sending && sendDisabled}
-              onSend={() => void send()}
-              onStop={() => void stop()}
-            />
-          }
-        />
-      )}
-      {slash.showPopover && !pendingPermission && !pendingElicitation && (
-        <SlashCommandMenu
-          matches={slash.matches}
-          activeIndex={slash.activeIndex}
-          onSelect={acceptSlashCommand}
-          onActiveIndexChange={slash.setActiveIndex}
-          anchorRef={composerRef}
-        />
-      )}
-      {showCheckout && <CheckoutBar {...checkout} />}
+            }
+            // Context usage sits here, beside Send, rather than in the header
+            // (`headerContext`): alone up there it made a header row with
+            // nothing on its left, so the text started a whole row lower than
+            // the footer sits above the bottom edge.
+            sendActions={
+              usedTokens !== null || showQueue ? (
+                <>
+                  {usedTokens !== null && (
+                    <ContextUsage
+                      usedTokens={usedTokens}
+                      contextLength={
+                        usage?.contextLength ?? session.contextLength
+                      }
+                    />
+                  )}
+                  {showQueue && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      label="Queue"
+                      icon={<Clock size={14} />}
+                      onClick={queueMessage}
+                      tooltip="Send after the current turn finishes (Ctrl+Enter)"
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+            sendButton={
+              <ChatSendButton
+                isStopShown={sending}
+                isDisabled={!sending && sendDisabled}
+                onSend={() => void send()}
+                onStop={() => void stop()}
+              />
+            }
+          />
+        )}
+        {slash.showPopover && !pendingPermission && !pendingElicitation && (
+          <SlashCommandMenu
+            matches={slash.matches}
+            activeIndex={slash.activeIndex}
+            onSelect={acceptSlashCommand}
+            onActiveIndexChange={slash.setActiveIndex}
+            anchorRef={composerRef}
+          />
+        )}
+        {showCheckout && <CheckoutBar {...checkout} />}
+      </VStack>
     </VStack>
   );
 }
