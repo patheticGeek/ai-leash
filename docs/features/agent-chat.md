@@ -48,7 +48,9 @@ memory only when it asks for it.
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
 chosen. The transcript scrolls under the message box and the worktree/branch
-bar, fading out just above them so messages never show through.
+bar. From the top of the message box down to the bottom of the window,
+the page colour fades in behind them, so messages scrolling past never
+mix with the box or the branch names.
 
 The agent's response appears as it is produced. While it works, the panel can
 show:
@@ -358,8 +360,8 @@ AI Leash does not offer truncate-and-regenerate for those sessions.
 
 ## Context and token usage
 
-When usage information is available, the top-right corner of the message box
-shows how much of the selected model or agent's context window was used by
+When usage information is available, the message box's footer, just left of
+the send button, shows how much of the selected model or agent's context window was used by
 the latest turn ("62% of context"). Hover or focus it to see the used tokens,
 total context size, and a bar of the percentage.
 
