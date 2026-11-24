@@ -1,6 +1,7 @@
 import { ChatToolCalls } from "@astryxdesign/core/Chat";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { activitySummary, toolCallFor } from "./toolCalls";
+import { turnInset } from "./turnInset";
 
 interface ActivityGroupProps {
   entries: PanelEntry[];
@@ -24,6 +25,10 @@ export default function ActivityGroup({
     return call ? [call] : [];
   });
   return (
-    <ChatToolCalls calls={calls} label={activitySummary(entries, indices)} />
+    <ChatToolCalls
+      calls={calls}
+      label={activitySummary(entries, indices)}
+      xstyle={turnInset.inset}
+    />
   );
 }

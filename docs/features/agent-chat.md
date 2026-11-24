@@ -87,7 +87,9 @@ keep every step on show instead, turn off **Collapse finished turns** in
 Settings > Chat.
 
 Your messages are bubbles on the right; the agent's replies have no avatar
-and use the transcript's full width, lined up with its tool rows. The
+and use the transcript's full width. Everything in an agent's turn shares one
+left edge: its tool rows, the **Worked for** row, the reply text and the
+time/copy line all start where the reply's text starts. The
 transcript is a centred column (it uses the whole width in a narrow panel).
 Every message has a timestamp and a copy button, lined up with the
 message's text: under an agent reply they start where the reply's text
@@ -106,8 +108,9 @@ placeholder rows in the shape of messages, and if it can't be read, it says
 what failed and offers **Try again** (nothing is deleted).
 
 The transcript follows new output while you are at the bottom. Scroll up to
-read earlier messages and it stops following; a **Latest** button appears to
-jump back down.
+read earlier messages and it stops following; a round scroll-to-bottom
+button with a down arrow appears just above the message box to jump back
+down.
 
 ## Choose who answers
 

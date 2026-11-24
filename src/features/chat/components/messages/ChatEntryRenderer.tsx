@@ -7,6 +7,7 @@ import FromChat, { useChatLabel } from "./FromChat";
 import MessageFooter from "./MessageFooter";
 import SystemNotice from "./SystemNotice";
 import { toolCallFor } from "./toolCalls";
+import { turnInset } from "./turnInset";
 
 export interface ChatEntryRendererProps {
   entry: PanelEntry;
@@ -117,5 +118,7 @@ export default function ChatEntryRenderer({
   }
 
   const call = toolCallFor(entry, index, isLast);
-  return call ? <ChatToolCalls calls={[call]} /> : null;
+  return call ? (
+    <ChatToolCalls calls={[call]} xstyle={turnInset.inset} />
+  ) : null;
 }
