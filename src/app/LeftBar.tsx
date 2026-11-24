@@ -34,6 +34,7 @@ import {
   Archive,
   Check,
   Folder,
+  FolderMinus,
   FolderPlus,
   ListFilter,
   SettingsIcon,
@@ -58,10 +59,12 @@ import {
   type ConversationSummary,
   elicitationForSession,
   permissionForSession,
+  type RecentProject,
   useAppStore,
 } from "../store";
 import DeleteConversationDialog from "./DeleteConversationDialog";
 import { pickAndAddProject, startNewThread } from "./projectActions";
+import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
 const styles = stylex.create({
@@ -336,6 +339,82 @@ function BoardRow({
   );
 }
 
+// A project group in the sidebar. Its header row has a ⋯ menu (Remove
+// project) revealed on hover/focus — like a chat row's — and the same menu
+// on right-click. Unlike `RevealRow`, the reveal and right-click are wired to
+// the header row alone (via `SideNavItem`'s rest props, which land on its
+// primary element), so pointing at or right-clicking one of the group's
+// chats doesn't bring up the project's menu.
+function ProjectGroup({
+  project,
+  isCollapsed,
+  onCollapsedChange,
+  onRemove,
+  children,
+}: {
+  project: RecentProject;
+  isCollapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+  onRemove: () => void;
+  children: ReactNode;
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const { getContainerProps, getContentRevealProps } = useContainerReveal();
+  const focusProps = {
+    onFocus: () => setIsFocused(true),
+    onBlur: () => setIsFocused(false),
+  };
+  return (
+    <Stack
+      {...getContainerProps({
+        forceState:
+          isMenuOpen || isHovered || isFocused ? "active" : "inactive",
+      })}
+    >
+      <SideNavItem
+        label={project.name}
+        icon={Folder}
+        collapsible={{ isCollapsed, onCollapsedChange }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setIsMenuOpen(true);
+        }}
+        {...focusProps}
+        actions={
+          <HStack
+            as="span"
+            {...getContentRevealProps()}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            {...focusProps}
+          >
+            <MoreMenu
+              size="sm"
+              label="Project options"
+              isMenuOpen={isMenuOpen}
+              onOpenChange={setIsMenuOpen}
+              items={[
+                {
+                  label: "Remove project",
+                  icon: <FolderMinus size={14} />,
+                  variant: "destructive",
+                  onClick: onRemove,
+                },
+              ]}
+            />
+          </HStack>
+        }
+      >
+        {children}
+      </SideNavItem>
+    </Stack>
+  );
+}
+
 // Only the most recently done conversations show until "Show all", so a long
 // backlog doesn't fill the open Done group.
 const DEFAULT_VISIBLE_DONE = 5;
@@ -363,6 +442,9 @@ export default function LeftBar({
   const deleteConversation = useAppStore((s) => s.deleteConversation);
   const [pendingDelete, setPendingDelete] =
     useState<ConversationSummary | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<RecentProject | null>(
+    null,
+  );
   const setConversationDone = useAppStore((s) => s.setConversationDone);
   const isNewThread = useAppStore((s) => s.draft !== null);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
@@ -550,15 +632,14 @@ export default function LeftBar({
         {visibleProjects.map((p) => {
           const boardChat = boardChatFor(p.path);
           return (
-            <SideNavItem
+            <ProjectGroup
               key={p.path}
-              label={p.name}
-              icon={Folder}
-              collapsible={{
-                isCollapsed: collapsedProjects.includes(p.path),
-                onCollapsedChange: (collapsed) =>
-                  setProjectCollapsed(p.path, collapsed),
-              }}
+              project={p}
+              isCollapsed={collapsedProjects.includes(p.path)}
+              onCollapsedChange={(collapsed) =>
+                setProjectCollapsed(p.path, collapsed)
+              }
+              onRemove={() => setPendingRemove(p)}
             >
               <VStack gap={0.5} xstyle={styles.nested}>
                 <BoardRow
@@ -579,7 +660,7 @@ export default function LeftBar({
                   />
                 ))}
               </VStack>
-            </SideNavItem>
+            </ProjectGroup>
           );
         })}
         {!collapse.isCollapsed && idleCount > 0 && (
@@ -642,6 +723,10 @@ export default function LeftBar({
         conversation={pendingDelete}
         onCancel={() => setPendingDelete(null)}
         onConfirm={deleteConversation}
+      />
+      <RemoveProjectDialog
+        project={pendingRemove}
+        onClose={() => setPendingRemove(null)}
       />
     </SideNav>
   );

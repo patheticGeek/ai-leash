@@ -26,6 +26,11 @@ export function useActions() {
   return {
     actions: checkoutPath ? (query.data ?? []) : [],
     checkoutPath,
+    // For the Actions tab's loading and error states. `isPending` stays true
+    // for a disabled query, so it's only "loading" with a checkout to load.
+    isLoading: checkoutPath != null && query.isPending,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 

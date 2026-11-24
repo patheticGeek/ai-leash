@@ -1,5 +1,6 @@
 // First: declares the cascade-layer order every other stylesheet lands in.
 import "./index.css";
+import { LayerProvider } from "@astryxdesign/core/Layer";
 import { Theme } from "@astryxdesign/core/theme";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -31,7 +32,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         mode={themeModes[defaultThemeSlug] ?? "dark"}
       >
         <QueryClientProvider client={queryClient}>
-          <App />
+          {/* The app-wide layer context: `useToast()` toasts land in its one
+              ToastViewport, at the Astryx default bottom-end. */}
+          <LayerProvider>
+            <App />
+          </LayerProvider>
           {/* Renders null whenever NODE_ENV !== "development" (the package's
               own internal check), so this doesn't need an env guard here. */}
           <ReactQueryDevtools initialIsOpen={false} />

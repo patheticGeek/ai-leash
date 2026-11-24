@@ -9,7 +9,6 @@ import {
   DateTimeInput,
   type ISODateTimeString,
 } from "@astryxdesign/core/DateTimeInput";
-import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
 import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
@@ -17,8 +16,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { MessageCircleQuestion, X } from "lucide-react";
-import type { RefObject } from "react";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collectAnswers,
@@ -31,20 +29,20 @@ import type {
   ElicitationAnswer,
   ElicitationRequestPayload,
 } from "../../../../lib/tauriApi";
-import InputAnchoredPopover from "./InputAnchoredPopover";
+import PromptCard from "./PromptCard";
 
 const styles = stylex.create({
-  // Skip / Next sit at the far end of the actions row.
-  end: {
-    flexGrow: 1,
+  // A long form scrolls inside the card rather than pushing the dock up
+  // past the top of the panel.
+  body: {
+    maxHeight: "50vh",
   },
+  message: { whiteSpace: "pre-wrap" },
 });
 
-interface ElicitationPopoverProps {
+interface ElicitationPromptProps {
   request: ElicitationRequestPayload;
   onRespond: (answer: ElicitationAnswer) => void;
-  // The chat input box the form opens above (it's a popover, not part of it).
-  anchorRef: RefObject<HTMLElement | null>;
 }
 
 // Every field's current answer as strings — a choice's picked values, or an
@@ -181,18 +179,17 @@ function FieldControl({
   }
 }
 
-// An agent's structured question (ACP `elicitation/create`, form mode) as a
-// popover anchored above the chat input — the same slot and visual language
-// as `PermissionPopover`, with the questions themselves rendered by
+// An agent's structured question (ACP `elicitation/create`, form mode), in
+// the composer's place on its card surface like `PermissionPrompt` (see
+// `PromptCard`), with the questions themselves rendered by
 // Astryx form controls, one property per step (a choice's "Other" box shares its
 // step — see `elicitationSteps`). "Decline" and the close button map
 // to the protocol's two refusals: an explicit "no" versus dismissing without
 // choosing. `ChatComposer.tsx` decides *whether* to render it.
-export default function ElicitationPopover({
+export default function ElicitationPrompt({
   request,
   onRespond,
-  anchorRef,
-}: ElicitationPopoverProps) {
+}: ElicitationPromptProps) {
   const fields = useMemo(
     () => elicitationFields(request.schema),
     [request.schema],
@@ -208,6 +205,15 @@ export default function ElicitationPopover({
 
   // Escape anywhere dismisses without answering, as the close button does —
   // unless something inside (an open picker) already handled it.
+  // Focus the step's first field, as the popover this replaced did on open.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: stepIndex is a trigger-only dep — a new step means new fields to focus
+  useEffect(() => {
+    bodyRef.current
+      ?.querySelector<HTMLElement>("input, textarea, [role='radio']")
+      ?.focus();
+  }, [stepIndex]);
+
   const onRespondRef = useRef(onRespond);
   onRespondRef.current = onRespond;
   useEffect(() => {
@@ -286,107 +292,103 @@ export default function ElicitationPopover({
     else setStepIndex(stepIndex + 1);
   }
 
+  const title = request.schema.title ?? "The agent has a question";
+  const subtitle = [
+    steps.length > 1 ? `Question ${stepIndex + 1} of ${steps.length}` : null,
+    "from the agent",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <InputAnchoredPopover
-      anchorRef={anchorRef}
-      label={request.schema.title ?? "The agent has a question"}
-      maxHeight="50vh"
-      hasAutoFocus
-    >
-      <div className="flex items-center gap-2 px-3 py-2">
-        <span
-          title="The agent is asking you a question"
-          className="shrink-0 text-zinc-400"
-        >
-          <MessageCircleQuestion size={16} />
-        </span>
-        <div className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
-          {request.schema.title ?? "The agent has a question"}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          label="Decline"
-          tooltip="Decline to answer"
-          onClick={() => onRespond({ action: "decline" })}
-        />
+    <PromptCard
+      label={title}
+      title={title}
+      subtitle={subtitle}
+      headerEnd={
         <IconButton
           variant="ghost"
           size="sm"
           label="Dismiss"
           tooltip="Dismiss without answering (Esc)"
-          icon={<X size={13} />}
+          icon={<X size={14} />}
           onClick={() => onRespond({ action: "cancel" })}
         />
-      </div>
-      <div className="flex flex-1 select-text flex-col gap-3 overflow-auto px-3 py-2">
-        <p className="text-sm whitespace-pre-wrap text-zinc-300">
-          {request.message}
-        </p>
-        {request.schema.description && (
-          <p className="text-xs text-muted-foreground">
-            {request.schema.description}
-          </p>
-        )}
-        {fields.length > 0 ? (
-          <VStack gap={4}>
-            {steps.length > 1 && (
-              <Text type="supporting" size="xsm">
-                {`Question ${stepIndex + 1} of ${steps.length}`}
-              </Text>
-            )}
-            {step && (
-              <VStack key={step.field.name} gap={3}>
-                <FieldControl
-                  field={step.field}
-                  values={values}
-                  error={errors[step.field.name]}
-                  onChange={setValue}
-                  onEnter={advance}
-                />
-                {step.other && (
-                  <FieldControl
-                    field={step.other}
-                    values={values}
-                    error={errors[step.other.name]}
-                    onChange={setValue}
-                    onEnter={advance}
-                  />
-                )}
-              </VStack>
-            )}
-            <HStack gap={2} align="center">
-              {stepIndex > 0 && (
-                <Button
-                  variant="ghost"
-                  label="Previous"
-                  onClick={() => setStepIndex(stepIndex - 1)}
-                />
-              )}
-              <HStack gap={2} align="center" justify="end" xstyle={styles.end}>
-                {step && !step.field.required && (
-                  <Button variant="ghost" label="Skip" onClick={skip} />
-                )}
-                <Button
-                  variant="primary"
-                  label={isLast ? "Submit" : "Next"}
-                  onClick={advance}
-                />
-              </HStack>
-            </HStack>
-          </VStack>
-        ) : (
-          // Nothing to fill in — the agent just wants a yes/no.
-          <div className="flex justify-end">
+      }
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Decline"
+            tooltip="Decline to answer"
+            onClick={() => onRespond({ action: "decline" })}
+          />
+          {fields.length === 0 ? (
+            // Nothing to fill in — the agent just wants a yes/no.
             <Button
               variant="primary"
               size="sm"
               label="Accept"
               onClick={() => onRespond({ action: "accept", content: {} })}
             />
-          </div>
+          ) : (
+            <>
+              {stepIndex > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Previous"
+                  onClick={() => setStepIndex(stepIndex - 1)}
+                />
+              )}
+              {step && !step.field.required && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Skip"
+                  onClick={skip}
+                />
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                label={isLast ? "Submit" : "Next"}
+                onClick={advance}
+              />
+            </>
+          )}
+        </>
+      }
+    >
+      <VStack ref={bodyRef} gap={3} isScrollable xstyle={styles.body}>
+        <Text xstyle={styles.message}>{request.message}</Text>
+        {request.schema.description && (
+          <Text type="supporting" color="secondary">
+            {request.schema.description}
+          </Text>
         )}
-      </div>
-    </InputAnchoredPopover>
+        {step && (
+          <VStack key={step.field.name} gap={3}>
+            <FieldControl
+              field={step.field}
+              values={values}
+              error={errors[step.field.name]}
+              onChange={setValue}
+              onEnter={advance}
+            />
+            {step.other && (
+              <FieldControl
+                field={step.other}
+                values={values}
+                error={errors[step.other.name]}
+                onChange={setValue}
+                onEnter={advance}
+              />
+            )}
+          </VStack>
+        )}
+      </VStack>
+    </PromptCard>
   );
 }

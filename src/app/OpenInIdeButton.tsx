@@ -7,7 +7,8 @@ import { api } from "../lib/tauriApi";
 import { useActiveCheckoutPath } from "../lib/useActiveCheckoutPath";
 
 // Title-bar shortcut that opens the active conversation's checkout (primary
-// root or worktree) in the IDE configured under Settings > IDE.
+// root or worktree) in the external editor configured under Settings >
+// External editor.
 export default function OpenInIdeButton() {
   const checkoutPath = useActiveCheckoutPath();
   const ideCommand = usePreference("ideCommand");
@@ -21,7 +22,7 @@ export default function OpenInIdeButton() {
       await api.openInIde(ideCommand, checkoutPath);
       setError(null);
     } catch (e) {
-      console.error("open in IDE failed:", e);
+      console.error("open in external editor failed:", e);
       setError(String(e));
     }
   }

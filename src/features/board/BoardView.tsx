@@ -37,6 +37,8 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import {
   Archive,
+  ChevronDown,
+  ChevronRight,
   CircleCheck,
   ClipboardCheck,
   Inbox,
@@ -55,23 +57,22 @@ import {
   TASK_STATUSES,
   useBoard,
 } from "../../data/board";
+import { LS_KEYS } from "../../lib/localStorageKeys";
 import { api, type Epic, type Task, type TaskStatus } from "../../lib/tauriApi";
 import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { useAppStore } from "../../store";
 import BoardSettingsDialog from "./BoardSettingsDialog";
 import EpicsDialog from "./EpicsDialog";
+import NewTaskDialog from "./NewTaskDialog";
 import StartTaskDialog from "./StartTaskDialog";
 import TaskCard, { FloatingTaskCard, type TaskCardHandlers } from "./TaskCard";
-import TaskDialog from "./TaskDialog";
-import { EpicDot, EpicToken, STATUS_DOT } from "./TaskMeta";
+import TaskDetailsDialog from "./TaskDetailsDialog";
+import { EpicToken, STATUS_DOT } from "./TaskMeta";
 import { useFinishTask } from "./useFinishTask";
 
 // The kanban-board template's fixed column width. Columns never shrink: a
 // narrow board (the project chat docked beside it) scrolls sideways.
 const COLUMN_WIDTH = 260;
-// The epic label column in swimlanes, including the spacing-4 gutter it
-// carries on its start edge.
-const LANE_LABEL_WIDTH = 196;
 
 const styles = stylex.create({
   boardColumns: {
@@ -96,50 +97,47 @@ const styles = stylex.create({
     marginBlock: spacingVars["--spacing-1"],
     alignSelf: "stretch",
   },
-  // Swimlanes: one grid, the lane label column + one column per status.
-  // No padding on the scroller itself: sticky cells pin to its edge and
-  // carry the spacing-4 gutter inside them, so nothing scrolls under a gap.
+  // Swimlanes: one grid, one column per status. Each lane is a full-width
+  // header row (spanning every column) followed by its cells. No padding on
+  // the scroller itself: the sticky header row pins flush to its top edge
+  // and carries the spacing-4 gutter inside it.
   swimScroll: { overflow: "auto", height: "100%" },
   swimGrid: (columns: number) => ({
     display: "grid",
-    gridTemplateColumns: `${LANE_LABEL_WIDTH}px repeat(${columns}, ${COLUMN_WIDTH}px)`,
+    gridTemplateColumns: `repeat(${columns}, ${COLUMN_WIDTH}px)`,
     columnGap: spacingVars["--spacing-4"],
     width: "max-content",
-    paddingInlineEnd: spacingVars["--spacing-4"],
+    paddingInline: spacingVars["--spacing-4"],
     paddingBlockEnd: spacingVars["--spacing-4"],
   }),
   stickyTop: {
     position: "sticky",
     insetBlockStart: 0,
-    zIndex: 1,
+    zIndex: 2,
     paddingBlockStart: spacingVars["--spacing-4"],
     backgroundColor: colorVars["--color-background-surface"],
   },
-  // A column's cells together read as the template's one muted column Card.
-  cell: { backgroundColor: colorVars["--color-background-muted"], minWidth: 0 },
+  // A column header, or one lane's cell of a column: the template's muted
+  // column surface, so each lane reads as its own row of column blocks.
+  cell: {
+    backgroundColor: colorVars["--color-background-muted"],
+    borderRadius: radiusVars["--radius-container"],
+    minWidth: 0,
+  },
   cellBody: { minHeight: spacingVars["--spacing-10"] },
-  headCell: {
-    borderStartStartRadius: radiusVars["--radius-container"],
-    borderStartEndRadius: radiusVars["--radius-container"],
+  // The epic's header row, across every column, between the lanes.
+  laneHeader: {
+    gridColumn: "1 / -1",
+    paddingBlockStart: spacingVars["--spacing-4"],
+    paddingBlockEnd: spacingVars["--spacing-2"],
   },
-  lastCell: {
-    borderEndStartRadius: radiusVars["--radius-container"],
-    borderEndEndRadius: radiusVars["--radius-container"],
-  },
-  corner: {
-    position: "sticky",
-    insetBlockStart: 0,
-    insetInlineStart: 0,
-    zIndex: 3,
-    backgroundColor: colorVars["--color-background-surface"],
-  },
-  // Pinned to the scroller's start edge while the board scrolls sideways.
+  // Its name, pinned to the scroller's start edge (past the grid's gutter)
+  // while the board scrolls sideways.
   laneLabel: {
     position: "sticky",
-    insetInlineStart: 0,
-    zIndex: 2,
-    paddingInlineStart: spacingVars["--spacing-4"],
-    backgroundColor: colorVars["--color-background-surface"],
+    insetInlineStart: spacingVars["--spacing-4"],
+    zIndex: 1,
+    width: "max-content",
   },
 });
 
@@ -177,6 +175,19 @@ const COLUMN_META: Record<
 // Epic filter values besides an epic's own id.
 const ALL_EPICS = "all";
 const NO_EPIC = "none";
+
+// Which swimlanes are collapsed, as `${projectRoot}\n${lane key}` (an epic
+// id, or "none"), remembered across restarts.
+function readCollapsedLanes(): Set<string> {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(LS_KEYS.boardCollapsedLanes) ?? "[]",
+    );
+    return new Set(Array.isArray(stored) ? stored : []);
+  } catch {
+    return new Set();
+  }
+}
 
 // A swimlane: every task (`epicId` undefined, the ungrouped board), one
 // epic's, or the tasks with no epic (`epicId` null).
@@ -295,7 +306,7 @@ function CardList({
 }
 
 type Editing =
-  | { kind: "edit"; task: Task }
+  | { kind: "details"; taskId: string }
   | { kind: "new"; status: TaskStatus; epicId: string | null };
 
 // One project's Kanban board, on the kanban-board template: Backlog → Todo →
@@ -311,7 +322,22 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragging, setDragging] = useState<Task | null>(null);
   const [starting, setStarting] = useState<Task | null>(null);
-  const [moveError, setMoveError] = useState<string | null>(null);
+  const [collapsedLanes, setCollapsedLanes] = useState(readCollapsedLanes);
+  const laneId = (lane: Lane) => `${projectRoot}\n${lane.key}`;
+  const toggleLane = (lane: Lane) =>
+    setCollapsedLanes((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(laneId(lane))) next.add(laneId(lane));
+      localStorage.setItem(
+        LS_KEYS.boardCollapsedLanes,
+        JSON.stringify([...next]),
+      );
+      return next;
+    });
+  const [boardError, setBoardError] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const openConversation = useAppStore((s) => s.openConversation);
   const { finish, dialog: finishDialog } = useFinishTask();
   const board = useBoard(projectRoot, includeOlderDone);
@@ -379,13 +405,15 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     ) : null;
 
   function move(task: Task, status: TaskStatus, beforeId: string | null) {
-    setMoveError(null);
+    setBoardError(null);
     // Into Done from elsewhere: finishing removes the task's worktree.
     const done =
       status === "done" && task.status !== "done"
         ? finish(task, beforeId)
         : moveTask(projectRoot, task.id, status, beforeId);
-    done.catch((err) => setMoveError(String(err)));
+    done.catch((err) =>
+      setBoardError({ title: "Couldn't move the task", message: String(err) }),
+    );
   }
 
   function onDragStart({ active }: DragStartEvent) {
@@ -429,7 +457,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   }
 
   const handlers: TaskCardHandlers = {
-    onOpen: (task) => setEditing({ kind: "edit", task }),
+    onOpen: (task) => setEditing({ kind: "details", taskId: task.id }),
     onStart: (task) => setStarting(task),
     onOpenChat: (task) => {
       if (task.conversationId) void openConversation(task.conversationId);
@@ -462,12 +490,12 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                 { value: ALL_EPICS, label: "All epics" },
                 { value: NO_EPIC, label: "No epic" },
                 ...(epics.length > 0 ? [{ type: "divider" as const }] : []),
-                ...epics.map((e) => ({
-                  value: e.id,
-                  label: e.title,
-                  icon: <EpicDot color={e.color} />,
-                })),
+                ...epics.map((e) => ({ value: e.id, label: e.title })),
               ]}
+              renderOption={(o) => {
+                const epic = epicsById.get(o.value);
+                return epic ? <EpicToken epic={epic} /> : o.label;
+              }}
             />
             <Divider
               variant="strong"
@@ -571,10 +599,9 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const swimlanes = (
     <VStack xstyle={styles.swimScroll}>
       <VStack xstyle={styles.swimGrid(statuses.length)}>
-        <VStack xstyle={styles.corner} />
         {statuses.map((status) => (
           <VStack key={status} xstyle={styles.stickyTop}>
-            <VStack padding={3} xstyle={[styles.cell, styles.headCell]}>
+            <VStack padding={3} xstyle={styles.cell}>
               <ColumnHeader
                 status={status}
                 count={columnTasks(filtered, status).length}
@@ -588,44 +615,53 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         {lanes.map((lane, li) => {
           const inLane = laneTasks(lane);
           const isLast = li === lanes.length - 1;
+          const isCollapsed = collapsedLanes.has(laneId(lane));
+          const count = inLane.filter((t) =>
+            statuses.includes(t.status),
+          ).length;
           return (
             <Fragment key={lane.key}>
-              <VStack
-                gap={1}
-                hAlign="start"
-                paddingBlock={3}
-                paddingInlineEnd={3}
-                xstyle={styles.laneLabel}
-              >
-                {lane.epic ? (
-                  <EpicToken epic={lane.epic} size="md" />
-                ) : (
-                  <Text weight="semibold">{lane.label}</Text>
-                )}
-                <Text type="supporting" color="secondary" hasTabularNumbers>
-                  {inLane.filter((t) => statuses.includes(t.status)).length}{" "}
-                  tasks
-                </Text>
-              </VStack>
-              {statuses.map((status) => (
-                <VStack
-                  key={status}
-                  gap={0}
-                  xstyle={[styles.cell, isLast && styles.lastCell]}
-                >
-                  <Divider />
-                  <CardList
-                    lane={lane.key}
-                    status={status}
-                    tasks={columnTasks(inLane, status)}
-                    epicsById={epicsById}
-                    showEpic={false}
-                    handlers={handlers}
-                    isEmptyStateShown={false}
-                    footer={status === "done" && isLast ? loadOlder : null}
+              <VStack gap={3} xstyle={styles.laneHeader}>
+                {li > 0 && <Divider />}
+                <HStack gap={2} vAlign="center" xstyle={styles.laneLabel}>
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    label={`${isCollapsed ? "Expand" : "Collapse"} ${lane.label}`}
+                    tooltip={isCollapsed ? "Expand" : "Collapse"}
+                    icon={
+                      <Icon
+                        icon={isCollapsed ? ChevronRight : ChevronDown}
+                        size="sm"
+                      />
+                    }
+                    onClick={() => toggleLane(lane)}
                   />
-                </VStack>
-              ))}
+                  {lane.epic ? (
+                    <EpicToken epic={lane.epic} size="md" />
+                  ) : (
+                    <Text weight="semibold">{lane.label}</Text>
+                  )}
+                  <Text type="supporting" color="secondary" hasTabularNumbers>
+                    {count} {count === 1 ? "task" : "tasks"}
+                  </Text>
+                </HStack>
+              </VStack>
+              {!isCollapsed &&
+                statuses.map((status) => (
+                  <VStack key={status} xstyle={styles.cell}>
+                    <CardList
+                      lane={lane.key}
+                      status={status}
+                      tasks={columnTasks(inLane, status)}
+                      epicsById={epicsById}
+                      showEpic={false}
+                      handlers={handlers}
+                      isEmptyStateShown={false}
+                      footer={status === "done" && isLast ? loadOlder : null}
+                    />
+                  </VStack>
+                ))}
             </Fragment>
           );
         })}
@@ -641,14 +677,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         content={
           <LayoutContent padding={0} isScrollable={false}>
             <VStack height="100%">
-              {moveError && (
+              {boardError && (
                 <Banner
                   status="error"
                   container="section"
-                  title="Couldn't move the task"
-                  description={moveError}
+                  title={boardError.title}
+                  description={boardError.message}
                   isDismissable
-                  onDismiss={() => setMoveError(null)}
+                  onDismiss={() => setBoardError(null)}
                 />
               )}
               <StackItem size="fill" xstyle={styles.fillArea}>
@@ -680,21 +716,30 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
           </LayoutContent>
         }
       />
-      <TaskDialog
-        open={editing !== null}
+      <NewTaskDialog
+        open={editing?.kind === "new"}
         onOpenChange={(open) => !open && setEditing(null)}
         projectRoot={projectRoot}
         epics={epics}
+        status={editing?.kind === "new" ? editing.status : undefined}
+        epicId={editing?.kind === "new" ? editing.epicId : undefined}
+        boardDefaults={board?.agentDefaults ?? {}}
+        sharedCheckout={sharedCheckout}
+        onStartFailed={(message) =>
+          setBoardError({ title: "Couldn't start the task", message })
+        }
+      />
+      <TaskDetailsDialog
         task={
-          editing?.kind === "edit"
-            ? (tasks.find((t) => t.id === editing.task.id) ?? editing.task)
+          editing?.kind === "details"
+            ? (tasks.find((t) => t.id === editing.taskId) ?? null)
             : null
         }
-        defaults={
-          editing?.kind === "new"
-            ? { status: editing.status, epicId: editing.epicId }
-            : {}
-        }
+        onClose={() => setEditing(null)}
+        projectRoot={projectRoot}
+        epics={epics}
+        boardDefaults={board?.agentDefaults ?? {}}
+        sharedCheckout={sharedCheckout}
         onFinish={(task) => finish(task, null)}
       />
       <StartTaskDialog

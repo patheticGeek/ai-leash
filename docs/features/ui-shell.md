@@ -49,6 +49,12 @@ group per project. Each group holds:
   such as **#12**. Point at a chat to see its project, workspace (worktree
   or primary checkout) and branch.
 
+To remove a project, point at its name and open its **⋯** menu, or
+right-click its name, and choose **Remove project**. After you confirm, the
+project is removed from AI Leash and its board and conversations are
+deleted. The project's files on disk aren't touched; add the folder again
+with **Add project** to start afresh.
+
 Projects with no conversations, tasks or project chat yet are tucked behind
 **More projects** at the end of the list. Click a project's name to fold or
 unfold its group; the app remembers which groups you folded, including after
@@ -91,15 +97,15 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 A tab you can close shows a **×** at its end: always on the selected tab,
 and on other tabs when you point at them. To close a tab, click its **×**,
 middle-click anywhere on the tab, or press **Ctrl+W** (**Command+W** on
-macOS) while the tab has keyboard focus. The **Agent** tab and the **File
-Tree** tab can't be closed.
+macOS) while the tab has keyboard focus. The **Agent** tab and the
+**Files** tab can't be closed.
 
 ### Moving tabs between the chat area and the tool panel
 
 Drag a tab sideways in its row to reorder it. Drag it into the other area
 to move it there: drop it onto a tab to place it beside that tab, or
 anywhere else in that area to add it at the end. Any tab can move either
-way (a terminal, a file, the File Tree, a sub-agent's conversation)
+way (a terminal, a file, the Files tab, a sub-agent's conversation)
 except the **Agent** tab, which always stays in the chat area, though you
 can still reorder it there.
 
@@ -117,26 +123,31 @@ can review or edit it before pressing **Enter**.
 
 For projects in a git repository, a bar below the message box shows which
 worktree the conversation is working in (on the left) and which branch is
-checked out there (on the right). Click either one to open a picker. Both
-pickers have a search box; use the arrow keys to move through the list and
-**Enter** to choose an entry.
+checked out there (on the right). Click either one to open a picker above
+it. Both pickers have a search box; use the arrow keys to move through the
+list and **Enter** to choose an entry. The current entry is checked.
 
 - **Worktree** lists the project's primary checkout and any other worktrees.
   Choose one to work in it, or select **New worktree…** at the bottom of the
   list to create one on a new branch (based on a branch you choose) or on an
-  existing branch that is not already checked out elsewhere. The worktree is
-  fixed once you send the conversation's first message; after that the list
-  can still be browsed but not changed.
+  existing branch that is not already checked out elsewhere. The form opens
+  in the picker itself; **Cancel** returns to the list. The worktree is fixed
+  once you send the conversation's first message; after that the worktree
+  button is disabled, and its tooltip says why.
 - **Branch** lists the branches of the current worktree, the checked-out one
   first and the rest by when they were last checked out in that worktree
   (most recent first; never-checked-out branches last). Choose one to switch
   to it, or select **New branch…** to create a branch from a base branch and
-  switch to it. The branch can be changed at any time.
+  switch to it, in the same inline form. If git refuses the name (for
+  example, a branch by that name already exists), its message shows on the
+  name field. The branch can be changed at any time.
 
-To delete a worktree or branch, click the trash icon on its row and confirm.
-The active worktree and the currently checked-out branch cannot be deleted.
-If git refuses because a worktree has uncommitted changes or a branch is not
-fully merged, the picker shows git's message and offers **Force delete**.
+To delete a worktree or branch, hover its row (or move the highlight to it)
+to reveal the trash icon, click it, and confirm in the card that replaces
+the row. The active worktree and the currently checked-out branch cannot be
+deleted. If git refuses because a worktree has uncommitted changes or a
+branch is not fully merged, the card shows git's message and offers **Force
+delete**, which throws those changes away.
 
 ## The right-hand tool panel
 
@@ -159,12 +170,21 @@ are restored the next time you open it, even after restarting the app.
 Terminal tabs reopen with a fresh shell rather than the previous session. A
 new thread that has not had a message sent yet is not remembered.
 
-### File Tree
+### Files
 
-**File Tree** lets you browse the files and folders in the current project.
+**Files** shows the files and folders of the checkout the conversation is
+working in, as a tree. Click a folder to open or close it; its contents load
+the first time you open it, and stay up to date as files change on disk.
 Select a file to open it in an editor tab. Files opened from the tree appear
 alongside the other tabs in this panel. A small marker on a file tab indicates
 that the file has unsaved changes.
+
+The search box above the tree finds files anywhere in the checkout, not only
+in folders you have opened. Type part of a path; every word you type must
+appear in the file's path, in any case. The tree is replaced by a flat list
+of matching files, each with the folder it is in, while the box has text.
+Files ignored by git (and `node_modules`, `target`, `dist`, `.git`) are left
+out, and the list stops at 200 matches. Clear the box to return to the tree.
 
 ### File editor
 
@@ -177,24 +197,43 @@ duplicate.
 
 Choose **Terminal** to open a shell in the current project. You can open more
 than one terminal; each terminal keeps its own session and scrollback while
-you switch between tabs.
+you switch between tabs. A terminal is an ordinary tab: it opens in this
+panel and can be dragged into the chat area and back. There is no separate
+bottom terminal drawer. See [Terminal](./terminal.md).
 
-### Sub Agents
+### Sub agents
 
-The **Sub Agents** tab lists the sub-agent tasks created for the current
-conversation. Each entry shows whether the task is running, finished, or
-ended with an error, along with its duration. Select an entry to open its
-conversation in the center area.
+The **Sub agents** tab lists the sub-agent tasks created for the current
+conversation, newest first. Each row starts with a status dot (pulsing while
+the sub-agent runs, then finished or failed; point at it for the word), then
+the task's description, its model and when it started, and on the right how
+long it has run. Select a row to open its conversation in the center area.
 
-While a sub-agent is running, you can stop it from this list. Finished
-sub-agent entries can be removed from the list.
+A running sub-agent has a stop button on its row. A finished one has a **⋯**
+menu with **Open its conversation** and **Delete**, which removes it from
+the list.
+
+Before any sub-agent has run, the tab says so and explains that they appear
+when the agent uses `spawn_sub_agent`. While the list loads it shows
+placeholder rows, and if it can't be loaded the tab says what went wrong and
+offers **Try again**.
 
 ### Actions
 
-**Actions** contains the reusable actions available for the project. Use it
-to run and manage those actions. When an action runs, AI Leash opens a
-separate terminal tab for its output so you can keep an eye on it without
-losing your other terminal sessions.
+**Actions** lists the project's saved commands, one row each, with a status
+dot, the name and the command, a run or stop button, and a **⋯** menu (Show
+output, Edit, Delete). **Add action** sits at the bottom of the tab. When an
+action runs, AI Leash opens a separate terminal tab for its output so you can
+keep an eye on it without losing your other terminal sessions. See
+[Actions](./actions.md).
+
+### Tab chooser
+
+The **+** button at the end of the panel's tab row opens the tab chooser in
+the panel: one card each for Files, Terminal, Sub agents and Actions, with a
+short description. The Sub agents card shows how many sub-agents are running
+in this conversation. Choosing a card opens that tab; switching to another
+tab closes the chooser.
 
 ## Resizing the workspace
 

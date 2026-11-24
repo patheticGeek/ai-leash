@@ -20,6 +20,38 @@ messages, turn on **Compose mode** in Settings > Chat; then
 project and can be reopened from the project history; see
 [conversation history](./conversation-history.md).
 
+### The new-thread screen
+
+A new thread (one with no message sent yet) opens as a centred landing
+column. Its heading reads **New thread in** followed by the project name,
+which is a dropdown: it lists your recent projects (with their paths) and
+**Add project…**. Choosing another project starts the new thread there
+instead, so the worktree and branch bar under the message box switches to
+that project's checkout. **Add project…** opens the folder picker and starts
+the thread in the folder you add.
+
+Under the message box and the worktree/branch bar, **The agent starts with**
+lists, as tokens, what AI Leash will fold into the agent's instructions for
+the checkout you picked: the global and project `AGENTS.md` files, global and
+project memory, the number of skills and the number of Actions (see
+[context and memory](./context-and-memory.md) and
+[actions](./actions.md)). The row is hidden when there is nothing to list.
+`AGENTS.md` files in subfolders aren't listed, because they are only added
+once the agent works in that folder.
+
+The row lists only what the selected agent actually gets. A built-in
+provider gets all of the above. An external agent (ACP) gets only the Actions
+and skills lists from AI Leash, so only those are shown, with an info icon
+explaining that the agent reads its own instruction files and reads AI Leash
+memory only when it asks for it.
+
+Once you send the first message, the screen turns into the normal
+conversation view with the message box at the bottom, keeping what you had
+chosen. The transcript scrolls under the message box and the worktree/branch
+bar. From the top of the message box down to the bottom of the window,
+the page colour fades in behind them, so messages scrolling past never
+mix with the box or the branch names.
+
 The agent's response appears as it is produced. While it works, the panel can
 show:
 
@@ -57,7 +89,9 @@ Settings > Chat.
 Your messages are bubbles on the right; the agent's replies have no avatar
 and use the transcript's full width, lined up with its tool rows. The
 transcript is a centred column (it uses the whole width in a narrow panel).
-Every message has a timestamp and a copy button. The final assistant message
+Every message has a timestamp and a copy button, lined up with the
+message's text: under an agent reply they start where the reply's text
+starts, under your bubble they end where its text ends. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
 there is no **Worked for** row above it already showing that. While the agent
 works, the end of its reply shows a spinner with **Working for** and the
@@ -233,8 +267,8 @@ turn.
 
 An external agent can stop mid-turn to ask you for structured input, such as a
 choice between approaches or a value it needs. When it does, the chat input is
-replaced by a short form, one question at a time, with the agent's message
-above it. The conversation's row in the sidebar highlights so you can find it
+replaced by a short form in the same place, one question at a time, with the
+agent's message above it. The conversation's row in the sidebar highlights so you can find it
 if you're in another conversation.
 
 - Pick an option, enter a value, or select several, depending on the question.
@@ -304,8 +338,9 @@ An operation already in progress, such as a shell command, may finish before
 the stop takes effect.
 
 You can prepare another request while a turn is running. Select **Queue** to
-place it after the current turn. Queued messages are sent in order and can be
-removed from the queued-message list before they start.
+place it after the current turn (or press **Ctrl+Enter**). Queued messages
+show as chips at the top of the message box, are sent in order, and can be
+removed with a chip's **×** before they start.
 
 Background follow-up turns caused by a completed sub-agent do not block you
 from sending another request. Your message waits its turn and is processed
@@ -325,16 +360,16 @@ AI Leash does not offer truncate-and-regenerate for those sessions.
 
 ## Context and token usage
 
-When usage information is available, a ring beside the chat controls shows
-how much of the selected model or agent's context window was used by the
-latest turn. Hover or focus the ring to see the used tokens, total context
-size, and percentage.
+When usage information is available, the message box's footer, just left of
+the send button, shows how much of the selected model or agent's context window was used by
+the latest turn ("62% of context"). Hover or focus it to see the used tokens,
+total context size, and a bar of the percentage.
 
 This is a snapshot for the latest request, not a lifetime token counter.
 Because the conversation is included in later requests, the prompt portion
 reflects the history the agent had to process for that turn. Some
-OpenAI-compatible providers do not report a context size, so their ring may
-show usage without a percentage or total.
+OpenAI-compatible providers do not report a context size, so for them it
+shows the tokens used without a percentage or total.
 
 The built-in agent's `/compact` command can summarize an existing
 conversation so you can continue with a shorter context. The summary
@@ -382,10 +417,11 @@ session. Built-in commands take precedence when they have the same name.
 ## Claude session limits
 
 When Claude Code reports that you have hit its session limit, the chat shows
-a banner with the time the limit resets. Choose **Yes, resume automatically**
-and AI Leash sends a "continue working" message for you once the limit has
-reset; choose **No** to handle it yourself. Once an automatic resume is
-armed, **Cancel** turns it off.
+a warning banner with the time the limit resets. Choose **Yes, resume
+automatically** and AI Leash sends a "continue working" message for you once
+the limit has reset; choose **No** to handle it yourself. Once an automatic
+resume is armed, the banner counts down to it ("resuming in 1:42:07"), and
+**Don't resume** turns it off.
 
 An armed resume keeps waiting if you switch conversations or quit and reopen
 the app, because the limit is read from the saved conversation. If the reset
@@ -411,12 +447,26 @@ previous session, AI Leash offers **Start new session**; this reconnects it
 with a fresh agent-side session while retaining the visible saved transcript
 for reference.
 
-A conversation's errors and warnings — a provider or agent error, a session
-that couldn't be restored, earlier history not shared with the agent — appear
-as banners in the stack directly above the message box, not over the
-transcript, so they stay next to the message they affect and never cover
-messages as you scroll. Errors come first, then warnings, then the stack's
-other notices.
+Every notice about the conversation appears as a banner in one stack directly
+above the message box, not over the transcript, so it stays next to the
+message it affects and never covers messages as you scroll. The stack is
+ordered by severity, top to bottom:
+
+1. **Errors** — something broke: a provider or agent error (including a lost
+   connection or an agent process that exited mid-turn), and a session that
+   couldn't be restored (**Start new session**). An error banner can be
+   dismissed; the next, different error shows again.
+2. **Warnings** — something needs a decision or your attention: earlier
+   history not shared with the agent, and Claude's session limit.
+3. **Info** — state you can change: a board task's chat that the project
+   chat isn't following (**Hand back to project chat**), and the `/help`
+   command list.
+
+Permission requests and an agent's questions don't go in the stack: they take
+the message box's place until you answer (see
+[Tools and permissions](./tools.md)). Toasts, used only to confirm that
+something happened, appear at the bottom-right corner of the window; a toast
+never asks you anything.
 
 ## Conversation display and persistence
 

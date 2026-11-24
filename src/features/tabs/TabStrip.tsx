@@ -5,6 +5,7 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { StackItem } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import {
   horizontalListSortingStrategy,
@@ -19,12 +20,38 @@ import { useGenerating } from "../../lib/generatingQuery";
 import { useAppStore, type WorkspaceTab } from "../../store";
 import { useSortableTab } from "./TabDnd";
 
+// The highlight sits mid-image and the image is 3x the text's width, so at
+// both ends of the sweep the text only sees flat dim text — the loop restarts
+// seamlessly instead of jumping. No-repeat keeps a second tile from showing
+// the highlight again at the end.
+const shineSweep = stylex.keyframes({
+  from: { backgroundPosition: "100% 0" },
+  to: { backgroundPosition: "0% 0" },
+});
+const REDUCED_MOTION = "@media (prefers-reduced-motion: reduce)";
+const DIM = colorVars["--color-text-disabled"];
+const BRIGHT = colorVars["--color-text-primary"];
+
 const styles = stylex.create({
   // Lets the strip shrink below its tabs' width and scroll instead.
   strip: { minWidth: 0 },
   // Keeps the ×'s box while it's hidden, so tabs don't shift when it shows.
   hidden: { visibility: "hidden" },
   dragging: { opacity: 0.4 },
+  // A running tab's label until it's opened: a light sweeping across it.
+  shining: {
+    backgroundImage: `linear-gradient(100deg, ${DIM} 40%, ${BRIGHT} 50%, ${DIM} 60%)`,
+    backgroundSize: "300% 100%",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: { default: "100% 0", [REDUCED_MOTION]: "50% 0" },
+    backgroundClip: "text",
+    WebkitBackgroundClip: "text",
+    color: "transparent",
+    animationName: { default: shineSweep, [REDUCED_MOTION]: "none" },
+    animationDuration: "2.2s",
+    animationTimingFunction: "ease-in-out",
+    animationIterationCount: "infinite",
+  },
 });
 
 // Tab labels are single-line; cap very long ones (file paths, sub-agent
@@ -77,9 +104,7 @@ function StripTab({
       {...sortable}
       value={tab.id}
       label={clip(tab.label)}
-      // The running shine (`index.css`), until that tab is opened.
-      className={isShining ? "shine-text" : undefined}
-      xstyle={isDragging && styles.dragging}
+      xstyle={[isShining && styles.shining, isDragging && styles.dragging]}
       endContent={
         status || close ? (
           <HStack as="span" align="center" gap={1}>

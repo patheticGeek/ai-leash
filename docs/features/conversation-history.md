@@ -75,8 +75,9 @@ and its related sub-agent records as well.
 Each project's [board](./project-board.md) is backed by its own project
 chat, saved like any other conversation but opened from the project's
 **Board** entry in the sidebar rather than listed as a chat. Removing a project from
-AI Leash deletes its board and its project chat with the rest of its
-conversations.
+AI Leash (**Remove project** in its sidebar group's **⋯** or right-click
+menu) deletes its board and its project chat with the rest of its
+conversations; its files on disk aren't touched.
 
 A started task's chat is a normal conversation, listed in its project's
 group with the task's number (or grouped or hidden there — see the filter
