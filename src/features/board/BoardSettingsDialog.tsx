@@ -1,3 +1,4 @@
+import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
@@ -8,6 +9,7 @@ import {
   LayoutFooter,
   VStack,
 } from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
 import { useEffect, useState } from "react";
 import { type AgentDefaults, api, type Board } from "../../lib/tauriApi";
 import AgentFields from "./AgentFields";
@@ -70,18 +72,26 @@ export default function BoardSettingsDialog({
         header={
           <DialogHeader
             title="Board settings"
-            subtitle="The agent a task's chat starts with, unless the task picks its own or you change it when starting it."
+            subtitle="Settings for every task on this board."
             onOpenChange={onOpenChange}
           />
         }
         content={
           <LayoutContent>
-            <VStack gap={4}>
-              <AgentFields
-                value={agent}
-                onChange={setAgent}
-                inheritLabel="Default"
-              />
+            <VStack gap={5}>
+              <VStack gap={2}>
+                <Heading level={4}>Agent</Heading>
+                <Text type="supporting" color="secondary">
+                  What a task's chat starts with, unless the task picks its own
+                  or you change it when starting it. Default uses the app's
+                  default agent (Settings &gt; Agents).
+                </Text>
+                <AgentFields
+                  value={agent}
+                  onChange={setAgent}
+                  inheritLabel="Default"
+                />
+              </VStack>
               {sharedCheckout && (
                 <CheckboxInput
                   label="Allow several tasks in progress at once"
@@ -90,7 +100,13 @@ export default function BoardSettingsDialog({
                   onChange={setParallel}
                 />
               )}
-              {error && <p className="text-xs text-destructive">{error}</p>}
+              {error && (
+                <Banner
+                  status="error"
+                  title="Couldn't save the board settings"
+                  description={error}
+                />
+              )}
             </VStack>
           </LayoutContent>
         }
@@ -98,7 +114,7 @@ export default function BoardSettingsDialog({
           <LayoutFooter>
             <HStack gap={2} hAlign="end">
               <Button
-                variant="ghost"
+                variant="secondary"
                 label="Cancel"
                 onClick={() => onOpenChange(false)}
               />

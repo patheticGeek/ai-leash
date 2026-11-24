@@ -549,6 +549,11 @@ export const aiLeashTheme = {
       "base": {
         "backgroundColor": "var(--color-background-card)"
       }
+    },
+    "tab-indicator": {
+      "selected": {
+        "opacity": "1"
+      }
     }
   },
   __onDark: {

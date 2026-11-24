@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 // Messages typed while a turn is in flight, held FIFO until each gets its
 // turn: whenever `sending` flips to false the head is popped and handed to
 // `submit` (the normal send path), which starts the next turn. `enqueue` is
-// only reachable while `sending` (see `ChatInputBar`'s `showQueue`), so
+// only reachable while `sending` (see `ChatComposer`'s `showQueue`), so
 // there's always a turn ahead of it to wait on.
 export function useMessageQueue(
   sending: boolean,

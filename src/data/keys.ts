@@ -8,6 +8,10 @@
 export const qk = {
   acpCatalog: ["acp-agent-catalog"] as const,
   actions: (checkoutPath: string | null) => ["actions", checkoutPath] as const,
+  // What a fresh thread in this checkout starts with (AGENTS.md, memory,
+  // skills, Actions) — the new-thread screen's "starts with" row.
+  startingContext: (checkoutPath: string) =>
+    ["starting-context", checkoutPath] as const,
   // Every top-level conversation across every known project — see
   // `src/data/conversations.ts`. `useConversation(id)` selects from this
   // same query rather than a second fetch, so there is no separate
@@ -25,6 +29,11 @@ export const qk = {
   // see `src/data/conversationHistory.ts`.
   conversationHistory: (sessionId: string) =>
     ["conversation", sessionId, "history"] as const,
+  // The last agent reply in a task's chat, for its details dialog
+  // (`TaskDetailsDialog`). Separate from `conversationHistory`, which the
+  // chat consumes and drops.
+  taskLastReply: (sessionId: string) =>
+    ["conversation", sessionId, "last-reply"] as const,
   // One project's board — tasks, epics and settings (`data/board.ts`). Under
   // `boardOf(projectRoot)` so a `board://changed` for that project
   // invalidates both the recent-Done and the full-Done variants.
@@ -40,6 +49,10 @@ export const qk = {
   // uses `checkoutPath` itself) so `fs://changed` payloads can match it.
   fsDir: (checkoutPath: string, path?: string) =>
     ["fs-dir", checkoutPath, path ?? checkoutPath] as const,
+  // The Files tab's search results. Not under `fsDirs`: `fs://changed`
+  // names directories, and a search spans the whole checkout.
+  fileSearch: (checkoutPath: string, query: string) =>
+    ["file-search", checkoutPath, query] as const,
   generating: (sessionId: string) => ["generating", sessionId] as const,
   gitBranch: (path: string) => ["git-branch", path] as const,
   preferences: ["preferences"] as const,

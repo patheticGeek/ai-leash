@@ -211,7 +211,9 @@ const components: Components = {
         </code>
       );
     }
-    // Fenced: the `language-*` class is read by `CodeBlock`.
+    // Fenced: keeps react-markdown's own `language-*` class, the one
+    // `className` left in the app — it isn't styling, `CodeBlock` reads it
+    // to pick the language.
     return (
       <code className={className} {...props}>
         {children}

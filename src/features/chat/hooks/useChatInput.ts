@@ -32,7 +32,7 @@ export function useChatInput(sessionId: string | null) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // The textarea is controlled by `input` (Astryx `TextArea` in
-  // `ChatInputBar`); typing round-trips the same value, which React doesn't
+  // `ComposerInput`); typing round-trips the same value, which React doesn't
   // write back, so native undo/redo (Ctrl+Z) survives. Programmatic changes
   // (clearing on send, inserting a slash-command template) also write the DOM
   // node directly, so code reading it in the same tick sees the new text.

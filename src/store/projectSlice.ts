@@ -56,8 +56,9 @@ export interface ProjectSlice {
   openFiles: OpenFile[];
   activePath: string | null;
   recentProjects: RecentProject[];
-  // Onboards a brand new project folder (the "Add project" flow in
-  // `NewConversationPopover.tsx` and `NoProjectState`'s CTA) and starts a
+  // Onboards a brand new project folder (the "Add project" flow:
+  // `pickAndAddProject`, from the sidebar, the new-thread project picker and
+  // `NoProjectState`'s CTA) and starts a
   // fresh conversation for it — see `conversationSlice.startNewConversation`.
   addProject: (dir: string) => Promise<void>;
   // Forgets a project folder for good — including deleting every
@@ -67,8 +68,9 @@ export interface ProjectSlice {
   // `conversationSlice.deleteConversation` rather than calling
   // `api.deleteConversation` directly, so the same
   // localStorage/sub-agent-bookkeeping cleanup that a normal per-conversation
-  // delete does can't drift out of sync with this bulk path. Reachable from
-  // `NewConversationPopover.tsx`'s project list.
+  // delete does can't drift out of sync with this bulk path. Reachable from the
+  // sidebar project group's ⋯ / right-click menu (`LeftBar.tsx`'s
+  // `ProjectGroup`), behind `RemoveProjectDialog`.
   removeProject: (root: string) => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;

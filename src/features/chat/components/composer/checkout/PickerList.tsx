@@ -1,8 +1,11 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Divider } from "@astryxdesign/core/Divider";
 import { VStack } from "@astryxdesign/core/Layout";
-import { List, ListItem } from "@astryxdesign/core/List";
+import { List } from "@astryxdesign/core/List";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import * as stylex from "@stylexjs/stylex";
+import { Plus, Search } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 const styles = stylex.create({
@@ -16,20 +19,22 @@ export interface PickerRow {
   // What the search query is matched against — not necessarily the label
   // (see `WorktreePicker`, which also searches the checked-out branch name).
   searchText: string;
+  // The checked-out one; the highlight starts on it.
+  isCurrent?: boolean;
   isDisabled?: boolean;
   onSelect: () => void;
   render: (row: {
     isHighlighted: boolean;
     onHighlight: () => void;
-    // Spread on the row's `ListItem`, so the highlight can be scrolled to.
+    // Spread on the row, so the highlight can be scrolled to.
     indexProps: { "data-picker-index": number };
   }) => ReactNode;
 }
 
-// The searchable list view shared by both checkout pickers, with an optional
-// pinned "New …" row (omit `createLabel` for a read-only list). Focus stays
-// in the search box: ArrowUp/ArrowDown move the highlight and Enter picks
-// the highlighted row.
+// The list view shared by both checkout pickers: a search field, a compact
+// `List` of rows, and a "New …" action at the foot (omit `createLabel` for a
+// read-only list). Focus stays in the search box: ArrowUp/ArrowDown move the
+// highlight and Enter picks the highlighted row.
 export default function PickerList({
   searchPlaceholder,
   createLabel,
@@ -44,20 +49,18 @@ export default function PickerList({
   footer?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
-  const [highlighted, setHighlighted] = useState(0);
+  const [highlighted, setHighlighted] = useState<number | null>(null);
   const listRef = useRef<HTMLElement>(null);
 
   const needle = query.trim().toLowerCase();
   const matches = needle
     ? rows.filter((r) => r.searchText.toLowerCase().includes(needle))
     : rows;
-  // The create row is always shown, first.
-  const entries: { key: string; isDisabled?: boolean; onSelect: () => void }[] =
-    [
-      ...(createLabel ? [{ key: "\0create", onSelect: onCreate }] : []),
-      ...matches,
-    ];
-  const active = Math.min(highlighted, entries.length - 1);
+  const current = Math.max(
+    0,
+    matches.findIndex((r) => r.isCurrent),
+  );
+  const active = Math.min(highlighted ?? current, matches.length - 1);
 
   useEffect(() => {
     listRef.current
@@ -66,65 +69,70 @@ export default function PickerList({
   }, [active]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (entries.length === 0) return;
+    if (matches.length === 0) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : -1;
-      setHighlighted((active + step + entries.length) % entries.length);
+      setHighlighted((active + step + matches.length) % matches.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const entry = entries[active];
+      const entry = matches[active];
       if (entry && !entry.isDisabled) entry.onSelect();
     }
   }
 
-  const offset = createLabel ? 1 : 0;
   return (
-    <VStack>
-      <VStack padding={1}>
-        <TextInput
-          label={searchPlaceholder}
-          isLabelHidden
-          size="sm"
-          placeholder={searchPlaceholder}
-          value={query}
-          onChange={(value) => {
-            setQuery(value);
-            setHighlighted(0);
-          }}
-          onKeyDown={onKeyDown}
-        />
-      </VStack>
-      <VStack ref={listRef} isScrollable xstyle={styles.list} paddingInline={1}>
-        <List density="compact">
-          {createLabel && (
-            <ListItem
-              data-picker-index={0}
-              label={createLabel}
-              isSelected={active === 0}
-              onMouseEnter={() => setHighlighted(0)}
-              onClick={onCreate}
-            />
-          )}
-          {matches.map((row, i) => (
-            <Fragment key={row.key}>
-              {row.render({
-                isHighlighted: active === i + offset,
-                onHighlight: () => setHighlighted(i + offset),
-                indexProps: { "data-picker-index": i + offset },
-              })}
-            </Fragment>
-          ))}
-        </List>
-        {matches.length === 0 && (
+    <VStack gap={2}>
+      <TextInput
+        label={searchPlaceholder}
+        isLabelHidden
+        size="sm"
+        startIcon={Search}
+        placeholder={searchPlaceholder}
+        value={query}
+        onChange={(value) => {
+          setQuery(value);
+          setHighlighted(0);
+        }}
+        onKeyDown={onKeyDown}
+        hasAutoFocus
+      />
+      <VStack ref={listRef} isScrollable xstyle={styles.list}>
+        {matches.length > 0 ? (
+          // padded: the check sits inset from the edge with an even gap to
+          // the name.
+          <List density="compact" edge="padded">
+            {matches.map((row, i) => (
+              <Fragment key={row.key}>
+                {row.render({
+                  isHighlighted: active === i,
+                  onHighlight: () => setHighlighted(i),
+                  indexProps: { "data-picker-index": i },
+                })}
+              </Fragment>
+            ))}
+          </List>
+        ) : (
           <VStack paddingInline={2} paddingBlock={3}>
             <Text type="supporting" color="secondary">
-              No matches.
+              {rows.length === 0 ? "Nothing here yet." : "No matches."}
             </Text>
           </VStack>
         )}
-        {footer}
       </VStack>
+      {footer}
+      {createLabel && (
+        <>
+          <Divider />
+          <Button
+            variant="ghost"
+            size="sm"
+            label={createLabel}
+            icon={<Plus size={14} />}
+            onClick={onCreate}
+          />
+        </>
+      )}
     </VStack>
   );
 }

@@ -1,22 +1,35 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { useContainerReveal } from "@astryxdesign/core/hooks";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { HStack } from "@astryxdesign/core/Layout";
+import { HStack, Stack, VStack } from "@astryxdesign/core/Layout";
 import { ListItem } from "@astryxdesign/core/List";
 import { Text } from "@astryxdesign/core/Text";
-import { Check, Trash2, X } from "lucide-react";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
+import { Check, Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import { revealOnGroupHover } from "@/lib/utils";
 
-// A `PickerList` row — reachable with the search box's arrow keys — that's a
-// plain select row until its trash icon is clicked, then swaps in place for
-// a "delete this?" confirm strip, and again for an error (with a
-// force-delete retry) if the plain delete git refuses — e.g. a dirty
-// worktree or an unmerged branch. The confirm/error strips are rows with no
-// click action of their own, just their buttons. Kept as a strip *within*
-// the row rather than a native `confirm()` dialog so the popover never grows
-// a second, heavier layer of modal-ness.
+const styles = stylex.create({
+  // Keeps the check's box on every row so labels line up.
+  hidden: { visibility: "hidden" },
+  noShrink: { flexShrink: 0 },
+  // The sm IconButton is taller than a compact row's text line; pulled into
+  // the row's own block padding so it never sets the row height.
+  rowAction: { marginBlock: `calc(-1 * ${spacingVars["--spacing-1"]})` },
+});
+
+// A `PickerList` row: the current one checked, its trash revealed on hover
+// or keyboard highlight (layout-preserving, so revealing it never changes
+// the row's height). The trash swaps the row in place for a muted confirm
+// card; if git refuses the plain delete (a dirty worktree, an unmerged
+// branch) the card turns into the force-delete confirm with git's reason.
+// Kept inline rather than an `AlertDialog` so the popover never grows a
+// second, heavier modal layer.
 export default function DeletableRow({
   label,
+  description,
   active,
   isHighlighted,
   onHighlight,
@@ -27,6 +40,7 @@ export default function DeletableRow({
   onDelete,
 }: {
   label: string;
+  description?: string;
   active: boolean;
   isHighlighted: boolean;
   onHighlight: () => void;
@@ -36,13 +50,14 @@ export default function DeletableRow({
   onSelect: () => void;
   onDelete: (force: boolean) => Promise<void>;
 }) {
-  const [phase, setPhase] = useState<"idle" | "confirm" | "deleting" | "error">(
-    "idle",
-  );
+  const [phase, setPhase] = useState<
+    "idle" | "confirm" | "deleting" | "error" | "forcing"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
+  const { getContainerProps, getContentRevealProps } = useContainerReveal();
 
   async function runDelete(force: boolean) {
-    setPhase("deleting");
+    setPhase(force ? "forcing" : "deleting");
     try {
       await onDelete(force);
       // Success removes this row from the parent's list; nothing left to do.
@@ -52,91 +67,91 @@ export default function DeletableRow({
     }
   }
 
-  if (phase === "confirm" || phase === "deleting") {
+  if (phase !== "idle") {
+    const isForce = phase === "error" || phase === "forcing";
+    const busy = phase === "deleting" || phase === "forcing";
     return (
-      <ListItem
-        {...indexProps}
-        label={
-          <Text type="supporting" color="secondary">
-            Delete {label}?
-          </Text>
-        }
-        endContent={
-          <HStack gap={1}>
-            <IconButton
-              size="sm"
-              variant="ghost"
-              label="Cancel"
-              icon={<X size={12} />}
-              isDisabled={phase === "deleting"}
-              onClick={() => setPhase("idle")}
-            />
-            <IconButton
-              size="sm"
-              variant="destructive"
-              label={`Delete ${label}`}
-              icon={<Check size={12} />}
-              isDisabled={phase === "deleting"}
-              onClick={() => runDelete(false)}
-            />
-          </HStack>
-        }
-      />
-    );
-  }
-
-  if (phase === "error") {
-    return (
-      <ListItem
-        {...indexProps}
-        label={<span className="text-xs text-red-400">{error}</span>}
-        description={
-          <HStack gap={1.5} justify="end">
-            <Button
-              size="sm"
-              variant="ghost"
-              label="Cancel"
-              onClick={() => setPhase("idle")}
-            />
-            <Button
-              size="sm"
-              variant="destructive"
-              label="Force delete"
-              onClick={() => runDelete(true)}
-            />
-          </HStack>
-        }
-      />
+      <Stack {...indexProps}>
+        <Card variant="muted" padding={3}>
+          <VStack gap={3}>
+            <HStack gap={2} align="start">
+              {isForce && (
+                <HStack align="center" xstyle={styles.noShrink}>
+                  <Icon icon={TriangleAlert} size="sm" color="warning" />
+                </HStack>
+              )}
+              <VStack gap={0.5}>
+                <Text weight="semibold">Delete {label}?</Text>
+                <Text type="supporting" color="secondary">
+                  {isForce
+                    ? `${error ?? "Git refused the delete."} Force deleting throws its changes away.`
+                    : "This can't be undone."}
+                </Text>
+              </VStack>
+            </HStack>
+            <HStack gap={1} justify="end">
+              <Button
+                variant="ghost"
+                size="sm"
+                label="Cancel"
+                isDisabled={busy}
+                onClick={() => setPhase("idle")}
+              />
+              <Button
+                variant="destructive"
+                size="sm"
+                label={isForce ? "Force delete" : "Delete"}
+                isLoading={busy}
+                onClick={() => void runDelete(isForce)}
+              />
+            </HStack>
+          </VStack>
+        </Card>
+      </Stack>
     );
   }
 
   return (
-    <ListItem
+    <Stack
       {...indexProps}
-      className="group"
-      label={label}
-      isSelected={isHighlighted}
-      isDisabled={selectDisabled}
+      {...getContainerProps({
+        hoverDelay: 120,
+        forceState: isHighlighted ? "active" : undefined,
+      })}
       onMouseEnter={onHighlight}
-      onClick={onSelect}
-      endContent={
-        <HStack gap={1} align="center">
-          {deletable && (
-            <IconButton
-              variant="ghost"
-              size="sm"
-              label={`Delete ${label}`}
-              icon={<Trash2 size={12} />}
-              className={isHighlighted ? undefined : revealOnGroupHover}
-              onClick={(e) => {
-                e.stopPropagation();
-                setPhase("confirm");
-              }}
-            />
-          )}
-          {active && <Check size={14} />}
-        </HStack>
-      }
-    />
+    >
+      <ListItem
+        label={label}
+        description={description}
+        isSelected={isHighlighted}
+        isDisabled={selectDisabled}
+        onClick={onSelect}
+        startContent={
+          <HStack
+            align="center"
+            xstyle={[styles.noShrink, !active && styles.hidden]}
+          >
+            <Check size={14} aria-label={active ? "Current" : undefined} />
+          </HStack>
+        }
+        endContent={
+          deletable ? (
+            <HStack {...getContentRevealProps({ isLayoutPreserved: true })}>
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label={`Delete ${label}`}
+                icon={<Trash2 size={14} />}
+                xstyle={styles.rowAction}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPhase("confirm");
+                }}
+              />
+            </HStack>
+          ) : undefined
+        }
+      />
+    </Stack>
   );
 }

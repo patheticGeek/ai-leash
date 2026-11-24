@@ -49,12 +49,11 @@ export default function EffortPickerPopover({
       renderTrigger={(triggerProps) => (
         <Button
           {...triggerProps}
-          variant="secondary"
+          variant="ghost"
           size="sm"
           label={active?.name ?? "effort"}
-          icon={<EffortIcon size={12} />}
+          icon={<EffortIcon size={14} />}
           tooltip="Thinking effort"
-          className="max-w-[120px]"
         />
       )}
     >

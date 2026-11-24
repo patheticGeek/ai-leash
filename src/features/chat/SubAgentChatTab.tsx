@@ -1,4 +1,9 @@
-import { useEffect } from "react";
+import { HStack } from "@astryxdesign/core/HStack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { Text } from "@astryxdesign/core/Text";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
+import { useEffect, useState } from "react";
 import { useSubAgents } from "../../data/subAgents";
 import {
   messagesToEntries,
@@ -7,14 +12,24 @@ import {
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import ChatEntryList from "./components/messages/ChatEntryList";
-import SubAgentStatusBadge from "./SubAgentStatusBadge";
+
+const styles = stylex.create({
+  fill: { height: "100%", minHeight: 0 },
+  transcript: { flex: 1, minHeight: 0 },
+});
+
+const STATUS = {
+  running: { variant: "accent", label: "Running" },
+  done: { variant: "success", label: "Finished" },
+  error: { variant: "error", label: "Failed" },
+} as const;
 
 // Shows a sub-agent's own transcript through the same `ChatEntryList`/
 // `ChatEntryRenderer` a top-level conversation uses — tool calls and
 // thinking blocks render identically (collapsible, same icons/labels), just
-// with `allowRetry`/the top-level-only banners turned off, since a
-// sub-agent has no `retry_last`/system-prompt/Ollama-error/ACP-restore
-// concept of its own.
+// with `allowRetry`/the system prompt turned off, since a sub-agent has no
+// `retry_last`/system-prompt concept of its own. Above it, a one-line header:
+// status dot, what it was asked, model.
 export default function SubAgentChatTab({
   subSessionId,
 }: {
@@ -40,57 +55,77 @@ export default function SubAgentChatTab({
   // `status` comes from the lifecycle-driven `useSubAgents` query, so the
   // transition can't be missed the way a per-sub-agent stream event can.
   const status = task?.status;
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is trigger-only — bumping it re-runs the load for the transcript's Try again
   useEffect(() => {
     let cancelled = false;
-    api.loadConversationHistory(subSessionId).then((messages) => {
-      if (cancelled) return;
-      const persisted = messagesToEntries(messages);
-      // Once it's finished, disk has the whole transcript (including that
-      // final message), so it replaces the live copy outright; while it's
-      // still running, live events are ahead of disk and win.
-      setSubAgentEntries(subSessionId, (prev) =>
-        status === "done" || status === "error"
-          ? persisted
-          : reconcileWithPersisted(prev, persisted),
-      );
-    });
+    setLoadError(null);
+    api
+      .loadConversationHistory(subSessionId)
+      .then((messages) => {
+        if (cancelled) return;
+        const persisted = messagesToEntries(messages);
+        // Once it's finished, disk has the whole transcript (including that
+        // final message), so it replaces the live copy outright; while it's
+        // still running, live events are ahead of disk and win.
+        setSubAgentEntries(subSessionId, (prev) =>
+          status === "done" || status === "error"
+            ? persisted
+            : reconcileWithPersisted(prev, persisted),
+        );
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [subSessionId, setSubAgentEntries, status]);
+  }, [subSessionId, setSubAgentEntries, status, attempt]);
 
   const running = status === "running";
+  const dot = STATUS[task?.status ?? "done"];
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        <SubAgentStatusBadge status={task?.status ?? "done"} />
-        <span className="min-w-0 flex-1 truncate text-zinc-300">
+    <VStack xstyle={styles.fill}>
+      <HStack gap={2} vAlign="center" paddingInline={3} paddingBlock={2}>
+        <StatusDot
+          variant={dot.variant}
+          label={dot.label}
+          tooltip={dot.label}
+          isPulsing={running}
+        />
+        <Text type="supporting" maxLines={1}>
           {task?.description}
-        </span>
+        </Text>
         {task?.model && (
-          <span className="shrink-0 truncate text-zinc-600">
+          <Text type="supporting" color="secondary" maxLines={1}>
             {task.model}
             {task.effort ? ` (${task.effort})` : ""}
-          </span>
+          </Text>
         )}
-      </div>
-      {entries.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-4">
-          <div className="text-sm text-zinc-600">
-            Waiting for sub-agent output…
-          </div>
-        </div>
-      ) : (
-        <div className="relative flex-1 overflow-hidden">
-          <ChatEntryList
-            entries={entries}
-            sending={running}
-            allowRetry={false}
-            turnDurations={{}}
-            replyStartedAt={task?.startedAt ?? null}
-          />
-        </div>
-      )}
-    </div>
+      </HStack>
+      <VStack xstyle={styles.transcript}>
+        <ChatEntryList
+          entries={entries}
+          // Live events can fill a running sub-agent's thread before its
+          // saved transcript loads; only an empty one waits on the load.
+          historyLoaded={loaded || entries.length > 0}
+          historyError={entries.length > 0 ? null : loadError}
+          onReloadHistory={() => {
+            setLoaded(false);
+            setAttempt((n) => n + 1);
+          }}
+          sending={running}
+          allowRetry={false}
+          isCompact
+          turnDurations={{}}
+          replyStartedAt={task?.startedAt ?? null}
+        />
+      </VStack>
+    </VStack>
   );
 }

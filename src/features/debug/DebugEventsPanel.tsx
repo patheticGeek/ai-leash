@@ -1,12 +1,42 @@
+import { Card } from "@astryxdesign/core/Card";
+import { Divider } from "@astryxdesign/core/Divider";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { Selector } from "@astryxdesign/core/Selector";
-import { MoveDiagonal2, Trash2, X } from "lucide-react";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { Text } from "@astryxdesign/core/Text";
+import * as stylex from "@stylexjs/stylex";
+import { Activity, MoveDiagonal2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useConversations } from "@/data/conversations";
+import { PanelEmptyState } from "@/features/sidebar/tabs/PanelListState";
 import { JsonViewer } from "@/ui/json-viewer";
 import { type AcpDebugEvent, useAppStore } from "../../store";
 
 const ALL_CONVERSATIONS = "__all__";
+
+const styles = stylex.create({
+  dragHandle: {
+    cursor: { default: "grab", ":active": "grabbing" },
+    userSelect: "none",
+  },
+  resizeHandle: {
+    position: "absolute",
+    insetInlineEnd: 0,
+    insetBlockEnd: 0,
+    cursor: "nwse-resize",
+  },
+  // Takes the room left under the header and filter, and scrolls in it.
+  body: {
+    flexGrow: 1,
+    minHeight: 0,
+  },
+  payload: {
+    overflowX: "auto",
+  },
+});
 
 /**
  * The devtools-style global ACP event inspector. Shows every event captured
@@ -15,6 +45,9 @@ const ALL_CONVERSATIONS = "__all__";
  * component holds no state of its own besides the filter, so closing and
  * reopening it (toggled via `debugPanelOpen`) never loses anything; only
  * turning debug mode off does.
+ *
+ * Built like the side panel's record lists: a compact `List` of events, and
+ * the shared compact `EmptyState` when there are none.
  */
 export default function DebugEventsPanel({
   onClose,
@@ -49,111 +82,123 @@ export default function DebugEventsPanel({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-sunken shadow-2xl">
-      <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-3 py-2">
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
-            drag affordance — the panel is still fully usable (open/close/
-            filter/clear) without ever moving it, so there's no keyboard
-            equivalent to wire up here. */}
-        <div
-          onMouseDown={onDragStart}
-          className="cursor-grab select-none active:cursor-grabbing"
-        >
-          <div className="text-sm text-zinc-200">ACP Events</div>
-          <div className="text-[11px] text-zinc-600">
-            Live only, app-wide — cleared when debug mode is turned off.
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <IconButton
-            variant="ghost"
+    <Card padding={0} elevation="high" height="100%">
+      <VStack height="100%">
+        <HStack padding={3} gap={2} vAlign="center" justify="between">
+          {/* Mouse-only drag affordance — the panel is still fully usable (open/close/
+              filter/clear) without ever moving it, so there's no keyboard
+              equivalent to wire up here. */}
+          <VStack
+            gap={0.5}
+            xstyle={styles.dragHandle}
+            onMouseDown={onDragStart}
+          >
+            <Text type="label">ACP Events</Text>
+            <Text type="supporting" color="secondary">
+              Live only, app-wide — cleared when debug mode is turned off.
+            </Text>
+          </VStack>
+          <HStack gap={1} vAlign="center">
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Clear events"
+              tooltip="Clear events"
+              icon={<Icon icon={Trash2} size="sm" />}
+              onClick={clearDebugEvents}
+            />
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Close panel"
+              tooltip="Close panel"
+              icon={<Icon icon={X} size="sm" />}
+              onClick={onClose}
+            />
+          </HStack>
+        </HStack>
+        <Divider />
+        <VStack padding={3}>
+          {/* Astryx opens its option list in the top layer, so it paints
+              above this fixed panel (see `DebugDevtoolsOverlay`) without a
+              z-index of its own. */}
+          <Selector
+            label="Conversation"
+            isLabelHidden
             size="sm"
-            label="Clear events"
-            tooltip="Clear events"
-            icon={<Trash2 size={13} />}
-            onClick={clearDebugEvents}
+            width="100%"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: ALL_CONVERSATIONS, label: "All conversations" },
+              ...conversationIds.map((id) => ({
+                value: id,
+                label: labelFor(id),
+              })),
+            ]}
           />
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Close panel"
-            tooltip="Close panel"
-            icon={<X size={13} />}
-            onClick={onClose}
-          />
-        </div>
-      </div>
-      <div className="shrink-0 border-b border-white/5 px-3 py-2">
-        {/* Astryx opens its option list in the top layer, so it paints above
-            this `z-[999]` panel (see `DebugDevtoolsOverlay`) without a
-            z-index of its own. */}
-        <Selector
-          label="Conversation"
-          isLabelHidden
-          size="sm"
-          width="100%"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: ALL_CONVERSATIONS, label: "All conversations" },
-            ...conversationIds.map((id) => ({
-              value: id,
-              label: labelFor(id),
-            })),
-          ]}
-        />
-      </div>
-      {filtered.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-5 text-center text-sm text-zinc-600">
-          No ACP events captured yet.
-        </div>
-      ) : (
-        <DebugEventsList events={filtered} />
-      )}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse-only
-          resize affordance, same reasoning as the drag handle above —
+        </VStack>
+        <Divider />
+        <VStack isScrollable xstyle={styles.body}>
+          {filtered.length === 0 ? (
+            <PanelEmptyState
+              icon={Activity}
+              title="No ACP events yet"
+              description="Events sent to and received from ACP agents show up here as they happen."
+            />
+          ) : (
+            <DebugEventsList events={filtered} />
+          )}
+        </VStack>
+      </VStack>
+      {/* Mouse-only resize affordance, same reasoning as the drag handle above —
           the panel's default size is always usable without it. */}
-      <div
+      <VStack
+        padding={1}
+        xstyle={styles.resizeHandle}
         onMouseDown={onResizeStart}
-        title="Resize"
-        className="absolute bottom-0.5 right-0.5 flex h-4 w-4 cursor-nwse-resize items-center justify-center text-zinc-700 hover:text-zinc-500"
       >
-        <MoveDiagonal2 size={12} />
-      </div>
-    </div>
+        <Icon icon={MoveDiagonal2} size="sm" color="secondary" />
+      </VStack>
+    </Card>
   );
 }
 
 function DebugEventsList({ events }: { events: AcpDebugEvent[] }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-      <div className="space-y-2">
-        {events.map((item) => (
-          <div key={item.id} className="rounded-md bg-raised px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-2 text-[11px]">
-              <span
-                className={
-                  item.direction === "received"
-                    ? "text-sky-400"
-                    : "text-amber-400"
-                }
-              >
-                {item.direction}
-              </span>
-              <span className="font-medium text-zinc-300">{item.event}</span>
-              <span className="ml-auto shrink-0 text-zinc-600">
+    <List density="compact" hasDividers edge="padded">
+      {events.map((item) => {
+        const received = item.direction === "received";
+        return (
+          <ListItem
+            key={item.id}
+            align="first-line"
+            startContent={
+              <StatusDot
+                variant={received ? "accent" : "warning"}
+                label={item.direction}
+                tooltip={item.direction}
+              />
+            }
+            label={item.event}
+            description={
+              <VStack gap={1}>
+                <Text type="supporting" color="secondary" maxLines={1}>
+                  {item.direction} · conversation {item.sessionId}
+                </Text>
+                <VStack xstyle={styles.payload}>
+                  <JsonViewer data={item.payload} defaultCollapseDepth={1} />
+                </VStack>
+              </VStack>
+            }
+            endContent={
+              <Text type="supporting" color="secondary" hasTabularNumbers>
                 {new Date(item.receivedAt).toLocaleTimeString()}
-              </span>
-            </div>
-            <div className="mb-1 truncate text-[10px] text-zinc-600">
-              conversation {item.sessionId}
-            </div>
-            <div className="overflow-x-auto text-zinc-500">
-              <JsonViewer data={item.payload} defaultCollapseDepth={1} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+              </Text>
+            }
+          />
+        );
+      })}
+    </List>
   );
 }

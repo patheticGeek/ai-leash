@@ -48,6 +48,13 @@
       "value": "var(--color-background-card)",
       "source": "property",
       "on": "banner-frame"
+    },
+    {
+      "thing": "opacity",
+      "value": "1",
+      "source": "property",
+      "on": "tab-indicator",
+      "state": "selected"
     }
   ],
   "lifted": []

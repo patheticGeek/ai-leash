@@ -1,4 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
+import { Icon } from "@astryxdesign/core/Icon";
 import { ArrowUpRight } from "lucide-react";
 import { useConversation } from "../../../../data/conversations";
 import { useAppStore } from "../../../../store";
@@ -15,7 +16,8 @@ export function useChatLabel(id: string | null | undefined): string {
   return conversation.title ?? "Untitled chat";
 }
 
-// "From <sender>", linking to that conversation.
+// "From <sender>" in a user bubble's name slot, linking to that
+// conversation.
 export default function FromChat({ id }: { id: string }) {
   const label = useChatLabel(id);
   const openConversation = useAppStore((s) => s.openConversation);
@@ -25,11 +27,8 @@ export default function FromChat({ id }: { id: string }) {
       size="sm"
       label={`From ${label}`}
       tooltip={`Open ${label}`}
+      endContent={<Icon icon={ArrowUpRight} size="sm" />}
       onClick={() => void openConversation(id)}
-      className="h-auto gap-0.5 p-0 text-xs"
-    >
-      From {label}
-      <ArrowUpRight size={11} className="inline" />
-    </Button>
+    />
   );
 }

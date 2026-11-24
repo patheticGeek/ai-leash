@@ -4,7 +4,6 @@ import { execSync } from "node:child_process";
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
 import stylex from "@stylexjs/unplugin";
-import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -22,14 +21,13 @@ function commitHash() {
 export default defineConfig(() => ({
   // StyleX compiles our own `stylex.create()` styles only. Astryx itself is
   // prebuilt (`@astryxdesign/core/astryx.css`) and never goes through it.
-  // Tailwind stays until the Astryx migration has moved every surface off it.
   // `classNamePrefix`: StyleX names atomic classes by hashing property+value,
   // so with the default "x" prefix our `backgroundColor: "transparent"`
   // compiles to the very class Astryx's prebuilt CSS uses for the same
   // declaration. Ours is emitted unlayered, so it would lift every Astryx
   // element using that class above the `astryx-theme` layer and silently
   // undo theme component overrides. A prefix of our own keeps them apart.
-  plugins: [stylex.vite({ classNamePrefix: "al" }), react(), tailwindcss()],
+  plugins: [stylex.vite({ classNamePrefix: "al" }), react()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

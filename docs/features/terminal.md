@@ -28,8 +28,14 @@ side panel. If the shell itself exits, the tab shows a dimmed
 **[process exited]** line; close the tab and open a new terminal to start
 again.
 
-Terminal text uses the code font from **Settings > Preferences > Fonts**; see
-[Fonts](./ui-shell.md#fonts).
+Terminal text uses the code font from **Settings > Fonts**; see
+[Fonts](./ui-shell.md#fonts). The terminal has the same background and text
+colour as the app's code blocks, so it matches the rest of the interface.
+
+A terminal is an ordinary tab. It opens in the side panel, and you can drag
+it into the chat area and back without losing its shell or scrollback; see
+[Moving tabs](./ui-shell.md#moving-tabs-between-the-chat-area-and-the-tool-panel).
+There is no separate terminal drawer at the bottom of the window.
 
 ## Use multiple terminal tabs
 
