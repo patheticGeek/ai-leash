@@ -26,6 +26,8 @@ export interface Preferences {
   codeFontSize: number;
   // Where board task chats sit in the sidebar's chat list.
   sidebarTaskChats: "all" | "top" | "hide";
+  // Sidebar chats grouped under their project, or one flat list.
+  sidebarLayout: "project" | "flat";
 }
 
 export interface PreferencesSnapshot {

@@ -64,8 +64,18 @@ Enter or Space on it) to fold or unfold its group; there's no separate
 arrow. The app remembers which groups you folded, including after a
 restart. The active entry is highlighted.
 
-The filter button beside **Projects** chooses how task chats are listed:
-mixed in with the rest, grouped at the top of each project, or hidden.
+The filter button beside **Projects** chooses how chats are listed:
+
+- **Chats**: **Grouped by project** (the default) lists them as above.
+  **Flat list** lists every open chat in one **Chats** section, most recent
+  first, whatever its project; point at a chat to see its project.
+  **Projects** then lists one **Board** row per project, named after the
+  project, with its in-progress and review counts and its **⋯** menu.
+- **Task chats**: mixed in with the rest, grouped at the top (of each
+  project, or of the flat list), or hidden.
+
+The button is highlighted while either is changed from its default. The same
+two choices are in **Settings > Chat**.
 
 To add another project, click **Add project** and choose a folder. You can
 then open one of its existing conversations from the sidebar or start a new
@@ -297,6 +307,9 @@ survive a restart and are not tied to the window.
   box height** sets how many lines the message box grows to before it
   scrolls (3 to 12, default 6). **Collapse finished turns** folds a finished
   turn's thinking, tool calls and earlier messages into one "Worked for" row.
+  Under **Sidebar**, **Chats** and **Task chats** are the same choices as
+  the sidebar's filter button (grouped by project or a flat list; task chats
+  mixed in, at the top or hidden).
 - **Fonts**: choose a font family and size for **Interface text** and for
   **Code text**. See [Fonts](#fonts).
 - **External editor**: the command behind the title bar's Open button; see

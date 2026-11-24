@@ -1,7 +1,13 @@
 import { Selector } from "@astryxdesign/core/Selector";
 import { VStack } from "@astryxdesign/core/Stack";
 import { Switch } from "@astryxdesign/core/Switch";
-import { Keyboard, ListCollapse, MoveVertical } from "lucide-react";
+import {
+  FolderTree,
+  Keyboard,
+  ListCollapse,
+  MoveVertical,
+  SquareKanban,
+} from "lucide-react";
 import {
   COMPOSER_MIN_ROWS,
   DEFAULT_COMPOSER_MAX_ROWS,
@@ -9,6 +15,7 @@ import {
   usePreference,
   useSetPreferences,
 } from "../../../data/preferences";
+import type { Preferences } from "../../../lib/tauriApi";
 import { CONTROL_WIDTH, SettingsCard, SettingsRow } from "../SettingsCard";
 
 const HEIGHT_OPTIONS = Array.from(
@@ -22,10 +29,23 @@ const HEIGHT_OPTIONS = Array.from(
   },
 );
 
+// Same choices as the sidebar's filter menu (`app/LeftBar.tsx`).
+const LAYOUT_OPTIONS = [
+  { value: "project", label: "Grouped by project" },
+  { value: "flat", label: "Flat list" },
+];
+const TASK_CHAT_OPTIONS = [
+  { value: "all", label: "Mixed in" },
+  { value: "top", label: "Grouped at the top" },
+  { value: "hide", label: "Hidden" },
+];
+
 export default function ChatSettingsTab() {
   const composeMode = usePreference("composeMode");
   const composerMaxRows = usePreference("composerMaxRows");
   const collapseFinishedTurns = usePreference("collapseFinishedTurns");
+  const sidebarLayout = usePreference("sidebarLayout");
+  const sidebarTaskChats = usePreference("sidebarTaskChats");
   const setPreferences = useSetPreferences();
 
   return (
@@ -76,6 +96,50 @@ export default function ChatSettingsTab() {
               onChange={(collapseFinishedTurns) =>
                 setPreferences({ collapseFinishedTurns })
               }
+            />
+          }
+        />
+      </SettingsCard>
+      <SettingsCard title="Sidebar">
+        <SettingsRow
+          title="Chats"
+          icon={FolderTree}
+          description="Group chats under their project, or list them all together, most recent first, with each project's board above them."
+          control={
+            <Selector
+              label="Chats"
+              isLabelHidden
+              size="sm"
+              width={CONTROL_WIDTH}
+              value={sidebarLayout}
+              onChange={(v) =>
+                v &&
+                setPreferences({
+                  sidebarLayout: v as Preferences["sidebarLayout"],
+                })
+              }
+              options={LAYOUT_OPTIONS}
+            />
+          }
+        />
+        <SettingsRow
+          title="Task chats"
+          icon={SquareKanban}
+          description="Where chats started for a board task go: mixed in with the rest, first in the list (or in each project), or hidden."
+          control={
+            <Selector
+              label="Task chats"
+              isLabelHidden
+              size="sm"
+              width={CONTROL_WIDTH}
+              value={sidebarTaskChats}
+              onChange={(v) =>
+                v &&
+                setPreferences({
+                  sidebarTaskChats: v as Preferences["sidebarTaskChats"],
+                })
+              }
+              options={TASK_CHAT_OPTIONS}
             />
           }
         />
