@@ -28,7 +28,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -70,6 +70,15 @@ import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
 const styles = stylex.create({
+  // The hairline between the sidebar and the rest of the window, full
+  // height. AppShell draws one only in its `section` variant, which would
+  // also drop the elevated variant's colours (#42), and the theme has no
+  // side-nav border to set, so it's drawn here.
+  rail: {
+    borderInlineEndWidth: borderVars["--border-width"],
+    borderInlineEndStyle: "solid",
+    borderInlineEndColor: colorVars["--color-border"],
+  },
   // A collapsible SideNavItem lays its children out in a grid that takes the
   // rows' min-content width, so long titles push the end slots out of the
   // rail. Containing the inline size keeps the rows inside it.
@@ -544,6 +553,7 @@ export default function LeftBar({
   return (
     <SideNav
       aria-label="Conversations"
+      xstyle={styles.rail}
       resizable={resizable}
       collapsible={{ hasButton: false }}
       header={

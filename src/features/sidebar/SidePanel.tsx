@@ -43,6 +43,7 @@ export default function SidePanel() {
     <VStack ref={dropRef} xstyle={styles.fill}>
       <TabStrip
         label="Side panel tabs"
+        hasScrollArrows={false}
         tabs={panelTabs}
         value={showPicker ? "" : (activePanelTabId ?? "")}
         onSelect={(id) => {

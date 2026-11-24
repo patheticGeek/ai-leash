@@ -47,14 +47,14 @@ to open its terminal view. For quick
 access, the most recently used Action appears in the title bar when Actions
 are available. Use the dropdown there to choose another Action.
 
-The title-bar button uses the same colours as the Actions tab. While its
-Action is starting or stopping it shows a spinner. While the Action is
-running, the button shows a pulsing amber dot, an amber label and a stop icon,
-and its tooltip says, for example, "dev is running — click to stop". If the
-last run exited with an error, the play icon and label are red, and the
-tooltip gives the exit code. Otherwise the button shows a plain play icon.
-Running Actions in the dropdown show the same pulsing amber dot, and failed
-ones a red dot.
+The title-bar button uses the same colours as the Actions tab, on its icon
+and label rather than a dot. The icon always sits in the same place. While
+its Action is starting or stopping it shows a spinner. While the Action is
+running, the play icon becomes an amber stop icon, the label turns amber, and
+the tooltip says, for example, "dev is running — click to stop". If the last
+run exited with an error, the play icon and label are red, and the tooltip
+gives the exit code. Otherwise the button shows a plain play icon. Actions in
+the dropdown tint their icon the same way.
 
 If an Action is already running, starting it again does not create a second
 copy of the command. When you start a new run, the Action's terminal clears

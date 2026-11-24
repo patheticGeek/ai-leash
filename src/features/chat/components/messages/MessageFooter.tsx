@@ -4,19 +4,9 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
-import * as stylex from "@stylexjs/stylex";
 import { Check, Copy, RotateCcw } from "lucide-react";
 import { formatDuration } from "@/lib/format";
-
-const styles = stylex.create({
-  // A ghost bubble keeps the filled bubble's inline padding (--spacing-4 at
-  // the transcript's balanced and compact densities), so its text starts
-  // that far in; the footer below it starts there too. Not the bubble's own
-  // `metadata` slot: that pulls the row up by --spacing-1-5 to sit snug
-  // under a filled bubble, which crowds a ghost one's last line.
-  inset: { paddingInline: spacingVars["--spacing-4"] },
-});
+import { turnInset } from "./turnInset";
 
 interface MessageFooterProps {
   time: number;
@@ -26,7 +16,12 @@ interface MessageFooterProps {
   onRetry: () => void;
   /** "Worked for <time>" — assistant replies only. */
   turnDuration: number | undefined;
-  /** Under a ghost (assistant) bubble: start at its text, not its edge. */
+  /**
+   * Under a ghost (assistant) bubble: start at its text, not its edge (see
+   * `turnInset`). Not the bubble's own `metadata` slot: that pulls the row
+   * up by --spacing-1-5 to sit snug under a filled bubble, which crowds a
+   * ghost one's last line.
+   */
   isInset?: boolean;
 }
 
@@ -44,7 +39,7 @@ export default function MessageFooter({
 }: MessageFooterProps) {
   return (
     <ChatMessageMetadata
-      xstyle={isInset ? styles.inset : undefined}
+      xstyle={isInset ? turnInset.inset : undefined}
       timestamp={<Timestamp value={time} format="time" />}
       footer={
         <HStack gap={0.5} vAlign="center">

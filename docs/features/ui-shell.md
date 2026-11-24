@@ -100,8 +100,9 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 A tab you can close shows a **×** at its end: always on the selected tab,
 and on other tabs when you point at them. To close a tab, click its **×**,
 middle-click anywhere on the tab, or press **Ctrl+W** (**Command+W** on
-macOS) while the tab has keyboard focus. The **Agent** tab and the
-**Files** tab can't be closed.
+macOS) while the tab has keyboard focus. Every tab except **Agent** can be
+closed; reopen **Files** (or any other tool) from the right-hand panel's
+**+** button.
 
 ### Moving tabs between the chat area and the tool panel
 
@@ -156,7 +157,10 @@ delete**, which throws those changes away.
 
 The right-hand panel has its own tabs. Click a tab to switch tools, close it
 as described in [Closing tabs](#closing-tabs), and use the **+** button to
-open another tab. Drag the panel's left edge to resize it. If no
+open another tab. Drag the panel's left edge to resize it. When there are
+more tabs than fit, the row scrolls sideways (mouse wheel, trackpad, or
+moving through the tabs with the keyboard) and fades out at the edge where
+tabs are hidden. If no
 tab is open, AI Leash displays the tab chooser automatically. New tabs open
 here, but you can drag them into the chat area; see
 [Moving tabs](#moving-tabs-between-the-chat-area-and-the-tool-panel).

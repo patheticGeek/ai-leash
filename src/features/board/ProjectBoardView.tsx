@@ -46,13 +46,18 @@ export default function ProjectBoardView({
       end={
         layout === "both" && (
           <>
+            {/* The handle owns the hairline between the board and its chat
+                (the ide template's split), so the panel draws none. */}
             <ResizeHandle
+              direction="horizontal"
+              hasDivider
               isReversed
               resizable={chatPanel}
               label="Resize project chat"
             />
             <LayoutPanel
               resizable={chatPanel}
+              hasDivider={false}
               isScrollable={false}
               padding={0}
               label="Project chat"
