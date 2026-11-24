@@ -61,8 +61,6 @@ const styles = stylex.create({
     transform: "translateX(-50%)",
     transitionProperty: "translate, scale, opacity",
     transitionDuration: "200ms",
-    // Above the composer dock's fade, which reaches up over the transcript.
-    zIndex: 1,
   },
   latestAt: (bottom: number) => ({
     bottom: `calc(${bottom}px + ${spacingVars["--spacing-4"]})`,
