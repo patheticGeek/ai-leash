@@ -192,7 +192,7 @@ export function FloatingTaskCard({
   task: Task;
   epic: Epic | undefined;
   showEpic: boolean;
-  width: number;
+  width: number | string;
 }) {
   return (
     <Card padding={3} elevation="high" width={width} xstyle={styles.floating}>
