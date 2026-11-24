@@ -3,7 +3,7 @@ import {
   ChatComposer as AstryxChatComposer,
   ChatSendButton,
 } from "@astryxdesign/core/Chat";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { Clock } from "lucide-react";
@@ -48,6 +48,21 @@ const styles = stylex.create({
     position: "absolute",
     insetBlockEnd: 0,
     insetInline: 0,
+    // The transcript scrolls under the dock, so the dock is painted in the
+    // page colour (the elevated AppShell's surface) and a fade reaches up
+    // from it: messages fade out before they reach the box and the checkout
+    // bar instead of showing through them. 48px, `ChatLayout`'s fade at
+    // spacious density (its frosted layer's mask).
+    backgroundColor: colorVars["--color-background-surface"],
+    "::before": {
+      content: '""',
+      position: "absolute",
+      insetInline: 0,
+      insetBlockEnd: "100%",
+      height: spacingVars["--spacing-12"],
+      backgroundImage: `linear-gradient(to bottom, transparent, ${colorVars["--color-background-surface"]})`,
+      pointerEvents: "none",
+    },
   },
   column: {
     maxWidth: COLUMN_WIDTH,

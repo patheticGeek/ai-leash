@@ -1,5 +1,6 @@
 import { useChatComposerContext } from "@astryxdesign/core/Chat";
 import { TextArea } from "@astryxdesign/core/TextArea";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { SquareTerminal } from "lucide-react";
 import {
@@ -21,7 +22,13 @@ const styles = stylex.create({
     padding: 0,
     boxShadow: { default: "none", ":hover": "none", ":focus-within": "none" },
     outline: "none",
-    "--_textarea-inline-padding": "0px",
+    // The ai-chat template's own input insets its text by --spacing-1 inline
+    // and nothing block-wise. TextArea's textarea pads --spacing-1 on all
+    // sides (inline through this variable); the negative block margin takes
+    // back the block part, so the composer body's padding is the only gap
+    // above and below the text, as in the template.
+    "--_textarea-inline-padding": spacingVars["--spacing-1"],
+    marginBlock: `calc(-1 * ${spacingVars["--spacing-1"]})`,
   },
 });
 
