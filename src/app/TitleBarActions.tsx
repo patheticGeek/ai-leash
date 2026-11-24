@@ -6,7 +6,6 @@ import {
 } from "@astryxdesign/core/DropdownMenu";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, Play, Square } from "lucide-react";
@@ -24,21 +23,21 @@ const styles = stylex.create({
   // A long action name truncates instead of crowding the title.
   current: { minWidth: 0, maxWidth: "10rem" },
   // Stock Button variants have no warning/error fill, so the state shows as
-  // a StatusDot plus a token-coloured label and icon (see `runState`).
+  // a token-coloured label and icon only — no dot (see `runState`).
   running: { color: colorVars["--color-text-warning"] },
   failed: { color: colorVars["--color-text-error"] },
 });
 
-// Same dot and colours as the Actions tab's rows; nothing for an idle one.
-function DropdownRunDot({ action }: { action: ActionSummary }) {
-  const { tone, label } = runState(action);
-  if (tone === "neutral") return null;
+// Play, or Stop while running, tinted by the run's state — the same tones
+// the Actions tab's dots use. Always in the leading icon slot, so the icon
+// never moves between states.
+function RunIcon({ action }: { action: ActionSummary }) {
+  const { tone } = runState(action);
   return (
-    <StatusDot
-      variant={tone}
-      isPulsing={action.running}
-      label={label}
-      tooltip={label}
+    <Icon
+      icon={action.running ? Square : Play}
+      size="sm"
+      color={tone === "neutral" ? "inherit" : tone}
     />
   );
 }
@@ -61,14 +60,8 @@ export default function TitleBarActions() {
   const rest = actions.filter((a) => a.id !== current.id);
   const state = runState(current);
 
-  // Running: pulsing warning dot + warning label + a Stop glyph at the end.
-  // Failed: Play tinted in the error colour, exit code in the tooltip.
-  // Idle/stopped/exited cleanly: plain Play, as before.
-  const currentIcon = current.running ? (
-    <StatusDot variant="warning" isPulsing label="Running" />
-  ) : (
-    <Icon icon={Play} size="sm" color={state.failed ? "error" : "inherit"} />
-  );
+  // Running: amber Stop + amber label. Failed: red Play + red label, exit
+  // code in the tooltip. Idle/stopped/exited cleanly: plain Play.
   const currentTooltip = current.running
     ? `${current.name} is running — click to stop`
     : state.failed
@@ -90,12 +83,7 @@ export default function TitleBarActions() {
       <Button
         size="sm"
         label={current.name}
-        icon={currentIcon}
-        endContent={
-          current.running ? (
-            <Icon icon={Square} size="sm" color="warning" />
-          ) : undefined
-        }
+        icon={<RunIcon action={current} />}
         // `clickAction` shows the stock spinner while the run/stop call is
         // in flight — the "starting" state, before `run://status` lands.
         clickAction={() => handleToggle(current)}
@@ -124,9 +112,8 @@ export default function TitleBarActions() {
           {rest.map((action) => (
             <DropdownMenuItem
               key={action.id}
-              icon={<Icon icon={action.running ? Square : Play} size="sm" />}
+              icon={<RunIcon action={action} />}
               label={action.name}
-              endContent={<DropdownRunDot action={action} />}
               onClick={() => void handleToggle(action)}
             />
           ))}
