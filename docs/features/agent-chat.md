@@ -48,9 +48,9 @@ memory only when it asks for it.
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
 chosen. The transcript scrolls under the message box and the worktree/branch
-bar. From the top of the message box down to the bottom of the window,
-the page colour fades in behind them, so messages scrolling past never
-mix with the box or the branch names.
+bar. Below the message box, messages fade away going down, to the page
+colour at the bottom of the window; the worktree and branch buttons have a
+frosted backdrop of their own so their names stay readable over it.
 
 The agent's response appears as it is produced. While it works, the panel can
 show:

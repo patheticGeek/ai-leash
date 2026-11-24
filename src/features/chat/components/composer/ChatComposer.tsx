@@ -49,35 +49,42 @@ const styles = stylex.create({
     insetBlockEnd: 0,
     insetInline: 0,
   },
-  // Behind the box and the checkout bar while the dock floats: the page
-  // colour (the elevated AppShell's surface), fading in from transparent at
-  // the box's top edge to solid 48px down (`ChatLayout`'s fade length at
-  // spacious density), then solid through the checkout bar to the bottom
-  // edge, so messages scrolling under the box never show through the
-  // worktree/branch names. Nothing is painted above the box. The layer
-  // reaches out over the dock's own padding (sides and bottom); `isolation`
-  // keeps it behind this group's content without dropping it under the
-  // transcript.
-  backdrop: {
+  // The strip under the box while the dock floats (the checkout bar, or
+  // just the dock's bottom padding without one): the transcript scrolls on
+  // under it and fades out going down, from transparent at the box's bottom
+  // edge to the page colour (the elevated AppShell's surface) at the
+  // window's, so the chat visibly goes away behind the worktree/branch
+  // pickers (which carry their own backdrop, `PickerTrigger`). The box itself
+  // is an opaque card and needs nothing behind it. The layer reaches up over
+  // the gap above the strip and out over the dock's padding (sides and
+  // bottom); `isolation` keeps it behind the strip's content without
+  // dropping it under the transcript.
+  fadeTail: {
     position: "relative",
     isolation: "isolate",
     "::before": {
       content: '""',
       position: "absolute",
       zIndex: -1,
-      insetBlockStart: 0,
+      insetBlockStart: `calc(-1 * ${spacingVars["--spacing-2"]})`,
       insetBlockEnd: `calc(-1 * ${spacingVars["--spacing-3"]})`,
       insetInline: `calc(-1 * ${spacingVars["--spacing-4"]})`,
-      backgroundImage: `linear-gradient(to bottom, transparent, ${colorVars["--color-background-surface"]} ${spacingVars["--spacing-12"]})`,
+      backgroundImage: `linear-gradient(to bottom, transparent, ${colorVars["--color-background-surface"]})`,
       pointerEvents: "none",
     },
   },
   // The compact dock's padding (`compact` below).
-  backdropCompact: {
+  fadeTailCompact: {
     "::before": {
       insetBlockEnd: `calc(-1 * ${spacingVars["--spacing-2"]})`,
       insetInline: `calc(-1 * ${spacingVars["--spacing-2"]})`,
     },
+  },
+  // No checkout bar: the strip is empty and takes back the gap it would
+  // add, so its layer is just the dock's bottom padding.
+  fadeTailEmpty: {
+    marginBlockStart: `calc(-1 * ${spacingVars["--spacing-2"]})`,
+    "::before": { insetBlockStart: 0 },
   },
   column: {
     maxWidth: COLUMN_WIDTH,
@@ -340,12 +347,7 @@ export default function ChatComposer({
         commands={allCommands}
         onCloseHelp={() => setHelpOpen(false)}
       />
-      <VStack
-        gap={2}
-        xstyle={
-          floating && [styles.backdrop, compact && styles.backdropCompact]
-        }
-      >
+      <VStack gap={2}>
         {pendingPermission ? (
           <PermissionPrompt
             request={pendingPermission}
@@ -452,7 +454,19 @@ export default function ChatComposer({
             anchorRef={composerRef}
           />
         )}
-        {showCheckout && <CheckoutBar {...checkout} />}
+        {floating ? (
+          <VStack
+            xstyle={[
+              styles.fadeTail,
+              compact && styles.fadeTailCompact,
+              !showCheckout && styles.fadeTailEmpty,
+            ]}
+          >
+            {showCheckout && <CheckoutBar {...checkout} />}
+          </VStack>
+        ) : (
+          showCheckout && <CheckoutBar {...checkout} />
+        )}
       </VStack>
     </VStack>
   );
