@@ -5,7 +5,6 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { SideNavCollapseButton } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
 import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
@@ -14,11 +13,10 @@ import * as stylex from "@stylexjs/stylex";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Bug, Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useConversations } from "@/data/conversations";
+import { conversationLabel, useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
 import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
-import { BUILD_LABEL } from "../lib/buildChannel";
 import { useAppStore } from "../store";
 import OpenInIdeButton from "./OpenInIdeButton";
 import type { SidebarCollapse } from "./sidebarCollapse";
@@ -174,7 +172,7 @@ export default function TitleBar({
       ? "Board"
       : activeChatTab?.kind === "subagent"
         ? activeChatTab.label
-        : activeConversation?.title;
+        : activeConversation && conversationLabel(activeConversation);
 
   const debugLabel = debugPanelOpen ? "Close ACP Events" : "Open ACP Events";
 
@@ -211,9 +209,6 @@ export default function TitleBar({
                 )}
               </Breadcrumbs>
             )
-          )}
-          {BUILD_LABEL && (
-            <Token size="sm" color="orange" label={BUILD_LABEL} />
           )}
         </HStack>
       }

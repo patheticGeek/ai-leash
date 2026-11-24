@@ -37,6 +37,8 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import {
   Archive,
+  ChevronDown,
+  ChevronRight,
   CircleCheck,
   ClipboardCheck,
   Inbox,
@@ -55,6 +57,7 @@ import {
   TASK_STATUSES,
   useBoard,
 } from "../../data/board";
+import { LS_KEYS } from "../../lib/localStorageKeys";
 import { api, type Epic, type Task, type TaskStatus } from "../../lib/tauriApi";
 import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { useAppStore } from "../../store";
@@ -67,12 +70,11 @@ import TaskDetailsDialog from "./TaskDetailsDialog";
 import { EpicToken, STATUS_DOT } from "./TaskMeta";
 import { useFinishTask } from "./useFinishTask";
 
-// The kanban-board template's fixed column width. Columns never shrink: a
-// narrow board (the project chat docked beside it) scrolls sideways.
-const COLUMN_WIDTH = 260;
-// The epic label column in swimlanes, including the spacing-4 gutter it
-// carries on its start edge.
-const LANE_LABEL_WIDTH = 196;
+// A status column's minimum width, in px: the kanban-board template's
+// COLUMN_WIDTH (Astryx has no size token this large). Columns never go
+// narrower: a narrow board (the project chat docked beside it) scrolls
+// sideways; a wider one shares the extra space between its columns.
+const COLUMN_MIN_WIDTH = 300;
 
 const styles = stylex.create({
   boardColumns: {
@@ -82,7 +84,13 @@ const styles = stylex.create({
     height: "100%",
     padding: spacingVars["--spacing-4"],
   },
-  columnShell: { flexShrink: 0, flexBasis: COLUMN_WIDTH, height: "100%" },
+  columnShell: {
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: COLUMN_MIN_WIDTH,
+    minWidth: COLUMN_MIN_WIDTH,
+    height: "100%",
+  },
   // The column (or lane cell) a dragged card is over.
   dropTarget: {
     outlineWidth: "1px",
@@ -97,50 +105,51 @@ const styles = stylex.create({
     marginBlock: spacingVars["--spacing-1"],
     alignSelf: "stretch",
   },
-  // Swimlanes: one grid, the lane label column + one column per status.
-  // No padding on the scroller itself: sticky cells pin to its edge and
-  // carry the spacing-4 gutter inside them, so nothing scrolls under a gap.
+  // Swimlanes: one grid, one column per status. Each lane is a full-width
+  // header row (spanning every column) followed by its cells. No padding on
+  // the scroller itself: the sticky header row pins flush to its top edge
+  // and carries the spacing-4 gutter inside it.
   swimScroll: { overflow: "auto", height: "100%" },
+  // Same columns as the ungrouped board: at least COLUMN_MIN_WIDTH, sharing
+  // any extra width. The grid's own minimum (columns + gaps + its gutters)
+  // is what makes the scroller scroll sideways once it's narrower.
   swimGrid: (columns: number) => ({
     display: "grid",
-    gridTemplateColumns: `${LANE_LABEL_WIDTH}px repeat(${columns}, ${COLUMN_WIDTH}px)`,
+    gridTemplateColumns: `repeat(${columns}, minmax(${COLUMN_MIN_WIDTH}px, 1fr))`,
     columnGap: spacingVars["--spacing-4"],
-    width: "max-content",
-    paddingInlineEnd: spacingVars["--spacing-4"],
+    width: "100%",
+    minWidth: `calc(${columns} * ${COLUMN_MIN_WIDTH}px + ${columns + 1} * ${spacingVars["--spacing-4"]})`,
+    paddingInline: spacingVars["--spacing-4"],
     paddingBlockEnd: spacingVars["--spacing-4"],
   }),
   stickyTop: {
     position: "sticky",
     insetBlockStart: 0,
-    zIndex: 1,
+    zIndex: 2,
     paddingBlockStart: spacingVars["--spacing-4"],
     backgroundColor: colorVars["--color-background-surface"],
   },
-  // A column's cells together read as the template's one muted column Card.
-  cell: { backgroundColor: colorVars["--color-background-muted"], minWidth: 0 },
+  // A column header, or one lane's cell of a column: the template's muted
+  // column surface, so each lane reads as its own row of column blocks.
+  cell: {
+    backgroundColor: colorVars["--color-background-muted"],
+    borderRadius: radiusVars["--radius-container"],
+    minWidth: 0,
+  },
   cellBody: { minHeight: spacingVars["--spacing-10"] },
-  headCell: {
-    borderStartStartRadius: radiusVars["--radius-container"],
-    borderStartEndRadius: radiusVars["--radius-container"],
+  // The epic's header row, across every column, between the lanes.
+  laneHeader: {
+    gridColumn: "1 / -1",
+    paddingBlockStart: spacingVars["--spacing-4"],
+    paddingBlockEnd: spacingVars["--spacing-2"],
   },
-  lastCell: {
-    borderEndStartRadius: radiusVars["--radius-container"],
-    borderEndEndRadius: radiusVars["--radius-container"],
-  },
-  corner: {
-    position: "sticky",
-    insetBlockStart: 0,
-    insetInlineStart: 0,
-    zIndex: 3,
-    backgroundColor: colorVars["--color-background-surface"],
-  },
-  // Pinned to the scroller's start edge while the board scrolls sideways.
+  // Its name, pinned to the scroller's start edge (past the grid's gutter)
+  // while the board scrolls sideways.
   laneLabel: {
     position: "sticky",
-    insetInlineStart: 0,
-    zIndex: 2,
-    paddingInlineStart: spacingVars["--spacing-4"],
-    backgroundColor: colorVars["--color-background-surface"],
+    insetInlineStart: spacingVars["--spacing-4"],
+    zIndex: 1,
+    width: "max-content",
   },
 });
 
@@ -178,6 +187,19 @@ const COLUMN_META: Record<
 // Epic filter values besides an epic's own id.
 const ALL_EPICS = "all";
 const NO_EPIC = "none";
+
+// Which swimlanes are collapsed, as `${projectRoot}\n${lane key}` (an epic
+// id, or "none"), remembered across restarts.
+function readCollapsedLanes(): Set<string> {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(LS_KEYS.boardCollapsedLanes) ?? "[]",
+    );
+    return new Set(Array.isArray(stored) ? stored : []);
+  } catch {
+    return new Set();
+  }
+}
 
 // A swimlane: every task (`epicId` undefined, the ungrouped board), one
 // epic's, or the tasks with no epic (`epicId` null).
@@ -312,6 +334,18 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragging, setDragging] = useState<Task | null>(null);
   const [starting, setStarting] = useState<Task | null>(null);
+  const [collapsedLanes, setCollapsedLanes] = useState(readCollapsedLanes);
+  const laneId = (lane: Lane) => `${projectRoot}\n${lane.key}`;
+  const toggleLane = (lane: Lane) =>
+    setCollapsedLanes((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(laneId(lane))) next.add(laneId(lane));
+      localStorage.setItem(
+        LS_KEYS.boardCollapsedLanes,
+        JSON.stringify([...next]),
+      );
+      return next;
+    });
   const [boardError, setBoardError] = useState<{
     title: string;
     message: string;
@@ -577,10 +611,9 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const swimlanes = (
     <VStack xstyle={styles.swimScroll}>
       <VStack xstyle={styles.swimGrid(statuses.length)}>
-        <VStack xstyle={styles.corner} />
         {statuses.map((status) => (
           <VStack key={status} xstyle={styles.stickyTop}>
-            <VStack padding={3} xstyle={[styles.cell, styles.headCell]}>
+            <VStack padding={3} xstyle={styles.cell}>
               <ColumnHeader
                 status={status}
                 count={columnTasks(filtered, status).length}
@@ -594,44 +627,53 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         {lanes.map((lane, li) => {
           const inLane = laneTasks(lane);
           const isLast = li === lanes.length - 1;
+          const isCollapsed = collapsedLanes.has(laneId(lane));
+          const count = inLane.filter((t) =>
+            statuses.includes(t.status),
+          ).length;
           return (
             <Fragment key={lane.key}>
-              <VStack
-                gap={1}
-                hAlign="start"
-                paddingBlock={3}
-                paddingInlineEnd={3}
-                xstyle={styles.laneLabel}
-              >
-                {lane.epic ? (
-                  <EpicToken epic={lane.epic} size="md" />
-                ) : (
-                  <Text weight="semibold">{lane.label}</Text>
-                )}
-                <Text type="supporting" color="secondary" hasTabularNumbers>
-                  {inLane.filter((t) => statuses.includes(t.status)).length}{" "}
-                  tasks
-                </Text>
-              </VStack>
-              {statuses.map((status) => (
-                <VStack
-                  key={status}
-                  gap={0}
-                  xstyle={[styles.cell, isLast && styles.lastCell]}
-                >
-                  <Divider />
-                  <CardList
-                    lane={lane.key}
-                    status={status}
-                    tasks={columnTasks(inLane, status)}
-                    epicsById={epicsById}
-                    showEpic={false}
-                    handlers={handlers}
-                    isEmptyStateShown={false}
-                    footer={status === "done" && isLast ? loadOlder : null}
+              <VStack gap={3} xstyle={styles.laneHeader}>
+                {li > 0 && <Divider />}
+                <HStack gap={2} vAlign="center" xstyle={styles.laneLabel}>
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    label={`${isCollapsed ? "Expand" : "Collapse"} ${lane.label}`}
+                    tooltip={isCollapsed ? "Expand" : "Collapse"}
+                    icon={
+                      <Icon
+                        icon={isCollapsed ? ChevronRight : ChevronDown}
+                        size="sm"
+                      />
+                    }
+                    onClick={() => toggleLane(lane)}
                   />
-                </VStack>
-              ))}
+                  {lane.epic ? (
+                    <EpicToken epic={lane.epic} size="md" />
+                  ) : (
+                    <Text weight="semibold">{lane.label}</Text>
+                  )}
+                  <Text type="supporting" color="secondary" hasTabularNumbers>
+                    {count} {count === 1 ? "task" : "tasks"}
+                  </Text>
+                </HStack>
+              </VStack>
+              {!isCollapsed &&
+                statuses.map((status) => (
+                  <VStack key={status} xstyle={styles.cell}>
+                    <CardList
+                      lane={lane.key}
+                      status={status}
+                      tasks={columnTasks(inLane, status)}
+                      epicsById={epicsById}
+                      showEpic={false}
+                      handlers={handlers}
+                      isEmptyStateShown={false}
+                      footer={status === "done" && isLast ? loadOlder : null}
+                    />
+                  </VStack>
+                ))}
             </Fragment>
           );
         })}
@@ -676,7 +718,8 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                             : undefined
                         }
                         showEpic={!groupByEpic}
-                        width={COLUMN_WIDTH - 16}
+                        // DragOverlay sizes itself to the card picked up.
+                        width="100%"
                       />
                     )}
                   </DragOverlay>
