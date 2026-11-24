@@ -1,3 +1,4 @@
+import { VStack } from "@astryxdesign/core/Stack";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
@@ -10,7 +11,7 @@ import {
   watchTerminalFonts,
 } from "../../../lib/fontPreferences";
 import { api } from "../../../lib/tauriApi";
-import { terminalTheme } from "../../../lib/terminalTheme";
+import { terminalStyles, terminalTheme } from "../../../lib/terminalTheme";
 import { useAppStore } from "../../../store";
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -50,7 +51,7 @@ export default function TerminalPanel({
         getPreferences().codeFontFamily,
         DEFAULT_MONO_STACK,
       ),
-      theme: terminalTheme,
+      theme: terminalTheme(containerRef.current),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -111,5 +112,5 @@ export default function TerminalPanel({
     };
   }, []);
 
-  return <div ref={containerRef} className="h-full bg-sunken px-2 py-1" />;
+  return <VStack ref={containerRef} xstyle={terminalStyles.host} />;
 }

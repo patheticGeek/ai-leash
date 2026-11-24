@@ -275,7 +275,7 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
     }
     const defaultLabels: Record<PanelTabKind, string> = {
       filetree: "Files",
-      subagents: "Sub Agents",
+      subagents: "Sub agents",
       terminal: `Terminal ${
         [...get().chatTabs, ...get().panelTabs].filter(
           (t) => t.kind === "terminal",

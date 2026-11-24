@@ -277,4 +277,6 @@ they're listed:
 - **Hidden**: only other chats are listed. Open a task's chat from its card
   instead.
 
-Removing a project from AI Leash also deletes its board.
+Removing a project from AI Leash (**Remove project** in its sidebar
+group's **⋯** menu) also deletes its board. Its files on disk aren't
+touched.

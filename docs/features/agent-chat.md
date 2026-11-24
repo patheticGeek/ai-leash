@@ -20,6 +20,35 @@ messages, turn on **Compose mode** in Settings > Chat; then
 project and can be reopened from the project history; see
 [conversation history](./conversation-history.md).
 
+### The new-thread screen
+
+A new thread (one with no message sent yet) opens as a centred landing
+column. Its heading reads **New thread in** followed by the project name,
+which is a dropdown: it lists your recent projects (with their paths) and
+**Add project…**. Choosing another project starts the new thread there
+instead, so the worktree and branch bar under the message box switches to
+that project's checkout. **Add project…** opens the folder picker and starts
+the thread in the folder you add.
+
+Under the message box and the worktree/branch bar, **The agent starts with**
+lists, as tokens, what AI Leash will fold into the agent's instructions for
+the checkout you picked: the global and project `AGENTS.md` files, global and
+project memory, the number of skills and the number of Actions (see
+[context and memory](./context-and-memory.md) and
+[actions](./actions.md)). The row is hidden when there is nothing to list.
+`AGENTS.md` files in subfolders aren't listed, because they are only added
+once the agent works in that folder.
+
+The row lists only what the selected agent actually gets. A built-in
+provider gets all of the above. An external agent (ACP) gets only the Actions
+and skills lists from AI Leash, so only those are shown, with an info icon
+explaining that the agent reads its own instruction files and reads AI Leash
+memory only when it asks for it.
+
+Once you send the first message, the screen turns into the normal
+conversation view with the message box at the bottom, keeping what you had
+chosen.
+
 The agent's response appears as it is produced. While it works, the panel can
 show:
 

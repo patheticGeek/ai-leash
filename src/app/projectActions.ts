@@ -10,8 +10,8 @@ export async function pickAndAddProject() {
 }
 
 // Starts a fresh thread directly in whatever project is currently open — no
-// project picker here (see `NewThreadHero.tsx`'s "What are we working on in
-// {project}?" heading for changing *which* project a still-fresh new thread
+// project picker here (see `NewThreadHero.tsx`'s "New thread in <project ▾>"
+// heading for changing *which* project a still-fresh new thread
 // targets instead). Falls back to the native folder picker only when no
 // project has ever been opened yet, since there's nothing to start a thread
 // in otherwise. Used by the sidebar's New thread item and Ctrl+N.

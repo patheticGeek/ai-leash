@@ -233,6 +233,37 @@ pub fn skills_section(skills: &[SkillInfo]) -> Option<String> {
     Some(list)
 }
 
+/// What a fresh session's system prompt is built from, before the agent has
+/// touched any directory — shown as the new-thread screen's "starts with"
+/// row. Mirrors `build_system_prompt`'s sources (minus the built-in
+/// guidance): AGENTS.md labels (global first, then the root's), which memory
+/// files exist, and how many skills and Actions there are.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartingContext {
+    pub agents_md: Vec<String>,
+    pub global_memory: bool,
+    pub project_memory: bool,
+    pub skills: usize,
+    pub actions: usize,
+}
+
+pub fn starting_context(root: &Path) -> StartingContext {
+    let mut agents_md = vec![];
+    if global_agents_md().is_some() {
+        agents_md.push("Global AGENTS.md".to_string());
+    }
+    agents_md.extend(collect_agents_md(root, &[]).into_iter().map(|(l, _)| l));
+    let (global_mem, project_mem) = read_memory(root);
+    StartingContext {
+        agents_md,
+        global_memory: global_mem.is_some(),
+        project_memory: project_mem.is_some(),
+        skills: list_skills(root, &[]).len(),
+        actions: actions::load_actions(root).len(),
+    }
+}
+
 pub fn build_system_prompt(
     root: &Path,
     touched_dirs: &[PathBuf],
