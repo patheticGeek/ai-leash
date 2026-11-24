@@ -32,8 +32,8 @@ keep a development server ready to start.
 ## Run an Action
 
 Each Action is a row with a status dot, its name and command, a play or stop
-button, and a **⋯** menu. The dot is green while the Action runs, red when
-its last run failed, and grey otherwise; point at it to see the state in
+button, and a **⋯** menu. The dot is amber and pulses while the Action runs,
+is red when its last run failed, and is grey otherwise; point at it to see the state in
 words (**Running**, **Exited 1**, **Exited**, **Stopped**, **Not started**)
 and when the last run ended.
 
@@ -46,6 +46,15 @@ You can also select an Action's row, or **Show output** in its **⋯** menu,
 to open its terminal view. For quick
 access, the most recently used Action appears in the title bar when Actions
 are available. Use the dropdown there to choose another Action.
+
+The title-bar button uses the same colours as the Actions tab. While its
+Action is starting or stopping it shows a spinner. While the Action is
+running, the button shows a pulsing amber dot, an amber label and a stop icon,
+and its tooltip says, for example, "dev is running — click to stop". If the
+last run exited with an error, the play icon and label are red, and the
+tooltip gives the exit code. Otherwise the button shows a plain play icon.
+Running Actions in the dropdown show the same pulsing amber dot, and failed
+ones a red dot.
 
 If an Action is already running, starting it again does not create a second
 copy of the command. When you start a new run, the Action's terminal clears
