@@ -143,7 +143,7 @@ interface ChatComposerProps {
 // input slot, the queued messages in its drawer, the pickers in its footer
 // and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
-// in its place, and the checkout bar beneath. The running sub-agents pill
+// in its place, and the checkout bar beneath. The running sub-agents banner
 // (#26) is the banner stack's last item, right above the composer.
 // Owns all the state that's only about *typing a message* — the draft text,
 // slash autocomplete, "/help" overlay, the queue of messages typed
