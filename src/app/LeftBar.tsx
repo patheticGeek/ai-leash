@@ -11,7 +11,7 @@ import {
   DropdownMenuRadioItem,
 } from "@astryxdesign/core/DropdownMenu";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
-import { IconButton } from "@astryxdesign/core/IconButton";
+import { Icon } from "@astryxdesign/core/Icon";
 import { Kbd } from "@astryxdesign/core/Kbd";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
@@ -26,8 +26,9 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
+import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -45,8 +46,9 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
-import { useConversations } from "../data/conversations";
+import { conversationLabel, useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
+import { BUILD_LABEL } from "../lib/buildChannel";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
 import type {
@@ -68,6 +70,15 @@ import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
 const styles = stylex.create({
+  // The hairline between the sidebar and the rest of the window, full
+  // height. AppShell draws one only in its `section` variant, which would
+  // also drop the elevated variant's colours (#42), and the theme has no
+  // side-nav border to set, so it's drawn here.
+  rail: {
+    borderInlineEndWidth: borderVars["--border-width"],
+    borderInlineEndStyle: "solid",
+    borderInlineEndColor: colorVars["--color-border"],
+  },
   // A collapsible SideNavItem lays its children out in a grid that takes the
   // rows' min-content width, so long titles push the end slots out of the
   // rail. Containing the inline size keeps the rows inside it.
@@ -161,7 +172,12 @@ function RevealRow({
         })}
       >
         {children(
-          <HStack as="span" {...getContentRevealProps()}>
+          // `isLayoutPreserved`: the ⋯ keeps its slot while hidden, so the
+          // row's end content doesn't shift when it appears.
+          <HStack
+            as="span"
+            {...getContentRevealProps({ isLayoutPreserved: true })}
+          >
             <MoreMenu
               size="sm"
               label={menuLabel}
@@ -209,8 +225,6 @@ function ConversationRow({
     ? (conversation.worktreePath.split(/[\\/]/).filter(Boolean).pop() ??
       conversation.worktreePath)
     : "primary";
-  const title = conversation.title || "New conversation";
-
   return (
     <RevealRow
       menuLabel="Conversation options"
@@ -232,11 +246,7 @@ function ConversationRow({
     >
       {(actions) => (
         <SideNavItem
-          label={
-            conversation.taskNumber != null
-              ? `#${conversation.taskNumber} ${title}`
-              : title
-          }
+          label={conversationLabel(conversation)}
           isSelected={isSelected}
           onClick={onClick}
           endContent={<ChatStatus conversationId={conversation.id} />}
@@ -385,9 +395,11 @@ function ProjectGroup({
         }}
         {...focusProps}
         actions={
+          // `isLayoutPreserved`: the ⋯ keeps its slot while hidden, so the
+          // collapse chevron never moves when it appears.
           <HStack
             as="span"
-            {...getContentRevealProps()}
+            {...getContentRevealProps({ isLayoutPreserved: true })}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             {...focusProps}
@@ -541,6 +553,7 @@ export default function LeftBar({
   return (
     <SideNav
       aria-label="Conversations"
+      xstyle={styles.rail}
       resizable={resizable}
       collapsible={{ hasButton: false }}
       header={
@@ -558,25 +571,14 @@ export default function LeftBar({
             />
           }
           headerEndContent={
-            <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+            <HStack gap={2} vAlign="center">
+              {BUILD_LABEL && (
+                <Token size="sm" color="orange" label={BUILD_LABEL} />
+              )}
+              <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+            </HStack>
           }
         />
-      }
-      topContent={
-        <SideNavSection title="Menu" isHeaderHidden>
-          <SideNavItem
-            label="New thread"
-            icon={SquarePen}
-            isSelected={isNewThread}
-            endContent={<Kbd keys="ctrl+n" />}
-            onClick={() => void startNewThread()}
-          />
-          <SideNavItem
-            label="Add project"
-            icon={FolderPlus}
-            onClick={() => void pickAndAddProject()}
-          />
-        </SideNavSection>
       }
       footer={
         <SideNavSection title="App" isHeaderHidden>
@@ -588,23 +590,38 @@ export default function LeftBar({
         </SideNavSection>
       }
     >
+      {/* Same order as the shell-side-nav template: the menu, a rule, the
+          projects, a rule, Done. */}
+      <SideNavSection title="Menu" isHeaderHidden>
+        <SideNavItem
+          label="New thread"
+          icon={SquarePen}
+          isSelected={isNewThread}
+          endContent={<Kbd keys="ctrl+n" />}
+          onClick={() => void startNewThread()}
+        />
+        <SideNavItem
+          label="Add project"
+          icon={FolderPlus}
+          onClick={() => void pickAndAddProject()}
+        />
+      </SideNavSection>
+      <Divider />
       <SideNavSection
         title="Projects"
         endContent={
           <DropdownMenu
             placement="below"
             alignment="end"
-            renderTrigger={(triggerProps) => (
-              <IconButton
-                {...triggerProps}
-                variant="ghost"
-                size="sm"
-                label="Filter the sidebar"
-                tooltip="Filter the sidebar"
-                icon={<ListFilter size={14} />}
-                xstyle={taskChats !== "all" ? styles.filterOn : undefined}
-              />
-            )}
+            button={{
+              label: "Filter the sidebar",
+              variant: "ghost",
+              size: "sm",
+              icon: <Icon icon={ListFilter} size="sm" />,
+              isIconOnly: true,
+              xstyle: taskChats !== "all" ? styles.filterOn : undefined,
+            }}
+            hasChevron={false}
           >
             <DropdownMenuGroup title="Task chats">
               <DropdownMenuRadioGroup

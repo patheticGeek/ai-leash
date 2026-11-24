@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { formatDuration } from "@/lib/format";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { activitySummary } from "./toolCalls";
+import { turnInset } from "./turnInset";
 
 interface WorkSummaryProps {
   entries: PanelEntry[];
@@ -31,6 +32,7 @@ export default function WorkSummary({
   const summary = activitySummary(entries, indices);
   return (
     <ChatToolCalls
+      xstyle={turnInset.inset}
       calls={[
         {
           key: `work-${indices[0]}`,

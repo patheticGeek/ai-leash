@@ -4,6 +4,7 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
+import { turnInset } from "./turnInset";
 
 interface WorkingForIndicatorProps {
   // Whether the turn has produced anything visible yet (from `entries`) —
@@ -39,6 +40,7 @@ export default function WorkingForIndicator({
       : "Waiting";
   return (
     <ChatMessageMetadata
+      xstyle={turnInset.inset}
       footer={
         <HStack gap={2} vAlign="center">
           <Spinner size="sm" aria-label="Working" />
