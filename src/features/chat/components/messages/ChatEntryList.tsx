@@ -1,11 +1,11 @@
-import { Button } from "@astryxdesign/core/Button";
-import { ChatMessage, ChatMessageList } from "@astryxdesign/core/Chat";
-import { Icon } from "@astryxdesign/core/Icon";
+import {
+  ChatLayoutScrollButton,
+  ChatMessage,
+  ChatMessageList,
+} from "@astryxdesign/core/Chat";
 import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { ArrowDown } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
@@ -55,22 +55,16 @@ const styles = stylex.create({
   },
   // Room at the bottom for whatever floats over it (the composer).
   inset: (px: number) => ({ paddingBlockEnd: px }),
+  // Astryx's own scroll-to-bottom pill (`ChatLayout`'s): a full-width row
+  // that centres it and keeps its --spacing-3 gap above whatever floats
+  // over the bottom (the composer), stacked above the composer's fade.
   latest: {
     position: "absolute",
-    insetInlineStart: "50%",
-    transform: "translateX(-50%)",
-    transitionProperty: "translate, scale, opacity",
-    transitionDuration: "200ms",
-  },
-  latestAt: (bottom: number) => ({
-    bottom: `calc(${bottom}px + ${spacingVars["--spacing-4"]})`,
-  }),
-  latestHidden: {
+    insetInline: 0,
+    zIndex: 1,
     pointerEvents: "none",
-    translate: "0 100%",
-    scale: "0.95",
-    opacity: 0,
   },
+  latestAt: (bottom: number) => ({ bottom }),
 });
 
 // Keyed on an item's first index, which stays stable as long as `entries`
@@ -135,7 +129,7 @@ export interface ChatEntryListProps {
   /**
    * Height in px of something overlaid on the bottom of the list (the
    * message box): the transcript gets that much bottom padding so its last
-   * line clears it, and the "Latest" button sits above it.
+   * line clears it, and the scroll-to-bottom button sits above it.
    */
   bottomInset?: number;
   entries: PanelEntry[];
@@ -185,7 +179,7 @@ export default function ChatEntryList({
   const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
   // Following the end — including the initial jump there — and whether to
-  // offer the "Latest" button are `useStickToEnd`'s.
+  // offer the scroll-to-bottom button are `useStickToEnd`'s.
   const { viewportRef, contentRef, stick, atEnd } = useStickToEnd();
   useStickOnUserMessage(entries, stick);
 
@@ -334,18 +328,10 @@ export default function ChatEntryList({
           </ChatMessageList>
         </VStack>
       </ScrollableArea>
-      <Button
-        variant="secondary"
-        label="Latest"
-        icon={<Icon icon={ArrowDown} size="sm" />}
+      <ChatLayoutScrollButton
+        isVisible={!atEnd}
         onClick={stick}
-        aria-hidden={atEnd || undefined}
-        tabIndex={atEnd ? -1 : undefined}
-        xstyle={[
-          styles.latest,
-          styles.latestAt(bottomInset),
-          atEnd && styles.latestHidden,
-        ]}
+        xstyle={[styles.latest, styles.latestAt(bottomInset)]}
       />
     </VStack>
   );
