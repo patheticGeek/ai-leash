@@ -3,7 +3,7 @@ import ClaudeRateLimitBanner, {
   type ClaudeRateLimit,
 } from "./ClaudeRateLimitBanner";
 import HelpBanner from "./HelpBanner";
-import SubAgentsPill from "./SubAgentsPill";
+import SubAgentsBanner from "./SubAgentsBanner";
 import TaskLinkBanner from "./TaskLinkBanner";
 import TranscriptNotices, {
   type TranscriptNoticesProps,
@@ -28,7 +28,7 @@ export interface ChatBannersProps {
 // Banner's `status` is the severity: error = something broke, warning =
 // needs a decision, info = state you can change. The theme backs banner
 // frames with the solid card surface, so they read over the transcript.
-// Last, docked right above the composer: the running sub-agents pill (#26).
+// Last, docked right above the composer: the running sub-agents banner (#26).
 export default function ChatBanners({
   sessionId,
   notices,
@@ -54,7 +54,7 @@ export default function ChatBanners({
       )}
       <TaskLinkBanner sessionId={sessionId} />
       {helpOpen && <HelpBanner commands={commands} onClose={onCloseHelp} />}
-      <SubAgentsPill sessionId={sessionId} />
+      <SubAgentsBanner sessionId={sessionId} />
     </>
   );
 }
