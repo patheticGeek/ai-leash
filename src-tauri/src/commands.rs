@@ -476,3 +476,11 @@ pub async fn open_in_ide(command: String, path: String) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// The new-thread screen's "starts with" row for the checkout a fresh
+/// thread would run in (primary or a worktree) — see
+/// `context::starting_context`.
+#[tauri::command]
+pub fn get_starting_context(checkout_path: String) -> crate::context::StartingContext {
+    crate::context::starting_context(Path::new(&checkout_path))
+}

@@ -245,6 +245,17 @@ export type ElicitationAnswer =
   | { action: "decline" }
   | { action: "cancel" };
 
+// What a fresh session's system prompt is built from (`context.rs`'s
+// `StartingContext`).
+export interface StartingContext {
+  // "Global AGENTS.md" first if there is one, then the root's "AGENTS.md".
+  agentsMd: string[];
+  globalMemory: boolean;
+  projectMemory: boolean;
+  skills: number;
+  actions: number;
+}
+
 export interface SubAgentSummary {
   id: string;
   parentSessionId: string;
@@ -512,6 +523,10 @@ export const api = {
   // `commands.rs`'s `list_dir` doc comment.
   listDir: (checkoutPath: string, path?: string) =>
     invoke<DirEntryInfo[]>("list_dir", { checkoutPath, path }),
+  // The new-thread screen's "starts with" row — see `context.rs`'s
+  // `starting_context`.
+  getStartingContext: (checkoutPath: string) =>
+    invoke<StartingContext>("get_starting_context", { checkoutPath }),
   // `sessionId` null: the checkout currently shown (a new thread's).
   readFileText: (sessionId: string | null, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),

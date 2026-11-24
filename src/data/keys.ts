@@ -8,6 +8,10 @@
 export const qk = {
   acpCatalog: ["acp-agent-catalog"] as const,
   actions: (checkoutPath: string | null) => ["actions", checkoutPath] as const,
+  // What a fresh thread in this checkout starts with (AGENTS.md, memory,
+  // skills, Actions) — the new-thread screen's "starts with" row.
+  startingContext: (checkoutPath: string) =>
+    ["starting-context", checkoutPath] as const,
   // Every top-level conversation across every known project — see
   // `src/data/conversations.ts`. `useConversation(id)` selects from this
   // same query rather than a second fetch, so there is no separate

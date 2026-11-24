@@ -1,16 +1,39 @@
+import { VStack } from "@astryxdesign/core/Stack";
+import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import ChatComposer from "./components/composer/ChatComposer";
 import NewThreadHero from "./components/empty-states/NewThreadHero";
+import StartsWithRow from "./components/empty-states/StartsWithRow";
 import ChatEntryList from "./components/messages/ChatEntryList";
 import { useBackendWarmup } from "./hooks/useBackendWarmup";
 import { useChatSession } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
 import { useTurnDurations } from "./hooks/useTurnDurations";
+
+const styles = stylex.create({
+  // The floating composer is positioned against this, so it's as wide as
+  // the panel, not whatever holds it.
+  panel: { position: "relative", height: "100%" },
+  // The new-thread landing scrolls if the window is too short for it.
+  landing: { overflowY: "auto" },
+  // The `ai-chat-landing` template's 720 column (`maxWidth` prop), centred
+  // vertically — auto margins rather than `justify-content: center`, so a
+  // column taller than the panel scrolls from its top instead of clipping.
+  column: { width: "100%", marginBlock: "auto" },
+  // Once the conversation has started the column wrapper drops out of
+  // layout, leaving the transcript and composer stacked in `panel`.
+  contents: { display: "contents" },
+  transcript: {
+    position: "relative",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+  },
+});
 
 // The composer's last measured height, carried across remounts (one per
 // conversation switch — `TabContentHost`'s `viewEpoch` key) so the transcript's first
@@ -54,10 +77,6 @@ export default function ChatPanel({
   const worktreeCwd = isNewThread
     ? (draftWorktree ?? projectRoot)
     : (conversation?.worktreePath ?? projectRoot);
-  const projectName = useAppStore(
-    (s) =>
-      s.recentProjects.find((p) => p.path === projectRoot)?.name ?? projectRoot,
-  );
 
   // Backend-driven, independent of this component's mount lifecycle (see
   // `run_with_cancellation` in chat.rs and `useGeneratingListener`'s
@@ -284,24 +303,25 @@ export default function ChatPanel({
   }
 
   // The composer sits at the same place in the tree in both layouts (the
-  // wrapper below is `display: contents` once the conversation has started),
+  // column below is `display: contents` once the conversation has started),
   // so it isn't remounted — and its draft/queue state isn't lost — when the
   // first message flips this from the centered "new thread" layout to the
   // bottom-pinned one.
   return (
-    <div
-      className={cn(
-        // The floating composer is positioned against this, so it's as
-        // wide as the panel, not whatever holds it.
-        "relative flex h-full",
-        isNewThread ? "items-center justify-center px-6" : "flex-col",
-      )}
+    <VStack
+      padding={isNewThread ? 6 : undefined}
+      hAlign={isNewThread ? "center" : undefined}
+      xstyle={[styles.panel, isNewThread && styles.landing]}
     >
-      <div className={isNewThread ? "w-full max-w-2xl" : "contents"}>
+      <VStack
+        gap={isNewThread ? 8 : undefined}
+        maxWidth={isNewThread ? 720 : undefined}
+        xstyle={isNewThread ? styles.column : styles.contents}
+      >
         {isNewThread ? (
-          <NewThreadHero projectName={projectName} />
+          <NewThreadHero projectRoot={projectRoot} />
         ) : (
-          <div className="relative flex-1 overflow-hidden">
+          <VStack xstyle={styles.transcript}>
             <ChatEntryList
               entries={entries}
               systemPrompt={systemPrompt}
@@ -316,7 +336,7 @@ export default function ChatPanel({
               isCompact={compact}
               bottomInset={composerHeight}
             />
-          </div>
+          </VStack>
         )}
         <ChatComposer
           sessionId={sessionId}
@@ -357,7 +377,8 @@ export default function ChatPanel({
           onError={setChatError}
           onHeightChange={setComposerHeight}
         />
-      </div>
-    </div>
+        {isNewThread && <StartsWithRow checkoutPath={worktreeCwd} />}
+      </VStack>
+    </VStack>
   );
 }
