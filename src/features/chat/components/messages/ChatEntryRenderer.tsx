@@ -93,6 +93,7 @@ export default function ChatEntryRenderer({
         showRetry={!isUser && !sending && isLast && allowRetry}
         onRetry={onRetry}
         turnDuration={isUser ? undefined : turnDuration}
+        isInset={!isUser}
       />
     ) : undefined;
     if (isUser) {

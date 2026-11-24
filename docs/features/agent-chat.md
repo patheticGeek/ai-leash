@@ -47,7 +47,8 @@ memory only when it asks for it.
 
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
-chosen.
+chosen. The transcript scrolls under the message box and the worktree/branch
+bar, fading out just above them so messages never show through.
 
 The agent's response appears as it is produced. While it works, the panel can
 show:
@@ -86,7 +87,9 @@ Settings > Chat.
 Your messages are bubbles on the right; the agent's replies have no avatar
 and use the transcript's full width, lined up with its tool rows. The
 transcript is a centred column (it uses the whole width in a narrow panel).
-Every message has a timestamp and a copy button. The final assistant message
+Every message has a timestamp and a copy button, lined up with the
+message's text: under an agent reply they start where the reply's text
+starts, under your bubble they end where its text ends. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
 there is no **Worked for** row above it already showing that. While the agent
 works, the end of its reply shows a spinner with **Working for** and the
