@@ -21,6 +21,7 @@ import {
 import { type ReactNode, useState } from "react";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
+import { runState } from "../../actions/runState";
 import { useActions } from "../../actions/useActions";
 import {
   PanelEmptyState,
@@ -30,32 +31,19 @@ import {
 
 const emptyForm = { name: "", command: "" };
 
-// How the action's current or last run stands. A run that exited on its own
-// with a non-zero code is the one worth flagging.
-function runState(action: ActionSummary) {
-  const failed =
-    action.status === "exited" &&
-    action.exitCode !== null &&
-    action.exitCode !== 0;
-  if (action.running) return { variant: "success", label: "Running" } as const;
-  if (failed) {
-    return { variant: "error", label: `Exited ${action.exitCode}` } as const;
-  }
-  if (action.status === "exited") {
-    return { variant: "neutral", label: "Exited" } as const;
-  }
-  if (action.status === "stopped") {
-    return { variant: "neutral", label: "Stopped" } as const;
-  }
-  return { variant: "neutral", label: "Not started" } as const;
-}
-
 function RunStatusDot({ action }: { action: ActionSummary }) {
-  const { variant, label } = runState(action);
+  const { tone, label } = runState(action);
   const tooltip = action.endedAt
     ? `${label} · ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`
     : label;
-  return <StatusDot variant={variant} label={label} tooltip={tooltip} />;
+  return (
+    <StatusDot
+      variant={tone}
+      isPulsing={action.running}
+      label={label}
+      tooltip={tooltip}
+    />
+  );
 }
 
 // The side panel's Actions tab: the checkout's Actions as compact rows
