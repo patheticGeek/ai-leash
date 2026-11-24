@@ -49,6 +49,12 @@ group per project. Each group holds:
   such as **#12**. Point at a chat to see its project, workspace (worktree
   or primary checkout) and branch.
 
+To remove a project, point at its name and open its **⋯** menu, or
+right-click its name, and choose **Remove project**. After you confirm, the
+project is removed from AI Leash and its board and conversations are
+deleted. The project's files on disk aren't touched; add the folder again
+with **Add project** to start afresh.
+
 Projects with no conversations, tasks or project chat yet are tucked behind
 **More projects** at the end of the list. Click a project's name to fold or
 unfold its group; the app remembers which groups you folded, including after

@@ -39,6 +39,12 @@ project memory, the number of skills and the number of Actions (see
 `AGENTS.md` files in subfolders aren't listed, because they are only added
 once the agent works in that folder.
 
+The row lists only what the selected agent actually gets. A built-in
+provider gets all of the above. An external agent (ACP) gets only the Actions
+and skills lists from AI Leash, so only those are shown, with an info icon
+explaining that the agent reads its own instruction files and reads AI Leash
+memory only when it asks for it.
+
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
 chosen.

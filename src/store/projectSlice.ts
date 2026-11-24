@@ -68,9 +68,9 @@ export interface ProjectSlice {
   // `conversationSlice.deleteConversation` rather than calling
   // `api.deleteConversation` directly, so the same
   // localStorage/sub-agent-bookkeeping cleanup that a normal per-conversation
-  // delete does can't drift out of sync with this bulk path. Not reachable from the UI
-  // since the new-thread popover (with its per-project trash button) was
-  // replaced by a Selector; a sidebar entry for it is a follow-up.
+  // delete does can't drift out of sync with this bulk path. Reachable from the
+  // sidebar project group's ⋯ / right-click menu (`LeftBar.tsx`'s
+  // `ProjectGroup`), behind `RemoveProjectDialog`.
   removeProject: (root: string) => Promise<void>;
   openFile: (path: string, name: string) => Promise<void>;
   setActive: (path: string) => void;

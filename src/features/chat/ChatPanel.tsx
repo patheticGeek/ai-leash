@@ -377,7 +377,14 @@ export default function ChatPanel({
           onError={setChatError}
           onHeightChange={setComposerHeight}
         />
-        {isNewThread && <StartsWithRow checkoutPath={worktreeCwd} />}
+        {isNewThread && (
+          <StartsWithRow
+            checkoutPath={worktreeCwd}
+            acpAgentLabel={
+              backendConfig?.kind === "acp" ? backendConfig.label : null
+            }
+          />
+        )}
       </VStack>
     </VStack>
   );
