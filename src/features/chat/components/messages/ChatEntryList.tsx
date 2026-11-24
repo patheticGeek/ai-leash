@@ -4,9 +4,16 @@ import {
   ChatMessageList,
 } from "@astryxdesign/core/Chat";
 import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
+import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { type ReactNode, useEffect, useRef } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
@@ -53,6 +60,22 @@ const styles = stylex.create({
   columnWide: {
     maxWidth: "none",
   },
+  // A fade at the top edge (under the tab strip) while there's more
+  // transcript scrolled away above: the surface colour to transparent, the
+  // same colour the composer's fade uses at the bottom.
+  topFade: {
+    position: "absolute",
+    insetBlockStart: 0,
+    insetInline: 0,
+    height: spacingVars["--spacing-8"],
+    zIndex: 1,
+    pointerEvents: "none",
+    backgroundImage: `linear-gradient(to bottom, ${colorVars["--color-background-surface"]}, transparent)`,
+    opacity: 0,
+    transitionProperty: "opacity",
+    transitionDuration: "150ms",
+  },
+  topFadeShown: { opacity: 1 },
   // Room at the bottom for whatever floats over it (the composer).
   inset: (px: number) => ({ paddingBlockEnd: px }),
   // Astryx's own scroll-to-bottom pill (`ChatLayout`'s): a full-width row
@@ -72,6 +95,21 @@ const styles = stylex.create({
 function itemKey(item: RenderItem): string {
   if (item.kind === "single") return String(item.index);
   return `${item.kind}-${item.indices[0]}`;
+}
+
+// Whether the viewport is scrolled away from its top (drives the top fade).
+// One passive scroll listener; state only changes when the answer flips.
+function useScrolledFromTop(viewportRef: RefObject<HTMLElement | null>) {
+  const [isScrolled, setIsScrolled] = useState(false);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const update = () => setIsScrolled(viewport.scrollTop > 0);
+    update();
+    viewport.addEventListener("scroll", update, { passive: true });
+    return () => viewport.removeEventListener("scroll", update);
+  }, [viewportRef]);
+  return isScrolled;
 }
 
 // Sending a message always jumps to the bottom and resumes following, even if
@@ -181,6 +219,7 @@ export default function ChatEntryList({
   // Following the end — including the initial jump there — and whether to
   // offer the scroll-to-bottom button are `useStickToEnd`'s.
   const { viewportRef, contentRef, stick, atEnd } = useStickToEnd();
+  const isScrolledFromTop = useScrolledFromTop(viewportRef);
   useStickOnUserMessage(entries, stick);
 
   const items = groupEntries(entries, sending, collapseFinishedTurns);
@@ -268,6 +307,10 @@ export default function ChatEntryList({
 
   return (
     <VStack xstyle={styles.root}>
+      <VStack
+        aria-hidden
+        xstyle={[styles.topFade, isScrolledFromTop && styles.topFadeShown]}
+      />
       <ScrollableArea
         ref={viewportRef}
         label="Transcript"

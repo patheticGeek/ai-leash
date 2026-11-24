@@ -1,10 +1,23 @@
 import { ChatToolCalls } from "@astryxdesign/core/Chat";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
 import { formatDuration } from "@/lib/format";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { activitySummary } from "./toolCalls";
 import { turnInset } from "./turnInset";
+
+const styles = stylex.create({
+  // The row's detail is indented past its status icon to its name; the
+  // steps inside then take the turn's own inset (`turnInset`) on top. Pull
+  // the steps back by that inset so their icons (and the text of any reply
+  // inside) start at the "Worked for" label: nested, without doubling up.
+  steps: {
+    marginInlineStart: `calc(-1 * ${spacingVars["--spacing-4"]})`,
+    width: `calc(100% + ${spacingVars["--spacing-4"]})`,
+  },
+});
 
 interface WorkSummaryProps {
   entries: PanelEntry[];
@@ -43,7 +56,7 @@ export default function WorkSummary({
           target: summary || undefined,
           status: "complete",
           resultDetail: (
-            <VStack gap={1.5} width="100%">
+            <VStack gap={1.5} xstyle={styles.steps}>
               {children}
             </VStack>
           ),

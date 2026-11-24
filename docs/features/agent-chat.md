@@ -70,18 +70,25 @@ prompt but not run, so you can review or edit it first.
 Thinking and tool activity are compact rows, so the conversation stays
 readable. Each row shows a status icon (a spinner while it runs, a check when
 done, a red mark when it failed), the tool's name and what it acted on — a
-file path, a command, a search. A run of consecutive steps collapses to its
-latest row plus a count; click it to list every step, labelled with how many
-thoughts and tools it holds. Click a single row to open its detail: the
-thought itself, or a tool's input and output. A failed tool call keeps its
-output (titled **Error**) available for inspection.
+file path, a command, a search. Click a row to open its detail: the thought
+itself, or a tool's input and output. A failed tool call keeps its output
+(titled **Error**) available for inspection.
+
+Consecutive thinking and tool steps form a group, shown as its latest step
+with **Show N more** under it; click it to list the earlier steps above (the
+button becomes **Show less**). A group stays collapsed while it grows, so
+the newest step is always the one on show. Sub-agent steps are never part of
+a group: starting sub-agents (`spawn_sub_agent`) and each sub-agent result
+that comes back always get a row of their own, and they split the steps
+around them into separate groups. The only grouping they share is the
+**Worked for** row below.
 
 Once a reply is complete, everything the agent did before its closing
 message — thinking, tool calls and any text in between — folds into a single
 **Worked for** row showing how long the turn took and what it did ("1
 thought, 4 tools used"), so only your message and the agent's final summary
 stay on show. Click the row to see every step, grouped as it was while the
-agent worked.
+agent worked, indented to line up with the **Worked for** label.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
 Settings > Chat.
@@ -110,7 +117,8 @@ what failed and offers **Try again** (nothing is deleted).
 The transcript follows new output while you are at the bottom. Scroll up to
 read earlier messages and it stops following; a round scroll-to-bottom
 button with a down arrow appears just above the message box to jump back
-down.
+down. While there is more transcript scrolled away above, its top edge fades
+out under the tab strip.
 
 ## Choose who answers
 
