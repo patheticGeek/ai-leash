@@ -43,9 +43,14 @@ pub struct Preferences {
     /// Where board task chats go in the sidebar's chat list: `"all"` mixed
     /// in by recency, `"top"` grouped above the rest, or `"hide"`.
     pub sidebar_task_chats: String,
+    /// How the sidebar lists chats: `"project"` grouped under their
+    /// project, or `"flat"` one list across projects with the boards in
+    /// their own section above it.
+    pub sidebar_layout: String,
 }
 
 pub const SIDEBAR_TASK_CHATS: &[&str] = &["all", "top", "hide"];
+pub const SIDEBAR_LAYOUTS: &[&str] = &["project", "flat"];
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -61,6 +66,7 @@ impl Default for Preferences {
             code_font_family: String::new(),
             code_font_size: 12.0,
             sidebar_task_chats: "all".to_string(),
+            sidebar_layout: "project".to_string(),
         }
     }
 }
@@ -84,6 +90,9 @@ impl Preferences {
             .clamp(MIN_COMPOSER_ROWS, MAX_COMPOSER_ROWS);
         if !SIDEBAR_TASK_CHATS.contains(&self.sidebar_task_chats.as_str()) {
             self.sidebar_task_chats = defaults.sidebar_task_chats;
+        }
+        if !SIDEBAR_LAYOUTS.contains(&self.sidebar_layout.as_str()) {
+            self.sidebar_layout = defaults.sidebar_layout;
         }
         self
     }
@@ -181,6 +190,19 @@ mod tests {
         assert_eq!(next.ui_font_size, MAX_FONT_SIZE);
         assert_eq!(next.code_font_size, MIN_FONT_SIZE);
         assert_eq!(next.composer_max_rows, MAX_COMPOSER_ROWS);
+    }
+
+    #[test]
+    fn an_unknown_sidebar_option_falls_back_to_its_default() {
+        let next = Preferences::default()
+            .merged(json!({ "sidebarLayout": "tree", "sidebarTaskChats": "nope" }))
+            .unwrap();
+        assert_eq!(next.sidebar_layout, "project");
+        assert_eq!(next.sidebar_task_chats, "all");
+        let flat = Preferences::default()
+            .merged(json!({ "sidebarLayout": "flat" }))
+            .unwrap();
+        assert_eq!(flat.sidebar_layout, "flat");
     }
 
     #[test]

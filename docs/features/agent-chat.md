@@ -48,9 +48,9 @@ memory only when it asks for it.
 Once you send the first message, the screen turns into the normal
 conversation view with the message box at the bottom, keeping what you had
 chosen. The transcript scrolls under the message box and the worktree/branch
-bar. From the top of the message box down to the bottom of the window,
-the page colour fades in behind them, so messages scrolling past never
-mix with the box or the branch names.
+bar. Below the message box, messages fade away going down, to the page
+colour at the bottom of the window; the worktree and branch buttons have a
+frosted backdrop of their own so their names stay readable over it.
 
 The agent's response appears as it is produced. While it works, the panel can
 show:
@@ -88,7 +88,7 @@ message — thinking, tool calls and any text in between — folds into a single
 **Worked for** row showing how long the turn took and what it did ("1
 thought, 4 tools used"), so only your message and the agent's final summary
 stay on show. Click the row to see every step, grouped as it was while the
-agent worked.
+agent worked, indented to line up with the **Worked for** label.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
 Settings > Chat.
@@ -111,13 +111,18 @@ Notes another chat left, and local notices such as **Conversation
 compacted**, appear as centred one-line system messages with an icon; click
 **Show** to read the whole note. An empty conversation (for example after
 `/clear`) says so; while a saved conversation loads, the transcript shows
-placeholder rows in the shape of messages, and if it can't be read, it says
+placeholder rows in the shape of messages at the bottom, where the latest
+messages will appear, and if it can't be read, it says
 what failed and offers **Try again** (nothing is deleted).
 
-The transcript follows new output while you are at the bottom. Scroll up to
+A conversation opens at its latest message, whether you open it, switch
+back to it or its saved history finishes loading, and stays there as long
+content such as code blocks finishes rendering. The transcript follows new
+output while you are at the bottom. Scroll up to
 read earlier messages and it stops following; a round scroll-to-bottom
 button with a down arrow appears just above the message box to jump back
-down.
+down. While there is more transcript scrolled away above, its top edge fades
+out under the tab strip.
 
 ## Choose who answers
 
@@ -319,8 +324,24 @@ started. Open the row to see one line per sub-agent: whether it is running,
 finished or failed, its task, model, how long it ran and its latest step, and
 a button that opens its full transcript in a tab. Multiple sub-agents can run
 at once. You can also open a sub-agent's transcript from the Sub Agents view;
-see [the UI shell guide](./ui-shell.md). The sub-agent's tab shows its status,
-task and model above the same transcript a conversation uses.
+see [the UI shell guide](./ui-shell.md). A sub-agent's tab is the same transcript a
+conversation uses, without the message box: the same grouping, rows, fades,
+scroll-to-bottom button and empty / loading / error states, opening at the
+end and following new output. A line at its top shows its model and whether
+it is running, finished or failed.
+
+While any sub-agent of the conversation is running, a small pill sits just
+above the message box (the last item of the banner stack): a spinner,
+"3 sub-agents running" and how long the longest has been going. Click it to
+open a compact list of them: each one's task, model, status and elapsed time,
+with a stop button on running ones (and "Stop all" when several run). Click a
+row to open its transcript, with the Sub Agents view revealed in the side
+panel. A sub-agent that finishes shows as done for a few seconds, then drops
+out; one that fails stays, marked failed, until you dismiss it (only failures
+from the current app session show — older ones are in the Sub Agents view).
+The pill reads the same live list as the Sub Agents view (updated by each
+sub-agent's start/finish event, no polling), so it works the same for local
+and ACP conversations. It's `banners/SubAgentsPill.tsx`.
 
 While any sub-agent of the conversation is running, a small pill sits just
 above the message box (the last item of the banner stack): a spinner,
