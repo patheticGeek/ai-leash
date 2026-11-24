@@ -1,9 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import {
-  DEFAULT_UI_FONT_SIZE,
-  getPreferences,
-  subscribePreferences,
-} from "../data/preferences";
+import { getPreferences, subscribePreferences } from "../data/preferences";
 import type { Preferences } from "./tauriApi";
 
 // The built-in stacks, also what `index.css` falls back to before this runs.
@@ -32,12 +28,8 @@ function apply(s: Preferences) {
     fontStack(s.codeFontFamily, DEFAULT_MONO_STACK),
   );
   // Astryx's body size (`--font-size-base`, 14px stock); `index.css` points
-  // the theme token at this. The scale still drives the legacy Tailwind sizes.
+  // the theme token at this.
   style.setProperty("--al-font-size-base", `${s.uiFontSize}px`);
-  style.setProperty(
-    "--al-font-scale",
-    String(s.uiFontSize / DEFAULT_UI_FONT_SIZE),
-  );
   style.setProperty("--al-code-size", `${s.codeFontSize}px`);
 }
 

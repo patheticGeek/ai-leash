@@ -1,19 +1,19 @@
-import { useDefaultLayout } from "react-resizable-panels";
-import { cn } from "@/lib/utils";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/ui/resizable";
+import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
+import { ResizeHandle } from "@astryxdesign/core/Resizable";
+import { useResizableWidth } from "../../hooks/useResizableWidth";
+import { LS_KEYS } from "../../lib/localStorageKeys";
 import ChatPanel from "../chat/ChatPanel";
 import BoardView from "./BoardView";
 import { useBoardLayout } from "./boardLayout";
 
 // What a project's board chat (`role: "project"`) shows in place of a plain
-// chat: the board, its chat, or both side by side (`BoardLayoutSwitch` in
-// the title bar). Panels are keyed so the chat stays mounted — and keeps
-// streaming — as the layout changes. The chat never has a checkout bar:
-// it always works in the project's main checkout.
+// chat: the board, its chat, or both (`BoardLayoutSwitch` in the title bar).
+// In Both the chat docks in the ide template's end panel behind a
+// ResizeHandle, and the board keeps its column widths and scrolls sideways
+// in what's left. The chat never has a checkout bar: it always works in the
+// project's main checkout. Its draft and running turn live outside the
+// component (`chatDraft.ts`, the backend), so switching layouts — which
+// remounts it — loses nothing.
 export default function ProjectBoardView({
   sessionId,
   projectRoot,
@@ -22,53 +22,52 @@ export default function ProjectBoardView({
   projectRoot: string;
 }) {
   const layout = useBoardLayout();
-  const showBoard = layout !== "chat";
-  const showChat = layout !== "board";
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "ai-leash:project-board",
-    storage: localStorage,
-    panelIds: [
-      ...(showBoard ? ["board"] : []),
-      ...(showChat ? ["project-chat"] : []),
-    ],
-  });
+  const chatPanel = useResizableWidth(LS_KEYS.projectChatWidth, 380, 300, 560);
+
+  if (layout === "chat") {
+    // On its own, a normal centered chat.
+    return (
+      <ChatPanel
+        sessionId={sessionId}
+        projectRoot={projectRoot}
+        showCheckout={false}
+      />
+    );
+  }
 
   return (
-    <ResizablePanelGroup
-      orientation="horizontal"
-      defaultLayout={defaultLayout}
-      onLayoutChanged={onLayoutChanged}
-    >
-      {showBoard && (
-        <ResizablePanel key="board" id="board" minSize="30">
+    <Layout
+      height="fill"
+      content={
+        <LayoutContent padding={0} isScrollable={false}>
           <BoardView projectRoot={projectRoot} />
-        </ResizablePanel>
-      )}
-      {showBoard && showChat && <ResizableHandle key="handle" />}
-      {showChat && (
-        <ResizablePanel
-          key="project-chat"
-          id="project-chat"
-          defaultSize={showBoard ? "33" : "100"}
-          minSize={280}
-        >
-          <div
-            className={cn(
-              "h-full min-w-0",
-              showBoard && "border-l border-white/5",
-            )}
-          >
-            {/* Beside the board it's a narrow column; on its own, a
-                normal centered chat. */}
-            <ChatPanel
-              sessionId={sessionId}
-              projectRoot={projectRoot}
-              compact={showBoard}
-              showCheckout={false}
+        </LayoutContent>
+      }
+      end={
+        layout === "both" && (
+          <>
+            <ResizeHandle
+              isReversed
+              resizable={chatPanel}
+              label="Resize project chat"
             />
-          </div>
-        </ResizablePanel>
-      )}
-    </ResizablePanelGroup>
+            <LayoutPanel
+              resizable={chatPanel}
+              isScrollable={false}
+              padding={0}
+              label="Project chat"
+            >
+              {/* A narrow column: fills it, with the compact composer. */}
+              <ChatPanel
+                sessionId={sessionId}
+                projectRoot={projectRoot}
+                compact
+                showCheckout={false}
+              />
+            </LayoutPanel>
+          </>
+        )
+      }
+    />
   );
 }

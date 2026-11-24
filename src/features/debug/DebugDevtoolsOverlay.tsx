@@ -1,8 +1,26 @@
+import { VStack } from "@astryxdesign/core/Stack";
+import * as stylex from "@stylexjs/stylex";
 import { usePreference } from "@/data/preferences";
 import { useAppStore } from "../../store";
 import DebugEventsPanel from "./DebugEventsPanel";
 import { useDebugEventCapture } from "./useDebugEventCapture";
 import { useFloatingDebugPanel } from "./useFloatingDebugPanel";
+
+const styles = stylex.create({
+  // Above everything in the app's own stacking order; Astryx popovers and
+  // menus open in the top layer, so they still paint over it.
+  frame: {
+    position: "fixed",
+    zIndex: 999,
+  },
+  // The persisted position and size from `useFloatingDebugPanel`.
+  place: (left: number, top: number, width: number, height: number) => ({
+    left,
+    top,
+    width,
+    height,
+  }),
+});
 
 /**
  * The always-mounted (but usually invisible) devtools overlay: the ACP
@@ -31,12 +49,12 @@ export default function DebugDevtoolsOverlay() {
   if (!debugModeEnabled || !debugPanelOpen) return null;
 
   return (
-    <div className="fixed z-[999]" style={{ left: x, top: y, width, height }}>
+    <VStack xstyle={[styles.frame, styles.place(x, y, width, height)]}>
       <DebugEventsPanel
         onClose={() => setDebugPanelOpen(false)}
         onDragStart={onDragStart}
         onResizeStart={onResizeStart}
       />
-    </div>
+    </VStack>
   );
 }

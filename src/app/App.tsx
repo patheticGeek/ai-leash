@@ -154,8 +154,11 @@ function App() {
 
   return (
     <>
+      {/* The default `elevated` variant, as in the prototype: the sidebar
+          sits on the body colour and the main region on the surface colour.
+          `wash` paints the main region body-coloured too, so the centre,
+          side panel, cards and board columns all lose their contrast. */}
       <AppShell
-        variant="wash"
         contentPadding={0}
         // A desktop window, not a responsive page: the sidebar stays inline
         // however narrow the window gets, never a mobile drawer.

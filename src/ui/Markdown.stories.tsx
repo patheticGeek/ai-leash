@@ -1,3 +1,4 @@
+import { VStack } from "@astryxdesign/core/Stack";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import Markdown from "./Markdown";
 
@@ -43,9 +44,9 @@ const meta = {
   args: { content },
   decorators: [
     (Story) => (
-      <div className="w-[32rem]">
+      <VStack width={512}>
         <Story />
-      </div>
+      </VStack>
     ),
   ],
 } satisfies Meta<typeof Markdown>;

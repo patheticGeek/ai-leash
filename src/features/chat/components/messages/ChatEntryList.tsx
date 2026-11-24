@@ -1,11 +1,15 @@
 import { Button } from "@astryxdesign/core/Button";
+import { ChatMessage, ChatMessageList } from "@astryxdesign/core/Chat";
+import { Icon } from "@astryxdesign/core/Icon";
 import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { ArrowDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
-import { cn } from "@/lib/utils";
 import {
   type ActivityItem,
   groupActivity,
@@ -15,13 +19,59 @@ import {
   type RenderItem,
 } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
-import TranscriptNotices from "../banners/TranscriptNotices";
-import EmptyTranscript from "../empty-states/EmptyTranscript";
 import ActivityGroup from "./ActivityGroup";
 import ChatEntryRenderer from "./ChatEntryRenderer";
 import SystemPromptRow from "./SystemPromptRow";
+import TranscriptState from "./TranscriptState";
 import WorkingForIndicator from "./WorkingForIndicator";
 import WorkSummary from "./WorkSummary";
+
+// The transcript column's width: `ChatLayout`'s at `density="spacious"`,
+// the ai-chat template's layout density (§2.4 of prototype/PROPOSAL.md).
+// The messages themselves stay at `ChatMessageList`'s balanced density.
+const COLUMN_WIDTH = 800;
+
+const styles = stylex.create({
+  root: {
+    position: "relative",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+  },
+  viewport: {
+    contain: "content",
+  },
+  column: {
+    width: "100%",
+    maxWidth: COLUMN_WIDTH,
+    minHeight: "100%",
+    marginInline: "auto",
+    // The app's chrome is unselectable (`index.css`); a transcript is
+    // something you copy from.
+    userSelect: "text",
+  },
+  columnWide: {
+    maxWidth: "none",
+  },
+  // Room at the bottom for whatever floats over it (the composer).
+  inset: (px: number) => ({ paddingBlockEnd: px }),
+  latest: {
+    position: "absolute",
+    insetInlineStart: "50%",
+    transform: "translateX(-50%)",
+    transitionProperty: "translate, scale, opacity",
+    transitionDuration: "200ms",
+  },
+  latestAt: (bottom: number) => ({
+    bottom: `calc(${bottom}px + ${spacingVars["--spacing-4"]})`,
+  }),
+  latestHidden: {
+    pointerEvents: "none",
+    translate: "0 100%",
+    scale: "0.95",
+    opacity: 0,
+  },
+});
 
 // Keyed on an item's first index, which stays stable as long as `entries`
 // only ever grows (it does).
@@ -45,9 +95,43 @@ function useStickOnUserMessage(entries: PanelEntry[], stick: () => void) {
   }, [userMessages, stick]);
 }
 
+// How the grouped items become `ChatMessageList` rows: a user message is
+// its own `ChatMessage`, a note or local notice its own system row, and
+// everything the agent did in between (activity, folded work, reply text)
+// one assistant `ChatMessage`, so a turn's tool rows, prose and footer
+// share one left edge.
+type Row =
+  | { kind: "user"; key: string; item: RenderItem }
+  | { kind: "system"; key: string; item: RenderItem }
+  | { kind: "assistant"; key: string; items: RenderItem[] };
+
+function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
+  const rows: Row[] = [];
+  for (const item of items) {
+    if (item.kind === "single") {
+      const entry = entries[item.index];
+      if (entry.kind === "text" && entry.role === "user") {
+        rows.push({ kind: "user", key: itemKey(item), item });
+        continue;
+      }
+      if (entry.kind === "note" || entry.kind === "info") {
+        rows.push({ kind: "system", key: itemKey(item), item });
+        continue;
+      }
+    }
+    const last = rows[rows.length - 1];
+    if (last?.kind === "assistant") last.items.push(item);
+    else rows.push({ kind: "assistant", key: itemKey(item), items: [item] });
+  }
+  return rows;
+}
+
 export interface ChatEntryListProps {
-  /** Classes for the transcript column (padding, alignment). */
-  className?: string;
+  /**
+   * A narrow column (`ChatPanel`'s `compact`): the transcript uses the
+   * whole width at compact density instead of the centred column.
+   */
+  isCompact?: boolean;
   /**
    * Height in px of something overlaid on the bottom of the list (the
    * message box): the transcript gets that much bottom padding so its last
@@ -55,23 +139,15 @@ export interface ChatEntryListProps {
    */
   bottomInset?: number;
   entries: PanelEntry[];
-  // These four are top-level-conversation-only concerns (Ollama/ACP-restore
-  // banners, the collapsible system prompt block) — optional so a caller
-  // with no such concept (e.g. `SubAgentChatTab.tsx`) doesn't need to pass
-  // dummy values for all of them.
-  chatError?: string | null;
-  acpRestoreFailed?: string | null;
-  onRetryAcpSession?: () => void;
-  // True when the connected ACP agent has no way to pick up this
-  // conversation's prior history (no `session/load` resume available) —
-  // distinct from `acpRestoreFailed` (a resume was *attempted* and failed);
-  // this is "never even had one to try." See `chat://{sessionId}/acp_history_truncated`.
-  acpHistoryTruncated?: boolean;
-  acpAgentLabel?: string | null;
+  // Top-level-conversation-only (the system prompt line) — optional so a
+  // caller with no such concept (`SubAgentChatTab.tsx`) needn't pass it.
   systemPrompt?: string | null;
   // False while a saved transcript is still loading, so an empty `entries`
-  // doesn't flash the empty state first. Defaults to `true`.
+  // shows skeletons rather than flashing the empty state. Defaults to `true`.
   historyLoaded?: boolean;
+  // Why the saved transcript couldn't be loaded, with a way to try again.
+  historyError?: string | null;
+  onReloadHistory?: () => void;
   sending: boolean;
   turnDurations: Record<number, number>;
   replyStartedAt: number | null;
@@ -83,43 +159,35 @@ export interface ChatEntryListProps {
 }
 
 // Renders a conversation's whole `entries` array inside the message
-// scroller: the notices and system prompt up top (`TranscriptNotices`,
-// `SystemPromptRow`), the empty state, each entry via `ChatEntryRenderer.tsx`
-// (runs of thinking/tool activity grouped by `ActivityGroup`, a finished
-// turn's work folded behind `WorkSummary`), and the
-// "Working for…" footer. Owns the per-entry UI-only state that's purely
-// about *how* an already-loaded transcript is displayed (expand/collapse,
-// copy feedback) — none of it is read anywhere outside this component.
+// scroller as Astryx's ai-chat parts: `ChatMessageList` in a centred
+// column, the system prompt up top (`SystemPromptRow`), each entry via
+// `ChatEntryRenderer.tsx` (runs of thinking/tool activity grouped by
+// `ActivityGroup`, a finished turn's work folded behind `WorkSummary`), the
+// "Working for…" line, and the empty / loading / error states
+// (`TranscriptState`). The notices (provider error, failed restore, history
+// not shared) aren't here: they're `TranscriptNotices`, in the banner stack
+// above the composer. Owns the copy feedback; the expand/collapse state of
+// each row lives in its `ChatToolCalls` / `SystemNotice`.
 export default function ChatEntryList({
   entries,
-  chatError = null,
-  acpRestoreFailed = null,
-  onRetryAcpSession = () => {},
-  acpHistoryTruncated = false,
-  acpAgentLabel = null,
   systemPrompt = null,
   historyLoaded = true,
+  historyError = null,
+  onReloadHistory = () => {},
   sending,
   turnDurations,
   replyStartedAt,
   onRetry = () => {},
   allowRetry = true,
-  className,
+  isCompact = false,
   bottomInset = 0,
 }: ChatEntryListProps) {
-  const [expandOverride, setExpandOverride] = useState<Record<number, boolean>>(
-    {},
-  );
   const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
   // Following the end — including the initial jump there — and whether to
   // offer the "Latest" button are `useStickToEnd`'s.
   const { viewportRef, contentRef, stick, atEnd } = useStickToEnd();
   useStickOnUserMessage(entries, stick);
-
-  function toggle(i: number) {
-    setExpandOverride((prev) => ({ ...prev, [i]: !prev[i] }));
-  }
 
   const items = groupEntries(entries, sending, collapseFinishedTurns);
   // Replies whose turn time is already shown on their `WorkSummary` row, so
@@ -137,10 +205,9 @@ export default function ChatEntryList({
       <ChatEntryRenderer
         key={i}
         entry={entry}
+        index={i}
         isLast={i === entries.length - 1}
         sending={sending}
-        expanded={expandOverride[i] ?? false}
-        onToggleExpand={() => toggle(i)}
         copied={copiedIndex === i}
         onCopy={() => copy(entry.kind === "text" ? entry.content : "", i)}
         onRetry={onRetry}
@@ -151,100 +218,135 @@ export default function ChatEntryList({
     );
   }
 
-  function renderItem(item: ActivityItem) {
+  function renderActivity(item: ActivityItem): ReactNode {
     return item.kind === "activitygroup" ? (
       <ActivityGroup
+        key={itemKey(item)}
         entries={entries}
         indices={item.indices}
-        renderEntry={renderEntry}
       />
     ) : (
       renderEntry(item.index)
     );
   }
 
+  function renderItem(item: RenderItem): ReactNode {
+    if (item.kind !== "work") return renderActivity(item);
+    return (
+      <WorkSummary
+        key={itemKey(item)}
+        entries={entries}
+        indices={item.indices}
+        turnDuration={turnDurations[item.replyIndex]}
+      >
+        {groupActivity(entries, item.indices).map(renderActivity)}
+      </WorkSummary>
+    );
+  }
+
+  const rows = toRows(entries, items);
+  const working = sending ? (
+    <WorkingForIndicator
+      hasActivity={hasTurnActivity(entries)}
+      replyStartedAt={replyStartedAt}
+    />
+  ) : null;
+  // The running turn's line goes at the end of its assistant message, or
+  // starts one if the agent hasn't produced anything yet.
+  const workingInLastRow = rows[rows.length - 1]?.kind === "assistant";
+
+  let state: ReactNode = null;
+  if (entries.length === 0) {
+    if (historyError) {
+      state = (
+        <TranscriptState
+          state="error"
+          error={historyError}
+          onRetry={onReloadHistory}
+        />
+      );
+    } else if (!historyLoaded) {
+      state = <TranscriptState state="loading" />;
+    } else if (!sending) {
+      state = <TranscriptState state="empty" />;
+    }
+  }
+
   return (
-    <div className="relative flex size-full min-h-0 flex-col overflow-hidden">
+    <VStack xstyle={styles.root}>
       <ScrollableArea
         ref={viewportRef}
         label="Transcript"
         overscroll="contain"
         height="100%"
-        className="min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable contain-content"
+        xstyle={styles.viewport}
       >
-        <div
+        <VStack
           ref={contentRef}
-          className={cn(
-            "mx-auto flex h-max min-h-full w-full max-w-4xl flex-col gap-3 p-3 text-sm",
-            className,
-          )}
-          style={bottomInset ? { paddingBottom: bottomInset } : undefined}
+          xstyle={[
+            styles.column,
+            isCompact && styles.columnWide,
+            bottomInset > 0 && styles.inset(bottomInset),
+          ]}
         >
-          <TranscriptNotices
-            chatError={chatError}
-            acpRestoreFailed={acpRestoreFailed}
-            onRetryAcpSession={onRetryAcpSession}
-            acpHistoryTruncated={acpHistoryTruncated}
-            acpAgentLabel={acpAgentLabel}
-          />
-          {systemPrompt && <SystemPromptRow systemPrompt={systemPrompt} />}
-          {entries.length === 0 && historyLoaded && !chatError && (
-            <EmptyTranscript />
-          )}
-          {items.map((item) => (
-            <div
-              key={itemKey(item)}
-              className={cn(
-                "min-w-0 shrink-0",
-                item.kind === "activitygroup" && "space-y-1.5",
-              )}
-            >
-              {item.kind === "work" ? (
-                <WorkSummary
-                  entries={entries}
-                  indices={item.indices}
-                  turnDuration={turnDurations[item.replyIndex]}
-                >
-                  {groupActivity(entries, item.indices).map((inner) => (
-                    <div
-                      key={itemKey(inner)}
-                      className={
-                        inner.kind === "activitygroup" ? "space-y-1.5" : ""
-                      }
-                    >
-                      {renderItem(inner)}
-                    </div>
-                  ))}
-                </WorkSummary>
-              ) : (
-                renderItem(item)
-              )}
-            </div>
-          ))}
-          {sending && (
-            <WorkingForIndicator
-              hasActivity={hasTurnActivity(entries)}
-              replyStartedAt={replyStartedAt}
-            />
-          )}
-        </div>
+          <ChatMessageList
+            // Balanced, `ChatMessageList`'s default and what the ai-chat
+            // template and prototype use: `ChatLayout`'s "spacious" sizes the
+            // column, not the messages, whose spacious bubbles pad 16/20.
+            density={isCompact ? "compact" : "balanced"}
+            isStreaming={sending}
+            emptyState={state}
+          >
+            {/* No children at all while a state shows: `ChatMessageList`
+                only renders `emptyState` for nullish children. */}
+            {state === null ? (
+              <>
+                {systemPrompt && (
+                  <SystemPromptRow systemPrompt={systemPrompt} />
+                )}
+                {rows.map((row, r) => {
+                  if (row.kind === "user") {
+                    return (
+                      <ChatMessage key={row.key} sender="user">
+                        {renderItem(row.item)}
+                      </ChatMessage>
+                    );
+                  }
+                  if (row.kind === "system") {
+                    return (
+                      <ChatMessage key={row.key} sender="system">
+                        {renderItem(row.item)}
+                      </ChatMessage>
+                    );
+                  }
+                  return (
+                    <ChatMessage key={row.key} sender="assistant">
+                      {row.items.map(renderItem)}
+                      {workingInLastRow && r === rows.length - 1 && working}
+                    </ChatMessage>
+                  );
+                })}
+                {working && !workingInLastRow && (
+                  <ChatMessage sender="assistant">{working}</ChatMessage>
+                )}
+              </>
+            ) : null}
+          </ChatMessageList>
+        </VStack>
       </ScrollableArea>
       <Button
         variant="secondary"
         label="Latest"
-        icon={<ArrowDown size={14} />}
+        icon={<Icon icon={ArrowDown} size="sm" />}
         onClick={stick}
         aria-hidden={atEnd || undefined}
         tabIndex={atEnd ? -1 : undefined}
-        // 1rem clear of the inset, matching the default `bottom-4`.
-        style={bottomInset ? { bottom: bottomInset + 16 } : undefined}
-        className={cn(
-          "absolute bottom-4 left-1/2 -translate-x-1/2 transition-[translate,scale,opacity] duration-200",
-          atEnd
-            ? "pointer-events-none translate-y-full scale-95 opacity-0"
-            : "translate-y-0 scale-100 opacity-100",
-        )}
+        xstyle={[
+          styles.latest,
+          styles.latestAt(bottomInset),
+          atEnd && styles.latestHidden,
+        ]}
       />
-    </div>
+    </VStack>
   );
 }

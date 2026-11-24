@@ -81,12 +81,19 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   changing anything in `tools/sub_agent_tools.rs`'s sub-agent handling
   or the `Backend` trait's `run_task`/`deliver_task_result`
   (`backend/native.rs`, `acp/backend.rs`).
-- **Astryx migration in progress** (board epic "Astryx migration").
-  New UI uses Astryx components (see the ASTRYX block at the end of this
-  file); don't add new shadcn components. Existing shadcn code under
-  `src/ui` stays until its replacement task lands, and the "no `<div>` /
-  no `className`" rules apply to surfaces as they are migrated. The
-  shadcn notes below describe the legacy code.
+- **The UI is Astryx components only** (see the ASTRYX block at the end
+  of this file). Start every new surface from its Astryx template
+  (`astryx build` → `astryx template`) and keep the template's frame;
+  change an existing surface by adding components inside its sections.
+  No `<div>`/`<span>`, no `className`, no inline `style`, no imported
+  `.css`. Tailwind, shadcn, Radix and cva are gone — don't bring them
+  back. The one `className` left is react-markdown's `language-*` class
+  on fenced code in `ui/Markdown.tsx`, which `CodeBlock` reads (it isn't
+  styling).
+- **Styling is component props first, then StyleX** (`xstyle` /
+  `stylex.create`) with Astryx tokens from
+  `@astryxdesign/core/theme/tokens.stylex` (`colorVars`, `spacingVars`,
+  `radiusVars`, …). No raw hex or px values.
 - **The theme is stock Astryx (`neutral`, dark).** Don't recolour or
   respace it; build each surface from its Astryx template and keep the
   template's frame, gaps and padding. The only theme edit is chrome text
@@ -111,23 +118,18 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   with the default `x` prefix our atomic classes collide with Astryx's
   prebuilt ones, and ours are unlayered, so they silently override the
   `astryx-theme` layer for every Astryx element sharing that class.
-- **`src/ui` components come from shadcn, then get themed.** Add a
-  component with `npx shadcn@latest add <name>` (or, for a third-party
-  registry such as AI Elements, `npx shadcn@latest view
-  https://registry.ai-sdk.dev/<name>.json` and copy it in), then adapt
-  it to our theme: colour tokens (`bg-raised`/`bg-sunken`, `--primary`),
-  our `Button` variants, no `dark:` variants (the app is dark-only and
-  has no `.dark` class), no elevation shadows outside floating layers.
-  Don't write a component from scratch when the shadcn registry has one
-  — check `npx shadcn@latest search @shadcn -q <name>` first.
-  The only hand-written ones are those with no
-  registry equivalent: `Logo`, `json-viewer`, `Markdown`, `ErrorBoundary`
-  — already restyled with StyleX + Astryx tokens, no Tailwind
-  (the old hand-written `ResizeHandle` is gone: pane resizing is Astryx
-  `useResizable` + `ResizeHandle`, via `hooks/useResizableWidth.ts`).
-  CLI gotchas: it emits `import { cn } from "cn"` (point
-  it at `@/lib/utils`) and hangs on the overwrite prompt if a dependency
-  such as `label` already exists — add the missing files individually.
+- **`src/ui` holds only the hand-written pieces Astryx has no component
+  for**: `Logo`, `json-viewer`, `Markdown` and `ErrorBoundary`, built
+  from Astryx primitives + StyleX tokens, each with a Storybook story.
+  Anything else comes from `@astryxdesign/core` (pane resizing, for
+  instance, is Astryx `useResizable` + `ResizeHandle`, via
+  `hooks/useResizableWidth.ts`). Check `astryx search "<query>"` before
+  writing a new one.
+- **`prototype/` is the design reference**: a standalone Vite app (`npm
+  run dev --prefix prototype`, the "prototype" action) showing every
+  surface built from Astryx templates, with the rationale in
+  `prototype/PROPOSAL.md`. Match it when building or changing a surface;
+  it's not shipped and nothing in `src/` imports from it.
 - Don't commit or push unless explicitly asked, even mid-task.
 
 <!-- ASTRYX:START -->

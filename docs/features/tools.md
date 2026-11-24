@@ -109,7 +109,8 @@ Those actions may have consequences beyond the current conversation, so the
 app asks for your approval before allowing them.
 
 In **Ask** mode, you receive a prompt whenever the agent requests permission
-for an action that needs it. The prompt explains what the agent wants to do:
+for an action that needs it. The prompt takes the message box's place until
+you answer, and explains what the agent wants to do:
 
 - For a file change, you can review the proposed additions, removals, and
   surrounding unchanged lines.

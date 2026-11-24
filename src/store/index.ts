@@ -47,5 +47,4 @@ export { permissionForSession } from "./permissionSlice";
 // `src/store.ts` used to export directly, just backed by slices now.
 export type { RecentProject } from "./projectSlice";
 export type { ConversationBackendSelection } from "./selectionSlice";
-export type { SidebarSection } from "./sidebarSlice";
 export type { SubAgentTask } from "./subAgentSlice";
