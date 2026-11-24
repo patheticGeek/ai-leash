@@ -59,9 +59,10 @@ deleted. The project's files on disk aren't touched; add the folder again
 with **Add project** to start afresh.
 
 Projects with no conversations, tasks or project chat yet are tucked behind
-**More projects** at the end of the list. Click a project's name to fold or
-unfold its group; the app remembers which groups you folded, including after
-a restart. The active entry is highlighted.
+**More projects** at the end of the list. Click a project's name (or press
+Enter or Space on it) to fold or unfold its group; there's no separate
+arrow. The app remembers which groups you folded, including after a
+restart. The active entry is highlighted.
 
 The filter button beside **Projects** chooses how task chats are listed:
 mixed in with the rest, grouped at the top of each project, or hidden.
@@ -72,10 +73,11 @@ thread in that project with **New thread**.
 
 Conversations that you have marked as done move into the **Done** group at
 the bottom of the sidebar, which starts folded and shows how many there are.
-Open it to see the most recent ones (**Show all** lists the rest), and use a
+Click it to open it and see the most recent ones (**Show all** lists the rest), and use a
 conversation's menu to mark it as not done. Each conversation has a **⋯**
 menu that appears when you point at it (or right-click it), with **Mark as
-done** and **Delete conversation**. **Settings** sits at the bottom of the
+done** and **Delete conversation**. Titles use the whole row; while you
+point at a chat, its **⋯** takes the place of its status. **Settings** sits at the bottom of the
 sidebar.
 
 The sidebar can show activity while you are viewing another conversation. A
