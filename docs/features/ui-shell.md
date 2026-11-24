@@ -12,10 +12,13 @@ AI Leash is arranged as a conversation workspace with three main areas:
 +----------------+----------------------------+----------------------+
 ```
 
-The sidebar runs the full height of the window. The title bar sits above the
+The sidebar runs the full height of the window. A development or
+pull-request build shows a **DEV** or **PR** tag at the top of the sidebar,
+beside the collapse button, so it's never mistaken for a release. The title bar sits above the
 chat and the right-hand panel and shows where you are as a breadcrumb:
-**project / chat title**, **project / Board** on a project's board, or
-**project / New thread** for a thread that has no messages yet. Click the
+**project / chat title** (a task's chat shows as **#12 · task title**),
+**project / Board** on a project's board, or **project / New thread** for a
+thread that has no messages yet. Click the
 project name to open that project's [board](./project-board.md). Drag the
 title bar to move the window. Its right end has an **Open in external
 editor** button (see [Open in external editor](#open-in-external-editor)), the quick-run control for
@@ -46,7 +49,7 @@ group per project. Each group holds:
   review (amber).
 - Then the project's conversations, most recent first. Each is one line with
   its title; a chat started for a board task starts with the task's number,
-  such as **#12**. Point at a chat to see its project, workspace (worktree
+  such as **#12 · Fix app colours**. Point at a chat to see its project, workspace (worktree
   or primary checkout) and branch.
 
 To remove a project, point at its name and open its **⋯** menu, or

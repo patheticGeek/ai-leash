@@ -275,8 +275,8 @@ are `AlertDialog`s.
 
 Each project's **Board** entry shows how many of its tasks are in progress
 (blue) and in review (amber), and a spinner while the project chat is
-working. Chats started for a task appear in the same project group with the
-task's number. Use the filter button beside **Projects** to choose how
+working. Chats started for a task appear in the same project group as
+**#12 · task title**. Use the filter button beside **Projects** to choose how
 they're listed:
 
 - **Mixed in**: task chats are mixed in with the rest, most recent first.
