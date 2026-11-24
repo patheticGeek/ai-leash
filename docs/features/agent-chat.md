@@ -88,7 +88,7 @@ message — thinking, tool calls and any text in between — folds into a single
 **Worked for** row showing how long the turn took and what it did ("1
 thought, 4 tools used"), so only your message and the agent's final summary
 stay on show. Click the row to see every step, grouped as it was while the
-agent worked.
+agent worked, indented to line up with the **Worked for** label.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
 Settings > Chat.
@@ -117,7 +117,8 @@ what failed and offers **Try again** (nothing is deleted).
 The transcript follows new output while you are at the bottom. Scroll up to
 read earlier messages and it stops following; a round scroll-to-bottom
 button with a down arrow appears just above the message box to jump back
-down.
+down. While there is more transcript scrolled away above, its top edge fades
+out under the tab strip.
 
 ## Choose who answers
 
