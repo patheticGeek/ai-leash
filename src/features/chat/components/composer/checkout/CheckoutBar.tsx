@@ -1,9 +1,7 @@
-import { Card } from "@astryxdesign/core/Card";
 import { HStack } from "@astryxdesign/core/HStack";
 import { useCallback, useEffect, useState } from "react";
 import { api, type GitWorktree } from "@/lib/tauriApi";
 import { useCurrentGitBranch } from "@/lib/useCurrentGitBranch";
-import { dockStyles } from "../../banners/DockedBanner";
 import BranchPicker from "./BranchPicker";
 import WorktreePicker, { worktreeLabel } from "./WorktreePicker";
 
@@ -25,9 +23,9 @@ export interface CheckoutBarProps {
   onWorktreeSelected: (worktreePath: string | null) => void;
 }
 
-// Sits directly below `ChatInputBar`, docked with the same inset as the
-// `DockedBanner`s above it. A muted `Card` rather than a `Banner`: it holds
-// controls (a `group`), not a message to announce.
+// Sits directly below the composer: two ghost picker buttons, each opening
+// a `Popover` above it (search, a compact list, inline create forms). No
+// surface of its own — it holds controls (a `group`), not a message.
 //
 // Two independent pickers share the bar: which worktree (left) and which
 // branch is checked out there (right, pinned to the far edge). They're
@@ -98,37 +96,32 @@ export default function CheckoutBar({
   );
 
   return (
-    <Card
-      variant="muted"
-      padding={1}
-      xstyle={[dockStyles.dock, dockStyles.bottom]}
+    <HStack
+      role="group"
+      aria-label="Checkout"
+      align="center"
+      justify="between"
+      gap={3}
+      paddingInline={1}
     >
-      <HStack
-        role="group"
-        aria-label="Checkout"
-        align="center"
-        justify="between"
-        gap={3}
-      >
-        <WorktreePicker
-          worktrees={worktrees}
-          activePath={cwd}
-          projectRoot={projectRoot}
-          label={active ? worktreeLabel(active) : "primary"}
-          editable={editable}
-          onRefresh={refreshWorktrees}
-          onSelect={selectWorktree}
-          onCreate={createWorktree}
-          onDelete={deleteWorktree}
-        />
-        <BranchPicker
-          cwd={cwd}
-          branch={branch}
-          onSelect={selectBranch}
-          onCreate={createBranch}
-          onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
-        />
-      </HStack>
-    </Card>
+      <WorktreePicker
+        worktrees={worktrees}
+        activePath={cwd}
+        projectRoot={projectRoot}
+        label={active ? worktreeLabel(active) : "primary"}
+        editable={editable}
+        onRefresh={refreshWorktrees}
+        onSelect={selectWorktree}
+        onCreate={createWorktree}
+        onDelete={deleteWorktree}
+      />
+      <BranchPicker
+        cwd={cwd}
+        branch={branch}
+        onSelect={selectBranch}
+        onCreate={createBranch}
+        onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
+      />
+    </HStack>
   );
 }

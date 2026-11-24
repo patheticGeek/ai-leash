@@ -7,12 +7,13 @@ body {
   -webkit-user-select: text;
 }
 
-/* Storybook paints its own backdrop over body — use the app's instead. */
+/* Storybook paints its own backdrop over body — use the dark scheme's
+   system colour instead, like the app's body (index.css). */
 html,
 body,
 .sb-show-main,
 .sb-main-centered,
 .sb-main-padded,
 .sb-main-fullscreen {
-  background-color: var(--background);
+  background-color: Canvas;
 }

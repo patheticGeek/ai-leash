@@ -1,54 +1,57 @@
 import { Button } from "@astryxdesign/core/Button";
-import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { List, ListItem } from "@astryxdesign/core/List";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { Token } from "@astryxdesign/core/Token";
-import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { Check, Pencil, Play, Plus, Square, Trash2, X } from "lucide-react";
-import { useState } from "react";
-import { revealOnGroupHover } from "@/lib/utils";
+import {
+  Check,
+  Pencil,
+  Play,
+  Plus,
+  Square,
+  SquareTerminal,
+  Trash2,
+  X,
+  Zap,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
+import { runState } from "../../actions/runState";
 import { useActions } from "../../actions/useActions";
+import {
+  PanelEmptyState,
+  PanelErrorState,
+  SkeletonRows,
+} from "./PanelListState";
 
 const emptyForm = { name: "", command: "" };
 
-// How the action's current or last run stands. A run that exited on its own
-// with a non-zero code is the one worth flagging.
-function RunStatusBadge({ action }: { action: ActionSummary }) {
-  const failed =
-    action.status === "exited" &&
-    action.exitCode !== null &&
-    action.exitCode !== 0;
-  const label = action.running
-    ? "running…"
-    : action.status === "exited"
-      ? failed
-        ? `exited ${action.exitCode}`
-        : "exited"
-      : "stopped";
-  const token = (
-    <Token
-      size="sm"
-      color={action.running ? "yellow" : failed ? "red" : "gray"}
+function RunStatusDot({ action }: { action: ActionSummary }) {
+  const { tone, label } = runState(action);
+  const tooltip = action.endedAt
+    ? `${label} · ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`
+    : label;
+  return (
+    <StatusDot
+      variant={tone}
+      isPulsing={action.running}
       label={label}
+      tooltip={tooltip}
     />
-  );
-  return action.endedAt ? (
-    <Tooltip
-      content={`Ended ${new Date(action.endedAt * 1000).toLocaleTimeString()}`}
-    >
-      {token}
-    </Tooltip>
-  ) : (
-    token
   );
 }
 
+// The side panel's Actions tab: the checkout's Actions as compact rows
+// (`List` in a zero-padding section) with Add action in a divided footer,
+// where the add / edit form opens too.
 export default function ActionsTab() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
-  const { actions, checkoutPath } = useActions();
+  const { actions, checkoutPath, isLoading, error, refetch } = useActions();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -101,102 +104,151 @@ export default function ActionsTab() {
     openPanelTab("action", { path: action.id, label: action.name });
   }
 
-  return (
-    <div className="flex h-full flex-col overflow-y-auto p-2 gap-2">
-      {actions.length === 0 && !showForm && (
-        <div className="flex flex-1 items-center justify-center px-4">
-          <div className="text-center text-sm text-zinc-600">
-            No actions defined yet. Actions are named background commands (e.g.
-            "dev" → "npm run dev") that you and the agent can start and stop.
-          </div>
-        </div>
-      )}
-      {actions.length > 0 && (
-        <List density="compact" hasDividers>
-          {actions.map((action) => (
-            <ListItem
-              key={action.id}
-              // `group` drives the hover-revealed Delete/Edit buttons.
-              className="group"
-              onClick={() => openTerminal(action)}
-              startContent={<RunStatusBadge action={action} />}
-              label={action.name}
-              description={action.command}
-              endContent={
-                <HStack gap={1} align="center">
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    label="Delete"
-                    tooltip="Delete"
-                    icon={<Trash2 size={12} />}
-                    onClick={() => remove(action.id)}
-                    className={revealOnGroupHover}
-                  />
-                  <IconButton
-                    variant="ghost"
-                    size="sm"
-                    label="Edit"
-                    tooltip="Edit"
-                    icon={<Pencil size={12} />}
-                    onClick={() => startEdit(action)}
-                    className={revealOnGroupHover}
-                  />
-                  <IconButton
-                    variant={action.running ? "ghost" : "secondary"}
-                    size="sm"
-                    label={action.running ? "Stop action" : "Run action"}
-                    tooltip={action.running ? "Stop action" : "Run action"}
-                    icon={
-                      action.running ? <Square size={12} /> : <Play size={12} />
-                    }
-                    onClick={() => toggle(action)}
-                  />
-                </HStack>
-              }
-            />
-          ))}
-        </List>
-      )}
-      {showForm ? (
-        <div className="space-y-2 rounded-md bg-raised p-2.5 shadow-[0_0_0_1px_var(--primary)]">
-          <TextInput
-            label="Name"
-            size="sm"
-            value={form.name}
-            onChange={(name) => setForm({ ...form, name })}
-            placeholder="e.g. dev"
-          />
-          <TextInput
-            label="Command"
-            size="sm"
-            value={form.command}
-            onChange={(command) => setForm({ ...form, command })}
-            placeholder="e.g. npm run dev"
-          />
-          <div className="flex justify-end gap-2">
+  let content: ReactNode;
+  if (isLoading) {
+    content = <SkeletonRows />;
+  } else if (error && actions.length === 0) {
+    content = (
+      <PanelErrorState
+        title="Couldn't load actions"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    );
+  } else if (actions.length === 0) {
+    content = (
+      <PanelEmptyState
+        icon={Zap}
+        title="No actions"
+        description="Save a command you run often, like a dev server or a test watcher, and start it from here. The agent can start and stop them too."
+        action={
+          showForm ? undefined : (
             <Button
-              variant="ghost"
-              label="Cancel"
-              icon={<X size={14} />}
-              onClick={cancelForm}
-            />
-            <Button
+              label="Add action"
+              size="sm"
               variant="primary"
-              label="Save"
-              icon={<Check size={14} />}
-              onClick={saveForm}
+              icon={<Icon icon={Plus} size="sm" />}
+              onClick={startAdd}
             />
-          </div>
-        </div>
-      ) : (
-        <Button
-          variant="ghost"
-          label="Add action"
-          icon={<Plus size={14} />}
-          onClick={startAdd}
+          )
+        }
+      />
+    );
+  } else {
+    content = (
+      <List density="compact" hasDividers edge="padded">
+        {actions.map((action) => (
+          <ListItem
+            key={action.id}
+            onClick={() => openTerminal(action)}
+            startContent={<RunStatusDot action={action} />}
+            label={action.name}
+            description={action.command}
+            endContent={
+              <HStack gap={1} vAlign="center">
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  label={
+                    action.running
+                      ? `Stop ${action.name}`
+                      : `Run ${action.name}`
+                  }
+                  tooltip={action.running ? "Stop action" : "Run action"}
+                  icon={
+                    <Icon icon={action.running ? Square : Play} size="sm" />
+                  }
+                  onClick={() => void toggle(action)}
+                />
+                <MoreMenu
+                  size="sm"
+                  label={`${action.name} options`}
+                  items={[
+                    {
+                      label: "Show output",
+                      icon: <Icon icon={SquareTerminal} size="sm" />,
+                      onClick: () => openTerminal(action),
+                    },
+                    {
+                      label: "Edit",
+                      icon: <Icon icon={Pencil} size="sm" />,
+                      onClick: () => startEdit(action),
+                    },
+                    { type: "divider" },
+                    {
+                      label: "Delete",
+                      icon: <Icon icon={Trash2} size="sm" />,
+                      variant: "destructive",
+                      onClick: () => void remove(action.id),
+                    },
+                  ]}
+                />
+              </HStack>
+            }
+          />
+        ))}
+      </List>
+    );
+  }
+
+  // The empty state carries its own Add action button (and the loading and
+  // error states have nothing to add to yet), so the footer only shows there
+  // once the form is open.
+  const footer = showForm ? (
+    <LayoutFooter hasDivider padding={3}>
+      <VStack gap={2}>
+        <TextInput
+          label="Name"
+          size="sm"
+          value={form.name}
+          onChange={(name) => setForm({ ...form, name })}
+          placeholder="e.g. dev"
         />
-      )}
-    </div>
+        <TextInput
+          label="Command"
+          size="sm"
+          value={form.command}
+          onChange={(command) => setForm({ ...form, command })}
+          placeholder="e.g. npm run dev"
+        />
+        <HStack gap={2} hAlign="end">
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Cancel"
+            icon={<Icon icon={X} size="sm" />}
+            onClick={cancelForm}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            label={editingId ? "Save" : "Add"}
+            icon={<Icon icon={Check} size="sm" />}
+            onClick={() => void saveForm()}
+          />
+        </HStack>
+      </VStack>
+    </LayoutFooter>
+  ) : actions.length === 0 ? undefined : (
+    <LayoutFooter hasDivider padding={3}>
+      <Button
+        label="Add action"
+        size="sm"
+        icon={<Icon icon={Plus} size="sm" />}
+        onClick={startAdd}
+      />
+    </LayoutFooter>
+  );
+
+  return (
+    <Layout
+      height="fill"
+      content={
+        <LayoutContent padding={0} isScrollable>
+          {content}
+        </LayoutContent>
+      }
+      footer={footer}
+    />
   );
 }

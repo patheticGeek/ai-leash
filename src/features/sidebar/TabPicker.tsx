@@ -21,7 +21,6 @@ const styles = stylex.create({
     right: `calc(-1 * ${spacingVars["--spacing-1-5"]})`,
   },
   tile: { minWidth: 0, textAlign: "start" },
-  heading: { textTransform: "uppercase", letterSpacing: "0.05em" },
 });
 
 export default function TabPicker({
@@ -40,12 +39,7 @@ export default function TabPicker({
   return (
     <Center padding={6} xstyle={styles.fill}>
       <VStack gap={4} hAlign="center" width="100%">
-        <Text
-          type="supporting"
-          size="xsm"
-          color="secondary"
-          xstyle={styles.heading}
-        >
+        <Text type="label" color="secondary">
           Open a tab
         </Text>
         <Grid columns={{ minWidth: 150, repeat: "fill" }} gap={2} width="100%">

@@ -1,0 +1,85 @@
+import { Selector } from "@astryxdesign/core/Selector";
+import { VStack } from "@astryxdesign/core/Stack";
+import { Switch } from "@astryxdesign/core/Switch";
+import { Keyboard, ListCollapse, MoveVertical } from "lucide-react";
+import {
+  COMPOSER_MIN_ROWS,
+  DEFAULT_COMPOSER_MAX_ROWS,
+  MAX_COMPOSER_MAX_ROWS,
+  usePreference,
+  useSetPreferences,
+} from "../../../data/preferences";
+import { CONTROL_WIDTH, SettingsCard, SettingsRow } from "../SettingsCard";
+
+const HEIGHT_OPTIONS = Array.from(
+  { length: MAX_COMPOSER_MAX_ROWS - COMPOSER_MIN_ROWS + 1 },
+  (_, i) => {
+    const n = COMPOSER_MIN_ROWS + i;
+    return {
+      value: String(n),
+      label: `${n} lines${n === DEFAULT_COMPOSER_MAX_ROWS ? " (default)" : ""}`,
+    };
+  },
+);
+
+export default function ChatSettingsTab() {
+  const composeMode = usePreference("composeMode");
+  const composerMaxRows = usePreference("composerMaxRows");
+  const collapseFinishedTurns = usePreference("collapseFinishedTurns");
+  const setPreferences = useSetPreferences();
+
+  return (
+    <VStack gap={5}>
+      <SettingsCard title="Message box">
+        <SettingsRow
+          title="Compose mode"
+          icon={Keyboard}
+          description="Enter adds a new line and Ctrl+Enter sends. Off: Enter sends, Shift+Enter adds a line."
+          control={
+            <Switch
+              label="Compose mode"
+              isLabelHidden
+              value={composeMode}
+              onChange={(composeMode) => setPreferences({ composeMode })}
+            />
+          }
+        />
+        <SettingsRow
+          title="Max chat box height"
+          icon={MoveVertical}
+          description="Lines the message box grows to before it scrolls."
+          control={
+            <Selector
+              label="Max chat box height"
+              isLabelHidden
+              size="sm"
+              width={CONTROL_WIDTH}
+              value={String(composerMaxRows)}
+              onChange={(v) =>
+                v && setPreferences({ composerMaxRows: Number(v) })
+              }
+              options={HEIGHT_OPTIONS}
+            />
+          }
+        />
+      </SettingsCard>
+      <SettingsCard title="Transcript">
+        <SettingsRow
+          title="Collapse finished turns"
+          icon={ListCollapse}
+          description="Once the agent finishes, its thinking, tool calls and messages before the final reply fold into one expandable “Worked for” row."
+          control={
+            <Switch
+              label="Collapse finished turns"
+              isLabelHidden
+              value={collapseFinishedTurns}
+              onChange={(collapseFinishedTurns) =>
+                setPreferences({ collapseFinishedTurns })
+              }
+            />
+          }
+        />
+      </SettingsCard>
+    </VStack>
+  );
+}

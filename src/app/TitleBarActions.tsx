@@ -4,9 +4,13 @@ import {
   DropdownMenu,
   DropdownMenuItem,
 } from "@astryxdesign/core/DropdownMenu";
+import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, Play, Square } from "lucide-react";
+import { runState } from "../features/actions/runState";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
 import { useAppStore } from "../store";
@@ -19,7 +23,25 @@ const styles = stylex.create({
   group: { flexShrink: 0 },
   // A long action name truncates instead of crowding the title.
   current: { minWidth: 0, maxWidth: "10rem" },
+  // Stock Button variants have no warning/error fill, so the state shows as
+  // a StatusDot plus a token-coloured label and icon (see `runState`).
+  running: { color: colorVars["--color-text-warning"] },
+  failed: { color: colorVars["--color-text-error"] },
 });
+
+// Same dot and colours as the Actions tab's rows; nothing for an idle one.
+function DropdownRunDot({ action }: { action: ActionSummary }) {
+  const { tone, label } = runState(action);
+  if (tone === "neutral") return null;
+  return (
+    <StatusDot
+      variant={tone}
+      isPulsing={action.running}
+      label={label}
+      tooltip={label}
+    />
+  );
+}
 
 function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
   return actions.find((a) => a.lastRun) ?? actions[0] ?? null;
@@ -37,6 +59,21 @@ export default function TitleBarActions() {
   if (!current) return null;
 
   const rest = actions.filter((a) => a.id !== current.id);
+  const state = runState(current);
+
+  // Running: pulsing warning dot + warning label + a Stop glyph at the end.
+  // Failed: Play tinted in the error colour, exit code in the tooltip.
+  // Idle/stopped/exited cleanly: plain Play, as before.
+  const currentIcon = current.running ? (
+    <StatusDot variant="warning" isPulsing label="Running" />
+  ) : (
+    <Icon icon={Play} size="sm" color={state.failed ? "error" : "inherit"} />
+  );
+  const currentTooltip = current.running
+    ? `${current.name} is running — click to stop`
+    : state.failed
+      ? `${current.name} exited with code ${current.exitCode} — click to run again`
+      : `Run ${current.name}`;
 
   async function handleToggle(action: ActionSummary) {
     if (!checkoutPath) return;
@@ -51,15 +88,23 @@ export default function TitleBarActions() {
   return (
     <ButtonGroup label="Actions" size="sm" xstyle={styles.group}>
       <Button
-        variant="secondary"
         size="sm"
         label={current.name}
-        icon={current.running ? <Square size={11} /> : <Play size={11} />}
-        onClick={() => handleToggle(current)}
-        tooltip={
-          current.running ? `Stop ${current.name}` : `Run ${current.name}`
+        icon={currentIcon}
+        endContent={
+          current.running ? (
+            <Icon icon={Square} size="sm" color="warning" />
+          ) : undefined
         }
-        xstyle={styles.current}
+        // `clickAction` shows the stock spinner while the run/stop call is
+        // in flight — the "starting" state, before `run://status` lands.
+        clickAction={() => handleToggle(current)}
+        tooltip={currentTooltip}
+        xstyle={[
+          styles.current,
+          current.running && styles.running,
+          !current.running && state.failed && styles.failed,
+        ]}
       />
       {rest.length > 0 && (
         <DropdownMenu
@@ -69,32 +114,19 @@ export default function TitleBarActions() {
           renderTrigger={(triggerProps) => (
             <IconButton
               {...triggerProps}
-              variant="secondary"
               size="sm"
               label="Other actions"
               tooltip="Other actions"
-              icon={<ChevronDown size={12} />}
+              icon={<Icon icon={ChevronDown} size="sm" />}
             />
           )}
         >
           {rest.map((action) => (
             <DropdownMenuItem
               key={action.id}
-              icon={
-                action.running ? (
-                  <Square size={11} className="shrink-0 text-warning" />
-                ) : (
-                  <Play size={11} className="shrink-0 text-zinc-500" />
-                )
-              }
+              icon={<Icon icon={action.running ? Square : Play} size="sm" />}
               label={action.name}
-              endContent={
-                action.running && (
-                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-warning">
-                    running
-                  </span>
-                )
-              }
+              endContent={<DropdownRunDot action={action} />}
               onClick={() => void handleToggle(action)}
             />
           ))}

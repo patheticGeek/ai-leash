@@ -27,7 +27,8 @@ import WorkingForIndicator from "./WorkingForIndicator";
 import WorkSummary from "./WorkSummary";
 
 // The transcript column's width: `ChatLayout`'s at `density="spacious"`,
-// the ai-chat template's density (§2.4 of prototype/PROPOSAL.md).
+// the ai-chat template's layout density (§2.4 of prototype/PROPOSAL.md).
+// The messages themselves stay at `ChatMessageList`'s balanced density.
 const COLUMN_WIDTH = 800;
 
 const styles = stylex.create({
@@ -289,7 +290,10 @@ export default function ChatEntryList({
           ]}
         >
           <ChatMessageList
-            density={isCompact ? "compact" : "spacious"}
+            // Balanced, `ChatMessageList`'s default and what the ai-chat
+            // template and prototype use: `ChatLayout`'s "spacious" sizes the
+            // column, not the messages, whose spacious bubbles pad 16/20.
+            density={isCompact ? "compact" : "balanced"}
             isStreaming={sending}
             emptyState={state}
           >
