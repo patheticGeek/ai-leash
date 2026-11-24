@@ -322,6 +322,19 @@ at once. You can also open a sub-agent's transcript from the Sub Agents view;
 see [the UI shell guide](./ui-shell.md). The sub-agent's tab shows its status,
 task and model above the same transcript a conversation uses.
 
+While any sub-agent of the conversation is running, a small pill sits just
+above the message box (the last item of the banner stack): a spinner,
+"3 sub-agents running" and how long the longest has been going. Click it to
+open a compact list of them: each one's task, model, status and elapsed time,
+with a stop button on running ones (and "Stop all" when several run). Click a
+row to open its transcript, with the Sub Agents view revealed in the side
+panel. A sub-agent that finishes shows as done for a few seconds, then drops
+out; one that fails stays, marked failed, until you dismiss it (only failures
+from the current app session show — older ones are in the Sub Agents view).
+The pill reads the same live list as the Sub Agents view (updated by each
+sub-agent's start/finish event, no polling), so it works the same for local
+and ACP conversations. It's `banners/SubAgentsPill.tsx`.
+
 The main conversation may briefly show a background activity indicator again
 when a sub-agent finishes and the main agent processes its result. This is an
 automatic follow-up, not a new message you need to send. A project indicator
