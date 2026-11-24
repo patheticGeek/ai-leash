@@ -38,18 +38,41 @@ export type RenderItem =
   | ActivityItem
   | { kind: "work"; indices: number[]; replyIndex: number };
 
+// The tool entries that stand for a sub-agent: the `spawn_sub_agent` call
+// that starts one (or several) and the `sub_agent_result` entry its finished
+// result arrives as in the parent (`chat::record_sub_agent_result`), for the
+// built-in agent and external agents alike. An external agent reports our
+// MCP tool under its own name for it (`mcp__ai-leash__spawn_sub_agent`,
+// `spawn_sub_agent (MCP)`), so the name only has to contain the tool's name
+// as a whole word; a live `spawn_sub_agent` also carries the `subtasks` it
+// started.
+const SUB_AGENT_TOOL =
+  /(^|[^a-z0-9])(spawn_sub_agent|sub_agent_result)($|[^a-z0-9_])/i;
+
+export function isSubAgentEntry(entry: PanelEntry): boolean {
+  if (entry.kind !== "tool") return false;
+  if (entry.subtasks && entry.subtasks.length > 0) return true;
+  return SUB_AGENT_TOOL.test(entry.name);
+}
+
 // Groups runs of consecutive thinking/tool entries so the transcript can
 // show only the latest activity by default (see `ActivityGroup`) instead of
 // every individual step — a multi-step agent turn can otherwise bury the
-// actual conversation. `indices` restricts grouping to those entries (used
-// for the inside of a collapsed `work` item); defaults to all of them.
+// actual conversation. Sub-agent entries (`isSubAgentEntry`) are never
+// grouped: each is its own `single` item and ends the run before it, so a
+// sub-agent's start and result always show as rows of their own (the only
+// grouping they share is a finished turn's `work` fold). `indices` restricts
+// grouping to those entries (used for the inside of a collapsed `work`
+// item); defaults to all of them.
 export function groupActivity(
   entries: PanelEntry[],
   indices: number[] = entries.map((_, i) => i),
 ): ActivityItem[] {
   const items: ActivityItem[] = [];
   for (const i of indices) {
-    if (entries[i].kind === "thinking" || entries[i].kind === "tool") {
+    const entry = entries[i];
+    const isActivity = entry.kind === "thinking" || entry.kind === "tool";
+    if (isActivity && !isSubAgentEntry(entry)) {
       const last = items[items.length - 1];
       if (last && last.kind === "activitygroup") {
         last.indices.push(i);
