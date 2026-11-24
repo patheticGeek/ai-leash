@@ -527,6 +527,10 @@ export const api = {
   // `starting_context`.
   getStartingContext: (checkoutPath: string) =>
     invoke<StartingContext>("get_starting_context", { checkoutPath }),
+  // Files whose checkout-relative path holds every word of `query` —
+  // gitignore-aware, capped (see `commands.rs`'s `search_files`).
+  searchFiles: (checkoutPath: string, query: string) =>
+    invoke<DirEntryInfo[]>("search_files", { checkoutPath, query }),
   // `sessionId` null: the checkout currently shown (a new thread's).
   readFileText: (sessionId: string | null, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),

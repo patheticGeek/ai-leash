@@ -1,3 +1,5 @@
+import { Card } from "@astryxdesign/core/Card";
+import { Text } from "@astryxdesign/core/Text";
 import {
   type CollisionDetection,
   DndContext,
@@ -13,9 +15,14 @@ import {
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import * as stylex from "@stylexjs/stylex";
 import { type ReactNode, useState } from "react";
 import { type TabArea, useAppStore, type WorkspaceTab } from "../../store";
 import { tabAreaOf } from "../../store/panelSlice";
+
+const styles = stylex.create({
+  ghost: { cursor: "grabbing" },
+});
 
 // Drag-and-drop for the centre and side tab strips: reorder within a strip,
 // or drag a tab into the other area (onto a tab to land beside it, or
@@ -102,11 +109,17 @@ export function TabDndProvider({ children }: { children: ReactNode }) {
       {children}
       <DragOverlay dropAnimation={null}>
         {dragging && (
-          <div className="cursor-grabbing rounded-md border border-border bg-raised px-2 py-1.5 text-xs text-zinc-100 shadow-lg">
-            <span className="block max-w-[12rem] truncate">
+          // A floating layer, so it gets an elevation.
+          <Card
+            padding={2}
+            elevation="med"
+            maxWidth={192}
+            xstyle={styles.ghost}
+          >
+            <Text type="label" maxLines={1}>
               {dragging.label}
-            </span>
-          </div>
+            </Text>
+          </Card>
         )}
       </DragOverlay>
     </DndContext>

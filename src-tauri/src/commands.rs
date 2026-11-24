@@ -392,6 +392,54 @@ pub fn list_dir(checkout_path: String, path: Option<String>) -> Result<Vec<DirEn
     Ok(entries)
 }
 
+/// Most results `search_files` returns — the Files tab shows them as one
+/// flat list, so past this the query is too broad to be useful anyway.
+const MAX_FILE_SEARCH_RESULTS: usize = 200;
+
+/// Files (not directories) under `checkout_path` whose checkout-relative path
+/// contains every whitespace-separated word of `query`, case-insensitively.
+/// Walks with `ignore::WalkBuilder`, so `.gitignore`d files are skipped like
+/// the agent's own `grep` tool skips them, plus the same `IGNORED_NAMES` as
+/// `list_dir`. Backs the Files tab's search box; scoped to the checkout
+/// path like `list_dir`.
+#[tauri::command]
+pub fn search_files(checkout_path: String, query: String) -> Result<Vec<DirEntryInfo>, String> {
+    let root = PathBuf::from(&checkout_path);
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    if words.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut results = vec![];
+    let walker = ignore::WalkBuilder::new(&root)
+        .hidden(false)
+        .filter_entry(|e| !IGNORED_NAMES.contains(&e.file_name().to_string_lossy().as_ref()))
+        .build();
+    for entry in walker.flatten() {
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
+            continue;
+        }
+        let rel = entry
+            .path()
+            .strip_prefix(&root)
+            .unwrap_or(entry.path())
+            .to_string_lossy()
+            .to_lowercase();
+        if !words.iter().all(|w| rel.contains(w.as_str())) {
+            continue;
+        }
+        results.push(DirEntryInfo {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry.path().display().to_string(),
+            is_dir: false,
+        });
+        if results.len() >= MAX_FILE_SEARCH_RESULTS {
+            break;
+        }
+    }
+    results.sort_by_key(|a| a.path.to_lowercase());
+    Ok(results)
+}
+
 #[tauri::command]
 pub fn read_file_text(
     state: State<AppState>,

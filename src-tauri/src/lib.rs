@@ -119,6 +119,7 @@ pub fn run() {
             commands::set_view_root,
             commands::list_dir,
             commands::get_starting_context,
+            commands::search_files,
             commands::read_file_text,
             commands::write_file_text,
             commands::open_in_ide,

@@ -1,3 +1,5 @@
+import { VStack } from "@astryxdesign/core/Stack";
+import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { RunCommandContext } from "@/ui/Markdown";
@@ -22,6 +24,11 @@ function tabElement(id: string): HTMLDivElement {
   }
   return el;
 }
+
+const styles = stylex.create({
+  slot: { height: "100%", minHeight: 0 },
+  hidden: { display: "none" },
+});
 
 const keepsMounted = (t: WorkspaceTab) =>
   TAB_KINDS[t.kind].mountMode === "keep-mounted-per-tab";
@@ -85,7 +92,7 @@ function TabSlot({ id, visible }: { id: string; visible: boolean }) {
       if (el.parentNode === slot) slot.removeChild(el);
     };
   }, [id]);
-  return <div ref={ref} className={visible ? "h-full" : "hidden"} />;
+  return <VStack ref={ref} xstyle={visible ? styles.slot : styles.hidden} />;
 }
 
 // One area's tab content: every keep-mounted tab's slot (only the active one
