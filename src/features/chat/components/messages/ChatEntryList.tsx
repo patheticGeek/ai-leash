@@ -3,7 +3,6 @@ import {
   ChatMessage,
   ChatMessageList,
 } from "@astryxdesign/core/Chat";
-import { ScrollableArea } from "@astryxdesign/core/ScrollableArea";
 import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
@@ -45,13 +44,28 @@ const styles = stylex.create({
     minHeight: 0,
     overflow: "hidden",
   },
+  // A plain, always-scrolling viewport, as `ChatLayout`'s own is — not
+  // Astryx's `ScrollableArea`, which only becomes a scroll container once
+  // it has measured its content in a later frame. Until then a write to
+  // `scrollTop` is ignored, so a chat that mounts (or whose history
+  // arrives) with more than a screenful would open at its first message,
+  // and `useStickToEnd` gets no resize to try again on.
   viewport: {
+    height: "100%",
+    minHeight: 0,
+    overflowY: "auto",
+    overflowX: "hidden",
+    overscrollBehavior: "contain",
     contain: "content",
   },
   column: {
     width: "100%",
     maxWidth: COLUMN_WIDTH,
     minHeight: "100%",
+    // A flex item of the viewport: without this it would shrink to the
+    // viewport's height and overflow it, so its box (which
+    // `useStickToEnd`'s ResizeObserver watches) would never grow.
+    flexShrink: 0,
     marginInline: "auto",
     // The app's chrome is unselectable (`index.css`); a transcript is
     // something you copy from.
@@ -174,6 +188,9 @@ export interface ChatEntryListProps {
   // Top-level-conversation-only (the system prompt line) — optional so a
   // caller with no such concept (`SubAgentChatTab.tsx`) needn't pass it.
   systemPrompt?: string | null;
+  // A line at the very top of the transcript, where a top-level
+  // conversation's system prompt goes (`SubAgentChatTab`'s status line).
+  leading?: ReactNode;
   // False while a saved transcript is still loading, so an empty `entries`
   // shows skeletons rather than flashing the empty state. Defaults to `true`.
   historyLoaded?: boolean;
@@ -203,6 +220,7 @@ export interface ChatEntryListProps {
 export default function ChatEntryList({
   entries,
   systemPrompt = null,
+  leading = null,
   historyLoaded = true,
   historyError = null,
   onReloadHistory = () => {},
@@ -288,7 +306,11 @@ export default function ChatEntryList({
   // starts one if the agent hasn't produced anything yet.
   const workingInLastRow = rows[rows.length - 1]?.kind === "assistant";
 
+  // The empty and error states centre in the list (its `emptyState`); the
+  // loading skeleton is rendered as content instead, so the list's bottom
+  // alignment puts it where the latest messages are about to appear.
   let state: ReactNode = null;
+  let loading: ReactNode = null;
   if (entries.length === 0) {
     if (historyError) {
       state = (
@@ -299,7 +321,7 @@ export default function ChatEntryList({
         />
       );
     } else if (!historyLoaded) {
-      state = <TranscriptState state="loading" />;
+      loading = <TranscriptState state="loading" />;
     } else if (!sending) {
       state = <TranscriptState state="empty" />;
     }
@@ -311,11 +333,10 @@ export default function ChatEntryList({
         aria-hidden
         xstyle={[styles.topFade, isScrolledFromTop && styles.topFadeShown]}
       />
-      <ScrollableArea
+      <VStack
         ref={viewportRef}
-        label="Transcript"
-        overscroll="contain"
-        height="100%"
+        role="group"
+        aria-label="Transcript"
         xstyle={styles.viewport}
       >
         <VStack
@@ -334,43 +355,45 @@ export default function ChatEntryList({
             isStreaming={sending}
             emptyState={state}
           >
-            {/* No children at all while a state shows: `ChatMessageList`
-                only renders `emptyState` for nullish children. */}
-            {state === null ? (
-              <>
-                {systemPrompt && (
-                  <SystemPromptRow systemPrompt={systemPrompt} />
-                )}
-                {rows.map((row, r) => {
-                  if (row.kind === "user") {
+            {/* One child expression: `ChatMessageList` shows `emptyState`
+                only when its children are nullish, not an array of nulls. */}
+            {loading ??
+              (state === null ? (
+                <>
+                  {leading}
+                  {systemPrompt && (
+                    <SystemPromptRow systemPrompt={systemPrompt} />
+                  )}
+                  {rows.map((row, r) => {
+                    if (row.kind === "user") {
+                      return (
+                        <ChatMessage key={row.key} sender="user">
+                          {renderItem(row.item)}
+                        </ChatMessage>
+                      );
+                    }
+                    if (row.kind === "system") {
+                      return (
+                        <ChatMessage key={row.key} sender="system">
+                          {renderItem(row.item)}
+                        </ChatMessage>
+                      );
+                    }
                     return (
-                      <ChatMessage key={row.key} sender="user">
-                        {renderItem(row.item)}
+                      <ChatMessage key={row.key} sender="assistant">
+                        {row.items.map(renderItem)}
+                        {workingInLastRow && r === rows.length - 1 && working}
                       </ChatMessage>
                     );
-                  }
-                  if (row.kind === "system") {
-                    return (
-                      <ChatMessage key={row.key} sender="system">
-                        {renderItem(row.item)}
-                      </ChatMessage>
-                    );
-                  }
-                  return (
-                    <ChatMessage key={row.key} sender="assistant">
-                      {row.items.map(renderItem)}
-                      {workingInLastRow && r === rows.length - 1 && working}
-                    </ChatMessage>
-                  );
-                })}
-                {working && !workingInLastRow && (
-                  <ChatMessage sender="assistant">{working}</ChatMessage>
-                )}
-              </>
-            ) : null}
+                  })}
+                  {working && !workingInLastRow && (
+                    <ChatMessage sender="assistant">{working}</ChatMessage>
+                  )}
+                </>
+              ) : null)}
           </ChatMessageList>
         </VStack>
-      </ScrollableArea>
+      </VStack>
       <ChatLayoutScrollButton
         isVisible={!atEnd}
         onClick={stick}
