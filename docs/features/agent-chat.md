@@ -111,10 +111,14 @@ Notes another chat left, and local notices such as **Conversation
 compacted**, appear as centred one-line system messages with an icon; click
 **Show** to read the whole note. An empty conversation (for example after
 `/clear`) says so; while a saved conversation loads, the transcript shows
-placeholder rows in the shape of messages, and if it can't be read, it says
+placeholder rows in the shape of messages at the bottom, where the latest
+messages will appear, and if it can't be read, it says
 what failed and offers **Try again** (nothing is deleted).
 
-The transcript follows new output while you are at the bottom. Scroll up to
+A conversation opens at its latest message, whether you open it, switch
+back to it or its saved history finishes loading, and stays there as long
+content such as code blocks finishes rendering. The transcript follows new
+output while you are at the bottom. Scroll up to
 read earlier messages and it stops following; a round scroll-to-bottom
 button with a down arrow appears just above the message box to jump back
 down. While there is more transcript scrolled away above, its top edge fades
@@ -320,8 +324,11 @@ started. Open the row to see one line per sub-agent: whether it is running,
 finished or failed, its task, model, how long it ran and its latest step, and
 a button that opens its full transcript in a tab. Multiple sub-agents can run
 at once. You can also open a sub-agent's transcript from the Sub Agents view;
-see [the UI shell guide](./ui-shell.md). The sub-agent's tab shows its status,
-task and model above the same transcript a conversation uses.
+see [the UI shell guide](./ui-shell.md). A sub-agent's tab is the same transcript a
+conversation uses, without the message box: the same grouping, rows, fades,
+scroll-to-bottom button and empty / loading / error states, opening at the
+end and following new output. A line at its top shows its model and whether
+it is running, finished or failed.
 
 The main conversation may briefly show a background activity indicator again
 when a sub-agent finishes and the main agent processes its result. This is an
