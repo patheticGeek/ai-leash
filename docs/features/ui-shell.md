@@ -12,10 +12,13 @@ AI Leash is arranged as a conversation workspace with three main areas:
 +----------------+----------------------------+----------------------+
 ```
 
-The sidebar runs the full height of the window. The title bar sits above the
+The sidebar runs the full height of the window. A development or
+pull-request build shows a **DEV** or **PR** tag at the top of the sidebar,
+beside the collapse button, so it's never mistaken for a release. The title bar sits above the
 chat and the right-hand panel and shows where you are as a breadcrumb:
-**project / chat title**, **project / Board** on a project's board, or
-**project / New thread** for a thread that has no messages yet. Click the
+**project / chat title** (a task's chat shows as **#12 · task title**),
+**project / Board** on a project's board, or **project / New thread** for a
+thread that has no messages yet. Click the
 project name to open that project's [board](./project-board.md). Drag the
 title bar to move the window. Its right end has an **Open in external
 editor** button (see [Open in external editor](#open-in-external-editor)), the quick-run control for
@@ -46,7 +49,7 @@ group per project. Each group holds:
   review (amber).
 - Then the project's conversations, most recent first. Each is one line with
   its title; a chat started for a board task starts with the task's number,
-  such as **#12**. Point at a chat to see its project, workspace (worktree
+  such as **#12 · Fix app colours**. Point at a chat to see its project, workspace (worktree
   or primary checkout) and branch.
 
 To remove a project, point at its name and open its **⋯** menu, or
@@ -56,9 +59,10 @@ deleted. The project's files on disk aren't touched; add the folder again
 with **Add project** to start afresh.
 
 Projects with no conversations, tasks or project chat yet are tucked behind
-**More projects** at the end of the list. Click a project's name to fold or
-unfold its group; the app remembers which groups you folded, including after
-a restart. The active entry is highlighted.
+**More projects** at the end of the list. Click a project's name (or press
+Enter or Space on it) to fold or unfold its group; there's no separate
+arrow. The app remembers which groups you folded, including after a
+restart. The active entry is highlighted.
 
 The filter button beside **Projects** chooses how task chats are listed:
 mixed in with the rest, grouped at the top of each project, or hidden.
@@ -69,10 +73,11 @@ thread in that project with **New thread**.
 
 Conversations that you have marked as done move into the **Done** group at
 the bottom of the sidebar, which starts folded and shows how many there are.
-Open it to see the most recent ones (**Show all** lists the rest), and use a
+Click it to open it and see the most recent ones (**Show all** lists the rest), and use a
 conversation's menu to mark it as not done. Each conversation has a **⋯**
 menu that appears when you point at it (or right-click it), with **Mark as
-done** and **Delete conversation**. **Settings** sits at the bottom of the
+done** and **Delete conversation**. Titles use the whole row; while you
+point at a chat, its **⋯** takes the place of its status. **Settings** sits at the bottom of the
 sidebar.
 
 The sidebar can show activity while you are viewing another conversation. A
@@ -97,8 +102,9 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 A tab you can close shows a **×** at its end: always on the selected tab,
 and on other tabs when you point at them. To close a tab, click its **×**,
 middle-click anywhere on the tab, or press **Ctrl+W** (**Command+W** on
-macOS) while the tab has keyboard focus. The **Agent** tab and the
-**Files** tab can't be closed.
+macOS) while the tab has keyboard focus. Every tab except **Agent** can be
+closed; reopen **Files** (or any other tool) from the right-hand panel's
+**+** button.
 
 ### Moving tabs between the chat area and the tool panel
 
@@ -153,7 +159,10 @@ delete**, which throws those changes away.
 
 The right-hand panel has its own tabs. Click a tab to switch tools, close it
 as described in [Closing tabs](#closing-tabs), and use the **+** button to
-open another tab. Drag the panel's left edge to resize it. If no
+open another tab. Drag the panel's left edge to resize it. When there are
+more tabs than fit, the row scrolls sideways (mouse wheel, trackpad, or
+moving through the tabs with the keyboard) and fades out at the edge where
+tabs are hidden. If no
 tab is open, AI Leash displays the tab chooser automatically. New tabs open
 here, but you can drag them into the chat area; see
 [Moving tabs](#moving-tabs-between-the-chat-area-and-the-tool-panel).

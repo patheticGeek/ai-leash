@@ -70,9 +70,11 @@ import TaskDetailsDialog from "./TaskDetailsDialog";
 import { EpicToken, STATUS_DOT } from "./TaskMeta";
 import { useFinishTask } from "./useFinishTask";
 
-// The kanban-board template's fixed column width. Columns never shrink: a
-// narrow board (the project chat docked beside it) scrolls sideways.
-const COLUMN_WIDTH = 260;
+// A status column's minimum width, in px: the kanban-board template's
+// COLUMN_WIDTH (Astryx has no size token this large). Columns never go
+// narrower: a narrow board (the project chat docked beside it) scrolls
+// sideways; a wider one shares the extra space between its columns.
+const COLUMN_MIN_WIDTH = 300;
 
 const styles = stylex.create({
   boardColumns: {
@@ -82,7 +84,13 @@ const styles = stylex.create({
     height: "100%",
     padding: spacingVars["--spacing-4"],
   },
-  columnShell: { flexShrink: 0, flexBasis: COLUMN_WIDTH, height: "100%" },
+  columnShell: {
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: COLUMN_MIN_WIDTH,
+    minWidth: COLUMN_MIN_WIDTH,
+    height: "100%",
+  },
   // The column (or lane cell) a dragged card is over.
   dropTarget: {
     outlineWidth: "1px",
@@ -102,11 +110,15 @@ const styles = stylex.create({
   // the scroller itself: the sticky header row pins flush to its top edge
   // and carries the spacing-4 gutter inside it.
   swimScroll: { overflow: "auto", height: "100%" },
+  // Same columns as the ungrouped board: at least COLUMN_MIN_WIDTH, sharing
+  // any extra width. The grid's own minimum (columns + gaps + its gutters)
+  // is what makes the scroller scroll sideways once it's narrower.
   swimGrid: (columns: number) => ({
     display: "grid",
-    gridTemplateColumns: `repeat(${columns}, ${COLUMN_WIDTH}px)`,
+    gridTemplateColumns: `repeat(${columns}, minmax(${COLUMN_MIN_WIDTH}px, 1fr))`,
     columnGap: spacingVars["--spacing-4"],
-    width: "max-content",
+    width: "100%",
+    minWidth: `calc(${columns} * ${COLUMN_MIN_WIDTH}px + ${columns + 1} * ${spacingVars["--spacing-4"]})`,
     paddingInline: spacingVars["--spacing-4"],
     paddingBlockEnd: spacingVars["--spacing-4"],
   }),
@@ -706,7 +718,8 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                             : undefined
                         }
                         showEpic={!groupByEpic}
-                        width={COLUMN_WIDTH - 16}
+                        // DragOverlay sizes itself to the card picked up.
+                        width="100%"
                       />
                     )}
                   </DragOverlay>

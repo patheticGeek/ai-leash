@@ -19,6 +19,9 @@ just the board, the board with the chat docked on its right (380px wide
 by default; drag the divider to resize it, between 300 and 560px), or
 just the chat. The choice and the chat's width are remembered. With the
 chat docked, the columns keep their width and the board scrolls sideways.
+Columns are at least 300px wide (the kanban template's column width) and
+share any extra width when the board is wider than they need, grouped by
+epic or not.
 
 ## Columns
 
@@ -224,8 +227,11 @@ Dragging a card into another epic's lane moves it to that epic.
 The board is the Astryx `kanban-board` template (`BoardView.tsx`): a
 `LayoutHeader` + `Toolbar` (title and count `Badge`, epic `Selector`,
 `ToggleButton`s for Group by epic and Show done, Epics, board settings,
-New task), then fixed-width (260px) muted column `Card`s in a row that
-scrolls sideways. Cards (`TaskCard.tsx`) are `Card`s with a priority
+New task), then muted column `Card`s in a row that scrolls sideways.
+Each is at least `COLUMN_MIN_WIDTH` (300px) and grows to share spare
+width; the swimlane grid uses the same `minmax(300px, 1fr)` tracks, with
+a `min-width` of the columns plus gaps so it scrolls rather than
+squeezing them. Cards (`TaskCard.tsx`) are `Card`s with a priority
 `Badge`, a `Heading` title, an epic `Token` (`TaskMeta.tsx` maps the
 epic's stored hex colour onto a Token colour) and a `MoreMenu`. Swimlanes
 are one CSS grid with one column per status. Its first row, the column
@@ -275,8 +281,8 @@ are `AlertDialog`s.
 
 Each project's **Board** entry shows how many of its tasks are in progress
 (blue) and in review (amber), and a spinner while the project chat is
-working. Chats started for a task appear in the same project group with the
-task's number. Use the filter button beside **Projects** to choose how
+working. Chats started for a task appear in the same project group as
+**#12 · task title**. Use the filter button beside **Projects** to choose how
 they're listed:
 
 - **Mixed in**: task chats are mixed in with the rest, most recent first.

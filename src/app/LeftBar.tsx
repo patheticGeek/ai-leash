@@ -11,7 +11,7 @@ import {
   DropdownMenuRadioItem,
 } from "@astryxdesign/core/DropdownMenu";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
-import { IconButton } from "@astryxdesign/core/IconButton";
+import { Icon } from "@astryxdesign/core/Icon";
 import { Kbd } from "@astryxdesign/core/Kbd";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
@@ -26,8 +26,9 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
+import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -45,8 +46,9 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
-import { useConversations } from "../data/conversations";
+import { conversationLabel, useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
+import { BUILD_LABEL } from "../lib/buildChannel";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
 import type {
@@ -68,6 +70,15 @@ import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
 const styles = stylex.create({
+  // The hairline between the sidebar and the rest of the window, full
+  // height. AppShell draws one only in its `section` variant, which would
+  // also drop the elevated variant's colours (#42), and the theme has no
+  // side-nav border to set, so it's drawn here.
+  rail: {
+    borderInlineEndWidth: borderVars["--border-width"],
+    borderInlineEndStyle: "solid",
+    borderInlineEndColor: colorVars["--color-border"],
+  },
   // A collapsible SideNavItem lays its children out in a grid that takes the
   // rows' min-content width, so long titles push the end slots out of the
   // rail. Containing the inline size keeps the rows inside it.
@@ -75,7 +86,32 @@ const styles = stylex.create({
   // The filter button stays lit while a task-chat filter is on.
   filterOn: { color: colorVars["--color-text-accent"] },
   showMore: { alignSelf: "flex-start" },
+  // A hidden ⋯ is taken out of the flow at the row's end; anchoring its end
+  // edge there keeps it inside the rail instead of overflowing past it
+  // (which made the sidebar scroll sideways).
+  revealAnchor: { position: "relative" },
+  revealEnd: { insetInlineEnd: 0 },
 });
+
+// A row's ⋯ slot: hidden and out of the flow at rest (so the title keeps the
+// full row), in the flow while revealed.
+function RevealedActions({
+  revealProps,
+  children,
+}: {
+  revealProps: ReturnType<
+    ReturnType<typeof useContainerReveal>["getContentRevealProps"]
+  >;
+  children: ReactNode;
+}) {
+  return (
+    <HStack as="span" xstyle={styles.revealAnchor}>
+      <HStack as="span" {...revealProps} xstyle={styles.revealEnd}>
+        {children}
+      </HStack>
+    </HStack>
+  );
+}
 
 // How long the row's turn has been running, next to its spinner. Ticks its
 // own clock (like `WorkingForIndicator`) so only this label re-renders each
@@ -138,38 +174,53 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
 
 // A sidebar row with its options in a `MoreMenu` revealed on hover/focus
 // (the shell-side-nav template's ConversationItem), the same items on
-// right-click.
+// right-click. At rest the ⋯ takes no space, so the title uses the whole
+// row; on hover/focus it swaps places with the row's end content (status),
+// which is unmounted then, so only the title's truncation point moves. The
+// hover/focus state is tracked here (not left to the hook's CSS) so the ⋯
+// and the status swap at the same moment.
 function RevealRow({
   menuLabel,
   items,
   tooltip,
+  endContent,
   children,
 }: {
   menuLabel: string;
   items: DropdownMenuOption[];
   tooltip?: string;
-  children: (actions: ReactNode) => ReactNode;
+  endContent?: ReactNode;
+  children: (slots: { actions: ReactNode; endContent: ReactNode }) => ReactNode;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const isActive = isMenuOpen || isHovered || isFocused;
   const { getContainerProps, getContentRevealProps } = useContainerReveal();
   const row = (
     <ContextMenu label={menuLabel} menuWidth="auto" items={items}>
       <Stack
         {...getContainerProps({
-          hoverDelay: 100,
-          forceState: isMenuOpen ? "active" : undefined,
+          forceState: isActive ? "active" : "inactive",
         })}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
       >
-        {children(
-          <HStack as="span" {...getContentRevealProps()}>
-            <MoreMenu
-              size="sm"
-              label={menuLabel}
-              onOpenChange={setIsMenuOpen}
-              items={items}
-            />
-          </HStack>,
-        )}
+        {children({
+          actions: (
+            <RevealedActions revealProps={getContentRevealProps()}>
+              <MoreMenu
+                size="sm"
+                label={menuLabel}
+                onOpenChange={setIsMenuOpen}
+                items={items}
+              />
+            </RevealedActions>
+          ),
+          endContent: isActive ? undefined : endContent,
+        })}
       </Stack>
     </ContextMenu>
   );
@@ -209,12 +260,11 @@ function ConversationRow({
     ? (conversation.worktreePath.split(/[\\/]/).filter(Boolean).pop() ??
       conversation.worktreePath)
     : "primary";
-  const title = conversation.title || "New conversation";
-
   return (
     <RevealRow
       menuLabel="Conversation options"
       tooltip={[projectName, workspace, branchName].filter(Boolean).join(" · ")}
+      endContent={<ChatStatus conversationId={conversation.id} />}
       items={[
         {
           label: "Mark as done",
@@ -230,16 +280,12 @@ function ConversationRow({
         },
       ]}
     >
-      {(actions) => (
+      {({ actions, endContent }) => (
         <SideNavItem
-          label={
-            conversation.taskNumber != null
-              ? `#${conversation.taskNumber} ${title}`
-              : title
-          }
+          label={conversationLabel(conversation)}
           isSelected={isSelected}
           onClick={onClick}
-          endContent={<ChatStatus conversationId={conversation.id} />}
+          endContent={endContent}
           actions={actions}
         />
       )}
@@ -280,7 +326,7 @@ function DoneConversationRow({
         },
       ]}
     >
-      {(actions) => (
+      {({ actions }) => (
         <SideNavItem
           label={conversation.title || "New conversation"}
           isSelected={isSelected}
@@ -345,18 +391,27 @@ function BoardRow({
 // the header row alone (via `SideNavItem`'s rest props, which land on its
 // primary element), so pointing at or right-clicking one of the group's
 // chats doesn't bring up the project's menu.
+//
+// No `collapsible`: that always draws a chevron in the row. The whole header
+// row is the fold toggle instead (a button, so Enter/Space work), and a
+// folded group just renders no children. On the icon
+// rail the children always render, as the folder's flyout. Done works the
+// same way.
 function ProjectGroup({
   project,
   isCollapsed,
   onCollapsedChange,
   onRemove,
   children,
+  isRail,
 }: {
   project: RecentProject;
   isCollapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onRemove: () => void;
   children: ReactNode;
+  // The sidebar is the icon rail, where the group is a flyout.
+  isRail: boolean;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -376,7 +431,12 @@ function ProjectGroup({
       <SideNavItem
         label={project.name}
         icon={Folder}
-        collapsible={{ isCollapsed, onCollapsedChange }}
+        // `collapsible={false}`: with children, the default still adds a
+        // separate chevron toggle. Astryx then clears `aria-expanded` on the
+        // row, so the fold state is announced as a description instead.
+        collapsible={false}
+        onClick={() => onCollapsedChange(!isCollapsed)}
+        aria-description={isCollapsed ? "Collapsed" : "Expanded"}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onContextMenu={(e) => {
@@ -387,29 +447,30 @@ function ProjectGroup({
         actions={
           <HStack
             as="span"
-            {...getContentRevealProps()}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             {...focusProps}
           >
-            <MoreMenu
-              size="sm"
-              label="Project options"
-              isMenuOpen={isMenuOpen}
-              onOpenChange={setIsMenuOpen}
-              items={[
-                {
-                  label: "Remove project",
-                  icon: <FolderMinus size={14} />,
-                  variant: "destructive",
-                  onClick: onRemove,
-                },
-              ]}
-            />
+            <RevealedActions revealProps={getContentRevealProps()}>
+              <MoreMenu
+                size="sm"
+                label="Project options"
+                isMenuOpen={isMenuOpen}
+                onOpenChange={setIsMenuOpen}
+                items={[
+                  {
+                    label: "Remove project",
+                    icon: <FolderMinus size={14} />,
+                    variant: "destructive",
+                    onClick: onRemove,
+                  },
+                ]}
+              />
+            </RevealedActions>
           </HStack>
         }
       >
-        {children}
+        {(isRail || !isCollapsed) && children}
       </SideNavItem>
     </Stack>
   );
@@ -541,6 +602,7 @@ export default function LeftBar({
   return (
     <SideNav
       aria-label="Conversations"
+      xstyle={styles.rail}
       resizable={resizable}
       collapsible={{ hasButton: false }}
       header={
@@ -558,25 +620,14 @@ export default function LeftBar({
             />
           }
           headerEndContent={
-            <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+            <HStack gap={2} vAlign="center">
+              {BUILD_LABEL && (
+                <Token size="sm" color="orange" label={BUILD_LABEL} />
+              )}
+              <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+            </HStack>
           }
         />
-      }
-      topContent={
-        <SideNavSection title="Menu" isHeaderHidden>
-          <SideNavItem
-            label="New thread"
-            icon={SquarePen}
-            isSelected={isNewThread}
-            endContent={<Kbd keys="ctrl+n" />}
-            onClick={() => void startNewThread()}
-          />
-          <SideNavItem
-            label="Add project"
-            icon={FolderPlus}
-            onClick={() => void pickAndAddProject()}
-          />
-        </SideNavSection>
       }
       footer={
         <SideNavSection title="App" isHeaderHidden>
@@ -588,23 +639,38 @@ export default function LeftBar({
         </SideNavSection>
       }
     >
+      {/* Same order as the shell-side-nav template: the menu, a rule, the
+          projects, a rule, Done. */}
+      <SideNavSection title="Menu" isHeaderHidden>
+        <SideNavItem
+          label="New thread"
+          icon={SquarePen}
+          isSelected={isNewThread}
+          endContent={<Kbd keys="ctrl+n" />}
+          onClick={() => void startNewThread()}
+        />
+        <SideNavItem
+          label="Add project"
+          icon={FolderPlus}
+          onClick={() => void pickAndAddProject()}
+        />
+      </SideNavSection>
+      <Divider />
       <SideNavSection
         title="Projects"
         endContent={
           <DropdownMenu
             placement="below"
             alignment="end"
-            renderTrigger={(triggerProps) => (
-              <IconButton
-                {...triggerProps}
-                variant="ghost"
-                size="sm"
-                label="Filter the sidebar"
-                tooltip="Filter the sidebar"
-                icon={<ListFilter size={14} />}
-                xstyle={taskChats !== "all" ? styles.filterOn : undefined}
-              />
-            )}
+            button={{
+              label: "Filter the sidebar",
+              variant: "ghost",
+              size: "sm",
+              icon: <Icon icon={ListFilter} size="sm" />,
+              isIconOnly: true,
+              xstyle: taskChats !== "all" ? styles.filterOn : undefined,
+            }}
+            hasChevron={false}
           >
             <DropdownMenuGroup title="Task chats">
               <DropdownMenuRadioGroup
@@ -640,6 +706,7 @@ export default function LeftBar({
                 setProjectCollapsed(p.path, collapsed)
               }
               onRemove={() => setPendingRemove(p)}
+              isRail={collapse.isCollapsed}
             >
               <VStack gap={0.5} xstyle={styles.nested}>
                 <BoardRow
@@ -680,41 +747,42 @@ export default function LeftBar({
             <SideNavItem
               label="Done"
               icon={Archive}
-              collapsible={{
-                isCollapsed: !isDoneOpen,
-                onCollapsedChange: (collapsed) => setDoneOpen(!collapsed),
-              }}
+              collapsible={false}
+              onClick={() => setDoneOpen(!isDoneOpen)}
+              aria-description={isDoneOpen ? "Expanded" : "Collapsed"}
               endContent={
                 <Text type="supporting" color="secondary" hasTabularNumbers>
                   {doneConversations.length}
                 </Text>
               }
             >
-              <VStack gap={0.5} xstyle={styles.nested}>
-                {visibleDoneConversations.map((c) => (
-                  <DoneConversationRow
-                    key={c.id}
-                    conversation={c}
-                    isSelected={c.id === activeSessionId}
-                    onClick={() => openConversation(c.id)}
-                    onDelete={() => setPendingDelete(c)}
-                    onUndo={() => setConversationDone(c.id, false)}
-                  />
-                ))}
-                {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    label={
-                      doneExpanded
-                        ? "Show less"
-                        : `Show all (${doneConversations.length})`
-                    }
-                    onClick={() => setDoneExpanded((v) => !v)}
-                    xstyle={styles.showMore}
-                  />
-                )}
-              </VStack>
+              {(collapse.isCollapsed || isDoneOpen) && (
+                <VStack gap={0.5} xstyle={styles.nested}>
+                  {visibleDoneConversations.map((c) => (
+                    <DoneConversationRow
+                      key={c.id}
+                      conversation={c}
+                      isSelected={c.id === activeSessionId}
+                      onClick={() => openConversation(c.id)}
+                      onDelete={() => setPendingDelete(c)}
+                      onUndo={() => setConversationDone(c.id, false)}
+                    />
+                  ))}
+                  {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      label={
+                        doneExpanded
+                          ? "Show less"
+                          : `Show all (${doneConversations.length})`
+                      }
+                      onClick={() => setDoneExpanded((v) => !v)}
+                      xstyle={styles.showMore}
+                    />
+                  )}
+                </VStack>
+              )}
             </SideNavItem>
           </SideNavSection>
         </>

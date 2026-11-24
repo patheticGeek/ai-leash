@@ -6,6 +6,17 @@ import { qk } from "./keys";
 
 export type { ConversationSummary };
 
+// How a conversation is named in the sidebar and the title-bar breadcrumb: a
+// board task's chat leads with its task number, `#42 · Fix app colours`.
+export function conversationLabel(
+  conversation: Pick<ConversationSummary, "title" | "taskNumber">,
+): string {
+  const title = conversation.title || "New conversation";
+  return conversation.taskNumber != null
+    ? `#${conversation.taskNumber} · ${title}`
+    : title;
+}
+
 // Every top-level conversation across every known project — the sidebar's
 // own scope. Kept live by `useConversationsListener` (mounted once in
 // `App.tsx`, like `useGeneratingListener`/`useFsChangeInvalidator`) reacting
