@@ -41,12 +41,23 @@ const NONE: SubAgentTask[] = [];
 // every running-count badge read this. Kept live by `useSubAgentsListener`
 // (mounted once in `App.tsx`), never by per-sub-agent listeners.
 export function useSubAgents(ownerId: string | null): SubAgentTask[] {
-  const { data } = useQuery({
+  return useSubAgentsQuery(ownerId).tasks;
+}
+
+// The same query with its state, for the Sub agents tab's loading and error
+// states. A new thread (no owner yet) is never "loading": it has none.
+export function useSubAgentsQuery(ownerId: string | null) {
+  const query = useQuery({
     queryKey: qk.subAgents(ownerId ?? ""),
     queryFn: () => listSubAgents(ownerId ?? ""),
     enabled: !!ownerId,
   });
-  return data ?? NONE;
+  return {
+    tasks: query.data ?? NONE,
+    isLoading: !!ownerId && query.isPending,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 export function getSubAgents(ownerId: string): SubAgentTask[] {

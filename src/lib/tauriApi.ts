@@ -512,6 +512,10 @@ export const api = {
   // `commands.rs`'s `list_dir` doc comment.
   listDir: (checkoutPath: string, path?: string) =>
     invoke<DirEntryInfo[]>("list_dir", { checkoutPath, path }),
+  // Files whose checkout-relative path holds every word of `query` —
+  // gitignore-aware, capped (see `commands.rs`'s `search_files`).
+  searchFiles: (checkoutPath: string, query: string) =>
+    invoke<DirEntryInfo[]>("search_files", { checkoutPath, query }),
   // `sessionId` null: the checkout currently shown (a new thread's).
   readFileText: (sessionId: string | null, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),
