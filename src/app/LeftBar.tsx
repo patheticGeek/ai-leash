@@ -38,6 +38,7 @@ import {
   FolderMinus,
   FolderPlus,
   ListFilter,
+  MessagesSquare,
   SettingsIcon,
   SquareKanban,
   SquarePen,
@@ -338,28 +339,38 @@ function DoneConversationRow({
   );
 }
 
-// A project group's first row. The board is its board chat (`chatId`, once
-// it exists), so the row spins while that chat works; the counts are tasks
-// in progress (blue) and waiting for review (amber).
+// A project group's first row, or (in the flat layout) a row of the Projects
+// section named after its project. The board is its board chat (`chatId`,
+// once it exists), so the row spins while that chat works; the counts are
+// tasks in progress (blue) and waiting for review (amber).
 function BoardRow({
+  label = "Board",
   summary,
   chatId,
   isSelected,
   onClick,
+  actions,
+  hideEnd = false,
 }: {
+  label?: string;
   summary: BoardSummary | undefined;
   chatId: string | undefined;
   isSelected: boolean;
   onClick: () => void;
+  actions?: ReactNode;
+  // Hides the counts while a revealed ⋯ takes their place.
+  hideEnd?: boolean;
 }) {
   const { active: generating } = useGenerating(chatId ?? "");
-  const hasEnd = generating || !!summary?.inProgress || !!summary?.review;
+  const hasEnd =
+    !hideEnd && (generating || !!summary?.inProgress || !!summary?.review);
   return (
     <SideNavItem
-      label="Board"
+      label={label}
       icon={SquareKanban}
       isSelected={isSelected}
       onClick={onClick}
+      actions={actions}
       endContent={
         hasEnd ? (
           <HStack gap={1.5} vAlign="center">
@@ -499,6 +510,7 @@ export default function LeftBar({
   const openProjectBoard = useAppStore((s) => s.openProjectBoard);
   const boardSummaries = useBoardSummaries();
   const taskChats = usePreference("sidebarTaskChats");
+  const isFlat = usePreference("sidebarLayout") === "flat";
   const setPreferences = useSetPreferences();
   const deleteConversation = useAppStore((s) => s.deleteConversation);
   const [pendingDelete, setPendingDelete] =
@@ -582,12 +594,17 @@ export default function LeftBar({
   ];
   const boardChatFor = (root: string) =>
     conversations.find((c) => c.role === "project" && c.projectRoot === root);
-  const chatsFor = (root: string) => {
-    const own = openChats.filter((c) => c.projectRoot === root);
-    return taskChats === "top"
-      ? [...own.filter(isTaskChat), ...own.filter((c) => !isTaskChat(c))]
-      : own;
-  };
+  // "Grouped at the top" puts task chats first in each project, or first in
+  // the one list when the sidebar is flat.
+  const taskChatsFirst = (list: ConversationSummary[]) =>
+    taskChats === "top"
+      ? [...list.filter(isTaskChat), ...list.filter((c) => !isTaskChat(c))]
+      : list;
+  const chatsFor = (root: string) =>
+    taskChatsFirst(openChats.filter((c) => c.projectRoot === root));
+  const flatChats = taskChatsFirst(openChats);
+  const projectName = (root: string) =>
+    projects.find((p) => p.path === root)?.name ?? basename(root);
   const isIdle = (root: string) =>
     chatsFor(root).length === 0 &&
     !boardSummaries.some((b) => b.projectRoot === root) &&
@@ -598,6 +615,64 @@ export default function LeftBar({
     collapse.isCollapsed || idleExpanded
       ? projects
       : projects.filter((p) => !isIdle(p.path));
+
+  const filterMenu = (
+    <DropdownMenu
+      placement="below"
+      alignment="end"
+      button={{
+        label: "Filter the sidebar",
+        variant: "ghost",
+        size: "sm",
+        icon: <Icon icon={ListFilter} size="sm" />,
+        isIconOnly: true,
+        xstyle: taskChats !== "all" ? styles.filterOn : undefined,
+      }}
+      hasChevron={false}
+    >
+      <DropdownMenuGroup title="Chats">
+        <DropdownMenuRadioGroup
+          label="Chats"
+          value={isFlat ? "flat" : "project"}
+          onChange={(value) =>
+            setPreferences({
+              sidebarLayout: value as Preferences["sidebarLayout"],
+            })
+          }
+        >
+          <DropdownMenuRadioItem value="project" label="Grouped by project" />
+          <DropdownMenuRadioItem value="flat" label="Flat list" />
+        </DropdownMenuRadioGroup>
+      </DropdownMenuGroup>
+      <DropdownMenuGroup title="Task chats">
+        <DropdownMenuRadioGroup
+          label="Task chats"
+          value={taskChats}
+          onChange={(value) =>
+            setPreferences({
+              sidebarTaskChats: value as Preferences["sidebarTaskChats"],
+            })
+          }
+        >
+          <DropdownMenuRadioItem value="all" label="Mixed in" />
+          <DropdownMenuRadioItem value="top" label="Grouped at the top" />
+          <DropdownMenuRadioItem value="hide" label="Hidden" />
+        </DropdownMenuRadioGroup>
+      </DropdownMenuGroup>
+    </DropdownMenu>
+  );
+
+  const conversationRow = (c: ConversationSummary) => (
+    <ConversationRow
+      key={c.id}
+      conversation={c}
+      projectName={projectName(c.projectRoot)}
+      isSelected={c.id === activeSessionId}
+      onClick={() => openConversation(c.id)}
+      onDelete={() => setPendingDelete(c)}
+      onMarkDone={() => setConversationDone(c.id, true)}
+    />
+  );
 
   return (
     <SideNav
@@ -656,40 +731,7 @@ export default function LeftBar({
         />
       </SideNavSection>
       <Divider />
-      <SideNavSection
-        title="Projects"
-        endContent={
-          <DropdownMenu
-            placement="below"
-            alignment="end"
-            button={{
-              label: "Filter the sidebar",
-              variant: "ghost",
-              size: "sm",
-              icon: <Icon icon={ListFilter} size="sm" />,
-              isIconOnly: true,
-              xstyle: taskChats !== "all" ? styles.filterOn : undefined,
-            }}
-            hasChevron={false}
-          >
-            <DropdownMenuGroup title="Task chats">
-              <DropdownMenuRadioGroup
-                label="Task chats"
-                value={taskChats}
-                onChange={(value) =>
-                  setPreferences({
-                    sidebarTaskChats: value as Preferences["sidebarTaskChats"],
-                  })
-                }
-              >
-                <DropdownMenuRadioItem value="all" label="Mixed in" />
-                <DropdownMenuRadioItem value="top" label="Grouped at the top" />
-                <DropdownMenuRadioItem value="hide" label="Hidden" />
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenu>
-        }
-      >
+      <SideNavSection title="Projects" endContent={filterMenu}>
         {projects.length === 0 && !collapse.isCollapsed && (
           <Text type="supporting" color="secondary">
             No projects yet
@@ -697,6 +739,42 @@ export default function LeftBar({
         )}
         {visibleProjects.map((p) => {
           const boardChat = boardChatFor(p.path);
+          if (isFlat) {
+            // Flat: each project is just its board, named after it, with the
+            // project's ⋯ menu; its chats are in the Chats section below.
+            return (
+              <RevealRow
+                key={p.path}
+                menuLabel="Project options"
+                tooltip={p.path}
+                // Only a marker: `RevealRow` drops it while the ⋯ shows, which
+                // is when the board's counts give way.
+                endContent
+                items={[
+                  {
+                    label: "Remove project",
+                    icon: <FolderMinus size={14} />,
+                    variant: "destructive",
+                    onClick: () => setPendingRemove(p),
+                  },
+                ]}
+              >
+                {({ actions, endContent }) => (
+                  <BoardRow
+                    label={p.name}
+                    summary={boardSummaries.find(
+                      (b) => b.projectRoot === p.path,
+                    )}
+                    chatId={boardChat?.id}
+                    isSelected={!!boardChat && boardChat.id === activeSessionId}
+                    onClick={() => void openProjectBoard(p.path)}
+                    actions={actions}
+                    hideEnd={!endContent}
+                  />
+                )}
+              </RevealRow>
+            );
+          }
           return (
             <ProjectGroup
               key={p.path}
@@ -715,17 +793,7 @@ export default function LeftBar({
                   isSelected={!!boardChat && boardChat.id === activeSessionId}
                   onClick={() => void openProjectBoard(p.path)}
                 />
-                {chatsFor(p.path).map((c) => (
-                  <ConversationRow
-                    key={c.id}
-                    conversation={c}
-                    projectName={p.name}
-                    isSelected={c.id === activeSessionId}
-                    onClick={() => openConversation(c.id)}
-                    onDelete={() => setPendingDelete(c)}
-                    onMarkDone={() => setConversationDone(c.id, true)}
-                  />
-                ))}
+                {chatsFor(p.path).map(conversationRow)}
               </VStack>
             </ProjectGroup>
           );
@@ -740,6 +808,35 @@ export default function LeftBar({
           />
         )}
       </SideNavSection>
+      {isFlat && (
+        <>
+          <Divider />
+          <SideNavSection title="Chats">
+            {flatChats.length === 0 && !collapse.isCollapsed && (
+              <Text type="supporting" color="secondary">
+                No chats yet
+              </Text>
+            )}
+            {collapse.isCollapsed ? (
+              // On the icon rail the chats are one icon with a flyout, the
+              // way a project's folder is when they're grouped.
+              <SideNavItem
+                label="Chats"
+                icon={MessagesSquare}
+                collapsible={false}
+              >
+                <VStack gap={0.5} xstyle={styles.nested}>
+                  {flatChats.map(conversationRow)}
+                </VStack>
+              </SideNavItem>
+            ) : (
+              <VStack gap={0.5} xstyle={styles.nested}>
+                {flatChats.map(conversationRow)}
+              </VStack>
+            )}
+          </SideNavSection>
+        </>
+      )}
       {doneConversations.length > 0 && (
         <>
           <Divider />

@@ -290,6 +290,13 @@ they're listed:
 - **Hidden**: only other chats are listed. Open a task's chat from its card
   instead.
 
+The same menu can show a **Flat list** instead of project groups: each
+project's board is then a row of its own under **Projects**, named after the
+project and keeping its counts, and every chat (task chats included, unless
+hidden) is in one **Chats** list below, most recent first. **Grouped at the
+top** then puts all task chats at the top of that list. Both choices are also
+in **Settings > Chat**.
+
 Removing a project from AI Leash (**Remove project** in its sidebar
 group's **⋯** menu) also deletes its board. Its files on disk aren't
 touched.
