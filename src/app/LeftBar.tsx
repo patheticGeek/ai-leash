@@ -32,6 +32,7 @@ import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
+  spacingVars,
   typeScaleVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -106,6 +107,16 @@ const styles = stylex.create({
     },
   },
   rowLabelOn: { color: colorVars["--color-text-primary"] },
+  // The flat row a step roomier than Item's compact density (4px block,
+  // 8px inline): 2px more on every side.
+  flatRow: {
+    paddingBlock: spacingVars["--spacing-1-5"],
+    paddingInline: `calc(${spacingVars["--spacing-2"]} + ${spacingVars["--spacing-0-5"]})`,
+  },
+  // Second line: the project truncates first; the branch keeps its place on
+  // the right (capped so a very long one can't push the project out).
+  projectName: { minWidth: 0, flexShrink: 1 },
+  branchName: { flexShrink: 0, maxWidth: "60%" },
   showMore: {
     alignSelf: "flex-start",
     color: {
@@ -334,7 +345,7 @@ function ConversationRow({
             // settings don't reach Item, and an `item` theme change would
             // hit every menu and list): 14px weight-500 label, secondary at
             // rest and primary when hovered or selected; the description a
-            // step smaller, muted.
+            // step smaller, muted: project on the left, branch on the right.
             label={
               <Text
                 weight="medium"
@@ -344,14 +355,32 @@ function ConversationRow({
               </Text>
             }
             description={
-              <Text type="supporting" size="sm" color="secondary">
-                {[projectName, branchName].filter(Boolean).join(" · ")}
-              </Text>
+              <HStack gap={2} hAlign="between" vAlign="center">
+                <Text
+                  type="supporting"
+                  size="sm"
+                  color="secondary"
+                  maxLines={1}
+                  xstyle={styles.projectName}
+                >
+                  {projectName}
+                </Text>
+                {branchName && (
+                  <Text
+                    type="supporting"
+                    size="sm"
+                    color="secondary"
+                    maxLines={1}
+                    xstyle={styles.branchName}
+                  >
+                    {branchName}
+                  </Text>
+                )}
+              </HStack>
             }
             density="compact"
-            xstyle={stylex.defaultMarker()}
+            xstyle={[stylex.defaultMarker(), styles.flatRow]}
             labelLines={1}
-            descriptionLines={1}
             isSelected={isSelected}
             onClick={onClick}
             endContent={
