@@ -7,7 +7,7 @@ import { RotateCw, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
 // The empty / loading / error states shared by the side panel's record
-// lists (Sub agents, Actions) — `prototype/PROPOSAL.md` §2.8: a compact
+// lists (Sub agents, Actions): a compact
 // `EmptyState` in the panel, `Skeleton` rows in the list's own shape, and
 // errors that say what failed and offer Try again.
 

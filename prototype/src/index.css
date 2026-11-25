@@ -1,5 +1,0 @@
-/* Astryx setup only: reset + base styles, the stock neutral theme comes from
-   src/astryx-themes.ts. No :root overrides — colours, fonts and sizes are the
-   theme's. */
-@import "@astryxdesign/core/reset.css";
-@import "@astryxdesign/core/astryx.css";

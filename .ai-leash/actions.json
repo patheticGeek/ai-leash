@@ -18,10 +18,5 @@
     "id": "a8f08478-eb8a-4f22-b396-d5f5888945d7",
     "name": "docs",
     "command": "npm run dev --prefix website"
-  },
-  {
-    "id": "d59ed51e-da7c-4993-b09b-e44104b3c646",
-    "name": "prototype",
-    "command": "npm run dev --prefix prototype"
   }
 ]

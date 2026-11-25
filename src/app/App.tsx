@@ -154,7 +154,7 @@ function App() {
 
   return (
     <>
-      {/* The default `elevated` variant, as in the prototype: the sidebar
+      {/* The default `elevated` variant: the sidebar
           sits on the body colour and the main region on the surface colour.
           `wash` paints the main region body-coloured too, so the centre,
           side panel, cards and board columns all lose their contrast. */}

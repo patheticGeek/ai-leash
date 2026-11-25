@@ -10,7 +10,6 @@
       "**",
       "!!**/dist",
       "!!**/website",
-      "!!**/prototype",
       "!!**/src-tauri",
       "!!**/themes",
       "!!**/src/themes",

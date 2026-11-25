@@ -112,9 +112,7 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   install chromium-headless-shell`.
 - **Icons are `lucide-react` only**, at its default stroke — the icon set
   the stock neutral theme's icon registry uses. No heroicons or other
-  packs. When porting prototype code, import the lucide icons directly
-  rather than copying `prototype/src/icons-lucide.ts` (its heroicons-name
-  → lucide map).
+  packs.
 - **StyleX `classNamePrefix: "al"`** (`vite.config.ts`) is load-bearing:
   with the default `x` prefix our atomic classes collide with Astryx's
   prebuilt ones, and ours are unlayered, so they silently override the
@@ -126,11 +124,6 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   instance, is Astryx `useResizable` + `ResizeHandle`, via
   `hooks/useResizableWidth.ts`). Check `astryx search "<query>"` before
   writing a new one.
-- **`prototype/` is the design reference**: a standalone Vite app (`npm
-  run dev --prefix prototype`, the "prototype" action) showing every
-  surface built from Astryx templates, with the rationale in
-  `prototype/PROPOSAL.md`. Match it when building or changing a surface;
-  it's not shipped and nothing in `src/` imports from it.
 - Don't commit or push unless explicitly asked, even mid-task.
 
 <!-- ASTRYX:START -->
