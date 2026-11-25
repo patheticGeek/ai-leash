@@ -13,7 +13,15 @@ import { turnInset } from "./turnInset";
 const styles = stylex.create({
   // The rows stack like `ChatToolCalls`' own expanded list: no gap between
   // rows, and the group keeps the one row's --spacing-2 above it.
-  group: { marginBlockStart: spacingVars["--spacing-2"] },
+  // Stretched to the message column (which aligns its children to the
+  // start): sized to its content instead, a row's `ChatToolCalls` cap
+  // (`maxWidth: 100%`) would be a share of this stack, so a long terminal
+  // or action line widened both and ran past the column's edge.
+  group: {
+    marginBlockStart: spacingVars["--spacing-2"],
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
   row: { marginBlockStart: 0 },
   toggle: { alignSelf: "flex-start" },
 });
