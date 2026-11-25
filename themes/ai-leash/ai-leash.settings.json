@@ -55,7 +55,62 @@
       "source": "property",
       "on": "tab-indicator",
       "state": "selected"
+    },
+    {
+      "thing": "neutral",
+      "value": "#8b8d98",
+      "source": "dial"
+    },
+    {
+      "thing": "--color-background-body",
+      "value": "#101114",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-card",
+      "value": "#17181c",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-popover",
+      "value": "#17181c",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-surface",
+      "value": "#1f2025",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-text-primary",
+      "value": "#e4e4e7",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-icon-primary",
+      "value": "#e4e4e7",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "color",
+      "value": "#ffffff",
+      "source": "property",
+      "on": "toast",
+      "when": "type:error"
+    },
+    {
+      "thing": "--color-background-muted",
+      "value": "#141518",
+      "source": "token",
+      "mode": "dark"
     }
   ],
-  "lifted": []
+  "lifted": [],
+  "palette": "c5ecb3be69c7c96015830e7a6256f254e543947e80ed69ef16f966f8e67d6df6"
 }
