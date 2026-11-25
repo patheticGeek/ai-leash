@@ -159,7 +159,8 @@ is **following** the task:
   status and its last reply, so it can react: answer a question, send the
   next instruction, or start the next task.
 - You can **take a task over**. When you send a message or press Stop in
-  a followed task's chat, a dialog asks first: **Take over** (or **Stop
+  a followed task's chat (or Stop in its details on the board), a dialog
+  asks first: **Take over** (or **Stop
   and take over**) releases it, and **Keep project chat following** sends
   without releasing it. A message you queue while the task is running is
   asked about when you queue it: taking over then releases the task
