@@ -29,6 +29,9 @@ export const LS_KEYS = {
   // Collapsed epic swimlanes on the board, as `${projectRoot}\n${epic id
   // or "none"}` entries — see `features/board/BoardView.tsx`.
   boardCollapsedLanes: "ai-leash:boardCollapsedLanes",
+  // Each project's board epic filter, Group by epic and Show done, keyed
+  // by project root — see `features/board/useBoardViewPrefs.ts`.
+  boardViewPrefs: "ai-leash:boardViewPrefs",
   // The project chat's width when docked beside the board ("both").
   projectChatWidth: "ai-leash:projectChatWidth",
   rightPanelWidth: "ai-leash:rightPanelWidth",

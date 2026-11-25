@@ -68,6 +68,7 @@ import StartTaskDialog from "./StartTaskDialog";
 import TaskCard, { FloatingTaskCard, type TaskCardHandlers } from "./TaskCard";
 import TaskDetailsDialog from "./TaskDetailsDialog";
 import { EpicToken, STATUS_DOT } from "./TaskMeta";
+import { useBoardViewPrefs } from "./useBoardViewPrefs";
 import { useFinishTask } from "./useFinishTask";
 
 // A status column's minimum width, in px: the kanban-board template's
@@ -325,10 +326,9 @@ type Editing =
 // In progress → Review (→ Done, hidden until asked for). Cards drag between
 // columns, and between epic swimlanes when grouped.
 export default function BoardView({ projectRoot }: { projectRoot: string }) {
-  const [showDone, setShowDone] = useState(false);
-  const [includeOlderDone, setIncludeOlderDone] = useState(false);
-  const [groupByEpic, setGroupByEpic] = useState(false);
-  const [epicFilter, setEpicFilter] = useState(ALL_EPICS);
+  const [prefs, setPrefs] = useBoardViewPrefs(projectRoot);
+  const { showDone, groupByEpic, includeOlderDone } = prefs;
+  const [pickedEpic, setPickedEpic] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [epicsOpen, setEpicsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -367,6 +367,17 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     () => new Map(epics.map((e) => [e.id, e])),
     [epics],
   );
+  // A remembered epic that's since been deleted or archived falls back to
+  // All epics (only once the board has loaded, so it isn't judged early).
+  // An archived epic picked in the menu this session still applies.
+  const filterEpic = epicsById.get(prefs.epicFilter);
+  const epicFilter =
+    !board ||
+    prefs.epicFilter === ALL_EPICS ||
+    prefs.epicFilter === NO_EPIC ||
+    (filterEpic && (!filterEpic.archived || pickedEpic === filterEpic.id))
+      ? prefs.epicFilter
+      : ALL_EPICS;
   const statuses = showDone
     ? TASK_STATUSES
     : TASK_STATUSES.filter((s) => s !== "done");
@@ -381,7 +392,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
   const filterEpicId =
     epicFilter === ALL_EPICS || epicFilter === NO_EPIC ? null : epicFilter;
 
-  const lanes: Lane[] = groupByEpic
+  const allLanes: Lane[] = groupByEpic
     ? [
         ...epics
           .filter(
@@ -400,6 +411,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     lane.epicId === undefined
       ? filtered
       : filtered.filter((t) => t.epicId === lane.epicId);
+  // Grouped, a lane with no visible cards (after the epic filter and Show
+  // done) is hidden; a Done cell offering only "Load older" doesn't count.
+  // If that hides every lane, the plain columns show instead.
+  const lanes = allLanes.filter(
+    (lane) =>
+      lane.epicId === undefined ||
+      laneTasks(lane).some((t) => statuses.includes(t.status)),
+  );
 
   const doneCount = board?.doneCount ?? 0;
   const doneShown = tasks.filter((t) => t.status === "done").length;
@@ -412,7 +431,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         size="sm"
         label={`Load ${olderDoneHidden} older`}
         tooltip="Done tasks older than 30 days"
-        onClick={() => setIncludeOlderDone(true)}
+        onClick={() => setPrefs({ includeOlderDone: true })}
       />
     ) : null;
 
@@ -497,7 +516,10 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
               isLabelHidden
               width={200}
               value={epicFilter}
-              onChange={setEpicFilter}
+              onChange={(epicFilter) => {
+                setPickedEpic(epicFilter);
+                setPrefs({ epicFilter });
+              }}
               options={[
                 { value: ALL_EPICS, label: "All epics" },
                 { value: NO_EPIC, label: "No epic" },
@@ -520,14 +542,14 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                 tooltip="Group the board into one row per epic"
                 isIconOnly
                 isPressed={groupByEpic}
-                onPressedChange={setGroupByEpic}
+                onPressedChange={(groupByEpic) => setPrefs({ groupByEpic })}
                 icon={<Icon icon={Rows3} size="sm" />}
               />
               <ToggleButton
                 label={`Show done (${doneCount})`}
                 isIconOnly
                 isPressed={showDone}
-                onPressedChange={setShowDone}
+                onPressedChange={(showDone) => setPrefs({ showDone })}
                 icon={<Icon icon={CircleCheck} size="sm" />}
               />
               <IconButton
@@ -707,7 +729,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                   onDragEnd={onDragEnd}
                   onDragCancel={() => setDragging(null)}
                 >
-                  {groupByEpic ? swimlanes : columns}
+                  {groupByEpic && lanes.length > 0 ? swimlanes : columns}
                   <DragOverlay dropAnimation={null}>
                     {dragging && (
                       <FloatingTaskCard

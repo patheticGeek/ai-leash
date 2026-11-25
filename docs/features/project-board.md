@@ -221,6 +221,16 @@ The name stays pinned on the left while you scroll the board sideways.
 Click the chevron next to it to collapse or expand that lane; this is
 remembered per epic. Cards in a lane don't repeat the epic's name.
 Dragging a card into another epic's lane moves it to that epic.
+A lane with no cards to show (after the epic filter and Show done) is
+hidden; a Done cell that only offers **Load older** doesn't count. If
+that hides every lane, the board shows its plain columns instead.
+
+The epic filter, Group by epic and Show done are remembered per project
+(`useBoardViewPrefs`, under the `boardViewPrefs` localStorage key), so
+each board comes back as you left it after switching boards or
+restarting. If the remembered epic has since been deleted or archived,
+the filter falls back to All epics. **Load older** is kept per project
+only for the session; a restart loads recent done tasks again.
 
 ## How it's built
 
