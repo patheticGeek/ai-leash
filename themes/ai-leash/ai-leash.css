@@ -499,6 +499,10 @@
     color: var(--color-text-gray);
   }
 
+  .astryx-badge {
+    font-size: 0.75rem;
+  }
+
   .astryx-segmented-control {
     padding: var(--spacing-1);
     --_segmented-control-padding: var(--spacing-1);
@@ -592,24 +596,6 @@
     font-size: 12px;
   }
 
-  .astryx-side-nav-item {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    font-weight: 500;
-  }
-
-  .astryx-side-nav-item:hover:where(:not(:disabled,[aria-disabled="true"])) {
-    color: var(--color-text-primary);
-  }
-
-  .astryx-side-nav-item[data-selected="selected"] {
-    color: var(--color-text-primary);
-  }
-
-  .astryx-side-nav-item[data-selected="selected"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
-    color: var(--color-text-primary);
-  }
-
   .astryx-text-input[data-size="sm"] {
     font-size: 12px;
   }
@@ -671,6 +657,28 @@
     --color-on-light: #ffffff;
     --color-text-primary: #ffffff;
     color: #ffffff;
+  }
+
+  .astryx-side-nav-item {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .astryx-side-nav-item:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-side-nav-item[data-selected="selected"] {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-side-nav-item[data-selected="selected"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-side-nav-section {
+    --text-supporting-size: 0.875rem;
   }
 
   .astryx-text[data-color="primary"] { color: var(--color-text-primary); }

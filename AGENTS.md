@@ -97,8 +97,15 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
 - **The theme is stock Astryx (`neutral`, dark).** Don't recolour or
   respace it; build each surface from its Astryx template and keep the
   template's frame, gaps and padding. The theme edits are chrome text on
-  the 12px scale step and sidebar rows (`side-nav-item`: secondary text
-  at weight 500, primary when selected or hovered, #48) — change the theme only through `astryx
+  the 12px scale step (tabs, small buttons/inputs/selectors), sidebar
+  text at 14px (`side-nav-item` font-size and `--text-supporting-size` on
+  `side-nav-section`, #55) and sidebar rows (`side-nav-item`: secondary
+  text at weight 500, primary when selected or hovered, #48). The
+  sidebar's ghost "More projects"/"Show all" buttons are muted via
+  `xstyle` in `LeftBar.tsx`, since the theme can't target buttons only
+  inside the side nav; likewise the flat layout's two-line chat rows
+  (Astryx `Item`, not `SideNavItem`) copy the side-nav-item look with
+  `Text` + `xstyle` there, as an `item` theme change would be app-wide — change the theme only through `astryx
   experimental theme editor`, with a reason from Astryx's docs.
   The theme is `ai-leash` (`themes/ai-leash/` is the editor's source,
   `themes/ai-leash/ai-leash.settings.json` its checked settings;

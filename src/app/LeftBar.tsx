@@ -12,6 +12,7 @@ import {
 } from "@astryxdesign/core/DropdownMenu";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
+import { Item } from "@astryxdesign/core/Item";
 import { Kbd } from "@astryxdesign/core/Kbd";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
@@ -28,7 +29,12 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import {
+  borderVars,
+  colorVars,
+  spacingVars,
+  typeScaleVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -86,27 +92,82 @@ const styles = stylex.create({
   nested: { contain: "inline-size" },
   // The filter button stays lit while a task-chat filter is on.
   filterOn: { color: colorVars["--color-text-accent"] },
-  showMore: { alignSelf: "flex-start" },
-  // A hidden ⋯ is taken out of the flow at the row's end; anchoring its end
-  // edge there keeps it inside the rail instead of overflowing past it
-  // (which made the sidebar scroll sideways).
-  revealAnchor: { position: "relative" },
-  revealEnd: { insetInlineEnd: 0 },
+  // "More projects" / "Show all": muted like an at-rest sidebar row, primary
+  // on hover, at the sidebar's text size. The theme can't single out buttons
+  // in the side nav (`editor how "muted ghost buttons in the side nav"`), so
+  // this is the one row that sets it; `--text-supporting-size` is the
+  // side-nav-section's (the theme sets it to 14px there).
+  // A flat-layout chat row's label (an `Item`, not a `SideNavItem`); the
+  // size is the side-nav-section's 14px, the colours follow side-nav-item.
+  rowLabel: {
+    fontSize: typeScaleVars["--text-supporting-size"],
+    color: {
+      default: colorVars["--color-text-secondary"],
+      [stylex.when.ancestor(":hover")]: colorVars["--color-text-primary"],
+    },
+  },
+  rowLabelOn: { color: colorVars["--color-text-primary"] },
+  flatTitle: { minWidth: 0, flexShrink: 1 },
+  // Holds the title line's room for the ⋯ while it shows. The ⋯ itself can't
+  // sit in the title line (that's inside the row's button), so it's laid over
+  // the row's end from outside the Item (`flatActions`), out of the flow, and
+  // the second line keeps the row's full width. The slot only covers the
+  // dots; the button's own padding may overlap the title's end.
+  flatActionsSlot: { width: spacingVars["--spacing-4"], flexShrink: 0 },
+  flatActions: {
+    position: "absolute",
+    insetInlineEnd: `calc(${spacingVars["--spacing-1"]} + ${spacingVars["--spacing-0-5"]})`,
+    // On the title line's centre: `RevealedActions` has no height of its
+    // own and centres the ⋯ on itself.
+    insetBlockStart: `calc(${spacingVars["--spacing-1"]} + 1lh / 2)`,
+  },
+  // Second line: the project truncates first; the branch keeps its place on
+  // the right (capped so a very long one can't push the project out).
+  projectName: { minWidth: 0, flexShrink: 1 },
+  branchName: { flexShrink: 0, maxWidth: "60%" },
+  showMore: {
+    alignSelf: "flex-start",
+    color: {
+      default: colorVars["--color-text-secondary"],
+      ":hover": colorVars["--color-text-primary"],
+    },
+    fontSize: typeScaleVars["--text-supporting-size"],
+  },
+  // The ⋯ never takes its full width from the title: it's out of the flow,
+  // anchored at the slot's end edge (which also keeps it inside the rail
+  // instead of overflowing past it and scrolling the sidebar sideways), and
+  // centred on the slot. At rest the slot is empty; revealed it's about the
+  // dots' width, so the title gives up that (plus the row's gap) and the
+  // button's own padding overlaps the title's end. The flat row's title line
+  // reserves the same (`flatActionsSlot`), so both layouts cut it alike.
+  revealAnchor: { position: "relative", alignItems: "center" },
+  revealAnchorOpen: {
+    width: `calc(${spacingVars["--spacing-4"]} - ${spacingVars["--spacing-0-5"]})`,
+  },
+  // The row wrapper: anchors a flat row's ⋯ and marks hover for the flat
+  // row's label colour (the ⋯ is outside the Item, so the Item can't).
+  revealRow: { position: "relative" },
+  revealEnd: { position: "absolute", insetInlineEnd: 0 },
 });
 
-// A row's ⋯ slot: hidden and out of the flow at rest (so the title keeps the
-// full row), in the flow while revealed.
+// A row's ⋯ slot: empty at rest (so the title keeps the full row), about the
+// dots' width while revealed — see `revealAnchor`.
 function RevealedActions({
   revealProps,
+  isRevealed,
   children,
 }: {
   revealProps: ReturnType<
     ReturnType<typeof useContainerReveal>["getContentRevealProps"]
   >;
+  isRevealed: boolean;
   children: ReactNode;
 }) {
   return (
-    <HStack as="span" xstyle={styles.revealAnchor}>
+    <HStack
+      as="span"
+      xstyle={[styles.revealAnchor, isRevealed && styles.revealAnchorOpen]}
+    >
       <HStack as="span" {...revealProps} xstyle={styles.revealEnd}>
         {children}
       </HStack>
@@ -135,6 +196,7 @@ function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
 
 // A chat row's end slot: a warning dot while the agent waits on the user
 // (pulsing for an approval), else elapsed time and a spinner while it works.
+// It stays whole while the row's ⋯ shows; only the title gives way.
 function ChatStatus({ conversationId }: { conversationId: string }) {
   const { active: generating, startedAtMs } = useGenerating(conversationId);
   const awaitingApproval = useAppStore(
@@ -176,22 +238,23 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
 // A sidebar row with its options in a `MoreMenu` revealed on hover/focus
 // (the shell-side-nav template's ConversationItem), the same items on
 // right-click. At rest the ⋯ takes no space, so the title uses the whole
-// row; on hover/focus it swaps places with the row's end content (status),
-// which is unmounted then, so only the title's truncation point moves. The
-// hover/focus state is tracked here (not left to the hook's CSS) so the ⋯
-// and the status swap at the same moment.
+// row and the row's end content (status, counts) sits at its end. On
+// hover/focus, or while the menu is open, the ⋯ joins it: SideNavItem
+// renders `endContent` inside the row's button and `actions` after it, so it
+// reads status, then ⋯. Nothing is hidden for it; only the title truncates
+// sooner. `isRevealed` tells the row the ⋯ is showing (the flat chat row
+// reserves its room in the title line). The hover/focus state is tracked here
+// (not left to the hook's CSS) so the ⋯ and that room change together.
 function RevealRow({
   menuLabel,
   items,
   tooltip,
-  endContent,
   children,
 }: {
   menuLabel: string;
   items: DropdownMenuOption[];
   tooltip?: string;
-  endContent?: ReactNode;
-  children: (slots: { actions: ReactNode; endContent: ReactNode }) => ReactNode;
+  children: (slots: { actions: ReactNode; isRevealed: boolean }) => ReactNode;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -204,6 +267,7 @@ function RevealRow({
         {...getContainerProps({
           forceState: isActive ? "active" : "inactive",
         })}
+        xstyle={[stylex.defaultMarker(), styles.revealRow]}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onFocus={() => setIsFocused(true)}
@@ -211,7 +275,10 @@ function RevealRow({
       >
         {children({
           actions: (
-            <RevealedActions revealProps={getContentRevealProps()}>
+            <RevealedActions
+              revealProps={getContentRevealProps()}
+              isRevealed={isActive}
+            >
               <MoreMenu
                 size="sm"
                 label={menuLabel}
@@ -220,7 +287,7 @@ function RevealRow({
               />
             </RevealedActions>
           ),
-          endContent: isActive ? undefined : endContent,
+          isRevealed: isActive,
         })}
       </Stack>
     </ContextMenu>
@@ -238,9 +305,14 @@ function RevealRow({
   );
 }
 
+// In the flat layout (`hasProjectLine`) the row adds a second line,
+// project · branch, since no project group header says which project it's
+// from. `SideNavItem` takes a string label only, so that row is Astryx's
+// two-line `Item` instead.
 function ConversationRow({
   conversation,
   projectName,
+  hasProjectLine,
   isSelected,
   onClick,
   onDelete,
@@ -248,6 +320,7 @@ function ConversationRow({
 }: {
   conversation: ConversationSummary;
   projectName: string;
+  hasProjectLine: boolean;
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
@@ -265,7 +338,6 @@ function ConversationRow({
     <RevealRow
       menuLabel="Conversation options"
       tooltip={[projectName, workspace, branchName].filter(Boolean).join(" · ")}
-      endContent={<ChatStatus conversationId={conversation.id} />}
       items={[
         {
           label: "Mark as done",
@@ -281,15 +353,82 @@ function ConversationRow({
         },
       ]}
     >
-      {({ actions, endContent }) => (
-        <SideNavItem
-          label={conversationLabel(conversation)}
-          isSelected={isSelected}
-          onClick={onClick}
-          endContent={endContent}
-          actions={actions}
-        />
-      )}
+      {({ actions, isRevealed }) => {
+        const status = <ChatStatus conversationId={conversation.id} />;
+        return hasProjectLine ? (
+          <>
+            <Item
+              // Styled like a side-nav-item row (the theme's side-nav-item
+              // settings don't reach Item, and an `item` theme change would
+              // hit every menu and list): 14px weight-500 label, secondary at
+              // rest and primary when hovered or selected; the description a
+              // step smaller, muted: project on the left, branch on the right.
+              // The status and ⋯ sit on the title line, so only the title
+              // truncates for them and the second line keeps the full width.
+              label={
+                <HStack gap={1.5} vAlign="center">
+                  <Text
+                    weight="medium"
+                    maxLines={1}
+                    xstyle={[
+                      styles.rowLabel,
+                      styles.flatTitle,
+                      isSelected && styles.rowLabelOn,
+                    ]}
+                  >
+                    {conversationLabel(conversation)}
+                  </Text>
+                  {status}
+                  {isRevealed && (
+                    <HStack as="span" xstyle={styles.flatActionsSlot}>
+                      {null}
+                    </HStack>
+                  )}
+                </HStack>
+              }
+              description={
+                <HStack gap={2} hAlign="between" vAlign="center">
+                  <Text
+                    type="supporting"
+                    size="sm"
+                    color="secondary"
+                    maxLines={1}
+                    xstyle={styles.projectName}
+                  >
+                    {projectName}
+                  </Text>
+                  {branchName && (
+                    <Text
+                      type="supporting"
+                      size="sm"
+                      color="secondary"
+                      maxLines={1}
+                      xstyle={styles.branchName}
+                    >
+                      {branchName}
+                    </Text>
+                  )}
+                </HStack>
+              }
+              isSelected={isSelected}
+              onClick={onClick}
+            />
+            {/* Outside the Item (no end slot, so no gap before one), over the
+              title line's reserved slot. */}
+            <HStack as="span" xstyle={styles.flatActions}>
+              {actions}
+            </HStack>
+          </>
+        ) : (
+          <SideNavItem
+            label={conversationLabel(conversation)}
+            isSelected={isSelected}
+            onClick={onClick}
+            endContent={status}
+            actions={actions}
+          />
+        );
+      }}
     </RevealRow>
   );
 }
@@ -342,7 +481,8 @@ function DoneConversationRow({
 // A project group's first row, or (in the flat layout) a row of the Projects
 // section named after its project. The board is its board chat (`chatId`,
 // once it exists), so the row spins while that chat works; the counts are
-// tasks in progress (blue) and waiting for review (amber).
+// tasks in progress (blue) and waiting for review (amber). Order at the end:
+// counts, then the spinner, then the ⋯ (SideNavItem puts `actions` last).
 function BoardRow({
   label = "Board",
   summary,
@@ -350,7 +490,6 @@ function BoardRow({
   isSelected,
   onClick,
   actions,
-  hideEnd = false,
 }: {
   label?: string;
   summary: BoardSummary | undefined;
@@ -358,12 +497,11 @@ function BoardRow({
   isSelected: boolean;
   onClick: () => void;
   actions?: ReactNode;
-  // Hides the counts while a revealed ⋯ takes their place.
-  hideEnd?: boolean;
 }) {
   const { active: generating } = useGenerating(chatId ?? "");
-  const hasEnd =
-    !hideEnd && (generating || !!summary?.inProgress || !!summary?.review);
+  const inProgress = summary?.inProgress ?? 0;
+  const review = summary?.review ?? 0;
+  const hasEnd = generating || !!inProgress || !!review;
   return (
     <SideNavItem
       label={label}
@@ -374,21 +512,22 @@ function BoardRow({
       endContent={
         hasEnd ? (
           <HStack gap={1.5} vAlign="center">
-            {generating && <Spinner size="sm" aria-label="Working" />}
-            {!!summary?.inProgress && (
+            {!!inProgress && (
               <Badge
                 variant="info"
-                label={summary.inProgress}
-                aria-label={`${summary.inProgress} in progress`}
+                label={inProgress}
+                aria-label={`${inProgress} in progress`}
               />
             )}
-            {!!summary?.review && (
+            {!!review && (
               <Badge
                 variant="warning"
-                label={summary.review}
-                aria-label={`${summary.review} in review`}
+                label={review}
+                aria-label={`${review} in review`}
               />
             )}
+            {/* Last, so it reads counts, spinner, then the row's ⋯. */}
+            {generating && <Spinner size="sm" aria-label="Working" />}
           </HStack>
         ) : undefined
       }
@@ -462,7 +601,10 @@ function ProjectGroup({
             onMouseLeave={() => setIsHovered(false)}
             {...focusProps}
           >
-            <RevealedActions revealProps={getContentRevealProps()}>
+            <RevealedActions
+              revealProps={getContentRevealProps()}
+              isRevealed={isMenuOpen || isHovered || isFocused}
+            >
               <MoreMenu
                 size="sm"
                 label="Project options"
@@ -667,6 +809,7 @@ export default function LeftBar({
       key={c.id}
       conversation={c}
       projectName={projectName(c.projectRoot)}
+      hasProjectLine={isFlat}
       isSelected={c.id === activeSessionId}
       onClick={() => openConversation(c.id)}
       onDelete={() => setPendingDelete(c)}
@@ -747,9 +890,6 @@ export default function LeftBar({
                 key={p.path}
                 menuLabel="Project options"
                 tooltip={p.path}
-                // Only a marker: `RevealRow` drops it while the ⋯ shows, which
-                // is when the board's counts give way.
-                endContent
                 items={[
                   {
                     label: "Remove project",
@@ -759,7 +899,7 @@ export default function LeftBar({
                   },
                 ]}
               >
-                {({ actions, endContent }) => (
+                {({ actions }) => (
                   <BoardRow
                     label={p.name}
                     summary={boardSummaries.find(
@@ -769,7 +909,6 @@ export default function LeftBar({
                     isSelected={!!boardChat && boardChat.id === activeSessionId}
                     onClick={() => void openProjectBoard(p.path)}
                     actions={actions}
-                    hideEnd={!endContent}
                   />
                 )}
               </RevealRow>
@@ -786,7 +925,7 @@ export default function LeftBar({
               onRemove={() => setPendingRemove(p)}
               isRail={collapse.isCollapsed}
             >
-              <VStack gap={0.5} xstyle={styles.nested}>
+              <VStack gap={1} xstyle={styles.nested}>
                 <BoardRow
                   summary={boardSummaries.find((b) => b.projectRoot === p.path)}
                   chatId={boardChat?.id}
@@ -825,12 +964,12 @@ export default function LeftBar({
                 icon={MessagesSquare}
                 collapsible={false}
               >
-                <VStack gap={0.5} xstyle={styles.nested}>
+                <VStack gap={1} xstyle={styles.nested}>
                   {flatChats.map(conversationRow)}
                 </VStack>
               </SideNavItem>
             ) : (
-              <VStack gap={0.5} xstyle={styles.nested}>
+              <VStack gap={1} xstyle={styles.nested}>
                 {flatChats.map(conversationRow)}
               </VStack>
             )}
@@ -854,7 +993,7 @@ export default function LeftBar({
               }
             >
               {(collapse.isCollapsed || isDoneOpen) && (
-                <VStack gap={0.5} xstyle={styles.nested}>
+                <VStack gap={1} xstyle={styles.nested}>
                   {visibleDoneConversations.map((c) => (
                     <DoneConversationRow
                       key={c.id}
