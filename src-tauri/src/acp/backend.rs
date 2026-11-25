@@ -115,6 +115,9 @@ impl Backend for AcpBackend {
                 session_id,
                 message.clone(),
             );
+            // Before the prompt goes out, so a limit it hits again isn't
+            // wiped by this.
+            rate_limit::clear(app, session_id);
             sender.send(AcpCommand::Prompt(prompt, None)).map_err(|_| {
                 "ACP agent process is no longer running; send another message to restart it."
                     .to_string()
@@ -132,7 +135,6 @@ impl Backend for AcpBackend {
                     tool_calls: None,
                 },
             );
-            rate_limit::clear(app, session_id);
             Ok(())
         })
     }
@@ -149,6 +151,8 @@ impl Backend for AcpBackend {
                 session_id,
                 prompt,
             );
+            // A woken turn ends the pending limit (and its live banner).
+            rate_limit::clear(app, session_id);
             self.connect_with_picks(app, session_id)
                 .send(AcpCommand::Prompt(prompt, None))
                 .map_err(|_| "ACP agent process is no longer running.".to_string())

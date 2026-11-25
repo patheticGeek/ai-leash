@@ -163,13 +163,14 @@ export function useChatStream(
   // reconnect (agent switch back, `/clear`, retry) lands on a connection
   // that *can* resume — see `chat://{sessionId}/acp_history_truncated`.
   const [acpHistoryTruncated, setAcpHistoryTruncated] = useState(false);
-  // A pending Claude session limit, pushed by the backend on
+  // A pending Claude usage limit, pushed by the backend on
   // `chat://{sessionId}/rate_limit` (null when there's none) and read once on
-  // mount — the backend derives it from the transcript and owns the
+  // mount — the backend records it from the prompt's error and owns the
   // auto-resume timer, so it survives tab switches and app restarts. Distinct
   // from `error` (plain banner) since it offers an auto-resume choice.
   const [rateLimit, setRateLimit] = useState<{
     message: string;
+    kind: string | null;
     resetAt: number;
     armed: boolean;
   } | null>(null);

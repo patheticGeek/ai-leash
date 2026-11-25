@@ -6,7 +6,17 @@ import { formatClockTime } from "@/lib/format";
 
 export interface ClaudeRateLimit {
   message: string;
+  // The agent's name for the limit's window (`five_hour`, `seven_day`, …).
+  kind: string | null;
   resetAt: number;
+}
+
+// "Claude 5-hour usage limit" for the windows we know, else plain.
+function limitName(kind: string | null): string {
+  if (kind === "five_hour") return "Claude 5-hour usage limit";
+  if (kind?.startsWith("seven_day") || kind === "weekly")
+    return "Claude weekly usage limit";
+  return "Claude usage limit";
 }
 
 interface ClaudeRateLimitBannerProps {
@@ -26,7 +36,7 @@ function formatCountdown(ms: number): string {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
-// Claude's session limit, a warning `Banner` in the composer's stack (it
+// Claude's usage limit (5-hour / weekly), a warning `Banner` in the composer's stack (it
 // needs a decision). Once auto-resume is armed it counts down to the reset,
 // ticking every second; before that it only re-renders when the reset
 // time passes.
@@ -52,6 +62,7 @@ export default function ClaudeRateLimitBanner({
   }, [rateLimit.resetAt, autoResumeArmed]);
   const alreadyReset = rateLimit.resetAt <= now;
   const resetsAt = formatClockTime(rateLimit.resetAt);
+  const name = limitName(rateLimit.kind);
 
   if (autoResumeArmed) {
     return (
@@ -61,8 +72,8 @@ export default function ClaudeRateLimitBanner({
         collapsible={false}
         title={
           alreadyReset
-            ? "Claude session limit reset · resuming now"
-            : `Claude session limit reached · resuming in ${formatCountdown(rateLimit.resetAt - now)}`
+            ? `${name} reset · resuming now`
+            : `${name} reached · resuming in ${formatCountdown(rateLimit.resetAt - now)}`
         }
         description={
           alreadyReset
@@ -85,11 +96,7 @@ export default function ClaudeRateLimitBanner({
       status="warning"
       elevation="low"
       collapsible={false}
-      title={
-        alreadyReset
-          ? "Claude session limit has reset"
-          : "Claude session limit reached"
-      }
+      title={alreadyReset ? `${name} has reset` : `${name} reached`}
       description={
         alreadyReset
           ? `It reset at ${resetsAt}. Continue this turn now?`

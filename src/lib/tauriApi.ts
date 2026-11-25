@@ -675,10 +675,12 @@ export const api = {
   setAcpDebugCapture: (enabled: boolean) =>
     invoke<void>("set_acp_debug_capture", { enabled }),
   getRateLimitResume: (sessionId: string) =>
-    invoke<{ message: string; resetAt: number; armed: boolean } | null>(
-      "get_rate_limit_resume",
-      { sessionId },
-    ),
+    invoke<{
+      message: string;
+      kind: string | null;
+      resetAt: number;
+      armed: boolean;
+    } | null>("get_rate_limit_resume", { sessionId }),
   armRateLimitResume: (sessionId: string) =>
     invoke<void>("arm_rate_limit_resume", { sessionId }),
   dismissRateLimitResume: (sessionId: string) =>

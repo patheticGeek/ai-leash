@@ -388,7 +388,7 @@ fn wipe_rows(conn: &Connection, id: &str, include_row: bool) {
     for sql in [
         "DELETE FROM messages WHERE conversation_id = ?1",
         "DELETE FROM acp_agent_sessions WHERE conversation_id = ?1",
-        "DELETE FROM rate_limit_resumes WHERE conversation_id = ?1",
+        "DELETE FROM rate_limits WHERE conversation_id = ?1",
     ] {
         let _ = conn.execute(sql, params![id]);
     }
