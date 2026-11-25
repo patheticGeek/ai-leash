@@ -108,7 +108,9 @@ export default function StartTaskDialog({
                 new task/{task?.number}-… branch.
               </Text>
               <VStack gap={2}>
-                <Heading level={4}>Agent</Heading>
+                <Heading level={4} weight="normal">
+                  Agent
+                </Heading>
                 <AgentFields
                   value={agent}
                   onChange={setAgent}

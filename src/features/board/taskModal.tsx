@@ -145,7 +145,9 @@ export function ModalSection({
   return (
     <VStack gap={2}>
       <HStack gap={2} vAlign="center" hAlign="between">
-        <Heading level={4}>{title}</Heading>
+        <Heading level={4} weight="normal">
+          {title}
+        </Heading>
         {action}
       </HStack>
       {children}
