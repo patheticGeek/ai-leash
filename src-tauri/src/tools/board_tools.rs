@@ -116,7 +116,7 @@ pub(crate) fn board_defs() -> Vec<Value> {
         }),
         json!({
             "name": "send_message",
-            "description": "Message the project chat or a task's chat. From a task's chat, send to \"project\" to report progress or ask for something you need; it's woken up to answer if it's following this task, otherwise it sees your message as a note next time it runs. From the project chat (or any chat), send to a started task by number (\"#12\") to give it instructions or answer it; that task is woken up to act on it and its reply comes back. Don't also repeat what you send in your own reply.",
+            "description": "Message the project chat or a task's chat. From a task's chat, send to \"project\" to report progress or ask for something you need; the project chat is woken up to answer. From the project chat (or any chat), send to a started task by number (\"#12\") to give it instructions or answer it; that task is woken up to act on it. If the project chat follows the task, the task's reply comes back on its own. If the user has taken the task over, nothing it says is forwarded: messaging it doesn't follow it again, and it must answer with send_message to \"project\" itself. Don't also repeat what you send in your own reply.",
             "parameters": {
                 "type": "object",
                 "properties": {

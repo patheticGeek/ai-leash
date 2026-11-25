@@ -33,6 +33,7 @@ import {
 } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import Markdown from "../../ui/Markdown";
+import TakeOverDialog from "../chat/components/TakeOverDialog";
 import AgentFields, { AgentSummary, resolveAgent } from "./AgentFields";
 import { startTaskWith } from "./StartTaskDialog";
 import { useElapsed } from "./TaskCard";
@@ -93,6 +94,9 @@ function ChatState({
   const id = task.conversationId;
   const { active, startedAtMs } = useGenerating(id ?? "");
   const lastReply = useLastReply(id, active);
+  // Stopping a task the project chat follows takes it over, as the chat's
+  // own Stop does — asked first (`TakeOverDialog`).
+  const [askingStop, setAskingStop] = useState(false);
 
   if (!id) {
     const canStart = task.status !== "done";
@@ -161,9 +165,21 @@ function ChatState({
             <Button
               label="Stop"
               icon={<Icon icon={Square} size="sm" />}
-              onClick={() => void api.cancelPrompt(id)}
+              onClick={() => {
+                if (task.engagedWithProject) setAskingStop(true);
+                else void api.cancelPrompt(id);
+              }}
             />
           )}
+          <TakeOverDialog
+            ask={askingStop ? "stop" : null}
+            taskNumber={task.number}
+            onChoose={() => {
+              setAskingStop(false);
+              void api.cancelPrompt(id, true);
+            }}
+            onCancel={() => setAskingStop(false)}
+          />
           <Button
             variant="primary"
             label="Open chat"

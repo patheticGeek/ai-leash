@@ -150,27 +150,38 @@ another chat shows in the transcript collapsed to one line, **Message from
 …** (click the sender to open its chat, or **Show** to read it). Ask the project chat things like "tell #12 to use the
 new API" or "what's #9 waiting on?".
 
-Whenever a task's turn ends, the project chat hears about it, with the
-task's status and its last reply. Whether that wakes the project chat
-depends on whether it's **following** the task:
+What happens when a task's turn ends depends on whether the project chat
+is **following** the task:
 
-- It follows a task it started or has sent a message to, and one you
-  start from the board with **The project chat follows it** ticked (the
-  default). Then the task's
-  updates and messages wake it, so it can react: answer a question, send
-  the next instruction, or start the next task.
-- Once you write in a task's chat yourself, you've taken it over, and the
-  project chat stops following it — even for a quick answer. Its updates
-  still reach the project chat, but as **notes**: collapsed rows in its
-  transcript that it reads the next time it runs, without starting a turn
-  (or spending tokens) for each one.
+- It follows a task it started, and one you start from the board with
+  **The project chat follows it** ticked (the default). Whenever a
+  followed task's turn ends, the project chat is woken with the task's
+  status and its last reply, so it can react: answer a question, send the
+  next instruction, or start the next task.
+- You can **take a task over**. When you send a message or press Stop in
+  a followed task's chat (or Stop in its details on the board), a dialog
+  asks first: **Take over** (or **Stop
+  and take over**) releases it, and **Keep project chat following** sends
+  without releasing it. A message you queue while the task is running is
+  asked about when you queue it: taking over then releases the task
+  straight away, so the turn still running isn't forwarded either. Once
+  you've taken a task over, nothing is
+  forwarded from it automatically. The project chat gets one note saying
+  you took it over, and the task's replies stay in its own chat.
 
-A task chat the project chat isn't following shows a banner above its
-message box; click **Hand back to project chat** to have it follow again.
-Messaging the task from the project chat does the same.
+Messages sent with `send_message` always get through, whether the task is
+followed or not. A task can still message the project chat, which wakes
+it. The project chat can still message a task you've taken over, which
+wakes the task. That doesn't make the project chat follow it again, and
+the task's answer isn't forwarded: the message tells the task to reply
+with `send_message` itself. A message to a busy chat waits until its
+current turn ends, and is delivered once. If you take a task over while a
+message is waiting for it, the message is still delivered, but the
+task's answer to it isn't forwarded.
 
-Messages to a task always wake it. A chat that's busy gets a message once
-its current turn ends.
+A task's chat shows which it is in a small line above its message box:
+**The project chat is following #N**, or **You've taken over #N** with a
+**Hand back to project chat** button to have it follow again. That button is the only thing that does.
 
 So two agents can't keep answering each other forever, a chat that's had
 8 messages from other chats in a row, with nothing from you in between,
