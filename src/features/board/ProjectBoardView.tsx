@@ -1,5 +1,6 @@
 import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
 import { ResizeHandle } from "@astryxdesign/core/Resizable";
+import { useRef } from "react";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { LS_KEYS } from "../../lib/localStorageKeys";
 import ChatPanel from "../chat/ChatPanel";
@@ -22,7 +23,17 @@ export default function ProjectBoardView({
   projectRoot: string;
 }) {
   const layout = useBoardLayout();
-  const chatPanel = useResizableWidth(LS_KEYS.projectChatWidth, 380, 300, 560);
+  // The chat takes 25%–70% of this view (everything right of the sidebar),
+  // starting at 30%.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chatPanel = useResizableWidth(
+    LS_KEYS.projectChatWidth,
+    "30%",
+    "25%",
+    "70%",
+    false,
+    containerRef,
+  );
 
   if (layout === "chat") {
     // On its own, a normal centered chat.
@@ -37,6 +48,7 @@ export default function ProjectBoardView({
 
   return (
     <Layout
+      ref={containerRef}
       height="fill"
       content={
         <LayoutContent padding={0} isScrollable={false}>
