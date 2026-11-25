@@ -228,7 +228,7 @@ function ColumnHeader({
     <HStack hAlign="between" vAlign="center">
       <HStack gap={2} vAlign="center">
         <StatusDot variant={STATUS_DOT[status]} label={`${title} status`} />
-        <Heading level={4} accessibilityLevel={2}>
+        <Heading level={4} weight="normal" accessibilityLevel={2}>
           {title}
         </Heading>
         <InfoTip
@@ -503,7 +503,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
         gap={2}
         startContent={
           <>
-            <Heading level={3} accessibilityLevel={1}>
+            <Heading level={3} weight="normal" accessibilityLevel={1}>
               Tasks
             </Heading>
             <Badge label={shownCount} variant="neutral" />

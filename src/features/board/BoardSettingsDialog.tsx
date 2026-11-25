@@ -80,7 +80,9 @@ export default function BoardSettingsDialog({
           <LayoutContent>
             <VStack gap={5}>
               <VStack gap={2}>
-                <Heading level={4}>Agent</Heading>
+                <Heading level={4} weight="normal">
+                  Agent
+                </Heading>
                 <Text type="supporting" color="secondary">
                   What a task's chat starts with, unless the task picks its own
                   or you change it when starting it. Default uses the app's

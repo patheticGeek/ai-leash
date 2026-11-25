@@ -203,7 +203,7 @@ function TitleField({
   if (editing === null) {
     return (
       <HStack gap={2} vAlign="start" hAlign="between">
-        <Heading level={2} maxLines={2}>
+        <Heading level={2} weight="normal" maxLines={2}>
           {title}
         </Heading>
         <IconButton
