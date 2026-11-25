@@ -96,6 +96,16 @@ const styles = stylex.create({
   // in the side nav (`editor how "muted ghost buttons in the side nav"`), so
   // this is the one row that sets it; `--text-supporting-size` is the
   // side-nav-section's (the theme sets it to 14px there).
+  // A flat-layout chat row's label (an `Item`, not a `SideNavItem`); the
+  // size is the side-nav-section's 14px, the colours follow side-nav-item.
+  rowLabel: {
+    fontSize: typeScaleVars["--text-supporting-size"],
+    color: {
+      default: colorVars["--color-text-secondary"],
+      [stylex.when.ancestor(":hover")]: colorVars["--color-text-primary"],
+    },
+  },
+  rowLabelOn: { color: colorVars["--color-text-primary"] },
   showMore: {
     alignSelf: "flex-start",
     color: {
@@ -307,9 +317,26 @@ function ConversationRow({
       {({ actions, endContent }) =>
         hasProjectLine ? (
           <Item
-            label={conversationLabel(conversation)}
-            description={[projectName, branchName].filter(Boolean).join(" · ")}
+            // Styled like a side-nav-item row (the theme's side-nav-item
+            // settings don't reach Item, and an `item` theme change would
+            // hit every menu and list): 14px weight-500 label, secondary at
+            // rest and primary when hovered or selected; the description a
+            // step smaller, muted.
+            label={
+              <Text
+                weight="medium"
+                xstyle={[styles.rowLabel, isSelected && styles.rowLabelOn]}
+              >
+                {conversationLabel(conversation)}
+              </Text>
+            }
+            description={
+              <Text type="supporting" size="sm" color="secondary">
+                {[projectName, branchName].filter(Boolean).join(" · ")}
+              </Text>
+            }
             density="compact"
+            xstyle={stylex.defaultMarker()}
             labelLines={1}
             descriptionLines={1}
             isSelected={isSelected}
