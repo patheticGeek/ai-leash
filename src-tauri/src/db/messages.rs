@@ -9,6 +9,7 @@ use crate::chat::ChatMessage;
 use crate::tools::ToolCall;
 use rusqlite::params;
 use serde::Serialize;
+use std::time::{Duration, Instant};
 
 pub(super) fn title_from_message(content: &str) -> Option<String> {
     let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -111,15 +112,77 @@ pub fn start_streaming_message(
 }
 
 /// Overwrites a streaming message's content in place — see
-/// `start_streaming_message`. Called on every chunk, so this is deliberately
-/// the cheapest possible write (no conversation-row upsert, no tool_calls
-/// touched).
+/// `start_streaming_message`. Deliberately the cheapest possible write (no
+/// conversation-row upsert, no tool_calls touched); streams call it through
+/// `StreamingWrite`, which throttles it, rather than on every chunk.
 pub fn update_streaming_message(db: &Db, message_id: i64, content: &str) {
     let conn = db.0.lock().unwrap();
     let _ = conn.execute(
         "UPDATE messages SET content = ?1 WHERE id = ?2",
         params![content, message_id],
     );
+}
+
+/// How often a streaming message's content is written while it streams.
+/// Every write rewrites the whole buffer and holds the global `Db` lock, so
+/// one per chunk (dozens a second) is far more than durability needs; a
+/// crash mid-stream loses at most this much of the reply.
+pub const STREAMING_WRITE_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Throttles `update_streaming_message` for one streaming message: `update`
+/// writes at most once per `STREAMING_WRITE_INTERVAL` (the first chunk right
+/// away, so the row has content early) and otherwise just remembers that the
+/// row is behind; `flush` writes whatever is still unwritten — called when
+/// the segment closes, the turn ends, or it fails. A `None` message id (no
+/// project root to persist under) makes both no-ops.
+#[derive(Debug)]
+pub struct StreamingWrite {
+    message_id: Option<i64>,
+    last_write: Option<Instant>,
+    dirty: bool,
+}
+
+impl StreamingWrite {
+    pub fn new(message_id: Option<i64>) -> Self {
+        Self {
+            message_id,
+            last_write: None,
+            dirty: false,
+        }
+    }
+
+    /// `content` is the message's whole content so far, not the new chunk.
+    pub fn update(&mut self, db: &Db, content: &str) {
+        self.update_at(db, content, Instant::now());
+    }
+
+    fn update_at(&mut self, db: &Db, content: &str, now: Instant) {
+        if self.message_id.is_none() {
+            return;
+        }
+        let due = self
+            .last_write
+            .is_none_or(|last| now.duration_since(last) >= STREAMING_WRITE_INTERVAL);
+        if due {
+            self.write(db, content, now);
+        } else {
+            self.dirty = true;
+        }
+    }
+
+    pub fn flush(&mut self, db: &Db, content: &str) {
+        if self.dirty {
+            self.write(db, content, Instant::now());
+        }
+    }
+
+    fn write(&mut self, db: &Db, content: &str, now: Instant) {
+        if let Some(id) = self.message_id {
+            update_streaming_message(db, id, content);
+        }
+        self.last_write = Some(now);
+        self.dirty = false;
+    }
 }
 
 /// Final write for a streamed message: content was already kept current by
@@ -270,6 +333,49 @@ mod tests {
             content: content.into(),
             tool_calls: None,
         }
+    }
+
+    fn content_of(db: &Db, id: i64) -> String {
+        db.0.lock()
+            .unwrap()
+            .query_row("SELECT content FROM messages WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn streaming_write_throttles_to_the_interval_and_flushes_the_rest() {
+        let db = temp_db();
+        let id = start_streaming_message(&db, "c", "/p", "assistant");
+        let mut write = StreamingWrite::new(Some(id));
+        let t0 = Instant::now();
+
+        // The first chunk lands right away; the next ones inside the
+        // interval only mark the row behind.
+        write.update_at(&db, "a", t0);
+        assert_eq!(content_of(&db, id), "a");
+        write.update_at(&db, "ab", t0 + Duration::from_millis(100));
+        write.update_at(&db, "abc", t0 + Duration::from_millis(400));
+        assert_eq!(content_of(&db, id), "a");
+
+        // Once the interval has passed, the next chunk writes everything.
+        write.update_at(&db, "abcd", t0 + STREAMING_WRITE_INTERVAL);
+        assert_eq!(content_of(&db, id), "abcd");
+
+        // The tail that arrived since is written by `flush`, and a second
+        // `flush` with nothing new doesn't write again.
+        write.update_at(
+            &db,
+            "abcde",
+            t0 + STREAMING_WRITE_INTERVAL + Duration::from_millis(10),
+        );
+        assert_eq!(content_of(&db, id), "abcd");
+        write.flush(&db, "abcde");
+        assert_eq!(content_of(&db, id), "abcde");
+        update_streaming_message(&db, id, "overwritten");
+        write.flush(&db, "abcde");
+        assert_eq!(content_of(&db, id), "overwritten");
     }
 
     #[test]

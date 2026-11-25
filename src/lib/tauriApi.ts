@@ -670,6 +670,10 @@ export const api = {
   // in `ChatPanel.tsx` pick it up the same as a live agent turn would.
   runShellCommand: (sessionId: string, command: string) =>
     invoke<string>("run_shell_command", { sessionId, command }),
+  // Whether the backend emits `acp://debug` at all (see
+  // `useDebugEventCapture`) — off, it doesn't build the inspector's JSON.
+  setAcpDebugCapture: (enabled: boolean) =>
+    invoke<void>("set_acp_debug_capture", { enabled }),
   getRateLimitResume: (sessionId: string) =>
     invoke<{ message: string; resetAt: number; armed: boolean } | null>(
       "get_rate_limit_resume",

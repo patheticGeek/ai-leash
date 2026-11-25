@@ -183,6 +183,7 @@ pub fn run() {
             acp::elicitation::respond_elicitation,
             tools::shell_tools::run_shell_command,
             acp::rate_limit::get_rate_limit_resume,
+            acp::set_acp_debug_capture,
             acp::rate_limit::arm_rate_limit_resume,
             acp::rate_limit::dismiss_rate_limit_resume,
             acp::get_acp_session_options,

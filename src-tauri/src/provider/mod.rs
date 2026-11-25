@@ -67,14 +67,35 @@ pub struct ModelSummary {
     pub context_length: Option<u64>,
 }
 
-/// Flushes the turn's accumulated content to disk on every chunk that
-/// carries new text — see `chat::start_streaming_assistant_message`. A no-op
-/// when `message_id` is `None` (no resolvable project root to persist under).
+/// Keeps the turn's streaming row on disk current as chunks arrive — see
+/// `chat::start_streaming_assistant_message` — throttled to about two writes
+/// a second (`db::StreamingWrite`). A turn that ends
+/// normally or is cancelled gets its final write from
+/// `db::finish_streaming_message`; one that fails mid-stream calls `flush`
+/// first, so the row keeps everything that arrived. A no-op when
+/// `message_id` is `None` (no resolvable project root to persist under).
 /// Shared by both streaming implementations below.
-fn persist_chunk(app: &AppHandle, message_id: Option<i64>, full_content: &str) {
-    if let Some(id) = message_id {
-        let state = app.state::<AppState>();
-        db::update_streaming_message(&state.db, id, full_content);
+struct ChunkPersister<'a> {
+    app: &'a AppHandle,
+    write: db::StreamingWrite,
+}
+
+impl<'a> ChunkPersister<'a> {
+    fn new(app: &'a AppHandle, message_id: Option<i64>) -> Self {
+        Self {
+            app,
+            write: db::StreamingWrite::new(message_id),
+        }
+    }
+
+    fn chunk(&mut self, full_content: &str) {
+        let state = self.app.state::<AppState>();
+        self.write.update(&state.db, full_content);
+    }
+
+    fn flush(&mut self, full_content: &str) {
+        let state = self.app.state::<AppState>();
+        self.write.flush(&state.db, full_content);
     }
 }
 

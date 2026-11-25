@@ -39,7 +39,7 @@ pub use epics::{
 pub use messages::{
     consecutive_agent_messages, finish_streaming_message, load_messages, save_message,
     save_message_from, set_message_duration, start_streaming_message, update_streaming_message,
-    update_tool_call_args, PersistedMessage,
+    update_tool_call_args, PersistedMessage, StreamingWrite,
 };
 pub use projects::{
     ensure_project, list_projects, project_root_for_id, touch_project, ProjectSummary,
@@ -76,6 +76,13 @@ impl Db {
     pub(crate) fn open(path: PathBuf) -> Self {
         let conn = Connection::open(path).expect("failed to open history database");
         let _ = conn.pragma_update(None, "journal_mode", "WAL");
+        // WAL makes NORMAL safe: a power cut can lose the last few commits,
+        // never corrupt the file — and it skips the fsync on every commit
+        // that FULL does, which the streaming writes would otherwise pay.
+        let _ = conn.pragma_update(None, "synchronous", "NORMAL");
+        // Wait out another connection's write lock (a second app instance,
+        // a `sqlite3` shell) instead of failing with SQLITE_BUSY at once.
+        let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
         let _ = conn.pragma_update(None, "foreign_keys", "ON");
         conn.execute_batch(
             "

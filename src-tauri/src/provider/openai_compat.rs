@@ -3,7 +3,7 @@
 //! and must be concatenated before parsing as JSON.
 
 use super::client::{BackendError, ModelClient, TurnRequest};
-use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary};
+use super::{emit_line_effects, ChunkPersister, LineEffects, ModelSummary};
 use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
@@ -356,6 +356,7 @@ async fn stream_turn_openai(
     let mut stream = resp.bytes_stream();
     let mut buf = String::new();
     let mut accum = OpenAiAccum::default();
+    let mut persisted = ChunkPersister::new(app, message_id);
     let mut done = false;
 
     'outer: while let Some(item) = stream.next().await {
@@ -370,7 +371,10 @@ async fn stream_turn_openai(
 
         let bytes = match item {
             Ok(b) => b,
-            Err(e) => return Err(BackendError::Fatal(e.to_string())),
+            Err(e) => {
+                persisted.flush(&accum.full_content);
+                return Err(BackendError::Fatal(e.to_string()));
+            }
         };
         buf.push_str(&String::from_utf8_lossy(&bytes));
         while let Some(pos) = buf.find('\n') {
@@ -388,7 +392,7 @@ async fn stream_turn_openai(
             }
             let choice_effects = accumulate_openai_data(data, &mut accum);
             if choice_effects.iter().any(|e| e.chunk.is_some()) {
-                persist_chunk(app, message_id, &accum.full_content);
+                persisted.chunk(&accum.full_content);
             }
             for effects in choice_effects {
                 emit_line_effects(app, chunk_event, thinking_event, error_event, effects);

@@ -34,6 +34,8 @@ Its position and size are remembered across restarts.
 Events are kept only in memory for as long as debug mode stays on. Closing
 the panel does not lose anything already captured; turning debug mode off
 does — nothing here is written to disk or included in conversation history.
+With debug mode off the backend doesn't produce these events at all, so it
+costs nothing while you aren't using it.
 
 ## Showing IDs in the title bar
 

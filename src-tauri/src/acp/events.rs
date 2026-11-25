@@ -19,6 +19,20 @@ use tauri::{AppHandle, Emitter, Manager};
 /// filter by id client-side. Nothing here is persisted by the backend —
 /// whether the frontend keeps or drops these is entirely its call (see
 /// `debugSlice.ts`'s capture-only-while-enabled behavior).
+/// Whether anything is capturing `acp://debug` — Settings > Debug's "Enable
+/// debug mode" turns it on (`useDebugEventCapture`, via the
+/// `set_acp_debug_capture` command). Off, `emit_acp_debug` sends nothing, and the
+/// busiest call site (every `session/update`) doesn't even build its JSON.
+static DEBUG_CAPTURE: AtomicBool = AtomicBool::new(false);
+
+pub(super) fn debug_capture_enabled() -> bool {
+    DEBUG_CAPTURE.load(Ordering::Relaxed)
+}
+
+pub(super) fn set_debug_capture(enabled: bool) {
+    DEBUG_CAPTURE.store(enabled, Ordering::Relaxed);
+}
+
 pub(super) fn emit_acp_debug(
     app: &AppHandle,
     session_id: &str,
@@ -26,6 +40,9 @@ pub(super) fn emit_acp_debug(
     event: &str,
     payload: serde_json::Value,
 ) {
+    if !debug_capture_enabled() {
+        return;
+    }
     let _ = app.emit(
         "acp://debug",
         json!({
@@ -92,6 +109,21 @@ pub(super) struct TurnSegment {
     role: SegmentRole,
     message_id: Option<i64>,
     buffer: String,
+    /// Throttles the run's live writes to its DB row (see `StreamingWrite`).
+    write: db::StreamingWrite,
+    /// Only for `Drop`'s final flush.
+    app: AppHandle,
+}
+
+/// However a run ends — closed by the next run or a tool call, the turn
+/// resolving, the turn failing, the next prompt resetting the slot, or the
+/// agent process going away — whatever its throttled writes hadn't saved
+/// yet is written to its row here.
+impl Drop for TurnSegment {
+    fn drop(&mut self) {
+        let state = self.app.state::<AppState>();
+        self.write.flush(&state.db, &self.buffer);
+    }
 }
 
 /// The run currently being streamed into, if any — `None` between runs (a
@@ -100,8 +132,10 @@ pub(super) struct TurnSegment {
 pub(super) type CurrentSegment = Arc<StdMutex<Option<TurnSegment>>>;
 
 /// Closes out whatever run is open on an already-locked slot, leaving it
-/// empty. The DB side needs no action — every chunk already flushed the
-/// run's content live via `update_streaming_message` — this only mirrors a
+/// empty. On the DB side it only writes what the chunks' throttled writes
+/// hadn't saved yet (they keep the row at most `STREAMING_WRITE_INTERVAL`
+/// behind — see `TurnSegment`'s `Drop` for the paths that don't come
+/// through here); otherwise this only mirrors a
 /// finished *assistant* run into `chat_sessions` (`remember_in_memory`), the
 /// same in-memory bookkeeping `push_message` gives tool calls and results.
 /// Thinking runs are never mirrored there: `chat_sessions` is also what a
@@ -109,14 +143,15 @@ pub(super) type CurrentSegment = Arc<StdMutex<Option<TurnSegment>>>;
 /// history if this same session later switches off ACP, and `"thinking"` is
 /// not a role either provider's chat API understands.
 fn close_segment_locked(app: &AppHandle, session_id: &str, slot: &mut Option<TurnSegment>) {
-    let Some(seg) = slot.take() else { return };
+    let Some(mut seg) = slot.take() else { return };
+    let state = app.state::<AppState>();
+    seg.write.flush(&state.db, &seg.buffer);
     if seg.buffer.is_empty() || seg.role != SegmentRole::Assistant {
         return;
     }
-    let state = app.state::<AppState>();
     let message = ChatMessage {
         role: "assistant".into(),
-        content: seg.buffer,
+        content: std::mem::take(&mut seg.buffer),
         tool_calls: None,
     };
     match seg.message_id {
@@ -152,14 +187,14 @@ fn push_segment_chunk(
             role,
             message_id,
             buffer: String::new(),
+            write: db::StreamingWrite::new(message_id),
+            app: app.clone(),
         });
     }
     let seg = slot.as_mut().expect("just inserted above if absent");
     seg.buffer.push_str(text);
-    if let Some(id) = seg.message_id {
-        let state = app.state::<AppState>();
-        db::update_streaming_message(&state.db, id, &seg.buffer);
-    }
+    let state = app.state::<AppState>();
+    seg.write.update(&state.db, &seg.buffer);
 }
 
 /// Set for the duration of a `session/load` call — the agent replays a
@@ -179,13 +214,15 @@ pub(super) fn handle_session_notification(
     suppress_replay: &SuppressReplay,
     update: SessionUpdate,
 ) {
-    emit_acp_debug(
-        app,
-        session_id,
-        "received",
-        "session/update",
-        debug_json(&update),
-    );
+    if debug_capture_enabled() {
+        emit_acp_debug(
+            app,
+            session_id,
+            "received",
+            "session/update",
+            debug_json(&update),
+        );
+    }
     // The command list describes the connection as it is now, not replayed
     // history — a resumed session announces it during `session/load`, and
     // dropping it would leave the composer without commands until the agent

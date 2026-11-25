@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { usePreference } from "@/data/preferences";
+import { api } from "@/lib/tauriApi";
 import { useAppStore } from "../../store";
 
 interface AcpDebugEventPayload {
@@ -16,7 +17,9 @@ interface AcpDebugEventPayload {
  * `debugEvents` — but only while Settings > Debug's "Enable debug mode" is
  * on. Lives at the top level (`App.tsx`), not inside the devtools panel
  * itself, so events keep accumulating whether or not the panel is open;
- * closing the panel only hides the view, it never tears down capture.
+ * closing the panel only hides the view, it never tears down capture. Also
+ * tells the backend whether to emit them at all (`set_acp_debug_capture`),
+ * so with debug mode off it doesn't serialise every ACP update for nobody.
  */
 export function useDebugEventCapture() {
   const debugModeEnabled = usePreference("debugModeEnabled");
@@ -40,10 +43,12 @@ export function useDebugEventCapture() {
       if (disposed) stop();
       else unlisten = stop;
     });
+    void api.setAcpDebugCapture(true);
 
     return () => {
       disposed = true;
       unlisten?.();
+      void api.setAcpDebugCapture(false);
     };
   }, [debugModeEnabled, addDebugEvent, resetDebugState]);
 }
