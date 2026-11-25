@@ -1,0 +1,26 @@
+{
+  "recipe": "astryx-oklch-v2",
+  "modeStrategy": "light-and-dark",
+  "families": [
+    {
+      "id": "neutral",
+      "name": "Neutral",
+      "seed": "#8b8d98",
+      "kind": "neutral",
+      "anchors": [
+        {
+          "mode": "light",
+          "stop": 60,
+          "color": "#8b8d98",
+          "policy": "exact"
+        },
+        {
+          "mode": "dark",
+          "stop": 60,
+          "color": "#8b8d98",
+          "policy": "exact"
+        }
+      ]
+    }
+  ]
+}
