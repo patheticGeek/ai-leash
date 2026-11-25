@@ -13,6 +13,7 @@ import { formatDuration } from "@/lib/format";
 import { type Entry, isToolError } from "../../../../lib/chatEntries";
 import { useAppStore } from "../../../../store";
 import Markdown from "../../../../ui/Markdown";
+import { isSubAgentEntry, isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry, SubtaskThread } from "../../hooks/useChatStream";
 
 // How a transcript's thinking and tool entries become rows of Astryx's
@@ -34,18 +35,33 @@ export function plural(n: number, one: string, many: string): string {
 
 // What an `ActivityGroup` / `WorkSummary` label says it holds.
 export function activitySummary(entries: PanelEntry[], indices: number[]) {
-  const count = (kind: PanelEntry["kind"]) =>
-    indices.filter((i) => entries[i].kind === kind).length;
-  const thoughts = count("thinking");
-  const tools = count("tool");
-  const messages = count("text");
+  let thoughts = 0;
+  let tools = 0;
+  let messages = 0;
+  let subAgents = 0;
+  for (const i of indices) {
+    const entry = entries[i];
+    if (entry.kind === "thinking") thoughts++;
+    else if (entry.kind === "text") messages++;
+    else if (entry.kind === "tool") {
+      // A `spawn_sub_agent` call counts the sub-agents it started (one
+      // when an older entry has no `subtasks`), not as a tool.
+      if (isSubAgentEntry(entry)) {
+        if (!isSubAgentResult(entry)) {
+          subAgents += Math.max(1, entry.subtasks?.length ?? 0);
+        }
+      } else tools++;
+    }
+  }
   return [
     thoughts > 0 && plural(thoughts, "thought", "thoughts"),
     tools > 0 && plural(tools, "tool used", "tools used"),
     messages > 0 && plural(messages, "message", "messages"),
+    subAgents > 0 &&
+      plural(subAgents, "sub-agent spawned", "sub-agents spawned"),
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(" · ");
 }
 
 function firstLine(text: string): string {

@@ -11,11 +11,12 @@ import { turnInset } from "./turnInset";
 const styles = stylex.create({
   // The row's detail is indented past its status icon to its name; the
   // steps inside then take the turn's own inset (`turnInset`) on top. Pull
-  // the steps back by that inset so their icons (and the text of any reply
-  // inside) start at the "Worked for" label: nested, without doubling up.
+  // the steps back by that inset and by --spacing-3 more, so their icons
+  // (and the text of any reply inside) sit about half the label's indent in
+  // from the turn edge: still nested, without a deep step.
   steps: {
-    marginInlineStart: `calc(-1 * ${spacingVars["--spacing-4"]})`,
-    width: `calc(100% + ${spacingVars["--spacing-4"]})`,
+    marginInlineStart: `calc(-1 * (${spacingVars["--spacing-4"]} + ${spacingVars["--spacing-3"]}))`,
+    width: `calc(100% + ${spacingVars["--spacing-4"]} + ${spacingVars["--spacing-3"]})`,
   },
 });
 
@@ -30,9 +31,9 @@ interface WorkSummaryProps {
 }
 
 // A finished turn's thinking, tool calls and intermediate text, folded into
-// one "Worked for <time> · 1 thought, 4 tools used" `ChatToolCalls` row so
-// the transcript shows just the user's message and the reply's closing text
-// (its summary/result). Its detail is the work itself, grouped as it was
+// one "Worked for <time> · 1 thought · 4 tools used · 2 sub-agents spawned"
+// `ChatToolCalls` row so the transcript shows just the user's message and
+// the reply's closing text (its summary/result). Its detail is the work itself, grouped as it was
 // while running (`ActivityGroup`s and intermediate replies). The row owns
 // its open state; its parent keys it on the work's first index, which
 // stays stable as long as `entries` only ever grows (it does).

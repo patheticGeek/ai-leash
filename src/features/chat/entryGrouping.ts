@@ -36,7 +36,10 @@ export type ActivityItem =
 
 export type RenderItem =
   | ActivityItem
-  | { kind: "work"; indices: number[]; replyIndex: number };
+  // `replyIndex` is the reply text that closes the folded work, where
+  // `turnDurations` keys the turn's time; null for work a sub-agent result
+  // cut short before any reply (see `groupEntries`).
+  | { kind: "work"; indices: number[]; replyIndex: number | null };
 
 // The tool entries that stand for a sub-agent: the `spawn_sub_agent` call
 // that starts one (or several) and the `sub_agent_result` entry its finished
@@ -48,6 +51,7 @@ export type RenderItem =
 // started.
 const SUB_AGENT_TOOL =
   /(^|[^a-z0-9])(spawn_sub_agent|sub_agent_result)($|[^a-z0-9_])/i;
+const SUB_AGENT_RESULT = /(^|[^a-z0-9])sub_agent_result($|[^a-z0-9_])/i;
 
 export function isSubAgentEntry(entry: PanelEntry): boolean {
   if (entry.kind !== "tool") return false;
@@ -55,15 +59,21 @@ export function isSubAgentEntry(entry: PanelEntry): boolean {
   return SUB_AGENT_TOOL.test(entry.name);
 }
 
+// A sub-agent's finished result (`chat::record_sub_agent_result`): rendered
+// as its own block (`SubAgentResult`), never inside a group or a fold.
+export function isSubAgentResult(entry: PanelEntry): boolean {
+  return entry.kind === "tool" && SUB_AGENT_RESULT.test(entry.name);
+}
+
 // Groups runs of consecutive thinking/tool entries so the transcript can
 // show only the latest activity by default (see `ActivityGroup`) instead of
 // every individual step — a multi-step agent turn can otherwise bury the
 // actual conversation. Sub-agent entries (`isSubAgentEntry`) are never
 // grouped: each is its own `single` item and ends the run before it, so a
-// sub-agent's start and result always show as rows of their own (the only
-// grouping they share is a finished turn's `work` fold). `indices` restricts
-// grouping to those entries (used for the inside of a collapsed `work`
-// item); defaults to all of them.
+// sub-agent's start and result always show as rows of their own (a start
+// can still sit inside a finished turn's `work` fold; a result never does).
+// `indices` restricts grouping to those entries (used for the inside of a
+// collapsed `work` item); defaults to all of them.
 export function groupActivity(
   entries: PanelEntry[],
   indices: number[] = entries.map((_, i) => i),
@@ -90,13 +100,19 @@ export function groupActivity(
 // user's message and the trailing run of assistant text that closes the
 // reply (thinking, tool calls, intermediate text) — is folded into a single
 // `work` item (see `WorkSummary`), leaving only that final text, which is
-// where the agent's summary/result lives, on show. `replyIndex` is the
-// reply's last text entry, which is where `turnDurations` keys the turn's
-// time. The turn still in flight (`sending`) is left alone so its progress
-// stays visible, as is a turn with no tool/thinking activity or one that
-// didn't end on assistant text (cancelled, failed mid-tool). With
-// `collapse` off (the "Collapse finished turns" preference) this is just
-// `groupActivity`.
+// where the agent's summary/result lives, on show. The turn still in flight
+// (`sending`) is left alone so its progress stays visible, as is a turn
+// with no tool/thinking activity or one that didn't end on assistant text
+// (cancelled, failed mid-tool). With `collapse` off (the "Collapse finished
+// turns" preference) this is just `groupActivity`.
+//
+// A sub-agent result is a boundary, like a user message or a note: it is a
+// `single` item of its own and never inside a fold, and the stretch before
+// it is a segment of its own. A segment that ends on reply text folds as
+// above (the result usually starts the agent's next turn). One the result
+// cut into mid-work (no reply yet) folds too, with `replyIndex` null, once
+// the turn is no longer running — i.e. unless it is part of the in-flight
+// turn (no user message or note after it while `sending`).
 export function groupEntries(
   entries: PanelEntry[],
   sending: boolean,
@@ -107,33 +123,42 @@ export function groupEntries(
   // A note arrives between turns, so it ends one like a user message does.
   const isUserText = (e: PanelEntry) =>
     (e.kind === "text" && e.role === "user") || e.kind === "note";
+  const isBoundary = (e: PanelEntry) => isUserText(e) || isSubAgentResult(e);
   const isReplyText = (e: PanelEntry) =>
     e.kind === "text" && e.role === "assistant";
+  let lastUser = -1;
+  entries.forEach((e, i) => {
+    if (isUserText(e)) lastUser = i;
+  });
   let start = 0;
   while (start < entries.length) {
-    if (isUserText(entries[start])) {
+    if (isBoundary(entries[start])) {
       items.push({ kind: "single", index: start });
       start++;
       continue;
     }
     let end = start;
-    while (end < entries.length && !isUserText(entries[end])) end++;
+    while (end < entries.length && !isBoundary(entries[end])) end++;
     let replyStart = end;
     while (replyStart > start && isReplyText(entries[replyStart - 1])) {
       replyStart--;
     }
     const turn = Array.from({ length: end - start }, (_, k) => start + k);
-    const inFlight = sending && end === entries.length;
-    const hasWork = turn
-      .slice(0, replyStart - start)
-      .some(
-        (i) => entries[i].kind === "thinking" || entries[i].kind === "tool",
-      );
-    if (!inFlight && hasWork && replyStart < end) {
+    const work = turn.slice(0, replyStart - start);
+    const hasWork = work.some(
+      (i) => entries[i].kind === "thinking" || entries[i].kind === "tool",
+    );
+    const hasReply = replyStart < end;
+    const cutByResult = end < entries.length;
+    const inFlight = sending && (end === entries.length || start > lastUser);
+    const fold = hasReply
+      ? hasWork && !(sending && end === entries.length)
+      : hasWork && cutByResult && !inFlight;
+    if (fold) {
       items.push({
         kind: "work",
-        indices: turn.slice(0, replyStart - start),
-        replyIndex: end - 1,
+        indices: work,
+        replyIndex: hasReply ? end - 1 : null,
       });
       items.push(...groupActivity(entries, turn.slice(replyStart - start)));
     } else {

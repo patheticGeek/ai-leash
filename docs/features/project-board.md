@@ -146,8 +146,8 @@ send messages of your own.
 The project chat and a task's chat can message each other. A task's chat
 sends progress, questions or blockers to the project chat; the project
 chat sends instructions or answers to a task by its number. A message from
-another chat shows in the transcript with **From …** above it (click it to
-open the sender). Ask the project chat things like "tell #12 to use the
+another chat shows in the transcript collapsed to one line, **Message from
+…** (click the sender to open its chat, or **Show** to read it). Ask the project chat things like "tell #12 to use the
 new API" or "what's #9 waiting on?".
 
 Whenever a task's turn ends, the project chat hears about it, with the

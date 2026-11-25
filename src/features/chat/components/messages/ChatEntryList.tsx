@@ -21,6 +21,7 @@ import {
   groupActivity,
   groupEntries,
   hasTurnActivity,
+  isSubAgentResult,
   isVisibleFinalChunk,
   type RenderItem,
 } from "../../entryGrouping";
@@ -142,10 +143,10 @@ function useStickOnUserMessage(entries: PanelEntry[], stick: () => void) {
 }
 
 // How the grouped items become `ChatMessageList` rows: a user message is
-// its own `ChatMessage`, a note or local notice its own system row, and
-// everything the agent did in between (activity, folded work, reply text)
-// one assistant `ChatMessage`, so a turn's tool rows, prose and footer
-// share one left edge.
+// its own `ChatMessage`; another chat's message, a note, a local notice or
+// a sub-agent's result its own system row; and everything the agent did in
+// between (activity, folded work, reply text) one assistant `ChatMessage`,
+// so a turn's tool rows, prose and footer share one left edge.
 type Row =
   | { kind: "user"; key: string; item: RenderItem }
   | { kind: "system"; key: string; item: RenderItem }
@@ -156,11 +157,18 @@ function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
   for (const item of items) {
     if (item.kind === "single") {
       const entry = entries[item.index];
-      if (entry.kind === "text" && entry.role === "user") {
+      if (entry.kind === "text" && entry.role === "user" && !entry.from) {
         rows.push({ kind: "user", key: itemKey(item), item });
         continue;
       }
-      if (entry.kind === "note" || entry.kind === "info") {
+      // Another chat's message or note, a local notice, or a sub-agent's
+      // result: a line of its own, outside any agent turn.
+      if (
+        (entry.kind === "text" && entry.role === "user") ||
+        entry.kind === "note" ||
+        entry.kind === "info" ||
+        isSubAgentResult(entry)
+      ) {
         rows.push({ kind: "system", key: itemKey(item), item });
         continue;
       }
@@ -244,7 +252,9 @@ export default function ChatEntryList({
   // Replies whose turn time is already shown on their `WorkSummary` row, so
   // the footer doesn't repeat it.
   const summarizedReplies = new Set(
-    items.flatMap((item) => (item.kind === "work" ? [item.replyIndex] : [])),
+    items.flatMap((item) =>
+      item.kind === "work" && item.replyIndex !== null ? [item.replyIndex] : [],
+    ),
   );
 
   function renderEntry(i: number) {
@@ -288,7 +298,9 @@ export default function ChatEntryList({
         key={itemKey(item)}
         entries={entries}
         indices={item.indices}
-        turnDuration={turnDurations[item.replyIndex]}
+        turnDuration={
+          item.replyIndex === null ? undefined : turnDurations[item.replyIndex]
+        }
       >
         {groupActivity(entries, item.indices).map(renderActivity)}
       </WorkSummary>
