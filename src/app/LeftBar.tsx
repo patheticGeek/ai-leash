@@ -12,6 +12,7 @@ import {
 } from "@astryxdesign/core/DropdownMenu";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
+import { Item } from "@astryxdesign/core/Item";
 import { Kbd } from "@astryxdesign/core/Kbd";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
@@ -238,9 +239,14 @@ function RevealRow({
   );
 }
 
+// In the flat layout (`hasProjectLine`) the row adds a second line,
+// project · branch, since no project group header says which project it's
+// from. `SideNavItem` takes a string label only, so that row is Astryx's
+// two-line `Item` instead.
 function ConversationRow({
   conversation,
   projectName,
+  hasProjectLine,
   isSelected,
   onClick,
   onDelete,
@@ -248,6 +254,7 @@ function ConversationRow({
 }: {
   conversation: ConversationSummary;
   projectName: string;
+  hasProjectLine: boolean;
   isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
@@ -281,15 +288,33 @@ function ConversationRow({
         },
       ]}
     >
-      {({ actions, endContent }) => (
-        <SideNavItem
-          label={conversationLabel(conversation)}
-          isSelected={isSelected}
-          onClick={onClick}
-          endContent={endContent}
-          actions={actions}
-        />
-      )}
+      {({ actions, endContent }) =>
+        hasProjectLine ? (
+          <Item
+            label={conversationLabel(conversation)}
+            description={[projectName, branchName].filter(Boolean).join(" · ")}
+            density="compact"
+            labelLines={1}
+            descriptionLines={1}
+            isSelected={isSelected}
+            onClick={onClick}
+            endContent={
+              <HStack gap={1} vAlign="center">
+                {endContent}
+                {actions}
+              </HStack>
+            }
+          />
+        ) : (
+          <SideNavItem
+            label={conversationLabel(conversation)}
+            isSelected={isSelected}
+            onClick={onClick}
+            endContent={endContent}
+            actions={actions}
+          />
+        )
+      }
     </RevealRow>
   );
 }
@@ -667,6 +692,7 @@ export default function LeftBar({
       key={c.id}
       conversation={c}
       projectName={projectName(c.projectRoot)}
+      hasProjectLine={isFlat}
       isSelected={c.id === activeSessionId}
       onClick={() => openConversation(c.id)}
       onDelete={() => setPendingDelete(c)}
