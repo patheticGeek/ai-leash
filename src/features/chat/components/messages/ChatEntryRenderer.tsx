@@ -1,10 +1,12 @@
 import { ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat";
 import { Icon } from "@astryxdesign/core/Icon";
-import { Inbox, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import Markdown from "../../../../ui/Markdown";
+import { isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
-import FromChat, { useChatLabel } from "./FromChat";
+import { InterChatMessage } from "./FromChat";
 import MessageFooter from "./MessageFooter";
+import SubAgentResult from "./SubAgentResult";
 import SystemNotice from "./SystemNotice";
 import { toolCallFor } from "./toolCalls";
 import { turnInset } from "./turnInset";
@@ -27,25 +29,6 @@ export interface ChatEntryRendererProps {
   allowRetry: boolean;
 }
 
-function firstLine(text: string): string {
-  return text.trim().split("\n")[0] ?? "";
-}
-
-// A note another chat left (`board::messaging`): its sender and first line,
-// with Show for the whole note.
-function NoteRow({ from, content }: { from: string | null; content: string }) {
-  const label = useChatLabel(from);
-  return (
-    <SystemNotice
-      icon={<Icon icon={Inbox} size="sm" />}
-      label={`Note from ${label}`}
-      summary={firstLine(content)}
-    >
-      <Markdown content={content} />
-    </SystemNotice>
-  );
-}
-
 // A local notice ("Conversation compacted: …"): its first line, with Show
 // for the rest when there is more.
 function InfoRow({ content }: { content: string }) {
@@ -60,9 +43,10 @@ function InfoRow({ content }: { content: string }) {
 
 // Renders one transcript entry as its Astryx chat part — the counterpart to
 // `ChatEntryList.tsx`, which groups entries (`entryGrouping.ts`) and wraps
-// them in `ChatMessage`s. A user message is a filled bubble (with "From …"
-// in its name slot when another chat sent it); an assistant reply is a
-// full-width ghost bubble; notes and local notices are `SystemNotice`s; a
+// them in `ChatMessage`s. A user message is a filled bubble; one another
+// chat sent, and a note, is a collapsed `InterChatMessage` line; an
+// assistant reply is a full-width ghost bubble; local notices and sub-agent
+// results (`SubAgentResult`) are `SystemNotice`s; a
 // lone thinking/tool entry is a one-row `ChatToolCalls` (runs of them go
 // through `ActivityGroup`). Also reused as-is by `SubAgentChatTab.tsx` (via
 // `ChatEntryList`) with `allowRetry` off.
@@ -81,7 +65,25 @@ export default function ChatEntryRenderer({
   if (entry.kind === "info") return <InfoRow content={entry.content} />;
 
   if (entry.kind === "note") {
-    return <NoteRow from={entry.from} content={entry.content} />;
+    return (
+      <InterChatMessage
+        kind="note"
+        from={entry.from}
+        content={entry.content}
+        time={entry.time}
+      />
+    );
+  }
+
+  if (entry.kind === "text" && entry.role === "user" && entry.from) {
+    return (
+      <InterChatMessage
+        kind="message"
+        from={entry.from}
+        content={entry.content}
+        time={entry.time}
+      />
+    );
   }
 
   if (entry.kind === "text") {
@@ -99,10 +101,7 @@ export default function ChatEntryRenderer({
     ) : undefined;
     if (isUser) {
       return (
-        <ChatMessageBubble
-          name={entry.from ? <FromChat id={entry.from} /> : undefined}
-          metadata={footer}
-        >
+        <ChatMessageBubble metadata={footer}>
           <Markdown content={entry.content} />
         </ChatMessageBubble>
       );
@@ -115,6 +114,10 @@ export default function ChatEntryRenderer({
         {footer}
       </>
     );
+  }
+
+  if (isSubAgentResult(entry) && entry.kind === "tool") {
+    return <SubAgentResult entry={entry} />;
   }
 
   const call = toolCallFor(entry, index, isLast);

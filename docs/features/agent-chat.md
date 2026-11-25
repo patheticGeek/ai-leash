@@ -78,17 +78,34 @@ Consecutive thinking and tool steps form a group, shown as its latest step
 with **Show N more** under it; click it to list the earlier steps above (the
 button becomes **Show less**). A group stays collapsed while it grows, so
 the newest step is always the one on show. Sub-agent steps are never part of
-a group: starting sub-agents (`spawn_sub_agent`) and each sub-agent result
-that comes back always get a row of their own, and they split the steps
-around them into separate groups. The only grouping they share is the
-**Worked for** row below.
+a group: starting sub-agents (`spawn_sub_agent`) always gets a row of its
+own and splits the steps around it into separate groups.
+
+A sub-agent's result, when it comes back, is a block of its own rather than
+a tool row: a one-line system message, **Sub-agent finished · *task* ·
+Done** (or **Failed**), with an **Open** button that opens the sub-agent's
+transcript in a tab, and **Show**/**Hide** for the result text (open from
+the start when the result is short, collapsed when it is long). It is
+never inside a group or a **Worked for** row.
 
 Once a reply is complete, everything the agent did before its closing
 message — thinking, tool calls and any text in between — folds into a single
 **Worked for** row showing how long the turn took and what it did ("1
-thought, 4 tools used"), so only your message and the agent's final summary
-stay on show. Click the row to see every step, grouped as it was while the
-agent worked, indented to line up with the **Worked for** label.
+thought · 4 tools used · 2 messages · 3 sub-agents spawned"; only the counts
+that aren't zero, and a `spawn_sub_agent` call counts as the sub-agents it
+started rather than as a tool), so only your message and the agent's final
+summary stay on show. Click the row to see every step, grouped as it was
+while the agent worked, indented a little from the turn's edge (about half
+the **Worked for** label's indent) so they read as nested.
+A sub-agent result ends the fold like a message does: the steps before it
+fold into their own **Worked** row (once the turn is over, and without a
+time if no reply came before the result), the result sits after it, and the
+steps after it fold into the next one. For example, a finished turn
+`[you, thought, read, spawn, grep, result, edit, reply]` shows as *you ·
+Worked (1 thought · 2 tools used · 1 sub-agent spawned) · Sub-agent finished
+· Worked for … (1 tool used) · reply*; while it is still running, the steps
+show as groups instead: *you · [thought, read] · spawn · [grep] · Sub-agent
+finished · [edit] · reply*.
 While the agent is still working, its steps stay visible as they happen. To
 keep every step on show instead, turn off **Collapse finished turns** in
 Settings > Chat.
@@ -107,9 +124,13 @@ works, the end of its reply shows a spinner with **Working for** and the
 elapsed time (**Waiting** until it produces anything). The timing stays
 accurate if you switch to another conversation while the agent works.
 
-Notes another chat left, and local notices such as **Conversation
-compacted**, appear as centred one-line system messages with an icon; click
-**Show** to read the whole note. An empty conversation (for example after
+Messages from other chats — a task chat's message to the project chat or
+the other way round, and notes another chat left — appear collapsed, as a
+centred one-line system message: **Message from #42 · *title*** (or **from
+Project chat**; **Note from …** for a note), where the sender is a link that
+opens that chat. Click **Show** to read the whole message; whether you left
+it open is remembered for the rest of the session. Local notices such as
+**Conversation compacted** are one-line system messages too. An empty conversation (for example after
 `/clear`) says so; while a saved conversation loads, the transcript shows
 placeholder rows in the shape of messages at the bottom, where the latest
 messages will appear, and if it can't be read, it says
