@@ -5,7 +5,7 @@ import { IconButton } from "@astryxdesign/core/IconButton";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { HStack, StackItem, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
-import { Heading, Text } from "@astryxdesign/core/Text";
+import { Text } from "@astryxdesign/core/Text";
 import {
   borderVars,
   colorVars,
@@ -171,9 +171,9 @@ export function TaskCardBody({
           ]}
         />
       </HStack>
-      <Heading level={4} accessibilityLevel={3} maxLines={2}>
+      <Text as="h3" maxLines={2}>
         {task.title}
-      </Heading>
+      </Text>
       <HStack hAlign="between" vAlign="center" gap={2}>
         {showEpic && epic ? <EpicToken epic={epic} /> : <StackItem />}
         <CardAction task={task} handlers={handlers} />

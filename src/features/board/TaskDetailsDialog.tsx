@@ -70,11 +70,7 @@ function useLastReply(conversationId: string | null, isWorking: boolean) {
 }
 
 function WorkingFor({ startedAtMs }: { startedAtMs: number }) {
-  return (
-    <Text weight="semibold" hasTabularNumbers>
-      Working for {useElapsed(startedAtMs)}
-    </Text>
-  );
+  return <Text hasTabularNumbers>Working for {useElapsed(startedAtMs)}</Text>;
 }
 
 // "Its chat": Start (not started), or the chat's live state — a pulsing
@@ -106,7 +102,7 @@ function ChatState({
           <StatusDot variant="neutral" label="Not started" />
           <StackItem size="fill">
             <VStack gap={0}>
-              <Text weight="semibold">Not started</Text>
+              <Text>Not started</Text>
               <Text type="supporting" color="secondary">
                 {!canStart
                   ? "It was finished without a chat."
@@ -147,7 +143,7 @@ function ChatState({
               {active && startedAtMs != null ? (
                 <WorkingFor startedAtMs={startedAtMs} />
               ) : (
-                <Text weight="semibold">{active ? "Working" : "Idle"}</Text>
+                <Text>{active ? "Working" : "Idle"}</Text>
               )}
               {conversation && (
                 <Text type="supporting" color="secondary">

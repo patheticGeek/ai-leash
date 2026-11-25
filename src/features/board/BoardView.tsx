@@ -674,7 +674,7 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
                   {lane.epic ? (
                     <EpicToken epic={lane.epic} size="md" />
                   ) : (
-                    <Text weight="semibold">{lane.label}</Text>
+                    <Text>{lane.label}</Text>
                   )}
                   <Text type="supporting" color="secondary" hasTabularNumbers>
                     {count} {count === 1 ? "task" : "tasks"}
