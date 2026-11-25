@@ -135,7 +135,15 @@ function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
 
 // A chat row's end slot: a warning dot while the agent waits on the user
 // (pulsing for an approval), else elapsed time and a spinner while it works.
-function ChatStatus({ conversationId }: { conversationId: string }) {
+// `isCompact` (while the row's ⋯ shows next to it) drops the elapsed time so
+// the title keeps room; the spinner or dot stays.
+function ChatStatus({
+  conversationId,
+  isCompact = false,
+}: {
+  conversationId: string;
+  isCompact?: boolean;
+}) {
   const { active: generating, startedAtMs } = useGenerating(conversationId);
   const awaitingApproval = useAppStore(
     (s) => !!permissionForSession(s.pendingPermissions, conversationId),
@@ -165,7 +173,9 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
   if (generating) {
     return (
       <HStack gap={1.5} vAlign="center">
-        {startedAtMs != null && <ElapsedTime startedAtMs={startedAtMs} />}
+        {!isCompact && startedAtMs != null && (
+          <ElapsedTime startedAtMs={startedAtMs} />
+        )}
         <Spinner size="sm" aria-label="Working" />
       </HStack>
     );
@@ -176,22 +186,23 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
 // A sidebar row with its options in a `MoreMenu` revealed on hover/focus
 // (the shell-side-nav template's ConversationItem), the same items on
 // right-click. At rest the ⋯ takes no space, so the title uses the whole
-// row; on hover/focus it swaps places with the row's end content (status),
-// which is unmounted then, so only the title's truncation point moves. The
-// hover/focus state is tracked here (not left to the hook's CSS) so the ⋯
-// and the status swap at the same moment.
+// row and the row's end content (status) sits at its end. On hover/focus, or
+// while the menu is open, the ⋯ joins it: SideNavItem renders `endContent`
+// inside the row's button and `actions` after it, so it reads status, then
+// ⋯. `isRevealed` tells the row the ⋯ is showing, so it can compact its
+// status (a chat drops its elapsed time, a board its counts) to leave the
+// title room. The hover/focus state is tracked here (not left to the hook's
+// CSS) so the ⋯ and the compact status change at the same moment.
 function RevealRow({
   menuLabel,
   items,
   tooltip,
-  endContent,
   children,
 }: {
   menuLabel: string;
   items: DropdownMenuOption[];
   tooltip?: string;
-  endContent?: ReactNode;
-  children: (slots: { actions: ReactNode; endContent: ReactNode }) => ReactNode;
+  children: (slots: { actions: ReactNode; isRevealed: boolean }) => ReactNode;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -220,7 +231,7 @@ function RevealRow({
               />
             </RevealedActions>
           ),
-          endContent: isActive ? undefined : endContent,
+          isRevealed: isActive,
         })}
       </Stack>
     </ContextMenu>
@@ -265,7 +276,6 @@ function ConversationRow({
     <RevealRow
       menuLabel="Conversation options"
       tooltip={[projectName, workspace, branchName].filter(Boolean).join(" · ")}
-      endContent={<ChatStatus conversationId={conversation.id} />}
       items={[
         {
           label: "Mark as done",
@@ -281,12 +291,17 @@ function ConversationRow({
         },
       ]}
     >
-      {({ actions, endContent }) => (
+      {({ actions, isRevealed }) => (
         <SideNavItem
           label={conversationLabel(conversation)}
           isSelected={isSelected}
           onClick={onClick}
-          endContent={endContent}
+          endContent={
+            <ChatStatus
+              conversationId={conversation.id}
+              isCompact={isRevealed}
+            />
+          }
           actions={actions}
         />
       )}
@@ -350,7 +365,7 @@ function BoardRow({
   isSelected,
   onClick,
   actions,
-  hideEnd = false,
+  hideCounts = false,
 }: {
   label?: string;
   summary: BoardSummary | undefined;
@@ -358,12 +373,14 @@ function BoardRow({
   isSelected: boolean;
   onClick: () => void;
   actions?: ReactNode;
-  // Hides the counts while a revealed ⋯ takes their place.
-  hideEnd?: boolean;
+  // Hides the counts (keeping the spinner) while a revealed ⋯ sits next to
+  // them, so the title keeps room.
+  hideCounts?: boolean;
 }) {
   const { active: generating } = useGenerating(chatId ?? "");
-  const hasEnd =
-    !hideEnd && (generating || !!summary?.inProgress || !!summary?.review);
+  const inProgress = hideCounts ? 0 : (summary?.inProgress ?? 0);
+  const review = hideCounts ? 0 : (summary?.review ?? 0);
+  const hasEnd = generating || !!inProgress || !!review;
   return (
     <SideNavItem
       label={label}
@@ -375,18 +392,18 @@ function BoardRow({
         hasEnd ? (
           <HStack gap={1.5} vAlign="center">
             {generating && <Spinner size="sm" aria-label="Working" />}
-            {!!summary?.inProgress && (
+            {!!inProgress && (
               <Badge
                 variant="info"
-                label={summary.inProgress}
-                aria-label={`${summary.inProgress} in progress`}
+                label={inProgress}
+                aria-label={`${inProgress} in progress`}
               />
             )}
-            {!!summary?.review && (
+            {!!review && (
               <Badge
                 variant="warning"
-                label={summary.review}
-                aria-label={`${summary.review} in review`}
+                label={review}
+                aria-label={`${review} in review`}
               />
             )}
           </HStack>
@@ -747,9 +764,6 @@ export default function LeftBar({
                 key={p.path}
                 menuLabel="Project options"
                 tooltip={p.path}
-                // Only a marker: `RevealRow` drops it while the ⋯ shows, which
-                // is when the board's counts give way.
-                endContent
                 items={[
                   {
                     label: "Remove project",
@@ -759,7 +773,7 @@ export default function LeftBar({
                   },
                 ]}
               >
-                {({ actions, endContent }) => (
+                {({ actions, isRevealed }) => (
                   <BoardRow
                     label={p.name}
                     summary={boardSummaries.find(
@@ -769,7 +783,7 @@ export default function LeftBar({
                     isSelected={!!boardChat && boardChat.id === activeSessionId}
                     onClick={() => void openProjectBoard(p.path)}
                     actions={actions}
-                    hideEnd={!endContent}
+                    hideCounts={isRevealed}
                   />
                 )}
               </RevealRow>
