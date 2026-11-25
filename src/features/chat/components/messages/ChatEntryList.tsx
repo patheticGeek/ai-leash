@@ -9,6 +9,7 @@ import * as stylex from "@stylexjs/stylex";
 import {
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -104,6 +105,10 @@ const styles = stylex.create({
   },
   latestAt: (bottom: number) => ({ bottom }),
 });
+
+// The default `onRetry`/`onReloadHistory`: one function, not a new closure
+// per render, so the `memo`'d rows don't re-render for it.
+function noop() {}
 
 // Keyed on an item's first index, which stays stable as long as `entries`
 // only ever grows (it does).
@@ -231,17 +236,31 @@ export default function ChatEntryList({
   leading = null,
   historyLoaded = true,
   historyError = null,
-  onReloadHistory = () => {},
+  onReloadHistory = noop,
   sending,
   turnDurations,
   replyStartedAt,
-  onRetry = () => {},
+  onRetry = noop,
   allowRetry = true,
   isCompact = false,
   bottomInset = 0,
 }: ChatEntryListProps) {
   const collapseFinishedTurns = usePreference("collapseFinishedTurns");
   const { copy, copiedKey: copiedIndex } = useCopyToClipboard<number>();
+  // Stable callbacks for the `memo`'d rows (`ChatEntryRenderer`): a new
+  // closure per render would re-render every row on every streamed chunk.
+  // `onRetry` is read through a ref so the caller needn't keep it stable.
+  const copyRef = useRef(copy);
+  const retryRef = useRef(onRetry);
+  useEffect(() => {
+    copyRef.current = copy;
+    retryRef.current = onRetry;
+  });
+  const copyEntry = useCallback(
+    (text: string, index: number) => copyRef.current(text, index),
+    [],
+  );
+  const retry = useCallback(() => retryRef.current(), []);
   // Following the end — including the initial jump there — and whether to
   // offer the scroll-to-bottom button are `useStickToEnd`'s.
   const { viewportRef, contentRef, stick, atEnd } = useStickToEnd();
@@ -270,8 +289,8 @@ export default function ChatEntryList({
         isLast={i === entries.length - 1}
         sending={sending}
         copied={copiedIndex === i}
-        onCopy={() => copy(entry.kind === "text" ? entry.content : "", i)}
-        onRetry={onRetry}
+        onCopy={copyEntry}
+        onRetry={retry}
         turnDuration={summarizedReplies.has(i) ? undefined : turnDurations[i]}
         showFooter={showFooter}
         allowRetry={allowRetry}

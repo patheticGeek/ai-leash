@@ -2,7 +2,7 @@
 //! tool_calls sent whole (not incrementally) right before the final `done`.
 
 use super::client::{BackendError, ModelClient, TurnRequest};
-use super::{emit_line_effects, persist_chunk, LineEffects, ModelSummary, ProviderConfig};
+use super::{emit_line_effects, ChunkPersister, LineEffects, ModelSummary, ProviderConfig};
 use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
 use crate::tools::{self, ToolCall};
@@ -261,6 +261,7 @@ async fn stream_turn_ollama(
     let mut stream = resp.bytes_stream();
     let mut buf = String::new();
     let mut accum = OllamaAccum::default();
+    let mut persisted = ChunkPersister::new(app, message_id);
 
     'outer: while let Some(item) = stream.next().await {
         if cancel_flag.load(Ordering::SeqCst) {
@@ -274,7 +275,10 @@ async fn stream_turn_ollama(
 
         let bytes = match item {
             Ok(b) => b,
-            Err(e) => return Err(BackendError::Fatal(e.to_string())),
+            Err(e) => {
+                persisted.flush(&accum.full_content);
+                return Err(BackendError::Fatal(e.to_string()));
+            }
         };
         buf.push_str(&String::from_utf8_lossy(&bytes));
         while let Some(pos) = buf.find('\n') {
@@ -285,7 +289,7 @@ async fn stream_turn_ollama(
             }
             let effects = accumulate_ollama_line(&line, &mut accum);
             if effects.chunk.is_some() {
-                persist_chunk(app, message_id, &accum.full_content);
+                persisted.chunk(&accum.full_content);
             }
             emit_line_effects(app, chunk_event, thinking_event, error_event, effects);
             if accum.done {

@@ -3,8 +3,9 @@ import { execSync } from "node:child_process";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
+import babel from "@rolldown/plugin-babel";
 import stylex from "@stylexjs/unplugin";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -27,7 +28,15 @@ export default defineConfig(() => ({
   // declaration. Ours is emitted unlayered, so it would lift every Astryx
   // element using that class above the `astryx-theme` layer and silently
   // undo theme component overrides. A prefix of our own keeps them apart.
-  plugins: [stylex.vite({ classNamePrefix: "al" }), react()],
+  //
+  // React Compiler (via Babel) auto-memoizes components and hooks, so a
+  // streamed chunk re-renders only the transcript row it changed instead of
+  // re-rendering (and re-parsing the Markdown of) every message.
+  plugins: [
+    stylex.vite({ classNamePrefix: "al" }),
+    react(),
+    babel({ presets: [reactCompilerPreset()] }),
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

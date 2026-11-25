@@ -1,6 +1,7 @@
 import { ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Info } from "lucide-react";
+import { memo } from "react";
 import Markdown from "../../../../ui/Markdown";
 import { isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
@@ -18,7 +19,9 @@ export interface ChatEntryRendererProps {
   isLast: boolean;
   sending: boolean;
   copied: boolean;
-  onCopy: () => void;
+  // Shared by every row (it gets the row's own text and index), so it can
+  // stay one stable function and a row only re-renders when it changes.
+  onCopy: (text: string, index: number) => void;
   onRetry: () => void;
   turnDuration: number | undefined;
   showFooter: boolean;
@@ -49,8 +52,11 @@ function InfoRow({ content }: { content: string }) {
 // results (`SubAgentResult`) are `SystemNotice`s; a
 // lone thinking/tool entry is a one-row `ChatToolCalls` (runs of them go
 // through `ActivityGroup`). Also reused as-is by `SubAgentChatTab.tsx` (via
-// `ChatEntryList`) with `allowRetry` off.
-export default function ChatEntryRenderer({
+// `ChatEntryList`) with `allowRetry` off. `memo`'d: while a reply streams
+// only the entry it grows gets a new object (`chatEntries.ts`), so every
+// other row skips the re-render, given the stable props `ChatEntryList`
+// passes.
+function ChatEntryRenderer({
   entry,
   index,
   isLast,
@@ -92,7 +98,7 @@ export default function ChatEntryRenderer({
       <MessageFooter
         time={entry.time}
         copied={copied}
-        onCopy={onCopy}
+        onCopy={() => onCopy(entry.content, index)}
         showRetry={!isUser && !sending && isLast && allowRetry}
         onRetry={onRetry}
         turnDuration={isUser ? undefined : turnDuration}
@@ -125,3 +131,5 @@ export default function ChatEntryRenderer({
     <ChatToolCalls calls={[call]} xstyle={turnInset.inset} />
   ) : null;
 }
+
+export default memo(ChatEntryRenderer);

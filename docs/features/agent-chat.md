@@ -519,7 +519,19 @@ never asks you anything.
 ## Conversation display and persistence
 
 The panel keeps the visible transcript synchronized while a response is
-streaming and restores saved messages when you reopen a project. A
+streaming and restores saved messages when you reopen a project. Streamed
+text is applied to the transcript once per animation frame rather than once
+per chunk, and only the message that is growing re-renders — earlier
+messages aren't re-parsed as a reply streams in, however long the
+conversation. A sub-agent's stream updates only its own row under the
+spawning tool call and its own tab, not the parent conversation's
+transcript.
+
+A streaming reply (or thinking run) is saved to disk while it arrives, about
+twice a second rather than on every chunk, and in full when the run ends —
+when a tool call or the other kind of output starts, the turn finishes, or
+it fails. If the app quits mid-reply, the saved message keeps everything but
+roughly the last half second of text. A
 conversation receives a fallback title from its first request; an external
 agent may later provide a more descriptive title.
 

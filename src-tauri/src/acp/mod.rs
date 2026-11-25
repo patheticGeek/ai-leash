@@ -345,3 +345,11 @@ pub(crate) async fn refresh_acp_catalog_in_background(app: AppHandle) {
         }
     }
 }
+
+/// Turns `acp://debug` events on or off — called by the frontend's capture
+/// hook (`useDebugEventCapture`) as debug mode is enabled and disabled, so
+/// the inspector's JSON isn't built for every update when nothing listens.
+#[tauri::command]
+pub fn set_acp_debug_capture(enabled: bool) {
+    events::set_debug_capture(enabled);
+}
