@@ -304,6 +304,7 @@ pub(crate) fn send_message(
     if from_project_chat && !task.engaged_with_project {
         db::set_task_engaged(&state.db, &task.id, true);
         emit_board_changed_for(app, &state, &task.project_id, Some(&task.id), "engaged");
+        crate::acp::rate_limit::publish(app, &target);
     }
     Ok(match wake(app, &target, &from, text)? {
         Delivered::Now => format!(
@@ -330,6 +331,7 @@ pub(crate) fn on_user_message(app: &AppHandle, session_id: &str) {
         if task.engaged_with_project {
             db::set_task_engaged(&state.db, &task.id, false);
             emit_board_changed_for(app, &state, &task.project_id, Some(&task.id), "released");
+            crate::acp::rate_limit::publish(app, session_id);
         }
     }
 }
@@ -400,6 +402,10 @@ pub fn set_task_engaged(app: AppHandle, task_id: String, engaged: bool) -> Resul
     let task = db::get_task(&state.db, &task_id).ok_or("no such task")?;
     db::set_task_engaged(&state.db, &task_id, engaged);
     emit_board_changed_for(&app, &state, &task.project_id, Some(&task_id), "engaged");
+    // A followed task chat hides its limit banner (the project chat has it).
+    if let Some(conversation_id) = &task.conversation_id {
+        crate::acp::rate_limit::publish(&app, conversation_id);
+    }
     Ok(())
 }
 

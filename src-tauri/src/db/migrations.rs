@@ -25,6 +25,7 @@ const MIGRATIONS: &[Migration] = &[
     v6_project_boards,
     v7_agent_defaults,
     v8_drop_empty_project_chats,
+    v9_rate_limits,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -354,6 +355,26 @@ fn v8_drop_empty_project_chats(conn: &Connection) {
     .expect("failed to drop empty project chats");
 }
 
+/// The pending usage limit is now recorded from the ACP prompt error
+/// (`rate_limits`) instead of being inferred from the newest transcript
+/// message, so the old per-notice answers in `rate_limit_resumes` refer to
+/// nothing and are dropped. The baseline schema creates `rate_limits`.
+fn v9_rate_limits(conn: &Connection) {
+    conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS rate_limit_resumes;
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            conversation_id TEXT PRIMARY KEY,
+            reset_at_ms INTEGER NOT NULL,
+            kind TEXT,
+            message TEXT NOT NULL,
+            armed INTEGER
+        );
+        ",
+    )
+    .expect("failed to create rate_limits");
+}
+
 fn has_table(conn: &Connection, table: &str) -> bool {
     conn.query_row(
         "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
@@ -510,12 +531,12 @@ mod tests {
             .collect::<rusqlite::Result<_>>()
             .unwrap();
         assert_eq!(ids, ["owner", "plain", "sub", "used"]);
-        for table in ["acp_agent_sessions", "rate_limit_resumes"] {
-            let n: i64 = conn
-                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
-                .unwrap();
-            assert_eq!(n, 0, "{table}");
-        }
+        // v9 then drops `rate_limit_resumes` altogether.
+        assert!(!has_table(&conn, "rate_limit_resumes"));
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM acp_agent_sessions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
     }
 
     #[test]

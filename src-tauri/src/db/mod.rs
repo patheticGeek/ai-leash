@@ -45,7 +45,8 @@ pub use projects::{
     ensure_project, list_projects, project_root_for_id, touch_project, ProjectSummary,
 };
 pub use rate_limit::{
-    armed_rate_limit_conversations, get_rate_limit_choice, last_message, set_rate_limit_choice,
+    armed_rate_limit_conversations, clear_pending_rate_limit, get_pending_rate_limit,
+    set_pending_rate_limit, set_rate_limit_choice,
 };
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent_for_parent, list_sub_agents_for_parent,
@@ -121,10 +122,12 @@ impl Db {
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (conversation_id, launch_command)
             );
-            CREATE TABLE IF NOT EXISTS rate_limit_resumes (
+            CREATE TABLE IF NOT EXISTS rate_limits (
                 conversation_id TEXT PRIMARY KEY,
-                message_id INTEGER NOT NULL,
-                armed INTEGER NOT NULL
+                reset_at_ms INTEGER NOT NULL,
+                kind TEXT,
+                message TEXT NOT NULL,
+                armed INTEGER
             );
             CREATE TABLE IF NOT EXISTS action_last_run (
                 checkout_path TEXT PRIMARY KEY,

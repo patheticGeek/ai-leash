@@ -462,19 +462,32 @@ its arguments to that agent.
 The available list can change when an external agent connects or updates its
 session. Built-in commands take precedence when they have the same name.
 
-## Claude session limits
+## Usage limits
 
-When Claude Code reports that you have hit its session limit, the chat shows
-a warning banner with the time the limit resets. Choose **Yes, resume
+When an agent's turn fails because you've hit a usage limit (Claude Code's
+5-hour or weekly limit), the chat shows a warning banner — "Claude 5-hour
+usage limit reached" — with the time the limit resets. Choose **Yes, resume
 automatically** and AI Leash sends a "continue working" message for you once
 the limit has reset; choose **No** to handle it yourself. Once an automatic
 resume is armed, the banner counts down to it ("resuming in 1:42:07"), and
 **Don't resume** turns it off.
 
-An armed resume keeps waiting if you switch conversations or quit and reopen
-the app, because the limit is read from the saved conversation. If the reset
-time has already passed when you open it, the banner offers **Yes, continue**
-instead. Sending any message of your own ends the pending limit.
+The limit is read from the failed prompt's ACP (JSON-RPC) error rather than
+from the wording of the message: error data with `errorKind: "rate_limit"`
+marks it, and `rateLimit.resetsAt` gives the reset time. If an agent leaves
+`resetsAt` out, the time printed after "resets" in the message is used
+instead ("12:40pm", "1am", "13:05", "Sep 17, 3:30am"). AI Leash saves the
+pending limit with the conversation, so an armed resume keeps waiting if you
+switch conversations or quit and reopen the app, and later rows in the
+transcript (the error itself, board notes) don't hide it. If the reset time
+has already passed when you open it, the banner offers **Yes, continue**
+instead. The limit ends when a message goes out — your own, a wake from the
+project chat, or the automatic resume — or when a turn completes.
+
+The banner shows in normal chats, the project chat, and board task chats the
+project chat isn't following. A task chat the project chat is following
+doesn't show it, since the project chat handles that task; handing the task
+back to you brings the banner back.
 
 ## Connection status and errors
 
@@ -505,7 +518,7 @@ ordered by severity, top to bottom:
    couldn't be restored (**Start new session**). An error banner can be
    dismissed; the next, different error shows again.
 2. **Warnings** — something needs a decision or your attention: earlier
-   history not shared with the agent, and Claude's session limit.
+   history not shared with the agent, and an agent's usage limit.
 3. **Info** — state you can change: a board task's chat that the project
    chat isn't following (**Hand back to project chat**), and the `/help`
    command list.

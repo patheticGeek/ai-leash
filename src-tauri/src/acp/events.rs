@@ -235,7 +235,9 @@ pub(super) fn handle_session_notification(
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
             if let ContentBlock::Text(text) = chunk.content {
-                if super::rate_limit::is_session_limit_notice(&text.text) {
+                // A usage-limit notice gets a message of its own; the
+                // banner itself comes from the prompt's error.
+                if super::rate_limit::is_limit_notice(&text.text) {
                     let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);
                     push_segment_chunk(
                         app,
@@ -245,7 +247,6 @@ pub(super) fn handle_session_notification(
                         &text.text,
                     );
                     close_segment(app, session_id, current_segment);
-                    super::rate_limit::publish(app, session_id);
                     return;
                 }
                 let _ = app.emit(&format!("chat://{session_id}/chunk"), &text.text);

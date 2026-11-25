@@ -713,6 +713,7 @@ async fn drive_acp_connection(
                                 // resolved — close it out so its bookkeeping
                                 // (see `close_segment`) isn't lost.
                                 close_segment(&app, &session_id, &current_segment);
+                                super::rate_limit::on_turn_completed(&app, &session_id);
                                 let _ = app.emit(&format!("chat://{session_id}/done"), ());
                                 if let Some(tx) = done_tx {
                                     let _ = tx.send(Ok(()));
@@ -720,6 +721,7 @@ async fn drive_acp_connection(
                             }
                             Err(e) => {
                                 let message = format_acp_error(&e);
+                                super::rate_limit::on_prompt_error(&app, &session_id, &e);
                                 emit_acp_debug(
                                     &app,
                                     &session_id,
