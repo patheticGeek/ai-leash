@@ -468,7 +468,8 @@ function DoneConversationRow({
 // A project group's first row, or (in the flat layout) a row of the Projects
 // section named after its project. The board is its board chat (`chatId`,
 // once it exists), so the row spins while that chat works; the counts are
-// tasks in progress (blue) and waiting for review (amber).
+// tasks in progress (blue) and waiting for review (amber). Order at the end:
+// counts, then the spinner, then the ⋯ (SideNavItem puts `actions` last).
 function BoardRow({
   label = "Board",
   summary,
@@ -498,7 +499,6 @@ function BoardRow({
       endContent={
         hasEnd ? (
           <HStack gap={1.5} vAlign="center">
-            {generating && <Spinner size="sm" aria-label="Working" />}
             {!!inProgress && (
               <Badge
                 variant="info"
@@ -513,6 +513,8 @@ function BoardRow({
                 aria-label={`${review} in review`}
               />
             )}
+            {/* Last, so it reads counts, spinner, then the row's ⋯. */}
+            {generating && <Spinner size="sm" aria-label="Working" />}
           </HStack>
         ) : undefined
       }
