@@ -108,24 +108,18 @@ const styles = stylex.create({
     },
   },
   rowLabelOn: { color: colorVars["--color-text-primary"] },
-  // The flat row a step roomier than Item's compact density (4px block,
-  // 8px inline): 2px more on every side.
-  flatRow: {
-    position: "relative",
-    paddingBlock: spacingVars["--spacing-1-5"],
-    paddingInline: `calc(${spacingVars["--spacing-2"]} + ${spacingVars["--spacing-0-5"]})`,
-  },
   flatTitle: { minWidth: 0, flexShrink: 1 },
   // Holds the title line's room for the ⋯ while it shows. The ⋯ itself can't
   // sit in the title line (that's inside the row's button), so it's laid over
-  // this slot from the row's end (`flatActions`), out of the flow, and the
-  // second line keeps the row's full width.
-  flatActionsSlot: { width: sizeVars["--size-element-sm"], flexShrink: 0 },
+  // the row's end from outside the Item (`flatActions`), out of the flow, and
+  // the second line keeps the row's full width. The slot only covers the
+  // dots; the button's own padding may overlap the title's end.
+  flatActionsSlot: { width: spacingVars["--spacing-4"], flexShrink: 0 },
   flatActions: {
     position: "absolute",
-    insetInlineEnd: `calc(${spacingVars["--spacing-2"]} + ${spacingVars["--spacing-0-5"]})`,
+    insetInlineEnd: `calc(${spacingVars["--spacing-1"]} + ${spacingVars["--spacing-0-5"]})`,
     // Centred on the title line.
-    insetBlockStart: `calc(${spacingVars["--spacing-1-5"]} + (1lh - ${sizeVars["--size-element-sm"]}) / 2)`,
+    insetBlockStart: `calc(${spacingVars["--spacing-1"]} + (1lh - ${sizeVars["--size-element-sm"]}) / 2)`,
   },
   // Second line: the project truncates first; the branch keeps its place on
   // the right (capped so a very long one can't push the project out).
@@ -143,6 +137,9 @@ const styles = stylex.create({
   // edge there keeps it inside the rail instead of overflowing past it
   // (which made the sidebar scroll sideways).
   revealAnchor: { position: "relative" },
+  // The row wrapper: anchors a flat row's ⋯ and marks hover for the flat
+  // row's label colour (the ⋯ is outside the Item, so the Item can't).
+  revealRow: { position: "relative" },
   revealEnd: { insetInlineEnd: 0 },
 });
 
@@ -258,6 +255,7 @@ function RevealRow({
         {...getContainerProps({
           forceState: isActive ? "active" : "inactive",
         })}
+        xstyle={[stylex.defaultMarker(), styles.revealRow]}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onFocus={() => setIsFocused(true)}
@@ -343,69 +341,69 @@ function ConversationRow({
       {({ actions, isRevealed }) => {
         const status = <ChatStatus conversationId={conversation.id} />;
         return hasProjectLine ? (
-          <Item
-            // Styled like a side-nav-item row (the theme's side-nav-item
-            // settings don't reach Item, and an `item` theme change would
-            // hit every menu and list): 14px weight-500 label, secondary at
-            // rest and primary when hovered or selected; the description a
-            // step smaller, muted: project on the left, branch on the right.
-            // The status and ⋯ sit on the title line, so only the title
-            // truncates for them and the second line keeps the full width.
-            label={
-              <HStack gap={1.5} vAlign="center">
-                <Text
-                  weight="medium"
-                  maxLines={1}
-                  xstyle={[
-                    styles.rowLabel,
-                    styles.flatTitle,
-                    isSelected && styles.rowLabelOn,
-                  ]}
-                >
-                  {conversationLabel(conversation)}
-                </Text>
-                {status}
-                {isRevealed && (
-                  <HStack as="span" xstyle={styles.flatActionsSlot}>
-                    {null}
-                  </HStack>
-                )}
-              </HStack>
-            }
-            description={
-              <HStack gap={2} hAlign="between" vAlign="center">
-                <Text
-                  type="supporting"
-                  size="sm"
-                  color="secondary"
-                  maxLines={1}
-                  xstyle={styles.projectName}
-                >
-                  {projectName}
-                </Text>
-                {branchName && (
+          <>
+            <Item
+              // Styled like a side-nav-item row (the theme's side-nav-item
+              // settings don't reach Item, and an `item` theme change would
+              // hit every menu and list): 14px weight-500 label, secondary at
+              // rest and primary when hovered or selected; the description a
+              // step smaller, muted: project on the left, branch on the right.
+              // The status and ⋯ sit on the title line, so only the title
+              // truncates for them and the second line keeps the full width.
+              label={
+                <HStack gap={1.5} vAlign="center">
+                  <Text
+                    weight="medium"
+                    maxLines={1}
+                    xstyle={[
+                      styles.rowLabel,
+                      styles.flatTitle,
+                      isSelected && styles.rowLabelOn,
+                    ]}
+                  >
+                    {conversationLabel(conversation)}
+                  </Text>
+                  {status}
+                  {isRevealed && (
+                    <HStack as="span" xstyle={styles.flatActionsSlot}>
+                      {null}
+                    </HStack>
+                  )}
+                </HStack>
+              }
+              description={
+                <HStack gap={2} hAlign="between" vAlign="center">
                   <Text
                     type="supporting"
                     size="sm"
                     color="secondary"
                     maxLines={1}
-                    xstyle={styles.branchName}
+                    xstyle={styles.projectName}
                   >
-                    {branchName}
+                    {projectName}
                   </Text>
-                )}
-              </HStack>
-            }
-            density="compact"
-            xstyle={[stylex.defaultMarker(), styles.flatRow]}
-            isSelected={isSelected}
-            onClick={onClick}
-            endContent={
-              <HStack as="span" xstyle={styles.flatActions}>
-                {actions}
-              </HStack>
-            }
-          />
+                  {branchName && (
+                    <Text
+                      type="supporting"
+                      size="sm"
+                      color="secondary"
+                      maxLines={1}
+                      xstyle={styles.branchName}
+                    >
+                      {branchName}
+                    </Text>
+                  )}
+                </HStack>
+              }
+              isSelected={isSelected}
+              onClick={onClick}
+            />
+            {/* Outside the Item (no end slot, so no gap before one), over the
+              title line's reserved slot. */}
+            <HStack as="span" xstyle={styles.flatActions}>
+              {actions}
+            </HStack>
+          </>
         ) : (
           <SideNavItem
             label={conversationLabel(conversation)}
