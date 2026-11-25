@@ -1,5 +1,6 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
+import { Icon } from "@astryxdesign/core/Icon";
 import { Link2, Undo2 } from "lucide-react";
 import { api } from "../../../../lib/tauriApi";
 import { useConversationTask } from "../../hooks/useConversationTask";
@@ -22,8 +23,13 @@ export default function TaskLinkBanner({
     return (
       <Banner
         status="info"
+        // Rounds the frame too: the theme paints it, and only an elevated
+        // card banner gives it the header's radius.
+        elevation="low"
         collapsible={false}
-        icon={<Link2 size={14} />}
+        // An `md` Icon, like the stock status one, fills the title's line,
+        // so it sits level with it.
+        icon={<Icon icon={Link2} size="md" />}
         title={`The project chat is following #${task.number}. Its replies go there.`}
       />
     );
