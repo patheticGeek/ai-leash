@@ -1,10 +1,14 @@
+import { ChatMessageMetadata } from "@astryxdesign/core/Chat";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Text } from "@astryxdesign/core/Text";
+import { Timestamp } from "@astryxdesign/core/Timestamp";
 import { Check, Copy, RotateCcw } from "lucide-react";
-import { formatDuration, formatTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
+import { formatDuration } from "@/lib/format";
+import { turnInset } from "./turnInset";
 
 interface MessageFooterProps {
-  isUser: boolean;
   time: number;
   copied: boolean;
   onCopy: () => void;
@@ -12,45 +16,58 @@ interface MessageFooterProps {
   onRetry: () => void;
   /** "Worked for <time>" — assistant replies only. */
   turnDuration: number | undefined;
+  /**
+   * Under a ghost (assistant) bubble: start at its text, not its edge (see
+   * `turnInset`). Not the bubble's own `metadata` slot: that pulls the row
+   * up by --spacing-1-5 to sit snug under a filled bubble, which crowds a
+   * ghost one's last line.
+   */
+  isInset?: boolean;
 }
 
-// The hover-revealed row under a text message: copy, optional retry, the
-// timestamp and, for a finished assistant reply, how long the turn took.
+// The metadata line under a text message (Astryx `ChatMessageMetadata`):
+// its time and, for a finished assistant reply whose turn isn't folded into
+// a `WorkSummary`, how long the turn took; then copy and optional retry.
 export default function MessageFooter({
-  isUser,
   time,
   copied,
   onCopy,
   showRetry,
   onRetry,
   turnDuration,
+  isInset = false,
 }: MessageFooterProps) {
   return (
-    <div
-      className={cn(
-        "mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out w-full flex items-center gap-2 mb-0.5 text-xs uppercase tracking-wide text-zinc-600",
-        isUser ? "flex-row-reverse" : "",
-      )}
-    >
-      <Button variant="quiet" size="icon-sm" onClick={onCopy} title="Copy">
-        {copied ? <Check size={13} /> : <Copy size={13} />}
-      </Button>
-      {showRetry && (
-        <Button variant="quiet" size="icon-sm" onClick={onRetry} title="Retry">
-          <RotateCcw size={13} />
-        </Button>
-      )}
-      <div className="normal-case tracking-normal text-zinc-700 gap-2 flex items-center">
-        <span>{formatTime(time)}</span>
-        {turnDuration !== undefined && (
-          <>
-            <span>·</span>
-            <span className="normal-case tracking-normal text-zinc-700">
+    <ChatMessageMetadata
+      xstyle={isInset ? turnInset.inset : undefined}
+      timestamp={<Timestamp value={time} format="time" />}
+      footer={
+        <HStack gap={0.5} vAlign="center">
+          {turnDuration !== undefined && (
+            <Text type="supporting" color="secondary" hasTabularNumbers>
               Worked for {formatDuration(turnDuration)}
-            </span>
-          </>
-        )}
-      </div>
-    </div>
+            </Text>
+          )}
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label={copied ? "Copied" : "Copy"}
+            tooltip="Copy"
+            icon={<Icon icon={copied ? Check : Copy} size="sm" />}
+            onClick={onCopy}
+          />
+          {showRetry && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Retry"
+              tooltip="Retry"
+              icon={<Icon icon={RotateCcw} size="sm" />}
+              onClick={onRetry}
+            />
+          )}
+        </HStack>
+      }
+    />
   );
 }

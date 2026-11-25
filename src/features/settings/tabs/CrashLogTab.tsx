@@ -1,8 +1,16 @@
-import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+// The crash log: one row with Refresh / Copy / Clear, the log itself in a
+// wrapped CodeBlock under it (or a compact empty state).
+import { CodeBlock } from "@astryxdesign/core/CodeBlock";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import { Check, CircleAlert, Copy, RefreshCw, Trash2 } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
-import { Button } from "@/ui/button";
 import { api } from "../../../lib/tauriApi";
+import { SettingsCard, SettingsRow } from "../SettingsCard";
 
 export default function CrashLogTab() {
   const [log, setLog] = useState<string | null>(null);
@@ -21,41 +29,77 @@ export default function CrashLogTab() {
     setLog("");
   }
 
+  let detail: ReactNode;
+  if (log === null) {
+    detail = (
+      <Text type="supporting" color="secondary">
+        Loading…
+      </Text>
+    );
+  } else if (log === "") {
+    detail = (
+      <EmptyState
+        isCompact
+        icon={<Icon icon={Check} color="secondary" />}
+        title="No crashes logged"
+        description="Anything that goes wrong shows up here, including crashes from earlier runs."
+      />
+    );
+  } else {
+    detail = (
+      <CodeBlock
+        code={log}
+        language="plaintext"
+        width="100%"
+        size="sm"
+        maxHeight={480}
+        hasCopyButton={false}
+        hasLanguageLabel={false}
+        isWrapped
+      />
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-          Crash log
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={refresh}>
-            <RefreshCw size={13} />
-            Refresh
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => log && copy(log)}
-            disabled={!log}
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-            {copied ? "Copied" : "Copy"}
-          </Button>
-          <Button variant="danger" size="sm" onClick={clear} disabled={!log}>
-            <Trash2 size={13} />
-            Clear
-          </Button>
-        </div>
-      </div>
-      <div className="text-xs text-zinc-600">
-        Backend panics and frontend errors (uncaught exceptions, unhandled
-        promise rejections, React crashes) are appended here as they happen —
-        including ones from a previous run, so you can find out what happened
-        after restarting the app.
-      </div>
-      <pre className="flex-1 select-text overflow-auto whitespace-pre-wrap rounded-md bg-sunken p-2.5 text-code text-zinc-400">
-        {log === null ? "Loading…" : log === "" ? "No crashes logged." : log}
-      </pre>
-    </div>
+    <VStack gap={5}>
+      <SettingsCard title="Crash log">
+        <SettingsRow
+          title="Recorded crashes"
+          icon={CircleAlert}
+          description="Backend panics and frontend errors (uncaught exceptions, unhandled promise rejections, React crashes), appended as they happen and kept across restarts."
+          control={
+            <HStack gap={1}>
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Refresh"
+                tooltip="Refresh"
+                icon={<Icon icon={RefreshCw} size="sm" />}
+                onClick={refresh}
+              />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label={copied ? "Copied" : "Copy"}
+                tooltip={copied ? "Copied" : "Copy"}
+                icon={<Icon icon={copied ? Check : Copy} size="sm" />}
+                onClick={() => log && copy(log)}
+                isDisabled={!log}
+              />
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Clear"
+                tooltip="Clear"
+                icon={<Icon icon={Trash2} size="sm" />}
+                onClick={clear}
+                isDisabled={!log}
+              />
+            </HStack>
+          }
+          detail={detail}
+        />
+      </SettingsCard>
+    </VStack>
   );
 }

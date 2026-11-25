@@ -1,0 +1,394 @@
+import { Button } from "@astryxdesign/core/Button";
+import type { ISODateString } from "@astryxdesign/core/Calendar";
+import {
+  CheckboxList,
+  CheckboxListItem,
+} from "@astryxdesign/core/CheckboxList";
+import { DateInput } from "@astryxdesign/core/DateInput";
+import {
+  DateTimeInput,
+  type ISODateTimeString,
+} from "@astryxdesign/core/DateTimeInput";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { NumberInput } from "@astryxdesign/core/NumberInput";
+import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
+import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  collectAnswers,
+  type ElicitationField,
+  type ElicitationStep,
+  elicitationFields,
+  elicitationSteps,
+} from "../../../../lib/elicitationForm";
+import type {
+  ElicitationAnswer,
+  ElicitationRequestPayload,
+} from "../../../../lib/tauriApi";
+import PromptCard from "./PromptCard";
+
+const styles = stylex.create({
+  // A long form scrolls inside the card rather than pushing the dock up
+  // past the top of the panel.
+  body: {
+    maxHeight: "50vh",
+  },
+  message: { whiteSpace: "pre-wrap" },
+});
+
+interface ElicitationPromptProps {
+  request: ElicitationRequestPayload;
+  onRespond: (answer: ElicitationAnswer) => void;
+}
+
+// Every field's current answer as strings — a choice's picked values, or an
+// input's text (empty array for no answer) — the shape `collectAnswers`
+// reads back out of form data.
+type Values = Record<string, string[]>;
+
+function initialValues(fields: ElicitationField[]): Values {
+  return Object.fromEntries(
+    fields.map((f) => [
+      f.name,
+      f.kind === "choice"
+        ? f.defaultValues
+        : f.defaultValue !== undefined
+          ? [f.defaultValue]
+          : [],
+    ]),
+  );
+}
+
+// The answers as `FormData`, leaving out skipped steps — a skipped question
+// leaves its "Other" text out of the answer too.
+function toFormData(
+  steps: ElicitationStep[],
+  values: Values,
+  skipped: ReadonlySet<string>,
+): FormData {
+  const data = new FormData();
+  for (const { field, other } of steps) {
+    if (skipped.has(field.name)) continue;
+    for (const f of other ? [field, other] : [field]) {
+      for (const v of values[f.name] ?? []) data.append(f.name, v);
+    }
+  }
+  return data;
+}
+
+function FieldControl({
+  field,
+  values,
+  error,
+  onChange,
+  onEnter,
+}: {
+  field: ElicitationField;
+  values: Values;
+  error: string | undefined;
+  onChange: (name: string, value: string[]) => void;
+  onEnter: () => void;
+}) {
+  const current = values[field.name] ?? [];
+  const status = error ? { type: "error" as const, message: error } : undefined;
+  const common = {
+    label: field.title,
+    description: field.description,
+    isRequired: field.required,
+    status,
+    width: "100%",
+  };
+  if (field.kind === "choice") {
+    return field.multiple ? (
+      <CheckboxList
+        {...common}
+        value={current}
+        onChange={(v) => onChange(field.name, v)}
+      >
+        {field.choices.map((c) => (
+          <CheckboxListItem
+            key={c.value}
+            value={c.value}
+            label={c.title}
+            description={c.description}
+          />
+        ))}
+      </CheckboxList>
+    ) : (
+      <RadioList
+        {...common}
+        value={current[0] ?? ""}
+        onChange={(v) => onChange(field.name, [v])}
+      >
+        {field.choices.map((c) => (
+          <RadioListItem
+            key={c.value}
+            value={c.value}
+            label={c.title}
+            description={c.description}
+          />
+        ))}
+      </RadioList>
+    );
+  }
+  const set = (v: string | undefined) =>
+    onChange(field.name, v === undefined || v === "" ? [] : [v]);
+  switch (field.inputType) {
+    case "number":
+      return (
+        <NumberInput
+          {...common}
+          value={current[0] === undefined ? null : Number(current[0])}
+          onChange={(n) => set(Number.isFinite(n) ? String(n) : undefined)}
+          min={field.min ?? null}
+          max={field.max ?? null}
+          step={field.valueType === "integer" ? 1 : null}
+        />
+      );
+    case "date":
+      // `collectAnswers` validates the text, so the brands are just casts.
+      return (
+        <DateInput
+          {...common}
+          value={current[0] as ISODateString | undefined}
+          onChange={set}
+        />
+      );
+    case "datetime-local":
+      return (
+        <DateTimeInput
+          {...common}
+          value={current[0] as ISODateTimeString | undefined}
+          onChange={set}
+        />
+      );
+    default:
+      return (
+        <TextInput
+          {...common}
+          type={field.inputType}
+          value={current[0] ?? ""}
+          onChange={(v) => set(v)}
+          onEnter={onEnter}
+        />
+      );
+  }
+}
+
+// An agent's structured question (ACP `elicitation/create`, form mode), in
+// the composer's place on its card surface like `PermissionPrompt` (see
+// `PromptCard`), with the questions themselves rendered by
+// Astryx form controls, one property per step (a choice's "Other" box shares its
+// step — see `elicitationSteps`). "Decline" and the close button map
+// to the protocol's two refusals: an explicit "no" versus dismissing without
+// choosing. `ChatComposer.tsx` decides *whether* to render it.
+export default function ElicitationPrompt({
+  request,
+  onRespond,
+}: ElicitationPromptProps) {
+  const fields = useMemo(
+    () => elicitationFields(request.schema),
+    [request.schema],
+  );
+  const steps = useMemo(() => elicitationSteps(fields), [fields]);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [values, setValues] = useState(() => initialValues(fields));
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const step = steps[stepIndex];
+  const isLast = stepIndex === steps.length - 1;
+
+  // Escape anywhere dismisses without answering, as the close button does —
+  // unless something inside (an open picker) already handled it.
+  // Focus the step's first field, as the popover this replaced did on open.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: stepIndex is a trigger-only dep — a new step means new fields to focus
+  useEffect(() => {
+    bodyRef.current
+      ?.querySelector<HTMLElement>("input, textarea, [role='radio']")
+      ?.focus();
+  }, [stepIndex]);
+
+  const onRespondRef = useRef(onRespond);
+  onRespondRef.current = onRespond;
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        onRespondRef.current({ action: "cancel" });
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  function setValue(name: string, value: string[]) {
+    setValues((prev) => ({ ...prev, [name]: value }));
+    setErrors(({ [name]: _, ...rest }) => rest);
+  }
+
+  function markSkipped(name: string, isSkipped: boolean) {
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      if (isSkipped) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  }
+
+  function submit(skippedNow: ReadonlySet<string>) {
+    const result = collectAnswers(
+      fields,
+      toFormData(steps, values, skippedNow),
+    );
+    if (result.ok) {
+      onRespond({ action: "accept", content: result.content });
+      return;
+    }
+    setErrors(result.errors);
+    // Jump to the first question with a problem — it may not be the one on
+    // screen, since the form shows one at a time.
+    const first = steps.findIndex(
+      (s) =>
+        result.errors[s.field.name] || (s.other && result.errors[s.other.name]),
+    );
+    if (first >= 0) setStepIndex(first);
+  }
+
+  // Next / Submit: the step on screen has to check out before moving on.
+  function advance() {
+    if (!step) return;
+    markSkipped(step.field.name, false);
+    const unskipped = new Set(skipped);
+    unskipped.delete(step.field.name);
+    const result = collectAnswers(fields, toFormData(steps, values, unskipped));
+    const names = [step.field.name, step.other?.name].filter(
+      (n): n is string => !!n,
+    );
+    const stepErrors = result.ok
+      ? {}
+      : Object.fromEntries(
+          names.flatMap((n) =>
+            result.errors[n] ? [[n, result.errors[n]]] : [],
+          ),
+        );
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...stepErrors }));
+      return;
+    }
+    if (isLast) submit(unskipped);
+    else setStepIndex(stepIndex + 1);
+  }
+
+  function skip() {
+    if (!step) return;
+    markSkipped(step.field.name, true);
+    const withSkip = new Set(skipped).add(step.field.name);
+    if (isLast) submit(withSkip);
+    else setStepIndex(stepIndex + 1);
+  }
+
+  const title = request.schema.title ?? "The agent has a question";
+  const subtitle = [
+    steps.length > 1 ? `Question ${stepIndex + 1} of ${steps.length}` : null,
+    "from the agent",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <PromptCard
+      label={title}
+      title={title}
+      subtitle={subtitle}
+      headerEnd={
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Dismiss"
+          tooltip="Dismiss without answering (Esc)"
+          icon={<X size={14} />}
+          onClick={() => onRespond({ action: "cancel" })}
+        />
+      }
+      actions={
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Decline"
+            tooltip="Decline to answer"
+            onClick={() => onRespond({ action: "decline" })}
+          />
+          {fields.length === 0 ? (
+            // Nothing to fill in — the agent just wants a yes/no.
+            <Button
+              variant="primary"
+              size="sm"
+              label="Accept"
+              onClick={() => onRespond({ action: "accept", content: {} })}
+            />
+          ) : (
+            <>
+              {stepIndex > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Previous"
+                  onClick={() => setStepIndex(stepIndex - 1)}
+                />
+              )}
+              {step && !step.field.required && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Skip"
+                  onClick={skip}
+                />
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                label={isLast ? "Submit" : "Next"}
+                onClick={advance}
+              />
+            </>
+          )}
+        </>
+      }
+    >
+      <VStack ref={bodyRef} gap={3} isScrollable xstyle={styles.body}>
+        <Text xstyle={styles.message}>{request.message}</Text>
+        {request.schema.description && (
+          <Text type="supporting" color="secondary">
+            {request.schema.description}
+          </Text>
+        )}
+        {step && (
+          <VStack key={step.field.name} gap={3}>
+            <FieldControl
+              field={step.field}
+              values={values}
+              error={errors[step.field.name]}
+              onChange={setValue}
+              onEnter={advance}
+            />
+            {step.other && (
+              <FieldControl
+                field={step.other}
+                values={values}
+                error={errors[step.other.name]}
+                onChange={setValue}
+                onEnter={advance}
+              />
+            )}
+          </VStack>
+        )}
+      </VStack>
+    </PromptCard>
+  );
+}

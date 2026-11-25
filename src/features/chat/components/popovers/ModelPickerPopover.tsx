@@ -1,14 +1,19 @@
-import { Bot, Loader } from "lucide-react";
-import { Button } from "@/ui/button";
+import { Button } from "@astryxdesign/core/Button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
+  CommandPalette,
+  CommandPaletteInput,
+} from "@astryxdesign/core/CommandPalette";
+import { VStack } from "@astryxdesign/core/Layout";
+import { Popover } from "@astryxdesign/core/Popover";
+import { Spinner } from "@astryxdesign/core/Spinner";
+import { Text } from "@astryxdesign/core/Text";
+import {
+  createStaticSource,
+  type SearchableItem,
+} from "@astryxdesign/core/Typeahead";
+import * as stylex from "@stylexjs/stylex";
+import { Bot } from "lucide-react";
+import { useMemo } from "react";
 
 export interface PickerOption {
   key: string;
@@ -41,6 +46,13 @@ interface ModelPickerPopoverProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const styles = stylex.create({
+  // A long "Agent · model" label truncates rather than crowding the footer.
+  trigger: { maxWidth: "16rem" },
+});
+
+type ModelItem = SearchableItem<{ group: string; subtitle: string }>;
+
 // A search-and-pick popover for choosing "which brain answers" — modeled
 // visually on Claude Desktop's model switcher (search bar on top, a plain
 // list of name+subtitle rows below, active row highlighted). We only needed
@@ -58,70 +70,83 @@ export default function ModelPickerPopover({
   onOpenChange,
 }: ModelPickerPopoverProps) {
   // Groups are already contiguous in `options` (built section-by-section
-  // upstream in `useChatSession.ts`), so a single pass preserves the
-  // original section order — no separate sort needed.
-  const sections = new Map<string, PickerOption[]>();
-  for (const o of options) {
-    const rows = sections.get(o.section);
-    if (rows) rows.push(o);
-    else sections.set(o.section, [o]);
-  }
+  // upstream in `useChatSession.ts`), and the palette groups by
+  // `auxiliaryData.group` in first-seen order — so the original section
+  // order is kept with no separate sort.
+  const searchSource = useMemo(
+    () =>
+      createStaticSource<ModelItem>(
+        options.map((o) => ({
+          id: o.key,
+          label: o.label,
+          auxiliaryData: { group: o.section, subtitle: o.subtitle },
+        })),
+        {
+          keywords: (item) => [
+            item.auxiliaryData?.subtitle ?? "",
+            item.auxiliaryData?.group ?? "",
+          ],
+        },
+      ),
+    [options],
+  );
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={dangerMessage ? "chip-danger" : "chip"}
-          size="sm"
-          title={dangerMessage ?? undefined}
-          disabled={disabled}
-          className="flex min-w-0 max-w-[160px]"
-        >
-          {loading ? (
-            <Loader size={12} className="shrink-0 animate-spin" />
-          ) : (
-            <Bot size={12} className="shrink-0" />
+    <Popover
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      isEnabled={!disabled}
+      label="Models"
+      placement="above"
+      alignment="start"
+      width="18rem"
+      padding={0}
+      content={
+        <CommandPalette
+          isInline
+          isOpen={open}
+          onOpenChange={onOpenChange}
+          label="Models"
+          width="100%"
+          maxHeight="24rem"
+          searchSource={searchSource}
+          value={activeKey ?? undefined}
+          onValueChange={onSelect}
+          // The popover moves focus into the input when it opens; the input
+          // itself mustn't autofocus, as the closed popover stays mounted.
+          input={
+            <CommandPaletteInput
+              placeholder="Search models..."
+              hasAutoFocus={false}
+            />
+          }
+          emptySearchText="No matches."
+          renderItem={(item) => (
+            <VStack gap={0.5}>
+              <Text weight="medium">{item.label}</Text>
+              <Text type="supporting" size="xsm" color="secondary">
+                {item.auxiliaryData?.subtitle}
+              </Text>
+            </VStack>
           )}
-          <span className="truncate">{triggerLabel}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="top"
-        align="start"
-        sideOffset={8}
-        className="w-72 gap-0 overflow-hidden p-0"
-      >
-        <Command defaultValue={activeKey ?? undefined}>
-          <CommandInput placeholder="Search models..." autoFocus />
-          <CommandList>
-            <CommandEmpty>No matches.</CommandEmpty>
-            {[...sections.entries()].map(([section, rows]) => (
-              <CommandGroup key={section} heading={section}>
-                {rows.map((o) => (
-                  <CommandItem
-                    key={o.key}
-                    value={o.key}
-                    keywords={[o.label, o.subtitle, o.section]}
-                    data-checked={o.key === activeKey}
-                    checkIcon
-                    onSelect={() => {
-                      onSelect(o.key);
-                      onOpenChange(false);
-                    }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-zinc-100">
-                        {o.label}
-                      </div>
-                      <div className="text-xs text-zinc-500">{o.subtitle}</div>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
+        />
+      }
+    >
+      <Button
+        variant={dangerMessage ? "destructive" : "ghost"}
+        size="sm"
+        label={triggerLabel}
+        icon={
+          loading ? (
+            <Spinner size="sm" aria-label="Connecting" />
+          ) : (
+            <Bot size={14} />
+          )
+        }
+        tooltip={dangerMessage ?? undefined}
+        isDisabled={disabled}
+        xstyle={styles.trigger}
+      />
     </Popover>
   );
 }

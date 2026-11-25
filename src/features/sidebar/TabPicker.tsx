@@ -1,8 +1,27 @@
+import { Badge } from "@astryxdesign/core/Badge";
+import { Center } from "@astryxdesign/core/Center";
+import { ClickableCard } from "@astryxdesign/core/ClickableCard";
+import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
+import { Text } from "@astryxdesign/core/Text";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { useSubAgents } from "@/data/subAgents";
-import { Badge } from "@/ui/badge";
-import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { PICKER_TAB_KINDS } from "../tabs/tabKinds";
+
+const styles = stylex.create({
+  fill: { height: "100%" },
+  // Pinned over the tile's top-right corner.
+  corner: {
+    position: "absolute",
+    top: `calc(-1 * ${spacingVars["--spacing-1-5"]})`,
+    right: `calc(-1 * ${spacingVars["--spacing-1-5"]})`,
+  },
+  tile: { minWidth: 0, textAlign: "start" },
+});
 
 export default function TabPicker({
   onPick,
@@ -18,37 +37,42 @@ export default function TabPicker({
   ).length;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-      <div className="text-xs uppercase tracking-wide text-zinc-600">
-        Open a tab
-      </div>
-      <div
-        className="grid w-full gap-2"
-        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
-      >
-        {PICKER_TAB_KINDS.map((tile) => (
-          <Button
-            key={tile.kind}
-            variant="card"
-            size="none"
-            onClick={() => onPick(tile.kind)}
-            className="relative"
-          >
-            {tile.kind === "subagents" && runningSubAgents > 0 && (
-              <Badge size="count" className="absolute -right-1.5 -top-1.5">
-                {runningSubAgents}
-              </Badge>
-            )}
-            <div className="flex w-full items-center gap-2">
-              {tile.icon && <tile.icon size={16} className="text-zinc-500" />}
-              <span className="w-full text-sm text-zinc-200">{tile.label}</span>
-            </div>
-            <span className="whitespace-normal w-full text-[11px] text-zinc-600">
-              {tile.hint}
-            </span>
-          </Button>
-        ))}
-      </div>
-    </div>
+    <Center padding={6} xstyle={styles.fill}>
+      <VStack gap={4} hAlign="center" width="100%">
+        <Text type="label" color="secondary">
+          Open a tab
+        </Text>
+        <Grid columns={{ minWidth: 150, repeat: "fill" }} gap={2} width="100%">
+          {PICKER_TAB_KINDS.map((tile) => (
+            <ClickableCard
+              key={tile.kind}
+              label={tile.label ?? tile.kind}
+              padding={3}
+              onClick={() => onPick(tile.kind)}
+              xstyle={styles.tile}
+            >
+              {tile.kind === "subagents" && runningSubAgents > 0 && (
+                <Badge
+                  variant="info"
+                  label={runningSubAgents}
+                  xstyle={styles.corner}
+                />
+              )}
+              <VStack gap={1.5}>
+                <HStack gap={2} align="center">
+                  {tile.icon && (
+                    <Icon icon={tile.icon} size="sm" color="secondary" />
+                  )}
+                  <Text type="label">{tile.label}</Text>
+                </HStack>
+                <Text type="supporting" size="xsm" color="secondary">
+                  {tile.hint}
+                </Text>
+              </VStack>
+            </ClickableCard>
+          ))}
+        </Grid>
+      </VStack>
+    </Center>
   );
 }

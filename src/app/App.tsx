@@ -1,3 +1,8 @@
+import { AppShell } from "@astryxdesign/core/AppShell";
+import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
+import { ResizeHandle } from "@astryxdesign/core/Resizable";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { useEffect } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useBackendModels, useBackendsListener } from "../data/backends";
@@ -22,10 +27,28 @@ import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
-import ResizeHandle from "../ui/ResizeHandle";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
-import TitleBar, { TITLEBAR_HEIGHT } from "./TitleBar";
+import { startNewThread } from "./projectActions";
+import { useSidebarCollapse } from "./sidebarCollapse";
+import TitleBar from "./TitleBar";
+
+const styles = stylex.create({
+  // Dev/preview builds get a thin warning-coloured frame round the whole
+  // window, so they can't be mistaken for the release app.
+  buildFrame: {
+    "::after": {
+      content: '""',
+      position: "fixed",
+      inset: 0,
+      zIndex: 999,
+      pointerEvents: "none",
+      borderWidth: borderVars["--border-width"],
+      borderStyle: "solid",
+      borderColor: colorVars["--color-border-warning"],
+    },
+  },
+});
 
 function App() {
   const viewEpoch = useAppStore((s) => s.viewEpoch);
@@ -77,24 +100,28 @@ function App() {
   // conversation switches.
   useBackendModels();
 
-  const [leftBarWidth, leftBarResize] = useResizableWidth(
-    LS_KEYS.leftBarWidth,
-    220,
-    160,
-    400,
-    1,
-  );
-  const [rightPanelWidth, rightPanelResize] = useResizableWidth(
-    LS_KEYS.rightPanelWidth,
-    360,
-    240,
-    720,
-    -1,
-  );
+  // Collapsible: the sidebar folds to its icon rail (see `sidebarCollapse`).
+  const leftBar = useResizableWidth(LS_KEYS.leftBarWidth, 260, 180, 420, true);
+  const sidebarCollapse = useSidebarCollapse(leftBar);
+  const rightPanel = useResizableWidth(LS_KEYS.rightPanelWidth, 360, 240, 720);
 
   useEffect(() => {
     initializeStartupSession();
   }, [initializeStartupSession]);
+
+  // Ctrl+N (Command+N on macOS) starts a new thread, the shortcut the
+  // sidebar's New thread item shows.
+  useEffect(() => {
+    function handleNewThread(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.repeat) return;
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== "n") return;
+      e.preventDefault();
+      void startNewThread();
+    }
+    document.addEventListener("keydown", handleNewThread);
+    return () => document.removeEventListener("keydown", handleNewThread);
+  }, []);
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no
@@ -126,42 +153,73 @@ function App() {
   }, []);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col text-zinc-200">
-      {BUILD_LABEL && (
-        <div className="pointer-events-none fixed inset-0 z-[999] border border-amber-500/50" />
-      )}
-      <TitleBar
-        leftBarWidth={leftBarWidth}
-        rightPanelWidth={boardView ? null : rightPanelWidth}
-      />
+    <>
+      {/* The default `elevated` variant, as in the prototype: the sidebar
+          sits on the body colour and the main region on the surface colour.
+          `wash` paints the main region body-coloured too, so the centre,
+          side panel, cards and board columns all lose their contrast. */}
+      <AppShell
+        contentPadding={0}
+        // A desktop window, not a responsive page: the sidebar stays inline
+        // however narrow the window gets, never a mobile drawer.
+        mobileNav={{ breakpoint: "none", hasToggle: false }}
+        xstyle={BUILD_LABEL ? styles.buildFrame : undefined}
+        sideNav={<LeftBar resizable={leftBar} collapse={sidebarCollapse} />}
+      >
+        {/* The shell-side-nav template's frame: the sidebar runs the full
+            window height and the title bar is the main region's pinned
+            header, spanning the centre and the side panel. Below it, the ide
+            template's split: the centre fills, the side panel sits in the
+            end slot behind a ResizeHandle that owns the divider. */}
+        <Layout
+          height="fill"
+          header={<TitleBar sidebarCollapse={sidebarCollapse} />}
+          content={
+            <LayoutContent padding={0} isScrollable={false}>
+              <TabDndProvider>
+                <Layout
+                  height="fill"
+                  content={
+                    <LayoutContent padding={0} isScrollable={false}>
+                      {/* Per switch, not per id: a new thread getting its id
+                          on its first message must not remount the panel —
+                          see `viewEpoch`. */}
+                      <CenterPanel key={viewEpoch} />
+                    </LayoutContent>
+                  }
+                  end={
+                    !boardView && (
+                      <>
+                        <ResizeHandle
+                          direction="horizontal"
+                          hasDivider
+                          isReversed
+                          isAlwaysVisible={false}
+                          resizable={rightPanel}
+                          label="Resize side panel"
+                        />
+                        <LayoutPanel
+                          resizable={rightPanel}
+                          hasDivider={false}
+                          padding={0}
+                          isScrollable={false}
+                          label="Side panel"
+                        >
+                          <SidePanel />
+                        </LayoutPanel>
+                      </>
+                    )
+                  }
+                />
+              </TabDndProvider>
+            </LayoutContent>
+          }
+        />
+      </AppShell>
       <SettingsModal />
       <DebugDevtoolsOverlay />
-      <div
-        className="flex flex-1 min-h-0"
-        style={{ marginTop: TITLEBAR_HEIGHT }}
-      >
-        <div style={{ width: leftBarWidth }} className="shrink-0">
-          <LeftBar />
-        </div>
-        <ResizeHandle width={leftBarWidth} {...leftBarResize} />
-        <TabDndProvider>
-          <div className="flex-1 min-w-0">
-            {/* Per switch, not per id: a new thread getting its id on its
-                first message must not remount the panel — see `viewEpoch`. */}
-            <CenterPanel key={viewEpoch} />
-          </div>
-          {!boardView && (
-            <>
-              <ResizeHandle width={rightPanelWidth} {...rightPanelResize} />
-              <div style={{ width: rightPanelWidth }} className="shrink-0">
-                <SidePanel />
-              </div>
-            </>
-          )}
-        </TabDndProvider>
-      </div>
       <TabContentHost />
-    </div>
+    </>
   );
 }
 

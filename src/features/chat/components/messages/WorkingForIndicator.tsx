@@ -1,5 +1,10 @@
+import { ChatMessageMetadata } from "@astryxdesign/core/Chat";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Spinner } from "@astryxdesign/core/Spinner";
+import { Text } from "@astryxdesign/core/Text";
 import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
+import { turnInset } from "./turnInset";
 
 interface WorkingForIndicatorProps {
   // Whether the turn has produced anything visible yet (from `entries`) —
@@ -12,12 +17,12 @@ interface WorkingForIndicatorProps {
   replyStartedAt: number | null;
 }
 
-// Renders the "Working for <time>" / "Waiting" footer, ticking its own
-// clock once a second internally rather than the parent re-rendering on an
-// interval — `ChatEntryList` (and everything above it) used to own that
-// tick, meaning the whole transcript re-rendered every second while a turn
-// was in flight just to update this one line. Only mounted while `sending`
-// (see call site), so the interval starts/stops with it for free.
+// The running turn's metadata line: a spinner and "Working for <time>" /
+// "Waiting", ticking its own clock once a second internally rather than the
+// parent re-rendering on an interval — so the whole transcript doesn't
+// re-render every second while a turn is in flight just to update this one
+// line. Only mounted while `sending` (see call site), so the interval
+// starts/stops with it for free.
 export default function WorkingForIndicator({
   hasActivity,
   replyStartedAt,
@@ -29,15 +34,21 @@ export default function WorkingForIndicator({
     return () => clearInterval(interval);
   }, []);
 
+  const label =
+    hasActivity && replyStartedAt
+      ? `Working for ${formatDuration(Math.max(0, Math.round((now - replyStartedAt) / 1000)))}`
+      : "Waiting";
   return (
-    <div className="text-sm">
-      {hasActivity && replyStartedAt ? (
-        <span className="shine-text">
-          {`Working for ${formatDuration(Math.max(0, Math.round((now - replyStartedAt) / 1000)))}`}
-        </span>
-      ) : (
-        <span className="shine-text">Waiting</span>
-      )}
-    </div>
+    <ChatMessageMetadata
+      xstyle={turnInset.inset}
+      footer={
+        <HStack gap={2} vAlign="center">
+          <Spinner size="sm" aria-label="Working" />
+          <Text type="supporting" color="secondary" hasTabularNumbers>
+            {label}
+          </Text>
+        </HStack>
+      }
+    />
   );
 }

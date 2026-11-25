@@ -1,53 +1,51 @@
-import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
+import { Banner } from "@astryxdesign/core/Banner";
+import { List, ListItem } from "@astryxdesign/core/List";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
-import { dockClassName } from "./DockedBanner";
+
+const styles = stylex.create({
+  // A long agent command list scrolls inside the banner instead of pushing
+  // the composer off screen.
+  body: { maxHeight: "40vh" },
+});
 
 type HelpBannerProps = {
   commands: AcpCommandInfo[];
   onClose: () => void;
 };
 
+// "/help": what this chat accepts — the "!" shell escape, then the local and
+// agent "/" commands — as an info `Banner` in the composer's stack, its body
+// a compact `List`. Dismissing it closes it (so does sending the next
+// message; see `ChatComposer`'s `send`).
 export default function HelpBanner({ commands, onClose }: HelpBannerProps) {
   return (
-    <div
-      className={cn(
-        dockClassName("top"),
-        "flex max-h-[50vh] flex-col overflow-auto rounded-t-md bg-background shadow-[var(--al-shadow-floating)]",
-      )}
+    <Banner
+      status="info"
+      elevation="low"
+      collapsible={false}
+      isDismissable
+      dismissLabel="Close help"
+      onDismiss={onClose}
+      title="Commands"
+      description="Type / or ! at the start of a message."
     >
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-          Commands
-        </span>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} title="Close">
-          <X size={14} />
-        </Button>
-      </div>
-      <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-        <div className="rounded-md bg-raised px-3 py-2">
-          <div className="text-sm font-medium text-zinc-100">
-            !<span className="text-zinc-500"> command</span>
-          </div>
-          <div className="text-xs text-zinc-500">
-            Run a shell command directly — no permission prompt, result shown as
-            a tool call. Start with a space (" !...") to send a literal message
-            instead.
-          </div>
-        </div>
-        {commands.map((command) => (
-          <div key={command.name} className="rounded-md bg-raised px-3 py-2">
-            <div className="text-sm font-medium text-zinc-100">
-              /{command.name}
-              {command.hint && (
-                <span className="text-zinc-500"> {command.hint}</span>
-              )}
-            </div>
-            <div className="text-xs text-zinc-500">{command.description}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+      <VStack isScrollable xstyle={styles.body}>
+        <List density="compact" edge="flush">
+          <ListItem
+            label="!command"
+            description={`Run a shell command directly: no permission prompt, the result is shown as a tool call. Start with a space (" !…") to send a literal message instead.`}
+          />
+          {commands.map((c) => (
+            <ListItem
+              key={c.name}
+              label={c.hint ? `/${c.name} ${c.hint}` : `/${c.name}`}
+              description={c.description}
+            />
+          ))}
+        </List>
+      </VStack>
+    </Banner>
   );
 }

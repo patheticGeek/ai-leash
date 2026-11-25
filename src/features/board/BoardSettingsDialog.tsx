@@ -1,15 +1,16 @@
-import { useEffect, useId, useState } from "react";
-import { Button } from "@/ui/button";
-import { Checkbox } from "@/ui/checkbox";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
-import { Label } from "@/ui/label";
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { useEffect, useState } from "react";
 import { type AgentDefaults, api, type Board } from "../../lib/tauriApi";
 import AgentFields from "./AgentFields";
 
@@ -33,7 +34,6 @@ export default function BoardSettingsDialog({
   const [parallel, setParallel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const parallelId = useId();
 
   // Fresh from the board every time it opens.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on open
@@ -62,46 +62,74 @@ export default function BoardSettingsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Board settings</DialogTitle>
-          <DialogDescription>
-            The agent a task's chat starts with, unless the task picks its own
-            or you change it when starting it.
-          </DialogDescription>
-        </DialogHeader>
-        <AgentFields value={agent} onChange={setAgent} inheritLabel="Default" />
-        {sharedCheckout && (
-          <Label
-            htmlFor={parallelId}
-            className="cursor-pointer items-start gap-2 font-normal text-zinc-300"
-          >
-            <Checkbox
-              id={parallelId}
-              checked={parallel}
-              onCheckedChange={(v) => setParallel(v === true)}
-              className="mt-0.5"
-            />
-            <span>
-              Allow several tasks in progress at once
-              <span className="block text-xs text-zinc-500">
-                This project isn't a git repository, so started tasks share its
-                one checkout and can change the same files.
-              </span>
-            </span>
-          </Label>
-        )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button variant="ghost" size="md" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="md" disabled={saving} onClick={save}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+    <Dialog
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      purpose="form"
+      width={576}
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title="Board settings"
+            subtitle="Settings for every task on this board."
+            onOpenChange={onOpenChange}
+          />
+        }
+        content={
+          <LayoutContent>
+            <VStack gap={5}>
+              <VStack gap={2}>
+                <Heading level={4} weight="normal">
+                  Agent
+                </Heading>
+                <Text type="supporting" color="secondary">
+                  What a task's chat starts with, unless the task picks its own
+                  or you change it when starting it. Default uses the app's
+                  default agent (Settings &gt; Agents).
+                </Text>
+                <AgentFields
+                  value={agent}
+                  onChange={setAgent}
+                  inheritLabel="Default"
+                />
+              </VStack>
+              {sharedCheckout && (
+                <CheckboxInput
+                  label="Allow several tasks in progress at once"
+                  description="This project isn't a git repository, so started tasks share its one checkout and can change the same files."
+                  value={parallel}
+                  onChange={setParallel}
+                />
+              )}
+              {error && (
+                <Banner
+                  status="error"
+                  title="Couldn't save the board settings"
+                  description={error}
+                />
+              )}
+            </VStack>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <HStack gap={2} hAlign="end">
+              <Button
+                variant="secondary"
+                label="Cancel"
+                onClick={() => onOpenChange(false)}
+              />
+              <Button
+                variant="primary"
+                label="Save"
+                isDisabled={saving}
+                onClick={save}
+              />
+            </HStack>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 }

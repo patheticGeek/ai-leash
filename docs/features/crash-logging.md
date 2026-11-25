@@ -16,12 +16,14 @@ The error is still recorded for later review.
 ## View the crash log
 
 1. Open **Settings**.
-2. Select **Crash log**.
+2. Select **Crash log** (under App).
 
 The Crash log shows recorded problems from the current and previous app
-sessions. If nothing has been recorded, it shows **No crashes logged**.
+sessions in a scrolling code block. If nothing has been recorded, it shows
+**No crashes logged**.
 
-Use **Refresh** to load the latest entries. Use **Copy** to copy the log so
+The three buttons beside **Recorded crashes** are **Refresh** (load the latest
+entries), **Copy** and **Clear**. Use **Copy** to copy the log so
 you can include it in a bug report or share it with someone helping you.
 **Clear** removes the recorded entries when you no longer need them.
 

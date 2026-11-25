@@ -1,18 +1,23 @@
-import { Field, FieldLabel } from "@/ui/field";
-import { Input } from "@/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
+  MetadataList,
+  MetadataListItem,
+} from "@astryxdesign/core/MetadataList";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import {
+  Cpu,
+  Lightbulb,
+  type LucideIcon,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useBackendModels, useBackends } from "../../data/backends";
 import { useAcpAgentCatalog } from "../../lib/acpCatalogQuery";
-import type { AgentDefaults } from "../../lib/tauriApi";
+import type { AgentDefaults, ConversationSummary } from "../../lib/tauriApi";
 
-// Radix `Select` reserves "" for "nothing selected", so this stands for
-// "unset: fall back to `inheritLabel`".
+// Stands for "unset: fall back to `inheritLabel`" as a real option, so the
+// fallback shows by name instead of as an empty placeholder.
 const UNSET = "unset";
 const NATIVE_THINKING = ["low", "medium", "high"];
 const ASK_BYPASS = [
@@ -26,6 +31,7 @@ function OptionSelect({
   onChange,
   unsetLabel,
   options,
+  icon,
   disabled,
 }: {
   label: string;
@@ -33,35 +39,32 @@ function OptionSelect({
   onChange: (value: string | null) => void;
   unsetLabel: string;
   options: { value: string; name: string }[];
+  icon: LucideIcon;
   disabled?: boolean;
 }) {
   return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <Select
-        value={value ?? UNSET}
-        onValueChange={(v) => onChange(v === UNSET ? null : v)}
-        disabled={disabled}
-      >
-        <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={UNSET}>{unsetLabel}</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
+    <Selector
+      label={label}
+      isLabelHidden
+      variant="ghost"
+      size="sm"
+      startIcon={icon}
+      value={value ?? UNSET}
+      onChange={(v) => onChange(v === UNSET ? null : v)}
+      isDisabled={disabled}
+      options={[
+        { value: UNSET, label: unsetLabel },
+        ...(options.length > 0 ? [{ type: "divider" as const }] : []),
+        ...options.map((o) => ({ value: o.value, label: o.name })),
+      ]}
+    />
   );
 }
 
 // Agent / model / thinking / permission pickers for an `AgentDefaults` —
-// a task's (in its dialog), the board's (its settings) and the one a task
-// is started with. Unset parts read `inheritLabel` ("Board default", …).
+// a task's (its dialog's rail), the board's (its settings) and the one a
+// task is started with — as a MetadataList of label-less ghost Selectors,
+// the work-item-detail template's rail rows. Unset parts read `inheritLabel` ("Board default", …).
 // A model, thinking level and agent mode belong to the agent, so picking
 // another agent clears them; with no agent picked they're left to the
 // default too. An ACP agent with modes of its own picks one of those in
@@ -104,69 +107,122 @@ export default function AgentFields({
     onChange({ ...value, ...patch });
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <OptionSelect
-        label="Agent"
-        value={value.backendId}
-        unsetLabel={inheritLabel}
-        options={backends.map((b) => ({ value: b.id, name: b.label }))}
-        onChange={(backendId) =>
-          onChange({
-            backendId,
-            model: null,
-            thinking: null,
-            agentMode: null,
-            permissionMode: value.permissionMode,
-          })
-        }
-      />
-      {backend?.kind === "openAiCompatible" ? (
-        <Field>
-          <FieldLabel>Model</FieldLabel>
-          <Input
-            value={value.model ?? ""}
-            onChange={(e) => set({ model: e.target.value || null })}
-            placeholder={backend.model || "Model id"}
-          />
-        </Field>
-      ) : (
+    <MetadataList>
+      <MetadataListItem label="Agent">
         <OptionSelect
-          label="Model"
-          value={value.model}
-          unsetLabel={backend ? agentDefault : inheritLabel}
-          options={modelOptions}
-          disabled={!backend}
-          onChange={(model) => set({ model })}
-        />
-      )}
-      <OptionSelect
-        label="Thinking"
-        value={value.thinking}
-        unsetLabel={backend ? agentDefault : inheritLabel}
-        options={thinkingOptions}
-        disabled={!backend || thinkingOptions.length === 0}
-        onChange={(thinking) => set({ thinking })}
-      />
-      {modes ? (
-        <OptionSelect
-          label="Permission"
-          value={value.agentMode}
-          unsetLabel={agentDefault}
-          options={modes.map((m) => ({ value: m.value, name: m.name }))}
-          onChange={(agentMode) => set({ agentMode })}
-        />
-      ) : (
-        <OptionSelect
-          label="Permission"
-          value={value.permissionMode}
+          label="Agent"
+          icon={Cpu}
+          value={value.backendId}
           unsetLabel={inheritLabel}
-          options={ASK_BYPASS}
-          onChange={(permissionMode) =>
-            set({ permissionMode: permissionMode as "ask" | "bypass" | null })
+          options={backends.map((b) => ({ value: b.id, name: b.label }))}
+          onChange={(backendId) =>
+            onChange({
+              backendId,
+              model: null,
+              thinking: null,
+              agentMode: null,
+              permissionMode: value.permissionMode,
+            })
           }
         />
-      )}
-    </div>
+      </MetadataListItem>
+      <MetadataListItem label="Model">
+        {backend?.kind === "openAiCompatible" ? (
+          <TextInput
+            label="Model"
+            isLabelHidden
+            size="sm"
+            width="100%"
+            value={value.model ?? ""}
+            onChange={(model) => set({ model: model || null })}
+            placeholder={backend.model || "Model id"}
+          />
+        ) : (
+          <OptionSelect
+            label="Model"
+            icon={Sparkles}
+            value={value.model}
+            unsetLabel={backend ? agentDefault : inheritLabel}
+            options={modelOptions}
+            disabled={!backend}
+            onChange={(model) => set({ model })}
+          />
+        )}
+      </MetadataListItem>
+      <MetadataListItem label="Thinking">
+        <OptionSelect
+          label="Thinking"
+          icon={Lightbulb}
+          value={value.thinking}
+          unsetLabel={backend ? agentDefault : inheritLabel}
+          options={thinkingOptions}
+          disabled={!backend || thinkingOptions.length === 0}
+          onChange={(thinking) => set({ thinking })}
+        />
+      </MetadataListItem>
+      <MetadataListItem label="Permission">
+        {modes ? (
+          <OptionSelect
+            label="Permission"
+            icon={ShieldCheck}
+            value={value.agentMode}
+            unsetLabel={agentDefault}
+            options={modes.map((m) => ({ value: m.value, name: m.name }))}
+            onChange={(agentMode) => set({ agentMode })}
+          />
+        ) : (
+          <OptionSelect
+            label="Permission"
+            icon={ShieldCheck}
+            value={value.permissionMode}
+            unsetLabel={inheritLabel}
+            options={ASK_BYPASS}
+            onChange={(permissionMode) =>
+              set({ permissionMode: permissionMode as "ask" | "bypass" | null })
+            }
+          />
+        )}
+      </MetadataListItem>
+    </MetadataList>
+  );
+}
+
+// What a started task's chat actually runs with — plain values in the same
+// rows, since the agent is the chat's to change from here on.
+export function AgentSummary({
+  conversation,
+}: {
+  conversation: ConversationSummary | undefined;
+}) {
+  const backends = useBackends();
+  const catalog = useAcpAgentCatalog();
+  const backend = backends.find((b) => b.id === conversation?.backend);
+  const acp = catalog.find((c) => c.id === backend?.id);
+  const named = (
+    value: string | null | undefined,
+    options: { value: string; name: string }[] | undefined,
+  ) => options?.find((o) => o.value === value)?.name ?? value;
+  const permission = conversation?.agentMode
+    ? named(conversation.agentMode, acp?.modeOptions?.options)
+    : conversation?.permissionMode === "bypass"
+      ? "Bypass"
+      : "Ask";
+  const rows: [string, string | null | undefined][] = [
+    ["Agent", backend?.label ?? conversation?.backend],
+    ["Model", named(conversation?.model, acp?.modelOptions?.options)],
+    ["Thinking", named(conversation?.effort, acp?.effortOptions?.options)],
+    ["Permission", permission],
+  ];
+  return (
+    <MetadataList>
+      {rows.map(([label, value]) => (
+        <MetadataListItem key={label} label={label}>
+          <Text color={value ? "primary" : "secondary"}>
+            {value || "Default"}
+          </Text>
+        </MetadataListItem>
+      ))}
+    </MetadataList>
   );
 }
 

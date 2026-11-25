@@ -1,13 +1,13 @@
-import { Badge } from "@/ui/badge";
+import { Token } from "@astryxdesign/core/Token";
 import type { SubAgentTask } from "../../data/subAgents";
 
-const STATUS_VARIANT = {
-  running: "warning",
-  done: "success",
-  error: "danger",
+const STATUS_COLOR = {
+  running: "yellow",
+  done: "green",
+  error: "red",
 } as const;
 
-// The running / done / error pill shown for a sub-agent in both the side
+// The running / done / error token shown for a sub-agent in both the side
 // panel's list (`SubAgentsTab.tsx`) and the header of its own chat tab
 // (`SubAgentChatTab.tsx`).
 export default function SubAgentStatusBadge({
@@ -16,13 +16,10 @@ export default function SubAgentStatusBadge({
   status: SubAgentTask["status"];
 }) {
   return (
-    <Badge
+    <Token
       size="sm"
-      variant={STATUS_VARIANT[status]}
-      outline
-      className="shrink-0"
-    >
-      {status === "running" ? "running…" : status}
-    </Badge>
+      color={STATUS_COLOR[status]}
+      label={status === "running" ? "running…" : status}
+    />
   );
 }

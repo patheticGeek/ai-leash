@@ -1,7 +1,37 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
+import { Theme } from "@astryxdesign/core/theme";
+import {
+  colorVars,
+  radiusVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { RotateCcw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { defaultThemeSlug, themeModes, themes } from "../astryx-themes";
 import { reportReactError } from "../lib/crashReporting";
-import { Button } from "./button";
+
+const styles = stylex.create({
+  screen: {
+    width: "100%",
+    height: "100%",
+    textAlign: "center",
+    backgroundColor: colorVars["--color-background-body"],
+  },
+  message: {
+    display: "block",
+    maxWidth: "32rem",
+    maxHeight: "12rem",
+    overflow: "auto",
+    padding: spacingVars["--spacing-2"],
+    borderRadius: radiusVars["--radius-element"],
+    backgroundColor: colorVars["--color-background-muted"],
+    userSelect: "text",
+    whiteSpace: "pre-wrap",
+  },
+});
 
 interface Props {
   children: ReactNode;
@@ -32,27 +62,37 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      // Its own `Theme`: in `main.tsx` this boundary sits outside the app's,
+      // so a crash anywhere still gets the leash theme.
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-sunken p-6 text-zinc-300">
-          <div className="text-sm font-medium text-zinc-100">
-            Something went wrong.
-          </div>
-          <div className="max-w-md text-center text-xs text-zinc-500">
-            The error has been logged — open Settings → Crash log to see it, or
-            reload to keep working.
-          </div>
-          <pre className="max-w-lg select-text overflow-auto rounded-md bg-background p-2 text-[10px] text-zinc-600">
-            {this.state.error.message}
-          </pre>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => window.location.reload()}
+        <Theme
+          theme={themes[defaultThemeSlug]}
+          mode={themeModes[defaultThemeSlug] ?? "dark"}
+        >
+          <VStack
+            gap={3}
+            hAlign="center"
+            vAlign="center"
+            padding={6}
+            xstyle={styles.screen}
           >
-            <RotateCcw size={13} />
-            Reload
-          </Button>
-        </div>
+            <Text type="label">Something went wrong.</Text>
+            <Text type="supporting" size="xsm" color="secondary">
+              The error has been logged — open Settings → Crash log to see it,
+              or reload to keep working.
+            </Text>
+            <Text type="code" size="2xs" xstyle={styles.message}>
+              {this.state.error.message}
+            </Text>
+            <Button
+              variant="primary"
+              size="sm"
+              label="Reload"
+              icon={<RotateCcw size={13} />}
+              onClick={() => window.location.reload()}
+            />
+          </VStack>
+        </Theme>
       );
     }
     return this.props.children;

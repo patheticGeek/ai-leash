@@ -10,4 +10,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
-export const Large: Story = { args: { className: "h-12 w-auto" } };
+export const Small: Story = { args: { size: "sm" } };
+export const Large: Story = { args: { size: "lg" } };

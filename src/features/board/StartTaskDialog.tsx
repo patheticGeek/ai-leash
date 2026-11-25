@@ -1,49 +1,46 @@
-import { Play } from "lucide-react";
-import { useEffect, useId, useState } from "react";
-import { Button } from "@/ui/button";
-import { Checkbox } from "@/ui/checkbox";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Icon } from "@astryxdesign/core/Icon";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
-import { Label } from "@/ui/label";
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from "@astryxdesign/core/Layout";
+import { Heading, Text } from "@astryxdesign/core/Text";
+import { Play } from "lucide-react";
+import { useEffect, useState } from "react";
 import { effortForSize } from "../../data/board";
 import { type AgentDefaults, api, type Task } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import AgentFields, { resolveAgent } from "./AgentFields";
 
-function CheckRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <Label
-      htmlFor={id}
-      className="cursor-pointer gap-2 font-normal text-zinc-300"
-    >
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={(next) => onChange(next === true)}
-      />
-      {label}
-    </Label>
-  );
+// Starts `task`'s chat (and worktree) with `agent` — what this dialog's
+// Start does, and the task modals' Start / "Start it right away" with the
+// task's settings over the board's. Resolves to the chat's id.
+export function startTaskWith(
+  task: Task,
+  agent: AgentDefaults,
+  follow = true,
+): Promise<string> {
+  return api.startTask(task.id, {
+    backendId: agent.backendId ?? undefined,
+    model: agent.model ?? undefined,
+    effort: agent.thinking ?? null,
+    agentMode: agent.agentMode ?? null,
+    bypassPermissions: agent.permissionMode
+      ? agent.permissionMode === "bypass"
+      : undefined,
+    engagedWithProject: follow,
+  });
 }
 
 // Picks how to start a task — which agent, model, thinking level and
 // permission its chat runs with, prefilled from the task's own defaults
-// over the board's — then starts it (`api.startTask`).
+// over the board's — then starts it. Opened by a card's Start.
 export default function StartTaskDialog({
   task,
   boardDefaults,
@@ -75,16 +72,7 @@ export default function StartTaskDialog({
     setStarting(true);
     setError(null);
     try {
-      const conversationId = await api.startTask(task.id, {
-        backendId: agent.backendId ?? undefined,
-        model: agent.model ?? undefined,
-        effort: agent.thinking ?? null,
-        agentMode: agent.agentMode ?? null,
-        bypassPermissions: agent.permissionMode
-          ? agent.permissionMode === "bypass"
-          : undefined,
-        engagedWithProject: follow,
-      });
+      const conversationId = await startTaskWith(task, agent, follow);
       onClose();
       if (openAfter) await openConversation(conversationId);
     } catch (err) {
@@ -97,53 +85,82 @@ export default function StartTaskDialog({
   const sizeThinking = effortForSize(task?.effort ?? null);
 
   return (
-    <Dialog open={task !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>
-            Start #{task?.number} {task?.title}
-          </DialogTitle>
-          <DialogDescription>
-            The task gets its own chat, which starts working on it straight
-            away. In a git repository it also gets its own worktree, on a new{" "}
-            <code>task/{task?.number}-…</code> branch.
-          </DialogDescription>
-        </DialogHeader>
-        <AgentFields value={agent} onChange={setAgent} inheritLabel="Default" />
-        {!agent.thinking && sizeThinking && (
-          <p className="text-xs text-zinc-500">
-            Our own providers think at <strong>{sizeThinking}</strong> effort
-            for a task this size unless you pick otherwise.
-          </p>
-        )}
-        <div className="flex flex-col gap-2">
-          <CheckRow
-            label="The project chat follows it (its updates wake the project chat)"
-            checked={follow}
-            onChange={setFollow}
+    <Dialog
+      isOpen={task !== null}
+      onOpenChange={(open) => !open && onClose()}
+      purpose="form"
+      width={576}
+    >
+      <Layout
+        header={
+          <DialogHeader
+            title={`Start task #${task?.number ?? ""}`}
+            subtitle={task?.title}
+            onOpenChange={onClose}
           />
-          <CheckRow
-            label="Open its chat after starting"
-            checked={openAfter}
-            onChange={setOpenAfter}
-          />
-        </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <DialogFooter>
-          <Button variant="ghost" size="md" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            disabled={starting}
-            onClick={start}
-          >
-            <Play size={14} />
-            {starting ? "Starting…" : "Start"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+        }
+        content={
+          <LayoutContent>
+            <VStack gap={5}>
+              <Text color="secondary">
+                The task gets its own chat, which starts working on it straight
+                away. In a git repository it also gets its own worktree, on a
+                new task/{task?.number}-… branch.
+              </Text>
+              <VStack gap={2}>
+                <Heading level={4} weight="normal">
+                  Agent
+                </Heading>
+                <AgentFields
+                  value={agent}
+                  onChange={setAgent}
+                  inheritLabel="Default"
+                />
+                {!agent.thinking && sizeThinking && (
+                  <Text type="supporting" color="secondary">
+                    Our own providers think at {sizeThinking} effort for a task
+                    this size unless you pick otherwise.
+                  </Text>
+                )}
+              </VStack>
+              <VStack gap={2}>
+                <CheckboxInput
+                  label="The project chat follows it"
+                  description="Its updates wake the project chat."
+                  value={follow}
+                  onChange={setFollow}
+                />
+                <CheckboxInput
+                  label="Open its chat after starting"
+                  value={openAfter}
+                  onChange={setOpenAfter}
+                />
+              </VStack>
+              {error && (
+                <Banner
+                  status="error"
+                  title="Couldn't start the task"
+                  description={error}
+                />
+              )}
+            </VStack>
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <HStack gap={2} hAlign="end">
+              <Button variant="secondary" label="Cancel" onClick={onClose} />
+              <Button
+                variant="primary"
+                label={starting ? "Starting…" : "Start"}
+                icon={<Icon icon={Play} size="sm" />}
+                isDisabled={starting}
+                onClick={start}
+              />
+            </HStack>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 }

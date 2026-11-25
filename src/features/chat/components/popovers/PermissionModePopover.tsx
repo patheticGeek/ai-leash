@@ -1,8 +1,10 @@
+import { Button } from "@astryxdesign/core/Button";
+import {
+  DropdownMenu,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@astryxdesign/core/DropdownMenu";
 import { ShieldCheck, ShieldOff } from "lucide-react";
-import { useRef } from "react";
-import { Button } from "@/ui/button";
-import { Command, CommandItem, CommandList } from "@/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 export interface PermissionModeOption {
   value: string;
@@ -39,10 +41,8 @@ interface PermissionModePopoverProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// Same look as `ModelPickerPopover` (a cmdk list in a popover) — a second,
-// simpler switcher next to it with a short fixed list, so no search bar.
-// Kept as its own component rather than a variant of `ModelPickerPopover`
-// since there's no filtering/searching to share.
+// A second, simpler switcher next to `ModelPickerPopover` — a short fixed
+// list, so a radio menu rather than a searchable palette.
 export default function PermissionModePopover({
   options,
   value,
@@ -52,60 +52,39 @@ export default function PermissionModePopover({
   onOpenChange,
 }: PermissionModePopoverProps) {
   const active = options.find((o) => o.value === value) ?? options[0];
-  const listRef = useRef<HTMLDivElement>(null);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
+    <DropdownMenu
+      isMenuOpen={open}
+      onOpenChange={onOpenChange}
+      placement="above"
+      alignment="start"
+      menuWidth="20rem"
+      renderTrigger={(triggerProps) => (
         <Button
-          variant={warn ? "chip-warning" : "chip"}
-          bordered={false}
+          {...triggerProps}
+          variant="ghost"
           size="sm"
-          title="Tool-call permission mode"
-          className="flex min-w-0"
-        >
-          {warn ? <ShieldOff size={12} /> : <ShieldCheck size={12} />}
-          {active?.label ?? value}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="top"
-        align="start"
-        sideOffset={8}
-        onOpenAutoFocus={(e) => {
-          // No search box to take focus, so give it to the list itself —
-          // that's what makes arrow keys/Enter work straight away.
-          e.preventDefault();
-          listRef.current?.focus();
-        }}
-        className="w-80 gap-0 overflow-hidden p-0"
+          label={active?.label ?? value}
+          icon={warn ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
+          tooltip="Tool-call permission mode"
+        />
+      )}
+    >
+      <DropdownMenuRadioGroup
+        label="Tool-call permission mode"
+        value={value}
+        onChange={onSelect}
       >
-        <Command ref={listRef} tabIndex={-1} defaultValue={value}>
-          <CommandList>
-            {options.map((o) => (
-              <CommandItem
-                key={o.value}
-                value={o.value}
-                data-checked={o.value === value}
-                checkIcon
-                onSelect={() => {
-                  onSelect(o.value);
-                  onOpenChange(false);
-                }}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-zinc-100">
-                    {o.label}
-                  </div>
-                  {o.subtitle && (
-                    <div className="text-xs text-zinc-500">{o.subtitle}</div>
-                  )}
-                </div>
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        {options.map((o) => (
+          <DropdownMenuRadioItem
+            key={o.value}
+            value={o.value}
+            label={o.label}
+            description={o.subtitle ?? undefined}
+          />
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenu>
   );
 }

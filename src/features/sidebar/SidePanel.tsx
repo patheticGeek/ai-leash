@@ -1,11 +1,21 @@
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Button } from "@/ui/button";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { TabBody } from "../tabs/TabContent";
 import { useTabDropArea } from "../tabs/TabDnd";
 import TabStrip from "../tabs/TabStrip";
 import TabPicker from "./TabPicker";
+
+const styles = stylex.create({
+  fill: { height: "100%" },
+  header: { flexShrink: 0 },
+  // Takes what the tab row leaves; the positioning context for tab content.
+  body: { position: "relative", flex: 1, minHeight: 0 },
+});
 
 export default function SidePanel() {
   const panelTabs = useAppStore((s) => s.panelTabs);
@@ -30,35 +40,36 @@ export default function SidePanel() {
   }
 
   return (
-    <div ref={dropRef} className="flex h-full flex-col bg-sunken">
-      <div className="flex shrink-0 items-center pr-1.5">
-        <TabStrip
-          tabs={panelTabs}
-          value={showPicker ? "" : (activePanelTabId ?? "")}
-          onSelect={(id) => {
-            activateTab(id);
-            setPickerOpen(false);
-          }}
-          className="flex-1"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setPickerOpen(true)}
-          title="Open tab"
-          className="shrink-0"
-        >
-          <Plus size={14} />
-        </Button>
-      </div>
-      <div className="relative flex-1 min-h-0">
+    <VStack ref={dropRef} xstyle={styles.fill}>
+      <TabStrip
+        label="Side panel tabs"
+        hasScrollArrows={false}
+        tabs={panelTabs}
+        value={showPicker ? "" : (activePanelTabId ?? "")}
+        onSelect={(id) => {
+          activateTab(id);
+          setPickerOpen(false);
+        }}
+        xstyle={styles.header}
+        endContent={
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Open tab"
+            tooltip="Open tab"
+            icon={<Icon icon={Plus} size="sm" />}
+            onClick={() => setPickerOpen(true)}
+          />
+        }
+      />
+      <VStack xstyle={styles.body}>
         <TabBody
           tabs={panelTabs}
           activeId={activePanelTabId}
           hidden={showPicker}
         />
         {showPicker && <TabPicker onPick={pick} />}
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   );
 }

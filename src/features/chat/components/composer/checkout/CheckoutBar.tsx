@@ -1,7 +1,7 @@
+import { HStack } from "@astryxdesign/core/HStack";
 import { useCallback, useEffect, useState } from "react";
 import { api, type GitWorktree } from "@/lib/tauriApi";
 import { useCurrentGitBranch } from "@/lib/useCurrentGitBranch";
-import DockedBanner from "../../banners/DockedBanner";
 import BranchPicker from "./BranchPicker";
 import WorktreePicker, { worktreeLabel } from "./WorktreePicker";
 
@@ -23,12 +23,9 @@ export interface CheckoutBarProps {
   onWorktreeSelected: (worktreePath: string | null) => void;
 }
 
-// Sits directly below `ChatInputBar` as a bottom-docked `DockedBanner`
-// (mirroring `ClaudeRateLimitBanner` above it). Its default variant is
-// `bg-card`, the app's established "recessed surface" tone (see `Input`'s
-// default variant), so this reads as consistent rather than a one-off color.
-// A `group`, not the `Alert`'s default `alert` role — it holds controls, not
-// a message to announce.
+// Sits directly below the composer: two ghost picker buttons, each opening
+// a `Popover` above it (search, a compact list, inline create forms). No
+// surface of its own — it holds controls (a `group`), not a message.
 //
 // Two independent pickers share the bar: which worktree (left) and which
 // branch is checked out there (right, pinned to the far edge). They're
@@ -99,7 +96,14 @@ export default function CheckoutBar({
   );
 
   return (
-    <DockedBanner side="bottom" role="group" aria-label="Checkout">
+    <HStack
+      role="group"
+      aria-label="Checkout"
+      align="center"
+      justify="between"
+      gap={3}
+      paddingInline={1}
+    >
       <WorktreePicker
         worktrees={worktrees}
         activePath={cwd}
@@ -118,6 +122,6 @@ export default function CheckoutBar({
         onCreate={createBranch}
         onDelete={(name, force) => api.deleteGitBranch(cwd, name, force)}
       />
-    </DockedBanner>
+    </HStack>
   );
 }

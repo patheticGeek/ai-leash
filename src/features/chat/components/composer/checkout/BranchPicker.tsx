@@ -1,11 +1,15 @@
-import { GitBranch as GitBranchIcon } from "lucide-react";
+import { Banner } from "@astryxdesign/core/Banner";
+import { Popover } from "@astryxdesign/core/Popover";
+import { GitBranch } from "lucide-react";
 import { useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { useAsyncAction } from "../../../hooks/useAsyncAction";
 import { useGitBranches } from "../../../hooks/useGitBranches";
 import { CreatePanel, NewBranchFields } from "./CreatePanel";
 import DeletableRow from "./DeletableRow";
 import PickerList from "./PickerList";
+import PickerTrigger from "./PickerTrigger";
+
+export const PICKER_WIDTH = 340;
 
 // Which branch is checked out in the conversation's directory: switch to
 // one, create-and-switch to a new one, or delete one.
@@ -39,6 +43,11 @@ export default function BranchPicker({
     }
   }
 
+  function showList() {
+    setCreating(false);
+    action.clearError();
+  }
+
   async function pick(name: string) {
     if (await action.run(() => onSelect(name))) closePopover(false);
   }
@@ -48,8 +57,9 @@ export default function BranchPicker({
     removeBranch(name);
   }
 
+  const canSubmit = !!newBranch.trim() && !!baseBranch && !action.pending;
   async function submitNew() {
-    if (!newBranch.trim() || !baseBranch) return;
+    if (!canSubmit || !baseBranch) return;
     const ok = await action.run(() => onCreate(newBranch.trim(), baseBranch));
     if (ok) {
       closePopover(false);
@@ -58,65 +68,82 @@ export default function BranchPicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={closePopover}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex max-w-60 cursor-pointer items-center gap-1.5 truncate text-left hover:text-zinc-200"
-        >
-          <GitBranchIcon size={12} className="shrink-0" />
-          <span className="truncate">{branch ?? "detached"}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        side="bottom"
-        align="end"
-        sideOffset={4}
-        className="flex w-64 flex-col gap-0 overflow-hidden p-0"
-      >
-        {!creating ? (
+    <Popover
+      isOpen={open}
+      onOpenChange={closePopover}
+      label="Branches"
+      placement="above"
+      alignment="end"
+      width={PICKER_WIDTH}
+      // Only while open, so the search and any half-done delete start
+      // fresh each time.
+      content={
+        !open ? null : !creating ? (
           <PickerList
             searchPlaceholder="Search branches..."
             createLabel="New branch…"
-            createValue="new-branch"
-            onCreate={() => setCreating(true)}
-          >
-            {branches.map((b) => (
-              <DeletableRow
-                key={b.name}
-                value={b.name}
-                label={b.name}
-                active={b.name === branch}
-                deletable={!b.isCurrent}
-                selectDisabled={action.pending}
-                onSelect={() => pick(b.name)}
-                onDelete={(force) => deleteBranch(b.name, force)}
-              />
-            ))}
-            {action.error && (
-              <span className="block px-2 py-1 text-xs text-red-400">
-                {action.error}
-              </span>
-            )}
-          </PickerList>
+            onCreate={() => {
+              action.clearError();
+              setCreating(true);
+            }}
+            rows={branches.map((b) => ({
+              key: b.name,
+              searchText: b.name,
+              isCurrent: b.name === branch,
+              isDisabled: action.pending,
+              onSelect: () => void pick(b.name),
+              render: (row) => (
+                <DeletableRow
+                  {...row}
+                  label={b.name}
+                  active={b.name === branch}
+                  deletable={!b.isCurrent}
+                  selectDisabled={action.pending}
+                  onSelect={() => void pick(b.name)}
+                  onDelete={(force) => deleteBranch(b.name, force)}
+                />
+              ),
+            }))}
+            footer={
+              action.error && (
+                <Banner
+                  status="error"
+                  collapsible={false}
+                  title="Couldn't switch branch"
+                  description={action.error}
+                />
+              )
+            }
+          />
         ) : (
           <CreatePanel
-            error={action.error}
-            canSubmit={!!newBranch.trim() && !!baseBranch}
+            title="New branch"
+            canSubmit={canSubmit}
             submitting={action.pending}
-            onBack={() => setCreating(false)}
+            onBack={showList}
             onSubmit={submitNew}
           >
             <NewBranchFields
               name={newBranch}
-              onNameChange={setNewBranch}
+              onNameChange={(name) => {
+                setNewBranch(name);
+                action.clearError();
+              }}
+              onEnter={() => void submitNew()}
               baseBranch={baseBranch}
               onBaseBranchChange={setBaseBranch}
               branches={branches}
+              error={action.error}
             />
           </CreatePanel>
-        )}
-      </PopoverContent>
+        )
+      }
+    >
+      <PickerTrigger
+        icon={GitBranch}
+        label="Branch"
+        name={branch ?? "detached"}
+      />
     </Popover>
   );
 }

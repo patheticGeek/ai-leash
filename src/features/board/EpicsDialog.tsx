@@ -1,115 +1,104 @@
+import { Button } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import {
+  HStack,
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  StackItem,
+  VStack,
+} from "@astryxdesign/core/Layout";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
 import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/ui/dialog";
-import { Input } from "@/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 import { api, type Epic } from "../../lib/tauriApi";
-import { EpicDot } from "./TaskMeta";
+import { EPIC_COLORS, hexTokenColor } from "./TaskMeta";
 
-// Same palette Rust cycles through for new epics (`db/epics.rs`).
-const EPIC_COLORS = [
-  "#f97316",
-  "#a855f7",
-  "#22c55e",
-  "#3b82f6",
-  "#ec4899",
-  "#eab308",
-  "#14b8a6",
-  "#ef4444",
-];
+const COLOR_OPTIONS = EPIC_COLORS.map((c) => ({
+  value: c.hex,
+  label: c.name,
+}));
 
-function ColorPicker({
-  color,
-  onChange,
-}: {
-  color: string;
-  onChange: (color: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" title="Colour">
-          <EpicDot color={color} className="size-3" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="flex w-auto gap-1 p-1.5">
-        {EPIC_COLORS.map((c) => (
-          <Button
-            key={c}
-            variant="ghost"
-            size="icon-sm"
-            title={c}
-            onClick={() => {
-              onChange(c);
-              setOpen(false);
-            }}
-            className={cn(c === color && "bg-white/10")}
-          >
-            <EpicDot color={c} className="size-3" />
-          </Button>
-        ))}
-      </PopoverContent>
-    </Popover>
-  );
+function colorSwatch(hex: string) {
+  const name = EPIC_COLORS.find((c) => c.hex === hex)?.name ?? "Colour";
+  return <Token size="sm" label={name} color={hexTokenColor(hex)} />;
 }
 
+// One epic: its colour (a tinted Token, as the board shows epics), its
+// title (renamed on blur / Enter), archive and delete.
 function EpicRow({ epic }: { epic: Epic }) {
   const [title, setTitle] = useState(epic.title);
+  const color = epic.color.toLowerCase();
   return (
-    <div
-      className={cn(
-        "group flex items-center gap-1.5 rounded-md px-1 py-1 hover:bg-white/[0.03]",
-        epic.archived && "opacity-50",
-      )}
-    >
-      <ColorPicker
-        color={epic.color}
-        onChange={(color) => void api.updateEpic(epic.id, { color })}
-      />
-      <Input
-        variant="unstyled"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={() => {
-          if (title.trim() && title !== epic.title) {
-            void api.updateEpic(epic.id, { title });
-          } else {
-            setTitle(epic.title);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-        className="flex-1 px-1 py-1"
-      />
-      <Button
+    <HStack gap={2} vAlign="center">
+      <Selector
+        label="Colour"
+        isLabelHidden
         variant="ghost"
-        size="icon-sm"
-        title={epic.archived ? "Unarchive" : "Archive"}
+        size="sm"
+        value={COLOR_OPTIONS.some((o) => o.value === color) ? color : undefined}
+        placeholder="Colour"
+        onChange={(hex) => void api.updateEpic(epic.id, { color: hex })}
+        options={COLOR_OPTIONS}
+        renderValue={(o) => colorSwatch(o.value)}
+        renderOption={(o) => colorSwatch(o.value)}
+      />
+      <StackItem size="fill">
+        <TextInput
+          label="Epic title"
+          isLabelHidden
+          size="sm"
+          width="100%"
+          value={title}
+          onChange={setTitle}
+          onBlur={() => {
+            if (title.trim() && title !== epic.title) {
+              void api.updateEpic(epic.id, { title });
+            } else {
+              setTitle(epic.title);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+        />
+      </StackItem>
+      {epic.archived && (
+        <Text type="supporting" color="secondary">
+          Archived
+        </Text>
+      )}
+      <IconButton
+        variant="ghost"
+        size="sm"
+        label={epic.archived ? "Unarchive" : "Archive"}
+        tooltip={
+          epic.archived
+            ? "Unarchive"
+            : "Archive (can't be picked for new tasks)"
+        }
+        icon={
+          <Icon icon={epic.archived ? ArchiveRestore : Archive} size="sm" />
+        }
         onClick={() =>
           void api.updateEpic(epic.id, { archived: !epic.archived })
         }
-      >
-        {epic.archived ? <ArchiveRestore /> : <Archive />}
-      </Button>
-      <Button
-        variant="danger"
-        size="icon-sm"
-        title="Delete epic (its tasks stay, ungrouped)"
+      />
+      <IconButton
+        variant="ghost"
+        size="sm"
+        label="Delete epic"
+        tooltip="Delete epic (its tasks stay, ungrouped)"
+        icon={<Icon icon={Trash2} size="sm" />}
         onClick={() => void api.deleteEpic(epic.id)}
-      >
-        <Trash2 />
-      </Button>
-    </div>
+      />
+    </HStack>
   );
 }
 
@@ -135,41 +124,56 @@ export default function EpicsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Epics</DialogTitle>
-          <DialogDescription>
-            Group related tasks. Deleting an epic keeps its tasks.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex max-h-80 flex-col overflow-y-auto">
-          {epics.length === 0 && (
-            <p className="py-4 text-center text-xs text-zinc-600">
-              No epics yet
-            </p>
-          )}
-          {epics.map((epic) => (
-            <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
-          ))}
-        </div>
-        <form onSubmit={add} className="flex gap-2">
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="New epic"
+    <Dialog isOpen={open} onOpenChange={onOpenChange} width={576}>
+      <Layout
+        header={
+          <DialogHeader
+            title="Epics"
+            subtitle="Group related tasks. Deleting an epic keeps its tasks."
+            onOpenChange={onOpenChange}
           />
-          <Button
-            type="submit"
-            variant="chip-primary"
-            size="md"
-            disabled={!title.trim()}
-          >
-            <Plus size={14} />
-            Add
-          </Button>
-        </form>
-      </DialogContent>
+        }
+        content={
+          <LayoutContent>
+            {epics.length === 0 ? (
+              <EmptyState
+                isCompact
+                title="No epics yet"
+                description="Add one below, then pick it on a task."
+              />
+            ) : (
+              <VStack gap={2}>
+                {epics.map((epic) => (
+                  <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
+                ))}
+              </VStack>
+            )}
+          </LayoutContent>
+        }
+        footer={
+          <LayoutFooter>
+            <HStack as="form" gap={2} vAlign="center" onSubmit={add}>
+              <StackItem size="fill">
+                <TextInput
+                  label="New epic"
+                  isLabelHidden
+                  width="100%"
+                  value={title}
+                  onChange={setTitle}
+                  placeholder="New epic"
+                />
+              </StackItem>
+              <Button
+                type="submit"
+                variant="primary"
+                label="Add epic"
+                icon={<Icon icon={Plus} size="sm" />}
+                isDisabled={!title.trim()}
+              />
+            </HStack>
+          </LayoutFooter>
+        }
+      />
     </Dialog>
   );
 }

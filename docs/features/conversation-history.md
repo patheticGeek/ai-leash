@@ -37,9 +37,9 @@ another project or start a new conversation.
 
 ## Finding and managing conversations
 
-The left sidebar lists your conversations, with the most recently active ones
-first. It normally shows conversations from all projects. Use the project
-filter at the top of the sidebar to narrow the list to one project.
+The left sidebar lists your conversations grouped by project, with the most
+recently active ones first in each group. Fold a project's group to hide its
+conversations.
 
 Select a conversation to switch to it. Switching does not delete or merge
 anything: each conversation has its own transcript and can be continued
@@ -64,22 +64,24 @@ message. Some agents can provide a more specific title. The title helps you
 recognize the conversation in the sidebar; it does not change the transcript.
 
 When you are finished with a conversation, mark it **Done** to move it into
-the collapsed **Done** section. You can reopen it or mark it as not done
-later. To remove a conversation permanently, open its context menu in the
-sidebar and choose **Delete conversation**. Deleting removes its transcript
+the **Done** group at the bottom of the sidebar. You can reopen it or mark
+it as not done later. To remove a conversation permanently, open its **⋯**
+menu (it appears when you point at the conversation) or right-click it, and
+choose **Delete conversation**. Deleting removes its transcript
 and its related sub-agent records as well.
 
 ## Board and task chats
 
 Each project's [board](./project-board.md) is backed by its own project
-chat, saved like any other conversation but opened from **Project boards**
-in the sidebar rather than listed under **Chats**. Removing a project from
-AI Leash deletes its board and its project chat with the rest of its
-conversations.
+chat, saved like any other conversation but opened from the project's
+**Board** entry in the sidebar rather than listed as a chat. Removing a project from
+AI Leash (**Remove project** in its sidebar group's **⋯** or right-click
+menu) deletes its board and its project chat with the rest of its
+conversations; its files on disk aren't touched.
 
-A started task's chat is a normal conversation, listed under **Chats** with
-the task's number (or grouped or hidden there — see the filter next to the
-project menu). Moving the task to Done marks its chat done too. Deleting a
+A started task's chat is a normal conversation, listed in its project's
+group with the task's number (or grouped or hidden there — see the filter
+beside **Projects**). Moving the task to Done marks its chat done too. Deleting a
 task leaves its chat; deleting the chat leaves the task on the board, where
 it can be started again.
 

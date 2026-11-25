@@ -1,4 +1,8 @@
-import { useEffect } from "react";
+import { ChatSystemMessage } from "@astryxdesign/core/Chat";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
+import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
+import { useEffect, useState } from "react";
 import { useSubAgents } from "../../data/subAgents";
 import {
   messagesToEntries,
@@ -7,14 +11,26 @@ import {
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import ChatEntryList from "./components/messages/ChatEntryList";
-import SubAgentStatusBadge from "./SubAgentStatusBadge";
+import { useTurnDurations } from "./hooks/useTurnDurations";
 
-// Shows a sub-agent's own transcript through the same `ChatEntryList`/
-// `ChatEntryRenderer` a top-level conversation uses — tool calls and
-// thinking blocks render identically (collapsible, same icons/labels), just
-// with `allowRetry`/the top-level-only banners turned off, since a
-// sub-agent has no `retry_last`/system-prompt/Ollama-error/ACP-restore
-// concept of its own.
+const styles = stylex.create({
+  fill: { height: "100%", minHeight: 0 },
+});
+
+const STATUS = {
+  running: { variant: "accent", label: "Running" },
+  done: { variant: "success", label: "Finished" },
+  error: { variant: "error", label: "Failed" },
+} as const;
+
+// A sub-agent's own transcript: the very `ChatEntryList` a top-level
+// conversation's `ChatPanel` renders, with the same props and density, so
+// it looks and behaves exactly like the main chat minus the composer
+// (grouping, metadata rows, fades, scroll-to-bottom, opening at the end,
+// following new output, empty / loading / error states). Only Retry is off,
+// since a sub-agent can't re-run a turn. Its status and model are a system
+// line at the top, where the main chat's system prompt line goes; what it
+// was asked is its tab's title and its first message.
 export default function SubAgentChatTab({
   subSessionId,
 }: {
@@ -40,57 +56,80 @@ export default function SubAgentChatTab({
   // `status` comes from the lifecycle-driven `useSubAgents` query, so the
   // transition can't be missed the way a per-sub-agent stream event can.
   const status = task?.status;
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is trigger-only — bumping it re-runs the load for the transcript's Try again
   useEffect(() => {
     let cancelled = false;
-    api.loadConversationHistory(subSessionId).then((messages) => {
-      if (cancelled) return;
-      const persisted = messagesToEntries(messages);
-      // Once it's finished, disk has the whole transcript (including that
-      // final message), so it replaces the live copy outright; while it's
-      // still running, live events are ahead of disk and win.
-      setSubAgentEntries(subSessionId, (prev) =>
-        status === "done" || status === "error"
-          ? persisted
-          : reconcileWithPersisted(prev, persisted),
-      );
-    });
+    setLoadError(null);
+    api
+      .loadConversationHistory(subSessionId)
+      .then((messages) => {
+        if (cancelled) return;
+        const persisted = messagesToEntries(messages);
+        // Once it's finished, disk has the whole transcript (including that
+        // final message), so it replaces the live copy outright; while it's
+        // still running, live events are ahead of disk and win.
+        setSubAgentEntries(subSessionId, (prev) =>
+          status === "done" || status === "error"
+            ? persisted
+            : reconcileWithPersisted(prev, persisted),
+        );
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [subSessionId, setSubAgentEntries, status]);
+  }, [subSessionId, setSubAgentEntries, status, attempt]);
 
   const running = status === "running";
+  // "Worked for" times the way `ChatPanel` keeps them: from disk for
+  // finished turns, frozen from the run's start when it finishes live.
+  const turnDurations = useTurnDurations(
+    entries,
+    running,
+    running ? (task?.startedAt ?? null) : null,
+  );
+  const dot = STATUS[task?.status ?? "done"];
+  const model = task?.model
+    ? `${task.model}${task.effort ? ` (${task.effort})` : ""}`
+    : null;
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center gap-2 px-3 py-2 text-xs">
-        <SubAgentStatusBadge status={task?.status ?? "done"} />
-        <span className="min-w-0 flex-1 truncate text-zinc-300">
-          {task?.description}
-        </span>
-        {task?.model && (
-          <span className="shrink-0 truncate text-zinc-600">
-            {task.model}
-            {task.effort ? ` (${task.effort})` : ""}
-          </span>
-        )}
-      </div>
-      {entries.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-4">
-          <div className="text-sm text-zinc-600">
-            Waiting for sub-agent output…
-          </div>
-        </div>
-      ) : (
-        <div className="relative flex-1 overflow-hidden">
-          <ChatEntryList
-            entries={entries}
-            sending={running}
-            allowRetry={false}
-            turnDurations={{}}
-            replyStartedAt={task?.startedAt ?? null}
-          />
-        </div>
-      )}
-    </div>
+    <VStack xstyle={styles.fill}>
+      <ChatEntryList
+        entries={entries}
+        leading={
+          <ChatSystemMessage
+            icon={
+              <StatusDot
+                variant={dot.variant}
+                label={dot.label}
+                isPulsing={running}
+              />
+            }
+          >
+            {["Sub-agent", model, dot.label].filter(Boolean).join(" · ")}
+          </ChatSystemMessage>
+        }
+        // Live events can fill a running sub-agent's thread before its
+        // saved transcript loads; only an empty one waits on the load.
+        historyLoaded={loaded || entries.length > 0}
+        historyError={entries.length > 0 ? null : loadError}
+        onReloadHistory={() => {
+          setLoaded(false);
+          setAttempt((n) => n + 1);
+        }}
+        sending={running}
+        allowRetry={false}
+        turnDurations={turnDurations}
+        replyStartedAt={running ? (task?.startedAt ?? null) : null}
+      />
+    </VStack>
   );
 }

@@ -1,3 +1,4 @@
+import { VStack } from "@astryxdesign/core/Stack";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
@@ -6,9 +7,14 @@ import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
 import { EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
+import * as stylex from "@stylexjs/stylex";
 import { basicSetup, EditorView } from "codemirror";
 import { type KeyboardEvent, useEffect, useRef } from "react";
 import { useAppStore } from "../../../store";
+
+const styles = stylex.create({
+  host: { height: "100%", minHeight: 0, overflow: "hidden" },
+});
 
 function languageFor(name: string): Extension {
   const ext = name.split(".").pop() ?? "";
@@ -66,7 +72,16 @@ export default function FileEditorTab({ path }: { path: string }) {
             }
           }),
           EditorView.theme({
-            "&": { height: "100%", backgroundColor: "var(--background)" },
+            // The Astryx code block's background, like the terminal (see
+            // `terminalTheme.ts`), over oneDark's own.
+            "&": {
+              height: "100%",
+              backgroundColor: "var(--color-syntax-background)",
+            },
+            ".cm-gutters": {
+              backgroundColor: "var(--color-syntax-background)",
+              borderRight: "none",
+            },
             ".cm-content, .cm-gutters": {
               fontFamily: "var(--al-font-mono)",
               fontSize: "var(--al-code-size)",
@@ -92,11 +107,6 @@ export default function FileEditorTab({ path }: { path: string }) {
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: catches Ctrl+S bubbling up from the CodeMirror editor inside
-    <div
-      ref={containerRef}
-      onKeyDown={onKeyDown}
-      className="h-full min-h-0 overflow-hidden bg-background"
-    />
+    <VStack ref={containerRef} onKeyDown={onKeyDown} xstyle={styles.host} />
   );
 }

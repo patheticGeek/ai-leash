@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 // How close (px) to the bottom still counts as "at the end".
 const END_THRESHOLD = 8;
@@ -9,8 +9,10 @@ const UP_KEYS = new Set(["ArrowUp", "PageUp", "Home"]);
 
 // Keeps a scroll container pinned to its end while its content grows, until
 // the user scrolls up; scrolling back down to the end pins it again. Returns
-// refs for the scrolling viewport and its content, plus `stick()` to re-pin
-// and jump to the end (sending a message, the "Latest" button).
+// refs for the scrolling viewport and its content, `stick()` to re-pin
+// and jump to the end (sending a message, the "Latest" button), and `atEnd`
+// — whether the viewport currently shows its end (the "Latest" button hides
+// while it does).
 //
 // Replaces the message scroller's own `autoScroll`, which stops following on
 // *any* wheel/touch/scroll key — wheeling inside a nested scroller (a tool
@@ -27,6 +29,7 @@ export function useStickToEnd<
   const viewportRef = useRef<V>(null);
   const contentRef = useRef<C>(null);
   const stuck = useRef(true);
+  const [atEnd, setAtEnd] = useState(true);
 
   const stick = useCallback(() => {
     stuck.current = true;
@@ -62,6 +65,7 @@ export function useStickToEnd<
     const onScroll = () => {
       const top = viewport.scrollTop;
       const distance = viewport.scrollHeight - viewport.clientHeight - top;
+      setAtEnd(distance <= END_THRESHOLD);
       if (distance <= END_THRESHOLD) stuck.current = true;
       // A scroll-up with no user input behind it is the browser clamping
       // after content shrank — not a reason to stop following.
@@ -107,5 +111,5 @@ export function useStickToEnd<
     };
   }, []);
 
-  return { viewportRef, contentRef, stick };
+  return { viewportRef, contentRef, stick, atEnd };
 }

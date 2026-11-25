@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
-import tailwindcss from "@tailwindcss/vite";
+import stylex from "@stylexjs/unplugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -19,7 +19,15 @@ function commitHash() {
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss()],
+  // StyleX compiles our own `stylex.create()` styles only. Astryx itself is
+  // prebuilt (`@astryxdesign/core/astryx.css`) and never goes through it.
+  // `classNamePrefix`: StyleX names atomic classes by hashing property+value,
+  // so with the default "x" prefix our `backgroundColor: "transparent"`
+  // compiles to the very class Astryx's prebuilt CSS uses for the same
+  // declaration. Ours is emitted unlayered, so it would lift every Astryx
+  // element using that class above the `astryx-theme` layer and silently
+  // undo theme component overrides. A prefix of our own keeps them apart.
+  plugins: [stylex.vite({ classNamePrefix: "al" }), react()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -50,8 +58,9 @@ export default defineConfig(() => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 3. tell Vite to ignore watching `src-tauri` (and the standalone
+      // UI prototype, which has its own Vite app)
+      ignored: ["**/src-tauri/**", "**/prototype/**"],
     },
   },
 }));

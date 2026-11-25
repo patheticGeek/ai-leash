@@ -31,11 +31,11 @@ export function useChatInput(sessionId: string | null) {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // The textarea is uncontrolled (see `ChatInputBar`'s `defaultValue`) so the
-  // browser's native undo/redo (Ctrl+Z) survives — a controlled `value`
-  // reassigned on every keystroke wipes that history. Programmatic changes
-  // (clearing on send, inserting a slash-command template) have to write the
-  // DOM node directly as well as the `input` state that mirrors it.
+  // The textarea is controlled by `input` (Astryx `TextArea` in
+  // `ComposerInput`); typing round-trips the same value, which React doesn't
+  // write back, so native undo/redo (Ctrl+Z) survives. Programmatic changes
+  // (clearing on send, inserting a slash-command template) also write the DOM
+  // node directly, so code reading it in the same tick sees the new text.
   function setInputValue(value: string) {
     setInput(value);
     if (textareaRef.current) textareaRef.current.value = value;

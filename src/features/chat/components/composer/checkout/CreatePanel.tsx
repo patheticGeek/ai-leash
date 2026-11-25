@@ -1,99 +1,110 @@
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { HStack, VStack } from "@astryxdesign/core/Layout";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Heading } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GitBranch } from "@/lib/tauriApi";
-import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/ui/select";
 
-export function FieldLabel({ children }: { children: ReactNode }) {
-  return <span className="text-[11px] text-zinc-500">{children}</span>;
-}
-
-// The "create" view shared by both checkout pickers: a scrolling form body
-// (with the failure message, if any) over a Back / Create footer.
+// The inline "create" view shared by both checkout pickers — the list view
+// swaps for it and Cancel swaps back, so creating stays anchored to the bar:
+// back + title, the fields, then Cancel / Create ("Creating…" while busy).
 export function CreatePanel({
+  title,
   children,
-  error,
   canSubmit,
   submitting,
   onBack,
   onSubmit,
 }: {
+  title: string;
   children: ReactNode;
-  error: string | null;
   canSubmit: boolean;
   submitting: boolean;
   onBack: () => void;
   onSubmit: () => void;
 }) {
   return (
-    <>
-      <div className="flex max-h-72 flex-col gap-2 overflow-y-auto p-3">
-        {children}
-        {error && <span className="text-red-400">{error}</span>}
-      </div>
-      <div className="flex justify-end gap-2 border-t border-white/5 p-2">
-        <Button size="sm" variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button
+    <VStack gap={3}>
+      <HStack gap={1} align="center">
+        <IconButton
+          variant="ghost"
           size="sm"
-          disabled={!canSubmit || submitting}
+          label="Back"
+          icon={<ArrowLeft size={14} />}
+          isDisabled={submitting}
+          onClick={onBack}
+        />
+        <Heading level={5}>{title}</Heading>
+      </HStack>
+      {children}
+      <HStack gap={2} justify="end">
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Cancel"
+          isDisabled={submitting}
+          onClick={onBack}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          label={submitting ? "Creating…" : "Create"}
+          isLoading={submitting}
+          isDisabled={!canSubmit}
           onClick={onSubmit}
-        >
-          {submitting ? "Creating…" : "Create"}
-        </Button>
-      </div>
-    </>
+        />
+      </HStack>
+    </VStack>
   );
 }
 
 // "New branch name" + "Base branch" — the fields for making a branch, which
-// both pickers offer (directly, and as a new worktree's branch).
+// both pickers offer (directly, and as a new worktree's branch). A failed
+// create shows git's reason on the name field.
 export function NewBranchFields({
   name,
   onNameChange,
+  onEnter,
   baseBranch,
   onBaseBranchChange,
   branches,
+  error,
 }: {
   name: string;
   onNameChange: (name: string) => void;
+  onEnter: () => void;
   baseBranch: string | null;
   onBaseBranchChange: (branch: string) => void;
   branches: GitBranch[];
+  error: string | null;
 }) {
   return (
-    <>
-      <FieldLabel>New branch name</FieldLabel>
-      <Input
+    <VStack gap={3}>
+      <TextInput
+        label="New branch name"
+        size="sm"
         value={name}
-        onChange={(e) => onNameChange(e.target.value)}
+        onChange={onNameChange}
+        onEnter={onEnter}
         placeholder="my-feature"
-        autoFocus
+        hasAutoFocus
+        status={error ? { type: "error", message: error } : undefined}
       />
-      <FieldLabel>Base branch</FieldLabel>
-      <Select
+      <Selector
+        label="Base branch"
+        size="sm"
+        width="100%"
         value={baseBranch ?? undefined}
-        onValueChange={onBaseBranchChange}
-      >
-        <SelectTrigger size="sm" className="w-full">
-          <SelectValue placeholder="Select a branch" />
-        </SelectTrigger>
-        <SelectContent>
-          {branches.map((b) => (
-            <SelectItem key={b.name} value={b.name}>
-              {b.name}
-              {b.isCurrent ? " (current)" : ""}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </>
+        onChange={onBaseBranchChange}
+        placeholder="Select a branch"
+        options={branches.map((b) => ({
+          value: b.name,
+          label: b.isCurrent ? `${b.name} (current)` : b.name,
+        }))}
+      />
+    </VStack>
   );
 }

@@ -1,15 +1,15 @@
+import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
 import { Undo2 } from "lucide-react";
-import { AlertDescription } from "@/ui/alert";
-import { Button } from "@/ui/button";
 import { useBoard } from "../../../../data/board";
 import { useConversation } from "../../../../data/conversations";
 import { api } from "../../../../lib/tauriApi";
-import DockedBanner from "./DockedBanner";
 
 // In a board task's chat while the project chat isn't following it (the
 // user wrote here, or it was started by hand): its updates reach the
 // project chat only as notes. "Hand back" has the project chat woken by
-// them again — see `board::messaging`.
+// them again — see `board::messaging`. An info `Banner`: state you can
+// change.
 export default function TaskLinkBanner({
   sessionId,
 }: {
@@ -26,22 +26,21 @@ export default function TaskLinkBanner({
     : undefined;
   if (!task || task.engagedWithProject || task.status === "done") return null;
   return (
-    <DockedBanner variant="info">
-      <AlertDescription className="flex items-center justify-between gap-3">
-        <span>
-          The project chat isn't following #{task.number}: it only gets notes of
-          what happens here.
-        </span>
+    <Banner
+      status="info"
+      elevation="low"
+      collapsible={false}
+      title={`The project chat isn't following #${task.number}`}
+      description="It only gets notes of what happens here. Hand it back so it's woken by this task's updates again."
+      endContent={
         <Button
-          variant="chip-primary"
+          variant="primary"
           size="sm"
-          className="shrink-0"
+          label="Hand back to project chat"
+          icon={<Undo2 size={14} />}
           onClick={() => void api.setTaskEngaged(task.id, true)}
-        >
-          <Undo2 size={13} />
-          Hand back to project chat
-        </Button>
-      </AlertDescription>
-    </DockedBanner>
+        />
+      }
+    />
   );
 }

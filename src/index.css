@@ -1,87 +1,42 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/* Astryx's cascade-layer order. Every Astryx stylesheet registers it too;
+   naming it here first, in the first stylesheet the page loads (`main.tsx`
+   imports this before anything else), pins it before any other CSS can
+   introduce a layer of its own. Our StyleX output is unlayered, so it sits
+   above all three — see `classNamePrefix` in `vite.config.ts`. */
+@layer reset, astryx-base, astryx-theme;
+
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource-variable/jetbrains-mono";
 
-@custom-variant dark (&:is(.dark *));
-
+/* The font-preference bridge. `lib/fontPreferences.ts` overwrites these at
+   runtime from Settings > Preferences > Fonts; these are the defaults it
+   falls back to. `--al-code-size` is read by the code surfaces (Markdown
+   code, JSON viewer, the editor). */
 :root {
-  /* Overwritten at runtime from Settings > Preferences > Fonts (see
-     `lib/fontPreferences.ts`); these are the defaults it falls back to. */
   --al-font-sans:
     "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
   --al-font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", "SFMono-Regular", "SF Mono",
     Consolas, "Liberation Mono", Menlo, monospace;
-  --al-font-scale: 1;
+  --al-font-size-base: 14px;
   --al-code-size: 12px;
 
-  /* Tailwind's text sizes, scaled by the UI font size setting. Unlayered, so
-     these win over the defaults in Tailwind's theme layer. Only the text
-     scales — spacing stays put. */
-  --text-xs: calc(0.75rem * var(--al-font-scale));
-  --text-sm: calc(0.875rem * var(--al-font-scale));
-  --text-base: calc(1rem * var(--al-font-scale));
-  --text-lg: calc(1.125rem * var(--al-font-scale));
-  --text-xl: calc(1.25rem * var(--al-font-scale));
-  --text-2xl: calc(1.5rem * var(--al-font-scale));
-  --text-3xl: calc(1.875rem * var(--al-font-scale));
-  --text-4xl: calc(2.25rem * var(--al-font-scale));
-
   color-scheme: dark;
-  --al-bg: #101114;
-  --al-bg-raised: #17181c;
-  --al-bg-sunken: #0b0c0e;
-  --al-surface: #141518;
-  --al-border: #26272c;
-  --al-text: #e4e4e7;
-  --al-text-dim: #8b8d98;
-  --al-accent: #3a5f8f;
-  --al-accent-hover: #4a6f9f;
+}
 
-  /* Outline + drop shadow for layers that float over other content
-     (popovers, menus, the chat input). In-flow surfaces should step
-     between --background/--raised/--sunken instead. */
-  --al-shadow-floating:
-    0 1px 4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
-
-  /* ai-leash is dark-only (see `color-scheme: dark` above) — shadcn's
-     semantic tokens map straight onto the --al-* palette instead of
-     switching between a light :root block and a .dark override. */
-  --background: var(--al-bg);
-  --foreground: var(--al-text);
-  --card: var(--al-surface);
-  --card-foreground: var(--al-text);
-  --popover: var(--al-surface);
-  --popover-foreground: var(--al-text);
-  --primary: var(--al-accent);
-  --primary-hover: var(--al-accent-hover);
-  --primary-foreground: var(--al-text);
-  --secondary: var(--al-bg-raised);
-  --secondary-foreground: var(--al-text-dim);
-  --muted: var(--al-bg-raised);
-  --muted-foreground: var(--al-text-dim);
-  --accent: var(--al-bg-raised);
-  --accent-foreground: var(--al-text);
-  --raised: var(--al-bg-raised);
-  --sunken: var(--al-bg-sunken);
-  --destructive: #f87171;
-  --success: #34d399;
-  --success-foreground: #052e1e;
-  --warning: #fbbf24;
-  --warning-foreground: #451a03;
-  /* Solid tinted backgrounds for banners/alerts: each tone's 950 shade mixed
-     30% into the page background — the colour the old translucent tints
-     landed on over --al-bg — so content scrolling behind never shows through
-     and the text stays readable. */
-  --alert-info: color-mix(in srgb, #172554 30%, var(--al-bg));
-  --alert-warning: color-mix(in srgb, #451a03 30%, var(--al-bg));
-  --alert-danger: color-mix(in srgb, #450a0a 30%, var(--al-bg));
-  --border: var(--al-border);
-  --input: var(--al-border);
-  --ring: var(--al-accent);
-  --radius: 0.5rem;
+/* Astryx's theme (`src/themes/ai-leash`, set on the `Theme` element) only
+   takes literal font families and a fixed 14px body size, so point its font
+   tokens at the ones Settings > Preferences > Fonts writes at runtime
+   (`lib/fontPreferences.ts`): the families, and the interface text size as
+   `--font-size-base` (body, labels, code in Astryx; default 14).
+   Unlayered, so this wins over the theme's `astryx-theme` layer. */
+[data-astryx-theme] {
+  --font-family-body: var(--al-font-sans);
+  --font-family-heading: var(--al-font-sans);
+  --font-family-code: var(--al-font-mono);
+  --font-size-base: var(--al-font-size-base);
 }
 
 html,
@@ -91,11 +46,13 @@ body,
   margin: 0;
 }
 
+/* The page behind the app: the theme's tokens live on the `Theme` element
+   inside #root, not here, so the body takes the dark scheme's system
+   colours until the shell paints over it. */
 body {
-  background-color: var(--al-bg);
-  color: var(--al-text);
+  background-color: Canvas;
+  color: CanvasText;
   font-family: var(--al-font-sans);
-  font-size: calc(1rem * var(--al-font-scale));
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -110,132 +67,4 @@ textarea,
 [contenteditable="true"] {
   user-select: text;
   -webkit-user-select: text;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-/* Overlay scrollbars: collapsed to zero width so they never reserve
-   layout space, expanded only while the element is hovered/scrolled. */
-
-/*
-
-TODO
-
-::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-*:hover::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #3a3b40;
-  border-radius: 999px;
-  transition: background-color 150ms ease-out;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: #4a4b52;
-}
-
-*/
-
-@theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: var(--al-font-sans);
-  --font-mono: var(--al-font-mono);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-success-foreground: var(--success-foreground);
-  --color-success: var(--success);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-warning: var(--warning);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-alert-info: var(--alert-info);
-  --color-alert-warning: var(--alert-warning);
-  --color-alert-danger: var(--alert-danger);
-  --color-raised: var(--raised);
-  --color-sunken: var(--sunken);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-/* Code text size (Settings > Preferences > Fonts) — for anything that shows
-   code: blocks, inline code, tool output, JSON, the shell input. The family
-   comes from `font-mono`. */
-@utility text-code {
-  font-size: var(--al-code-size);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  html {
-    @apply font-sans;
-  }
-}
-
-.shine-text {
-  /* The highlight sits mid-image and the image is 3x the text's width, so at
-     both ends of the sweep the text only sees flat grey — the loop restarts
-     seamlessly instead of jumping. No-repeat keeps a second tile from
-     showing the highlight again at the end. */
-  background: linear-gradient(100deg, #52525b 40%, #d4d4d8 50%, #52525b 60%);
-  background-size: 300% 100%;
-  background-repeat: no-repeat;
-  background-position: 100% 0;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: al-shine 2.2s ease-in-out infinite;
-}
-
-@keyframes al-shine {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .shine-text {
-    animation: none;
-    background-position: 50% 0;
-  }
 }

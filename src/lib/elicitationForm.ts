@@ -6,7 +6,7 @@ import type {
 } from "./tauriApi";
 
 // Turns an ACP elicitation schema into the one-question-per-property form
-// `ElicitationPopover` renders with `Questionnaire`, and turns the submitted
+// `ElicitationPrompt` renders with `Questionnaire`, and turns the submitted
 // `FormData` back into the typed `content` the protocol expects. Kept apart
 // from the component so the mapping (and its validation) has no React in it.
 

@@ -6,7 +6,16 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist", "!!**/website", "!!**/src-tauri"]
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/website",
+      "!!**/prototype",
+      "!!**/src-tauri",
+      "!!**/themes",
+      "!!**/src/themes",
+      "!!**/src/astryx-themes.ts"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -22,11 +31,6 @@
   "javascript": {
     "formatter": {
       "quoteStyle": "double"
-    }
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
     }
   },
   "assist": {

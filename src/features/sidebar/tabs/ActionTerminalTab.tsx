@@ -1,3 +1,4 @@
+import { VStack } from "@astryxdesign/core/Stack";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
@@ -10,7 +11,7 @@ import {
 } from "../../../lib/fontPreferences";
 import { attachRunOutput } from "../../../lib/runOutput";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
-import { terminalTheme } from "../../../lib/terminalTheme";
+import { terminalStyles, terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useActions } from "../../actions/useActions";
 
@@ -53,7 +54,7 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
         getPreferences().codeFontFamily,
         DEFAULT_MONO_STACK,
       ),
-      theme: terminalTheme,
+      theme: terminalTheme(containerRef.current),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -119,5 +120,5 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     syncRef.current?.();
   }, [actionsData]);
 
-  return <div ref={containerRef} className="h-full bg-sunken px-2 py-1" />;
+  return <VStack ref={containerRef} xstyle={terminalStyles.host} />;
 }

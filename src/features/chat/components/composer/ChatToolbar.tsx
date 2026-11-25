@@ -1,5 +1,5 @@
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useState } from "react";
-import { Input } from "@/ui/input";
 import type { AcpModeOptions } from "../../../../lib/tauriApi";
 import type { PermissionMode } from "../../../../store";
 import EffortPickerPopover from "../popovers/EffortPickerPopover";
@@ -45,11 +45,10 @@ interface ChatToolbarProps {
   onModelChange: (model: string) => void;
 }
 
-// The pickers along the bottom-left of the message box: which model/agent
-// answers, its effort level, and the permission mode (the agent's own modes,
-// else Ask/Bypass) — composed
-// here and slotted into `ChatInputBar` so that component stays about the
-// input box itself, not who's picked to answer it.
+// The pickers in the composer's footer: which model/agent answers, its
+// effort level, and the permission mode (the agent's own modes, else
+// Ask/Bypass) — ghost buttons opening menus above them, composed here so
+// `ChatComposer` stays about the message itself, not who answers it.
 export default function ChatToolbar({
   backendOptions,
   activeBackendKey,
@@ -116,10 +115,13 @@ export default function ChatToolbar({
         />
       )}
       {showModelIdInput && (
-        <Input
-          variant="chip"
+        <TextInput
+          label="Model id"
+          isLabelHidden
+          size="sm"
+          width={160}
           value={model}
-          onChange={(e) => onModelChange(e.currentTarget.value)}
+          onChange={onModelChange}
           placeholder="model id"
         />
       )}

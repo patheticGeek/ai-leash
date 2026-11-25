@@ -1,3 +1,13 @@
+import { HStack } from "@astryxdesign/core/HStack";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import {
+  colorVars,
+  fontWeightVars,
+  radiusVars,
+  spacingVars,
+  typographyVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { Check, Copy, Play } from "lucide-react";
 import {
   createContext,
@@ -9,7 +19,6 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
-import { Button } from "./button";
 
 // Flattens a rendered node back to the source text it came from.
 function nodeText(node: ReactNode): string {
@@ -30,6 +39,117 @@ export const RunCommandContext = createContext<
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell", "zsh"]);
 
+// Block spacing: a step below each block, none after the last one.
+const blockGap = {
+  default: spacingVars["--spacing-2"],
+  ":last-child": 0,
+};
+
+// The user's code font size (Settings → Preferences, `fontPreferences`).
+const CODE_SIZE = "var(--al-code-size)";
+
+const styles = stylex.create({
+  root: {
+    // Inherits the transcript's size (which follows the user's font scale);
+    // only colours, weights and spacing come from tokens.
+    lineHeight: 1.625,
+    overflowWrap: "break-word",
+  },
+  codeBlock: {
+    marginBlock: spacingVars["--spacing-2"],
+    overflow: "hidden",
+    borderRadius: radiusVars["--radius-element"],
+    backgroundColor: colorVars["--color-background-muted"],
+  },
+  codeHeader: {
+    paddingBlock: spacingVars["--spacing-0-5"],
+    paddingInlineStart: spacingVars["--spacing-2"],
+    paddingInlineEnd: spacingVars["--spacing-1"],
+    borderBlockEndWidth: 1,
+    borderBlockEndStyle: "solid",
+    borderBlockEndColor: colorVars["--color-border"],
+    color: colorVars["--color-text-secondary"],
+    fontSize: "0.857em",
+  },
+  pre: {
+    margin: 0,
+    overflowX: "auto",
+    padding: spacingVars["--spacing-2"],
+    fontFamily: typographyVars["--font-family-code"],
+    fontSize: CODE_SIZE,
+  },
+  inlineCode: {
+    paddingInline: spacingVars["--spacing-1"],
+    paddingBlock: spacingVars["--spacing-0-5"],
+    borderRadius: radiusVars["--radius-element"],
+    backgroundColor: colorVars["--color-background-muted"],
+    fontFamily: typographyVars["--font-family-code"],
+    fontSize: CODE_SIZE,
+    color: colorVars["--color-text-primary"],
+  },
+  link: {
+    color: {
+      default: colorVars["--color-text-blue"],
+      ":hover": colorVars["--color-text-primary"],
+    },
+    textDecoration: "underline",
+  },
+  p: { marginBlock: 0, marginBlockEnd: blockGap },
+  list: {
+    marginBlock: 0,
+    marginBlockEnd: blockGap,
+    paddingInlineStart: spacingVars["--spacing-5"],
+  },
+  ul: { listStyleType: "disc" },
+  ol: { listStyleType: "decimal" },
+  blockquote: {
+    marginBlock: 0,
+    marginInline: 0,
+    marginBlockEnd: blockGap,
+    paddingInlineStart: spacingVars["--spacing-2"],
+    borderInlineStartWidth: 2,
+    borderInlineStartStyle: "solid",
+    borderInlineStartColor: colorVars["--color-accent"],
+    color: colorVars["--color-text-secondary"],
+  },
+  heading: {
+    marginBlockStart: {
+      default: spacingVars["--spacing-2"],
+      ":first-child": 0,
+    },
+    marginBlockEnd: spacingVars["--spacing-1-5"],
+    fontWeight: fontWeightVars["--font-weight-semibold"],
+    fontSize: "1em",
+  },
+  h1: { fontSize: "1.143em" },
+  hr: {
+    marginBlock: spacingVars["--spacing-2"],
+    height: 0,
+    borderWidth: 0,
+    borderBlockStartWidth: 1,
+    borderBlockStartStyle: "solid",
+    borderBlockStartColor: colorVars["--color-border"],
+  },
+  tableWrap: { marginBlockEnd: blockGap, overflowX: "auto" },
+  table: { borderCollapse: "collapse", fontSize: "0.857em" },
+  cell: {
+    paddingInline: spacingVars["--spacing-2"],
+    paddingBlock: spacingVars["--spacing-1"],
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colorVars["--color-border"],
+    textAlign: "start",
+  },
+  th: {
+    backgroundColor: colorVars["--color-background-card"],
+    fontWeight: fontWeightVars["--font-weight-medium"],
+  },
+  strong: {
+    fontWeight: fontWeightVars["--font-weight-semibold"],
+    color: colorVars["--color-text-primary"],
+  },
+});
+
 // A fenced code block: a header with the language and a copy button above the
 // scrollable code.
 function CodeBlock({ children }: { children?: ReactNode }) {
@@ -41,57 +161,59 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const runCommand = useContext(RunCommandContext);
   const text = nodeText(children).replace(/\n$/, "");
   return (
-    <div className="my-2 overflow-hidden rounded-md bg-sunken">
-      <div className="flex items-center justify-between border-b border-border py-0.5 pr-1 pl-2.5 text-xs text-zinc-500">
+    <div {...stylex.props(styles.codeBlock)}>
+      <HStack align="center" justify="between" xstyle={styles.codeHeader}>
         <span>{language ?? "text"}</span>
-        <div className="flex items-center">
+        <HStack align="center">
           {runCommand && language && SHELL_LANGUAGES.has(language) && (
-            <Button
-              variant="quiet"
-              size="icon-sm"
-              title="Open in a new terminal"
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Open in a new terminal"
+              tooltip="Open in a new terminal"
+              icon={<Play size={13} />}
               onClick={() => runCommand(text)}
-            >
-              <Play size={13} />
-            </Button>
+            />
           )}
-          <Button
-            variant="quiet"
-            size="icon-sm"
-            title="Copy"
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Copy"
+            tooltip="Copy"
+            icon={copied ? <Check size={13} /> : <Copy size={13} />}
             onClick={() => copy(text)}
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-          </Button>
-        </div>
-      </div>
-      <pre className="overflow-x-auto p-2.5 text-code">{children}</pre>
+          />
+        </HStack>
+      </HStack>
+      <pre {...stylex.props(styles.pre)}>{children}</pre>
     </div>
   );
 }
 
+// react-markdown hands each element a `node` (the mdast node) along with its
+// HTML props; it isn't a DOM attribute, so it's dropped before spreading.
 const components: Components = {
-  a: ({ children, ...props }) => (
+  a: ({ node: _, children, ...props }) => (
     <a
       {...props}
       target="_blank"
       rel="noreferrer"
-      className="text-blue-400 underline transition-colors duration-150 hover:text-blue-300"
+      {...stylex.props(styles.link)}
     >
       {children}
     </a>
   ),
-  code: ({ className, children, ...props }) => {
+  code: ({ node: _, className, children, ...props }) => {
     if (!/language-/.test(className ?? "")) {
       return (
-        <code
-          className="rounded-md bg-sunken px-1 py-0.5 text-code text-zinc-300"
-          {...props}
-        >
+        <code {...props} {...stylex.props(styles.inlineCode)}>
           {children}
         </code>
       );
     }
+    // Fenced: keeps react-markdown's own `language-*` class, the one
+    // `className` left in the app — it isn't styling, `CodeBlock` reads it
+    // to pick the language.
     return (
       <code className={className} {...props}>
         {children}
@@ -99,83 +221,49 @@ const components: Components = {
     );
   },
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-  p: ({ children, ...props }) => (
-    <p className="mb-2 last:mb-0" {...props}>
-      {children}
-    </p>
+  p: ({ node: _, ...props }) => <p {...props} {...stylex.props(styles.p)} />,
+  ul: ({ node: _, ...props }) => (
+    <ul {...props} {...stylex.props(styles.list, styles.ul)} />
   ),
-  ul: ({ children, ...props }) => (
-    <ul className="mb-2 list-disc space-y-0.5 pl-5 last:mb-0" {...props}>
-      {children}
-    </ul>
+  ol: ({ node: _, ...props }) => (
+    <ol {...props} {...stylex.props(styles.list, styles.ol)} />
   ),
-  ol: ({ children, ...props }) => (
-    <ol className="mb-2 list-decimal space-y-0.5 pl-5 last:mb-0" {...props}>
-      {children}
-    </ol>
+  blockquote: ({ node: _, ...props }) => (
+    <blockquote {...props} {...stylex.props(styles.blockquote)} />
   ),
-  blockquote: ({ children, ...props }) => (
-    <blockquote
-      className="mb-2 shadow-[inset_2px_0_0_0_var(--primary)] pl-2.5 text-zinc-400 last:mb-0"
-      {...props}
-    >
-      {children}
-    </blockquote>
+  h1: ({ node: _, ...props }) => (
+    <h1 {...props} {...stylex.props(styles.heading, styles.h1)} />
   ),
-  h1: ({ children, ...props }) => (
-    <h1 className="mb-1.5 mt-2 text-base font-semibold first:mt-0" {...props}>
-      {children}
-    </h1>
+  h2: ({ node: _, ...props }) => (
+    <h2 {...props} {...stylex.props(styles.heading)} />
   ),
-  h2: ({ children, ...props }) => (
-    <h2 className="mb-1.5 mt-2 text-sm font-semibold first:mt-0" {...props}>
-      {children}
-    </h2>
+  h3: ({ node: _, ...props }) => (
+    <h3 {...props} {...stylex.props(styles.heading)} />
   ),
-  h3: ({ children, ...props }) => (
-    <h3 className="mb-1 mt-2 text-sm font-semibold first:mt-0" {...props}>
-      {children}
-    </h3>
-  ),
-  hr: (props) => (
-    <hr
-      className="my-2 h-0 border-0 shadow-[0_1px_0_0_var(--border)]"
-      {...props}
-    />
-  ),
-  table: ({ children, ...props }) => (
-    <div className="mb-2 overflow-x-auto last:mb-0">
-      <table className="border-collapse text-xs" {...props}>
-        {children}
-      </table>
+  hr: ({ node: _, ...props }) => <hr {...props} {...stylex.props(styles.hr)} />,
+  table: ({ node: _, ...props }) => (
+    <div {...stylex.props(styles.tableWrap)}>
+      <table {...props} {...stylex.props(styles.table)} />
     </div>
   ),
-  th: ({ children, ...props }) => (
-    <th
-      className="shadow-[inset_0_0_0_1px_var(--border)] bg-card px-2 py-1 text-left font-medium"
-      {...props}
-    >
-      {children}
-    </th>
+  th: ({ node: _, ...props }) => (
+    <th {...props} {...stylex.props(styles.cell, styles.th)} />
   ),
-  td: ({ children, ...props }) => (
-    <td className="shadow-[inset_0_0_0_1px_var(--border)] px-2 py-1" {...props}>
-      {children}
-    </td>
+  td: ({ node: _, ...props }) => (
+    <td {...props} {...stylex.props(styles.cell)} />
   ),
-  strong: ({ children, ...props }) => (
-    <strong className="font-semibold text-zinc-100" {...props}>
-      {children}
-    </strong>
+  strong: ({ node: _, ...props }) => (
+    <strong {...props} {...stylex.props(styles.strong)} />
   ),
 };
 
 // Used for assistant/sub-agent text only — user messages are shown as plain
 // `whitespace-pre-wrap` text, since they're typed input rather than
-// generated prose (matches the convention most chat UIs use).
+// generated prose (matches the convention most chat UIs use). Hand-written
+// (no Astryx/registry equivalent), styled with StyleX + Astryx tokens.
 export default function Markdown({ content }: { content: string }) {
   return (
-    <div className="text-sm leading-relaxed wrap-break-word [&>*:last-child]:mb-0">
+    <div {...stylex.props(styles.root)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={components}

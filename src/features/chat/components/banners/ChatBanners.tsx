@@ -3,36 +3,47 @@ import ClaudeRateLimitBanner, {
   type ClaudeRateLimit,
 } from "./ClaudeRateLimitBanner";
 import HelpBanner from "./HelpBanner";
-import QueuedMessagesBanner from "./QueuedMessageBanner";
+import SubAgentsBanner from "./SubAgentsBanner";
+import TaskLinkBanner from "./TaskLinkBanner";
+import TranscriptNotices, {
+  type TranscriptNoticesProps,
+} from "./TranscriptNotices";
 
-interface ChatBannersProps {
-  helpOpen: boolean;
-  commands: AcpCommandInfo[];
-  onCloseHelp: () => void;
+export interface ChatBannersProps {
+  sessionId: string | null;
+  // The conversation's own notices; omitted for a chat without them.
+  notices?: TranscriptNoticesProps;
   claudeRateLimit: ClaudeRateLimit | null;
   claudeAutoResumeArmed: boolean;
   onArmAutoResume: () => void;
   onDismissRateLimit: () => void;
-  queuedMessages: string[];
-  onCancelQueued: (index: number) => void;
+  helpOpen: boolean;
+  commands: AcpCommandInfo[];
+  onCloseHelp: () => void;
 }
 
-// The strips stacked directly above the message box: the "/help" overlay,
-// the Claude session-limit auto-resume notice, and the queued-messages list.
+// Every notice above the composer, in one stack ordered by severity, top to
+// bottom: errors (provider error, failed restore), then warnings (history
+// not shared, Claude's session limit), then info (task link, "/help"). The
+// Banner's `status` is the severity: error = something broke, warning =
+// needs a decision, info = state you can change. The theme backs banner
+// frames with the solid card surface, so they read over the transcript.
+// Last, docked right above the composer: the running sub-agents banner (#26).
 export default function ChatBanners({
-  helpOpen,
-  commands,
-  onCloseHelp,
+  sessionId,
+  notices,
   claudeRateLimit,
   claudeAutoResumeArmed,
   onArmAutoResume,
   onDismissRateLimit,
-  queuedMessages,
-  onCancelQueued,
+  helpOpen,
+  commands,
+  onCloseHelp,
 }: ChatBannersProps) {
   return (
     <>
-      {helpOpen && <HelpBanner commands={commands} onClose={onCloseHelp} />}
+      {notices && <TranscriptNotices {...notices} severity="error" />}
+      {notices && <TranscriptNotices {...notices} severity="warning" />}
       {claudeRateLimit && (
         <ClaudeRateLimitBanner
           rateLimit={claudeRateLimit}
@@ -41,12 +52,9 @@ export default function ChatBanners({
           onDismiss={onDismissRateLimit}
         />
       )}
-      {queuedMessages.length > 0 && (
-        <QueuedMessagesBanner
-          messages={queuedMessages}
-          onCancel={onCancelQueued}
-        />
-      )}
+      <TaskLinkBanner sessionId={sessionId} />
+      {helpOpen && <HelpBanner commands={commands} onClose={onCloseHelp} />}
+      <SubAgentsBanner sessionId={sessionId} />
     </>
   );
 }
