@@ -12,12 +12,16 @@
 //!   agent keeps its own, so it gets pending notes prepended to its next
 //!   prompt (`with_pending_notes`).
 //!
-//! The project chat is only woken by tasks *engaged* with it
-//! (`Task::engaged_with_project`): ones it started or messaged, until the
-//! user writes in the task's own chat (`on_user_message`) — after that the
-//! task's updates reach it as notes until it's engaged again. Messages to a
-//! task always wake it. Whenever a task's turn ends, the project chat hears
-//! about it (`on_turn_end`).
+//! The project chat *follows* the tasks it starts
+//! (`Task::engaged_with_project`): whenever a followed task's turn ends, the
+//! project chat is woken with its reply (`on_turn_end`). Once the user takes
+//! a task over — sends in its chat, or stops it, saying so
+//! (`take_over`, `on_user_message`) — nothing is forwarded from it any more:
+//! the project chat gets one note saying so, and from then on the two only
+//! hear from each other through `send_message`, which still wakes either
+//! side. Messaging a task it isn't following doesn't make the project chat
+//! follow it again; only the task chat's "Hand back to project chat"
+//! (`set_task_engaged`) does.
 //!
 //! Agents answering each other could go on forever, so once a chat has had
 //! `MAX_AGENT_MESSAGES_IN_A_ROW` agent messages since a person last wrote
@@ -52,7 +56,23 @@ pub struct Mailroom {
     notes: Mutex<HashMap<String, Vec<String>>>,
     /// Task chats that messaged the project chat themselves during their
     /// current turn, which then needs no separate turn-ended update.
+    /// Cleared at every turn end, followed or not.
     reported: Mutex<HashSet<String>>,
+}
+
+impl Mailroom {
+    /// Everything waiting for `session_id`, as one message from the last
+    /// sender — off the queue, so it's delivered once.
+    fn take_queued(&self, session_id: &str) -> Option<(String, String)> {
+        let queued = self.queued.lock().unwrap().remove(session_id)?;
+        let from = queued.last()?.from.clone();
+        let text = queued
+            .into_iter()
+            .map(|q| q.text)
+            .collect::<Vec<_>>()
+            .join("\n\n---\n\n");
+        Some((from, text))
+    }
 }
 
 struct Queued {
@@ -70,11 +90,11 @@ pub enum Delivered {
 }
 
 /// Who `conversation_id` is, as the messages it sends are labelled.
-fn label(state: &AppState, conversation_id: &str) -> String {
-    if let Some(task) = db::task_for_conversation(&state.db, conversation_id) {
+fn label(db: &db::Db, conversation_id: &str) -> String {
+    if let Some(task) = db::task_for_conversation(db, conversation_id) {
         return format!("task #{} ({})", task.number, task.title);
     }
-    match db::get_conversation(&state.db, conversation_id) {
+    match db::get_conversation(db, conversation_id) {
         Some(c) if c.role.as_deref() == Some("project") => "the project chat".into(),
         Some(c) => format!("the chat \"{}\"", c.title.as_deref().unwrap_or("Untitled")),
         None => "another chat".into(),
@@ -239,8 +259,78 @@ pub(crate) fn wake(
     Ok(Delivered::Now)
 }
 
+/// Where a `send_message` goes and what it says — worked out from the board
+/// alone, before anything is delivered.
+#[derive(Debug)]
+enum Outgoing {
+    /// To the project chat, from one of its tasks (or another chat).
+    Project { project_chat: String, text: String },
+    /// To a task's chat. `followed`: whether the project chat follows it —
+    /// left as it is either way.
+    Task {
+        conversation_id: String,
+        number: i64,
+        followed: bool,
+        text: String,
+    },
+}
+
+fn plan_send(
+    db: &db::Db,
+    from: &str,
+    project_root: &str,
+    to: &str,
+    message: &str,
+) -> Result<Outgoing, String> {
+    if message.trim().is_empty() {
+        return Err("`message` is empty".into());
+    }
+    let text = format!("Message from {}:\n\n{}", label(db, from), message.trim());
+    let to = to.trim();
+
+    if to.eq_ignore_ascii_case("project") || to.eq_ignore_ascii_case("project chat") {
+        let project_chat = db::ensure_project_chat(db, project_root);
+        if project_chat == from {
+            return Err(
+                "This is the project chat. To message a task, use its number, e.g. \"#12\".".into(),
+            );
+        }
+        // Followed or not: an explicit message is always delivered.
+        return Ok(Outgoing::Project { project_chat, text });
+    }
+
+    let task = db::find_task(db, project_root, to).ok_or_else(|| {
+        format!(
+            "`to` must be \"project\" or a task's number (e.g. \"#12\"); there's no task `{to}`."
+        )
+    })?;
+    let conversation_id = task.conversation_id.clone().ok_or_else(|| {
+        format!(
+            "Task #{} hasn't been started, so it has no chat to message yet; start_task it first.",
+            task.number
+        )
+    })?;
+    if conversation_id == from {
+        return Err("That's this chat.".into());
+    }
+    // Messaging a task never makes the project chat follow it again; only
+    // the task chat's "Hand back to project chat" does.
+    let followed = task.engaged_with_project;
+    Ok(Outgoing::Task {
+        conversation_id,
+        number: task.number,
+        followed,
+        text: if followed {
+            text
+        } else {
+            format!("{text}{UNFOLLOWED_FRAMING}")
+        },
+    })
+}
+
 /// The `send_message` tool: from the calling conversation to `"project"`
-/// (its project's board chat) or a task (`"#12"`).
+/// (its project's board chat) or a task (`"#12"`). Wakes the receiver
+/// whether or not the project chat follows the task.
 pub(crate) fn send_message(
     app: &AppHandle,
     session_id: &str,
@@ -249,91 +339,92 @@ pub(crate) fn send_message(
     message: &str,
 ) -> Result<String, String> {
     let state = app.state::<AppState>();
-    if message.trim().is_empty() {
-        return Err("`message` is empty".into());
-    }
     let from = commands::top_level_session_id(&state, session_id);
-    let text = format!(
-        "Message from {}:\n\n{}",
-        label(&state, &from),
-        message.trim()
-    );
-    let to = to.trim();
-
-    if to.eq_ignore_ascii_case("project") || to.eq_ignore_ascii_case("project chat") {
-        let project_chat = db::ensure_project_chat(&state.db, project_root);
-        if project_chat == from {
-            return Err(
-                "This is the project chat. To message a task, use its number, e.g. \"#12\".".into(),
-            );
+    match plan_send(&state.db, &from, project_root, to, message)? {
+        Outgoing::Project { project_chat, text } => {
+            state.mailroom.reported.lock().unwrap().insert(from.clone());
+            Ok(match wake(app, &project_chat, &from, text)? {
+                Delivered::Now => "Sent to the project chat.".into(),
+                Delivered::Queued => "Sent: the project chat is busy and gets it once its current turn ends.".into(),
+                Delivered::Paused => "Left as a note: the project chat has had too many agent messages in a row, so it isn't answering them automatically until the user writes there.".into(),
+            })
         }
-        let engaged =
-            db::task_for_conversation(&state.db, &from).is_some_and(|t| t.engaged_with_project);
-        if !engaged {
-            note(app, &project_chat, &from, &text)?;
-            return Ok(
-                "Left it as a note in the project chat: it isn't following this chat right \
-                       now, so it'll see it the next time it runs."
-                    .into(),
-            );
+        Outgoing::Task {
+            conversation_id,
+            number,
+            followed,
+            text,
+        } => {
+            let delivered = wake(app, &conversation_id, &from, text)?;
+            Ok(send_to_task_result(number, followed, &delivered))
         }
-        state.mailroom.reported.lock().unwrap().insert(from.clone());
-        return Ok(match wake(app, &project_chat, &from, text)? {
-            Delivered::Now => "Sent to the project chat.".into(),
-            Delivered::Queued => "Sent: the project chat is busy and gets it once its current turn ends.".into(),
-            Delivered::Paused => "Left as a note: the project chat has had too many agent messages in a row, so it isn't answering them automatically until the user writes there.".into(),
-        });
     }
-
-    let task = db::find_task(&state.db, project_root, to).ok_or_else(|| {
-        format!(
-            "`to` must be \"project\" or a task's number (e.g. \"#12\"); there's no task `{to}`."
-        )
-    })?;
-    let target = task.conversation_id.clone().ok_or_else(|| {
-        format!(
-            "Task #{} hasn't been started, so it has no chat to message yet; start_task it first.",
-            task.number
-        )
-    })?;
-    if target == from {
-        return Err("That's this chat.".into());
-    }
-    let from_project_chat = db::get_conversation(&state.db, &from)
-        .is_some_and(|c| c.role.as_deref() == Some("project"));
-    if from_project_chat && !task.engaged_with_project {
-        db::set_task_engaged(&state.db, &task.id, true);
-        emit_board_changed_for(app, &state, &task.project_id, Some(&task.id), "engaged");
-        crate::acp::rate_limit::publish(app, &target);
-    }
-    Ok(match wake(app, &target, &from, text)? {
-        Delivered::Now => format!(
-            "Sent to task #{}; its reply will come back to you.",
-            task.number
-        ),
-        Delivered::Queued => format!(
-            "Sent: task #{} is busy and gets it once its current turn ends.",
-            task.number
-        ),
-        Delivered::Paused => format!(
-            "Left as a note: task #{} has had too many agent messages in a row, so it isn't \
-             answering them automatically until the user writes there.",
-            task.number
-        ),
-    })
 }
 
-/// The user wrote in `session_id` themselves. If it's a task's chat, they've
-/// taken it over: the project chat stops being woken by it.
+/// Appended to a message delivered to a task the project chat isn't
+/// following: nothing it says comes back on its own.
+const UNFOLLOWED_FRAMING: &str = "\n\n(The user is handling this task, so your reply here \
+     won't be forwarded automatically. To answer, use send_message to \"project\".)";
+
+/// What `send_message` tells the sender of a message to task `number`.
+fn send_to_task_result(number: i64, followed: bool, delivered: &Delivered) -> String {
+    let unfollowed = format!(
+        " #{number} is being handled by the user. Its replies won't be forwarded \
+         automatically; it can answer you with send_message."
+    );
+    let tail = if followed { "" } else { unfollowed.as_str() };
+    match delivered {
+        Delivered::Now if followed => {
+            format!("Sent to task #{number}; its reply will come back to you.")
+        }
+        Delivered::Now => format!("Sent to task #{number}.{tail}"),
+        Delivered::Queued => {
+            format!("Sent: task #{number} is busy and gets it once its current turn ends.{tail}")
+        }
+        Delivered::Paused => format!(
+            "Left as a note: task #{number} has had too many agent messages in a row, so it \
+             isn't answering them automatically until the user writes there.{tail}"
+        ),
+    }
+}
+
+/// Stops the project chat following `session_id`'s task, if it was. The
+/// released task, for the caller to announce.
+fn release(db: &db::Db, session_id: &str) -> Option<db::Task> {
+    let task = db::task_for_conversation(db, session_id)?;
+    if !task.engaged_with_project {
+        return None;
+    }
+    db::set_task_engaged(db, &task.id, false);
+    Some(task)
+}
+
+/// The user took `session_id` over — sent in it or stopped it, choosing to
+/// (`take_over`). If it's a followed task's chat, the project chat stops
+/// following it and is told so once; nothing more is forwarded from it.
 pub(crate) fn on_user_message(app: &AppHandle, session_id: &str) {
     let state = app.state::<AppState>();
-    if let Some(task) = db::task_for_conversation(&state.db, session_id) {
-        if task.engaged_with_project {
-            db::set_task_engaged(&state.db, &task.id, false);
-            emit_board_changed_for(app, &state, &task.project_id, Some(&task.id), "released");
-            crate::acp::rate_limit::publish(app, session_id);
-        }
+    let Some(task) = release(&state.db, session_id) else {
+        return;
+    };
+    emit_board_changed_for(app, &state, &task.project_id, Some(&task.id), "released");
+    crate::acp::rate_limit::publish(app, session_id);
+    if let Some(root) = db::project_root_for_id(&state.db, &task.project_id) {
+        let project_chat = db::ensure_project_chat(&state.db, &root);
+        let _ = note(
+            app,
+            &project_chat,
+            session_id,
+            &taken_over_note(task.number),
+        );
     }
+}
+
+fn taken_over_note(number: i64) -> String {
+    format!(
+        "The user took over #{number}; its replies won't be forwarded. Use send_message to \
+         talk to it."
+    )
 }
 
 fn excerpt(text: &str) -> String {
@@ -345,20 +436,38 @@ fn excerpt(text: &str) -> String {
     format!("{cut}…")
 }
 
+/// What a task's turn end sends the project chat.
+#[derive(Debug, PartialEq)]
+enum TurnEnd {
+    /// It's followed: wake the project chat with the reply.
+    Forward,
+    /// It messaged the project chat itself this turn, or isn't followed.
+    Nothing,
+}
+
+fn turn_end(followed: bool, reported: bool) -> TurnEnd {
+    if followed && !reported {
+        TurnEnd::Forward
+    } else {
+        TurnEnd::Nothing
+    }
+}
+
 /// A turn on `session_id` just ended (`chat::set_generating`). Anything
-/// that waited for it goes now; otherwise, if it's a task's chat, the
-/// project chat hears how it went.
+/// that waited for it goes now — once: it's taken off the queue before it's
+/// sent. Otherwise, if it's a followed task's chat, the project chat is
+/// woken with how it went; an unfollowed one sends nothing.
 pub(crate) fn on_turn_end(app: &AppHandle, session_id: &str) {
     let state = app.state::<AppState>();
-    let queued = state.mailroom.queued.lock().unwrap().remove(session_id);
-    if let Some(queued) = queued.filter(|q| !q.is_empty()) {
-        let from = queued.last().map(|q| q.from.clone()).unwrap_or_default();
-        let text = queued
-            .into_iter()
-            .map(|q| q.text)
-            .collect::<Vec<_>>()
-            .join("\n\n---\n\n");
-        // It carries on, so its update comes when that turn ends.
+    if let Some((from, mut text)) = state.mailroom.take_queued(session_id) {
+        // Taken over since it was queued: say its reply won't come back.
+        let unfollowed = db::task_for_conversation(&state.db, session_id)
+            .is_some_and(|t| !t.engaged_with_project);
+        if unfollowed && !text.ends_with(UNFOLLOWED_FRAMING) {
+            text.push_str(UNFOLLOWED_FRAMING);
+        }
+        // It carries on, so its update (if it's followed) comes when that
+        // turn ends.
         state.mailroom.reported.lock().unwrap().remove(session_id);
         let _ = wake(app, session_id, &from, text);
         return;
@@ -367,7 +476,8 @@ pub(crate) fn on_turn_end(app: &AppHandle, session_id: &str) {
     let Some(task) = db::task_for_conversation(&state.db, session_id) else {
         return;
     };
-    if state.mailroom.reported.lock().unwrap().remove(session_id) {
+    let reported = state.mailroom.reported.lock().unwrap().remove(session_id);
+    if turn_end(task.engaged_with_project, reported) == TurnEnd::Nothing {
         return;
     }
     let Some(root) = db::project_root_for_id(&state.db, &task.project_id) else {
@@ -387,11 +497,7 @@ pub(crate) fn on_turn_end(app: &AppHandle, session_id: &str) {
         task.status.replace('_', " "),
         reply
     );
-    let _ = if task.engaged_with_project {
-        wake(app, &project_chat, session_id, text).map(|_| ())
-    } else {
-        note(app, &project_chat, session_id, &text)
-    };
+    let _ = wake(app, &project_chat, session_id, text);
 }
 
 /// Whether the project chat is woken by `task_id` — the task chat's
@@ -412,6 +518,141 @@ pub fn set_task_engaged(app: AppHandle, task_id: String, engaged: bool) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use db::{Db, NewTask};
+
+    fn temp_db() -> Db {
+        Db::open(std::env::temp_dir().join(format!("ai-leash-test-{}.db", uuid::Uuid::new_v4())))
+    }
+
+    /// A started task #1 in "/proj" with chat "task-chat", followed or not;
+    /// and the project chat's id.
+    fn board(followed: bool) -> (Db, db::Task, String) {
+        let db = temp_db();
+        let project_chat = db::ensure_project_chat(&db, "/proj");
+        let task = db::create_task(
+            &db,
+            "/proj",
+            NewTask {
+                title: "a".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db::set_task_conversation(&db, &task.id, Some("task-chat"), followed);
+        (db, task, project_chat)
+    }
+
+    fn followed(db: &Db, task: &db::Task) -> bool {
+        db::get_task(db, &task.id).unwrap().engaged_with_project
+    }
+
+    #[test]
+    fn an_unfollowed_task_forwards_nothing_at_turn_end() {
+        assert_eq!(turn_end(false, false), TurnEnd::Nothing);
+        assert_eq!(turn_end(false, true), TurnEnd::Nothing);
+        assert_eq!(turn_end(true, false), TurnEnd::Forward);
+        // It messaged the project chat itself this turn.
+        assert_eq!(turn_end(true, true), TurnEnd::Nothing);
+    }
+
+    #[test]
+    fn an_unfollowed_task_can_still_message_the_project_chat() {
+        let (db, _, project_chat) = board(false);
+        match plan_send(&db, "task-chat", "/proj", "project", "done").unwrap() {
+            Outgoing::Project {
+                project_chat: to,
+                text,
+            } => {
+                assert_eq!(to, project_chat);
+                assert!(text.starts_with("Message from task #1 (a)"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_project_chat_can_message_an_unfollowed_task_without_following_it() {
+        let (db, task, project_chat) = board(false);
+        match plan_send(&db, &project_chat, "/proj", "#1", "do x").unwrap() {
+            Outgoing::Task {
+                conversation_id,
+                followed: was_followed,
+                text,
+                ..
+            } => {
+                assert_eq!(conversation_id, "task-chat");
+                assert!(!was_followed);
+                assert!(text.ends_with(UNFOLLOWED_FRAMING));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(!followed(&db, &task));
+        let result = send_to_task_result(1, false, &Delivered::Now);
+        assert!(result.contains("#1 is being handled by the user"));
+        assert!(!result.contains("will come back"));
+        assert!(send_to_task_result(1, false, &Delivered::Queued)
+            .contains("is being handled by the user"));
+    }
+
+    #[test]
+    fn a_followed_task_gets_plain_messages_and_its_reply_comes_back() {
+        let (db, task, project_chat) = board(true);
+        match plan_send(&db, &project_chat, "/proj", "#1", "do x").unwrap() {
+            Outgoing::Task {
+                text, followed: f, ..
+            } => {
+                assert!(f);
+                assert!(!text.contains(UNFOLLOWED_FRAMING));
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(followed(&db, &task));
+        assert!(send_to_task_result(1, true, &Delivered::Now).contains("will come back"));
+    }
+
+    #[test]
+    fn a_queued_message_is_delivered_once_and_its_reply_not_forwarded() {
+        let mailroom = Mailroom::default();
+        for text in ["one", "two"] {
+            mailroom
+                .queued
+                .lock()
+                .unwrap()
+                .entry("task-chat".into())
+                .or_default()
+                .push(Queued {
+                    from: "project".into(),
+                    text: text.into(),
+                });
+        }
+        let (from, text) = mailroom.take_queued("task-chat").unwrap();
+        assert_eq!(from, "project");
+        assert_eq!(text, "one\n\n---\n\ntwo");
+        assert!(mailroom.take_queued("task-chat").is_none());
+        // Taken over meanwhile: the turn that answers it forwards nothing.
+        assert_eq!(turn_end(false, false), TurnEnd::Nothing);
+    }
+
+    #[test]
+    fn taking_over_releases_a_followed_task_once() {
+        // What Stop and a send with `take_over` both do.
+        let (db, task, _) = board(true);
+        assert_eq!(release(&db, "task-chat").unwrap().id, task.id);
+        assert!(!followed(&db, &task));
+        assert!(release(&db, "task-chat").is_none());
+        assert!(release(&db, "not-a-task").is_none());
+        assert!(taken_over_note(1).starts_with("The user took over #1;"));
+    }
+
+    #[test]
+    fn without_taking_over_the_task_stays_followed() {
+        // `take_over: false` never calls `on_user_message`, so nothing
+        // else changes it.
+        let (db, task, project_chat) = board(true);
+        plan_send(&db, &project_chat, "/proj", "#1", "hi").unwrap();
+        plan_send(&db, "task-chat", "/proj", "project", "hi").unwrap();
+        assert!(followed(&db, &task));
+    }
 
     #[test]
     fn long_replies_are_cut_on_a_character_boundary() {

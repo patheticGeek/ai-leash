@@ -9,7 +9,9 @@ use tauri::{AppHandle, State};
 /// `model`/`effort`/`agent_mode` are the conversation's choice — an ACP
 /// agent applies them itself if this send is what starts its connection
 /// (see `AcpBackend::send`); a native backend also remembers `model` as the
-/// one to start with next time.
+/// one to start with next time. `take_over`: the user chose to take this
+/// chat over from the project chat, if it's a task it follows (see
+/// `board::messaging::on_user_message`); otherwise it stays followed.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn send_prompt(
@@ -21,6 +23,7 @@ pub async fn send_prompt(
     effort: Option<String>,
     agent_mode: Option<String>,
     message: String,
+    take_over: bool,
 ) -> Result<(), String> {
     let backend = registry::resolve(
         &state,
@@ -30,7 +33,9 @@ pub async fn send_prompt(
         agent_mode.as_deref(),
     )?;
     registry::remember_model(&app, &backend_id, &model);
-    crate::board::messaging::on_user_message(&app, &session_id);
+    if take_over {
+        crate::board::messaging::on_user_message(&app, &session_id);
+    }
     backend.send(&app, &session_id, message).await
 }
 

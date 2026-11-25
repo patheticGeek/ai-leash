@@ -61,8 +61,19 @@ pub(crate) fn is_generating(state: &AppState, session_id: &str) -> bool {
     state.generating.lock().unwrap().contains(session_id)
 }
 
+/// Stops `session_id`'s turn. `take_over`: stopping it takes a followed
+/// task over from the project chat — released before the cancel, so the
+/// stopped turn's end doesn't wake the project chat.
 #[tauri::command]
-pub fn cancel_prompt(state: State<AppState>, session_id: String) -> Result<(), String> {
+pub fn cancel_prompt(
+    app: AppHandle,
+    state: State<AppState>,
+    session_id: String,
+    take_over: bool,
+) -> Result<(), String> {
+    if take_over {
+        crate::board::messaging::on_user_message(&app, &session_id);
+    }
     backend::cancel(state.inner(), &session_id);
     Ok(())
 }
