@@ -109,8 +109,36 @@
       "value": "#141518",
       "source": "token",
       "mode": "dark"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-secondary)",
+      "source": "property",
+      "on": "side-nav-item"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "hover"
+    },
+    {
+      "thing": "font-weight",
+      "value": "500",
+      "source": "property",
+      "on": "side-nav-item"
     }
   ],
-  "lifted": [],
+  "lifted": [
+    "side-nav-item selected:selected:hover color"
+  ],
   "palette": "c5ecb3be69c7c96015830e7a6256f254e543947e80ed69ef16f966f8e67d6df6"
 }
