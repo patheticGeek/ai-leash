@@ -96,8 +96,9 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   `radiusVars`, …). No raw hex or px values.
 - **The theme is stock Astryx (`neutral`, dark).** Don't recolour or
   respace it; build each surface from its Astryx template and keep the
-  template's frame, gaps and padding. The only theme edit is chrome text
-  on the 12px scale step — change the theme only through `astryx
+  template's frame, gaps and padding. The theme edits are chrome text on
+  the 12px scale step and sidebar rows (`side-nav-item`: secondary text
+  at weight 500, primary when selected or hovered, #48) — change the theme only through `astryx
   experimental theme editor`, with a reason from Astryx's docs.
   The theme is `ai-leash` (`themes/ai-leash/` is the editor's source,
   `themes/ai-leash/ai-leash.settings.json` its checked settings;

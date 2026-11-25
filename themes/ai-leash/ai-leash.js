@@ -483,7 +483,20 @@ export const aiLeashTheme = {
     },
     "side-nav-item": {
       "base": {
-        "fontSize": "12px"
+        "fontSize": "12px",
+        "color": "var(--color-text-secondary)",
+        "fontWeight": "500",
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
+      },
+      "selected": {
+        "color": "var(--color-text-primary)"
+      },
+      "selected:selected": {
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
       }
     },
     "text-input": {

@@ -594,6 +594,20 @@
 
   .astryx-side-nav-item {
     font-size: 12px;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+  }
+
+  .astryx-side-nav-item:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-side-nav-item[data-selected="selected"] {
+    color: var(--color-text-primary);
+  }
+
+  .astryx-side-nav-item[data-selected="selected"]:hover:where(:not(:disabled,[aria-disabled="true"])) {
+    color: var(--color-text-primary);
   }
 
   .astryx-text-input[data-size="sm"] {
