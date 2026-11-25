@@ -112,60 +112,73 @@ function latestLine(entries: Entry[]): string | null {
   return firstLine(last.content);
 }
 
-// The sub-agents a `spawn_sub_agent` call started, one compact row each:
-// status, what it was asked, model and latest line, and a button that opens
-// its own transcript in a tab (`SubAgentChatTab`).
+// One sub-agent a `spawn_sub_agent` call started: status, what it was
+// asked, model and latest line, and a button that opens its own transcript
+// in a tab (`SubAgentChatTab`). The latest line comes from the store's live
+// `subAgentThreads` (the parent's `entries` only hold the thread's prompt),
+// so a sub-agent's stream re-renders just this row.
+function SubAgentThreadRow({
+  thread,
+  task,
+}: {
+  thread: SubtaskThread;
+  task: SubAgentTask | undefined;
+}) {
+  const openChatTab = useAppStore((s) => s.openChatTab);
+  const live = useAppStore((s) => s.subAgentThreads[thread.subSessionId]);
+  const status = SUB_AGENT_STATUS[task?.status ?? "running"];
+  const ranFor =
+    task && task.status !== "running" && task.endedAt
+      ? `ran for ${formatDuration((task.endedAt - task.startedAt) / 1000)}`
+      : null;
+  const description = [
+    task?.model && `${task.model}${task.effort ? ` (${task.effort})` : ""}`,
+    ranFor,
+    latestLine(live ?? thread.entries),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <ListItem
+      label={thread.description}
+      description={description || undefined}
+      startContent={
+        <StatusDot
+          variant={status.variant}
+          label={status.label}
+          isPulsing={task?.status === "running" || !task}
+        />
+      }
+      endContent={
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label="Open its conversation"
+          tooltip="Open its conversation"
+          icon={<Icon icon={SquareArrowOutUpRight} size="sm" />}
+          onClick={() => openChatTab(thread.subSessionId, thread.description)}
+        />
+      }
+    />
+  );
+}
+
+// The sub-agents a `spawn_sub_agent` call started, one compact row each.
 function SubAgentThreads({ threads }: { threads: SubtaskThread[] }) {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const openChatTab = useAppStore((s) => s.openChatTab);
   const tasks = useSubAgents(activeSessionId);
   const byId = new Map<string, SubAgentTask>(
     tasks.map((t) => [t.subSessionId, t]),
   );
   return (
     <List density="compact" edge="flush">
-      {threads.map((thread) => {
-        const task = byId.get(thread.subSessionId);
-        const status = SUB_AGENT_STATUS[task?.status ?? "running"];
-        const ranFor =
-          task && task.status !== "running" && task.endedAt
-            ? `ran for ${formatDuration((task.endedAt - task.startedAt) / 1000)}`
-            : null;
-        const description = [
-          task?.model &&
-            `${task.model}${task.effort ? ` (${task.effort})` : ""}`,
-          ranFor,
-          latestLine(thread.entries),
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        return (
-          <ListItem
-            key={thread.subSessionId}
-            label={thread.description}
-            description={description || undefined}
-            startContent={
-              <StatusDot
-                variant={status.variant}
-                label={status.label}
-                isPulsing={task?.status === "running" || !task}
-              />
-            }
-            endContent={
-              <IconButton
-                variant="ghost"
-                size="sm"
-                label="Open its conversation"
-                tooltip="Open its conversation"
-                icon={<Icon icon={SquareArrowOutUpRight} size="sm" />}
-                onClick={() =>
-                  openChatTab(thread.subSessionId, thread.description)
-                }
-              />
-            }
-          />
-        );
-      })}
+      {threads.map((thread) => (
+        <SubAgentThreadRow
+          key={thread.subSessionId}
+          thread={thread}
+          task={byId.get(thread.subSessionId)}
+        />
+      ))}
     </List>
   );
 }

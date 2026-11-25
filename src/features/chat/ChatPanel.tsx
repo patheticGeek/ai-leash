@@ -193,9 +193,10 @@ export default function ChatPanel({
         setUsage(null);
       } catch (e) {
         setChatError(String(e));
-      } finally {
-        setSending(false);
       }
+      // Not a `finally`: the React Compiler can't compile one yet, and the
+      // `catch` above already swallows every error.
+      setSending(false);
     }
   }
 
@@ -215,9 +216,8 @@ export default function ChatPanel({
       await api.runShellCommand(id, command);
     } catch (e) {
       setChatError(String(e));
-    } finally {
-      setSending(false);
     }
+    setSending(false);
   }
 
   // The actual "push a user turn and hand it to whichever backend is

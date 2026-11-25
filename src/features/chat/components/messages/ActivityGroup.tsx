@@ -5,7 +5,7 @@ import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { toolCallFor } from "./toolCalls";
 import { turnInset } from "./turnInset";
@@ -32,10 +32,7 @@ interface ActivityGroupProps {
 // on the turn's left edge (`turnInset`). Its parent keys it on the run's
 // first index, which stays stable as long as `entries` only ever grows (it
 // does), so the expanded state can live here.
-export default function ActivityGroup({
-  entries,
-  indices,
-}: ActivityGroupProps) {
+function ActivityGroup({ entries, indices }: ActivityGroupProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const last = entries.length - 1;
   const hidden = indices.length - 1;
@@ -69,3 +66,22 @@ export default function ActivityGroup({
     </VStack>
   );
 }
+
+// It gets the whole `entries` array, which is a new one on every streamed
+// chunk: re-render only when one of its own entries (or whether its last one
+// ends the transcript, which decides "Thinking…") actually changed.
+function sameRun(prev: ActivityGroupProps, next: ActivityGroupProps) {
+  if (prev.indices.length !== next.indices.length) return false;
+  const lastIndex = next.indices[next.indices.length - 1];
+  if (
+    (lastIndex === prev.entries.length - 1) !==
+    (lastIndex === next.entries.length - 1)
+  ) {
+    return false;
+  }
+  return next.indices.every(
+    (i, n) => prev.indices[n] === i && prev.entries[i] === next.entries[i],
+  );
+}
+
+export default memo(ActivityGroup, sameRun);

@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   forgetPrefetchedConversationHistory,
   getPrefetchedConversationHistory,
@@ -16,12 +16,16 @@ import {
   type ToolResultPayload,
   updateToolArgs,
 } from "../../../lib/chatEntries";
+import { createFrameBatcher, type FrameBatcher } from "../../../lib/frameBatch";
 import { api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 
 export interface SubtaskThread {
   subSessionId: string;
   description: string;
+  // Just what it started with (its prompt): the live transcript is the
+  // store's `subAgentThreads[subSessionId]`, which its stream updates —
+  // not this, so a sub-agent's chunks don't touch the parent's `entries`.
   entries: Entry[];
 }
 
@@ -80,27 +84,7 @@ function addSubtaskThread(
   );
 }
 
-function updateSubtaskThread(
-  prev: PanelEntry[],
-  callId: string,
-  subSessionId: string,
-  updater: (entries: Entry[]) => Entry[],
-): PanelEntry[] {
-  return prev.map((entry) => {
-    if (entry.kind !== "tool" || entry.callId !== callId || !entry.subtasks)
-      return entry;
-    const idx = entry.subtasks.findIndex(
-      (t) => t.subSessionId === subSessionId,
-    );
-    if (idx === -1) return entry;
-    const subtasks = [...entry.subtasks];
-    subtasks[idx] = {
-      ...subtasks[idx],
-      entries: updater(subtasks[idx].entries),
-    };
-    return { ...entry, subtasks };
-  });
-}
+type EntriesUpdate = (prev: PanelEntry[]) => PanelEntry[];
 
 // Owns this conversation's transcript (`entries`), token usage, and system
 // prompt — everything driven by the `chat://{sessionId}/...` event stream
@@ -129,9 +113,19 @@ export function useChatStream(
   // Began as a new thread: there's no history to load, then or after its
   // first message gives it an id (that message is already in `entries`).
   const [startedAsNewThread] = useState(sessionId === null);
-  const [entries, setEntries] = useState<PanelEntry[]>(() =>
+  const [entries, setEntriesNow] = useState<PanelEntry[]>(() =>
     prefetched ? messagesToEntries(prefetched) : [],
   );
+  // The stream's updates to `entries`, applied together once per frame (see
+  // `lib/frameBatch.ts`) — one re-render per frame, not one per chunk.
+  const pending = useRef<FrameBatcher<EntriesUpdate> | null>(null);
+  // For everything outside the stream (`ChatPanel`'s optimistic user
+  // message, `/clear`, …): applies the queued stream updates first, so an
+  // update made after an event still lands after it.
+  const setEntries = useCallback((update: PanelEntry[] | EntriesUpdate) => {
+    pending.current?.flush();
+    setEntriesNow(update);
+  }, []);
   // Until this is true an empty `entries` means "not loaded yet", not "no
   // messages" — `ChatEntryList` holds off on its empty state until then.
   const [historyLoaded, setHistoryLoaded] = useState(
@@ -210,7 +204,7 @@ export function useChatStream(
         // Guards against clobbering a live event that already arrived while
         // this load was in flight (shouldn't happen in practice — nothing can
         // send a message before the UI has mounted — but it's a cheap check).
-        setEntries((prev) => (prev.length === 0 ? loaded : prev));
+        setEntriesNow((prev) => (prev.length === 0 ? loaded : prev));
       })
       .catch((e: unknown) => {
         if (!cancelled) setHistoryError(String(e));
@@ -226,6 +220,14 @@ export function useChatStream(
   useEffect(() => {
     if (!sessionId) return;
     const unlistens: Promise<() => void>[] = [];
+    const batch = createFrameBatcher<EntriesUpdate>((updates) =>
+      setEntriesNow((prev) =>
+        updates.reduce((acc, update) => update(acc), prev),
+      ),
+    );
+    pending.current = batch;
+    // Every event that changes `entries` goes through the batch, in order.
+    const update = (fn: EntriesUpdate) => batch.push(fn);
 
     unlistens.push(
       listen<string | null>(`chat://${sessionId}/system_prompt`, (e) => {
@@ -243,35 +245,35 @@ export function useChatStream(
     // real type hole.
     unlistens.push(
       listen<string>(`chat://${sessionId}/thinking`, (e) => {
-        setEntries(
+        update(
           (prev) => appendThinking(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
     );
     unlistens.push(
       listen<string>(`chat://${sessionId}/chunk`, (e) => {
-        setEntries(
+        update(
           (prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
     );
     unlistens.push(
       listen<ToolCallPayload>(`chat://${sessionId}/tool_call`, (e) => {
-        setEntries(
+        update(
           (prev) => appendToolCall(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
     );
     unlistens.push(
       listen<ToolResultPayload>(`chat://${sessionId}/tool_result`, (e) => {
-        setEntries(
+        update(
           (prev) => applyToolResult(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
     );
     unlistens.push(
       listen<ToolCallArgsPayload>(`chat://${sessionId}/tool_call_args`, (e) => {
-        setEntries(
+        update(
           (prev) => updateToolArgs(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
@@ -306,7 +308,7 @@ export function useChatStream(
     // auto-resume) — typed messages are added optimistically by `ChatPanel`.
     unlistens.push(
       listen<string>(`chat://${sessionId}/user_message`, (e) => {
-        setEntries((prev) => [
+        update((prev) => [
           ...prev,
           { kind: "text", role: "user", content: e.payload, time: Date.now() },
         ]);
@@ -318,7 +320,7 @@ export function useChatStream(
       listen<{ from: string; content: string }>(
         `chat://${sessionId}/agent_message`,
         (e) => {
-          setEntries((prev) => [
+          update((prev) => [
             ...prev,
             {
               kind: "text",
@@ -336,7 +338,7 @@ export function useChatStream(
       listen<{ from: string; content: string }>(
         `chat://${sessionId}/board_note`,
         (e) => {
-          setEntries((prev) => [
+          update((prev) => [
             ...prev,
             {
               kind: "note",
@@ -386,7 +388,7 @@ export function useChatStream(
           content: prompt,
           time: Date.now(),
         };
-        setEntries((prev) =>
+        update((prev) =>
           addSubtaskThread(prev, callId, subSessionId, description, [
             promptEntry,
           ]),
@@ -400,72 +402,28 @@ export function useChatStream(
         // Agents list is a query (`useSubAgents`) refreshed by the global
         // `agent://lifecycle` event, which can't be missed the way a
         // per-sub-agent listener registered only after this event could.
-        unlistens.push(
-          listen<string>(`chat://${subSessionId}/thinking`, (ev) => {
-            setEntries((prev) =>
-              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                appendThinking(sub, ev.payload),
-              ),
-            );
-            setSubAgentEntries(subSessionId, (prev) =>
-              appendThinking(prev, ev.payload),
-            );
-          }),
-        );
-        unlistens.push(
-          listen<string>(`chat://${subSessionId}/chunk`, (ev) => {
-            setEntries((prev) =>
-              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                appendChunk(sub, ev.payload),
-              ),
-            );
-            setSubAgentEntries(subSessionId, (prev) =>
-              appendChunk(prev, ev.payload),
-            );
-          }),
-        );
-        unlistens.push(
-          listen<ToolCallPayload>(`chat://${subSessionId}/tool_call`, (ev) => {
-            setEntries((prev) =>
-              updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                appendToolCall(sub, ev.payload),
-              ),
-            );
-            setSubAgentEntries(subSessionId, (prev) =>
-              appendToolCall(prev, ev.payload),
-            );
-          }),
-        );
-        unlistens.push(
-          listen<ToolResultPayload>(
-            `chat://${subSessionId}/tool_result`,
-            (ev) => {
-              setEntries((prev) =>
-                updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                  applyToolResult(sub, ev.payload),
-                ),
-              );
+        //
+        // Its stream only feeds the store's `subAgentThreads` (itself
+        // batched per frame — `store/subAgentSlice.ts`), never this
+        // conversation's `entries`: the thread's row under the tool call
+        // (`SubAgentThreads`) reads it from there, so a sub-agent's chunks
+        // don't re-render the parent's whole transcript.
+        const follow = <P>(
+          event: string,
+          apply: (prev: Entry[], payload: P) => Entry[],
+        ) =>
+          unlistens.push(
+            listen<P>(`chat://${subSessionId}/${event}`, (ev) => {
               setSubAgentEntries(subSessionId, (prev) =>
-                applyToolResult(prev, ev.payload),
+                apply(prev, ev.payload),
               );
-            },
-          ),
-        );
-        unlistens.push(
-          listen<ToolCallArgsPayload>(
-            `chat://${subSessionId}/tool_call_args`,
-            (ev) => {
-              setEntries((prev) =>
-                updateSubtaskThread(prev, callId, subSessionId, (sub) =>
-                  updateToolArgs(sub, ev.payload),
-                ),
-              );
-              setSubAgentEntries(subSessionId, (prev) =>
-                updateToolArgs(prev, ev.payload),
-              );
-            },
-          ),
-        );
+            }),
+          );
+        follow<string>("thinking", appendThinking);
+        follow<string>("chunk", appendChunk);
+        follow<ToolCallPayload>("tool_call", appendToolCall);
+        follow<ToolResultPayload>("tool_result", applyToolResult);
+        follow<ToolCallArgsPayload>("tool_call_args", updateToolArgs);
       }),
     );
 
@@ -479,6 +437,9 @@ export function useChatStream(
     });
 
     return () => {
+      // Whatever arrived since the last frame still belongs on screen.
+      batch.flush();
+      if (pending.current === batch) pending.current = null;
       listening.current.delete(sessionId);
       unlistens.forEach((u) => {
         u.then((f) => f());

@@ -12,6 +12,7 @@ import { Check, Copy, Play } from "lucide-react";
 import {
   createContext,
   isValidElement,
+  memo,
   type ReactNode,
   useContext,
 } from "react";
@@ -261,15 +262,20 @@ const components: Components = {
 // `whitespace-pre-wrap` text, since they're typed input rather than
 // generated prose (matches the convention most chat UIs use). Hand-written
 // (no Astryx/registry equivalent), styled with StyleX + Astryx tokens.
-export default function Markdown({ content }: { content: string }) {
+//
+// `memo`'d (on `content`), with its plugin list hoisted: a streamed chunk
+// re-renders the transcript around it, and without this every message's
+// Markdown would be re-parsed on every chunk, not just the one growing.
+const remarkPlugins = [remarkGfm, remarkBreaks];
+
+function Markdown({ content }: { content: string }) {
   return (
     <div {...stylex.props(styles.root)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        components={components}
-      >
+      <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
         {content}
       </ReactMarkdown>
     </div>
   );
 }
+
+export default memo(Markdown);
