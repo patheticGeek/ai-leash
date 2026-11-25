@@ -28,7 +28,11 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import {
+  borderVars,
+  colorVars,
+  typeScaleVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -86,7 +90,19 @@ const styles = stylex.create({
   nested: { contain: "inline-size" },
   // The filter button stays lit while a task-chat filter is on.
   filterOn: { color: colorVars["--color-text-accent"] },
-  showMore: { alignSelf: "flex-start" },
+  // "More projects" / "Show all": muted like an at-rest sidebar row, primary
+  // on hover, at the sidebar's text size. The theme can't single out buttons
+  // in the side nav (`editor how "muted ghost buttons in the side nav"`), so
+  // this is the one row that sets it; `--text-supporting-size` is the
+  // side-nav-section's (the theme sets it to 14px there).
+  showMore: {
+    alignSelf: "flex-start",
+    color: {
+      default: colorVars["--color-text-secondary"],
+      ":hover": colorVars["--color-text-primary"],
+    },
+    fontSize: typeScaleVars["--text-supporting-size"],
+  },
   // A hidden ⋯ is taken out of the flow at the row's end; anchoring its end
   // edge there keeps it inside the rail instead of overflowing past it
   // (which made the sidebar scroll sideways).

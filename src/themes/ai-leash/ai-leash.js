@@ -481,24 +481,6 @@ export const aiLeashTheme = {
         "fontSize": "12px"
       }
     },
-    "side-nav-item": {
-      "base": {
-        "fontSize": "12px",
-        "color": "var(--color-text-secondary)",
-        "fontWeight": "500",
-        ":hover": {
-          "color": "var(--color-text-primary)"
-        }
-      },
-      "selected": {
-        "color": "var(--color-text-primary)"
-      },
-      "selected:selected": {
-        ":hover": {
-          "color": "var(--color-text-primary)"
-        }
-      }
-    },
     "text-input": {
       "size:sm": {
         "fontSize": "12px"
@@ -575,6 +557,29 @@ export const aiLeashTheme = {
         "--color-on-light": "#ffffff",
         "--color-text-primary": "#ffffff",
         "color": "#ffffff"
+      }
+    },
+    "side-nav-item": {
+      "base": {
+        "color": "var(--color-text-secondary)",
+        "fontWeight": "500",
+        "fontSize": "14px",
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
+      },
+      "selected": {
+        "color": "var(--color-text-primary)"
+      },
+      "selected:selected": {
+        ":hover": {
+          "color": "var(--color-text-primary)"
+        }
+      }
+    },
+    "side-nav-section": {
+      "base": {
+        "--text-supporting-size": "0.875rem"
       }
     }
   },

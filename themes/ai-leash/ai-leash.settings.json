@@ -13,12 +13,6 @@
       "thing": "font-size",
       "value": "12px",
       "source": "property",
-      "on": "side-nav-item"
-    },
-    {
-      "thing": "font-size",
-      "value": "12px",
-      "source": "property",
       "on": "button",
       "when": "size:sm"
     },
@@ -135,6 +129,18 @@
       "value": "500",
       "source": "property",
       "on": "side-nav-item"
+    },
+    {
+      "thing": "font-size",
+      "value": "14px",
+      "source": "property",
+      "on": "side-nav-item"
+    },
+    {
+      "thing": "--text-supporting-size",
+      "value": "0.875rem",
+      "source": "token",
+      "on": "side-nav-section"
     }
   ],
   "lifted": [
