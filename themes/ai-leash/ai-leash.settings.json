@@ -86,12 +86,6 @@
       "mode": "dark"
     },
     {
-      "thing": "--color-background-muted",
-      "value": "#0b0c0e",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
       "thing": "--color-text-primary",
       "value": "#e4e4e7",
       "source": "token",
@@ -109,6 +103,12 @@
       "source": "property",
       "on": "toast",
       "when": "type:error"
+    },
+    {
+      "thing": "--color-background-muted",
+      "value": "#141518",
+      "source": "token",
+      "mode": "dark"
     }
   ],
   "lifted": [],

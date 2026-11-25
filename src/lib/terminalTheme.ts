@@ -27,12 +27,12 @@ export const terminalStyles = stylex.create({
 export function terminalTheme(host: HTMLElement): ITheme {
   const probe = document.createElement("span");
   host.appendChild(probe);
-  const resolve = (value: string, fallback: string) => {
+  const resolve = (value: string) => {
     probe.style.color = value;
-    return getComputedStyle(probe).color || fallback;
+    return getComputedStyle(probe).color;
   };
-  const background = resolve(BACKGROUND, "#111111");
-  const foreground = resolve(FOREGROUND, "#ffffff");
+  const background = resolve(BACKGROUND);
+  const foreground = resolve(FOREGROUND);
   probe.remove();
   return { background, foreground, cursor: foreground };
 }

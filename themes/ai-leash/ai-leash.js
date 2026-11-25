@@ -118,7 +118,7 @@ export const aiLeashTheme = {
     "--color-background-body": "light-dark(#f0f0f2, #101114)",
     "--color-background-card": "light-dark(#ffffff, #17181c)",
     "--color-background-popover": "light-dark(#ffffff, #17181c)",
-    "--color-background-muted": "light-dark(#f0f0f2, #0b0c0e)",
+    "--color-background-muted": "light-dark(#f0f0f2, #141518)",
     "--color-accent": "light-dark(#1b1b1b, #f1f1f1)",
     "--color-accent-muted": "light-dark(#d4d4d4, #474747)",
     "--color-neutral": "light-dark(#0000000F, #ffffff1A)",
