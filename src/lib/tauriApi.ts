@@ -643,6 +643,9 @@ export const api = {
     effort: string | null,
     agentMode: string | null,
     message: string,
+    // The user chose to take a followed task's chat over from the project
+    // chat (see `TakeOverDialog`); false leaves it followed.
+    takeOver: boolean,
   ) =>
     invoke<void>("send_prompt", {
       sessionId,
@@ -651,6 +654,7 @@ export const api = {
       effort,
       agentMode,
       message,
+      takeOver,
     }),
   retryLast: (
     sessionId: string,
@@ -660,8 +664,9 @@ export const api = {
   ) => invoke<void>("retry_last", { sessionId, backendId, model, effort }),
   warmSession: (sessionId: string, backendId: string) =>
     invoke<void>("warm_session", { sessionId, backendId }),
-  cancelPrompt: (sessionId: string) =>
-    invoke<void>("cancel_prompt", { sessionId }),
+  // `takeOver`: stopping a followed task's chat takes it over too.
+  cancelPrompt: (sessionId: string, takeOver = false) =>
+    invoke<void>("cancel_prompt", { sessionId, takeOver }),
   // The `!command` chat-input escape — runs `command` as a shell command
   // directly (no LLM turn, no permission prompt) and returns its output;
   // the backend also records it as a real tool-call/result pair (see

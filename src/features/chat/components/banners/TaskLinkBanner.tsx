@@ -1,37 +1,28 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Undo2 } from "lucide-react";
-import { useBoard } from "../../../../data/board";
-import { useConversation } from "../../../../data/conversations";
 import { api } from "../../../../lib/tauriApi";
+import { useConversationTask } from "../../hooks/useConversationTask";
 
 // In a board task's chat while the project chat isn't following it (the
-// user wrote here, or it was started by hand): its updates reach the
-// project chat only as notes. "Hand back" has the project chat woken by
-// them again — see `board::messaging`. An info `Banner`: state you can
-// change.
+// user took it over, or it was started by hand): none of its replies are
+// forwarded to the project chat, though the two can still message each
+// other. "Hand back" has the project chat follow it again — see
+// `board::messaging`. An info `Banner`: state you can change.
 export default function TaskLinkBanner({
   sessionId,
 }: {
   sessionId: string | null;
 }) {
-  const conversation = useConversation(sessionId);
-  const board = useBoard(
-    conversation?.projectRoot ?? "",
-    false,
-    !!conversation?.taskId,
-  );
-  const task = conversation?.taskId
-    ? board?.tasks.find((t) => t.id === conversation.taskId)
-    : undefined;
+  const task = useConversationTask(sessionId);
   if (!task || task.engagedWithProject || task.status === "done") return null;
   return (
     <Banner
       status="info"
       elevation="low"
       collapsible={false}
-      title={`The project chat isn't following #${task.number}`}
-      description="It only gets notes of what happens here. Hand it back so it's woken by this task's updates again."
+      title={`You've taken over #${task.number}`}
+      description="Its replies aren't forwarded to the project chat. You can still message each other; hand it back to have the project chat follow it again."
       endContent={
         <Button
           variant="primary"

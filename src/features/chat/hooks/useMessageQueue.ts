@@ -25,5 +25,7 @@ export function useMessageQueue(
     remove: (index: number) =>
       setQueued((prev) => prev.filter((_, i) => i !== index)),
     clear: () => setQueued([]),
+    // Puts back what `clear` dropped, ahead of anything queued since.
+    restore: (items: string[]) => setQueued((prev) => [...items, ...prev]),
   };
 }

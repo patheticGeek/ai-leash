@@ -9,9 +9,11 @@ import ChatComposer from "./components/composer/ChatComposer";
 import NewThreadHero from "./components/empty-states/NewThreadHero";
 import StartsWithRow from "./components/empty-states/StartsWithRow";
 import ChatEntryList from "./components/messages/ChatEntryList";
+import TakeOverDialog, { type TakeOverAsk } from "./components/TakeOverDialog";
 import { useBackendWarmup } from "./hooks/useBackendWarmup";
 import { useChatSession } from "./hooks/useChatSession";
 import { useChatStream } from "./hooks/useChatStream";
+import { useConversationTask } from "./hooks/useConversationTask";
 import { useTurnDurations } from "./hooks/useTurnDurations";
 
 const styles = stylex.create({
@@ -224,7 +226,7 @@ export default function ChatPanel({
   // active" round trip — shared by the composer's send path and message
   // queue. The guards about whether the *user* is allowed to
   // send right now live in the composer, not here.
-  async function submitPrompt(text: string) {
+  async function submitPrompt(text: string, takeOver: boolean) {
     // Also covers a queued message delivered after its backend was turned
     // off — the composer's own `backend.ready` check only gates typed sends.
     if (!backend.ready) return;
@@ -239,7 +241,7 @@ export default function ChatPanel({
       setSending(true);
     }
     try {
-      await backend.send(id, text);
+      await backend.send(id, text, takeOver);
       const title = await api.getConversationTitle(id);
       setConversationTitle(id, title);
     } catch (e) {
@@ -275,10 +277,42 @@ export default function ChatPanel({
     }
   }
 
-  async function stop() {
-    if (!sessionId) return;
-    await api.cancelPrompt(sessionId);
+  // A task chat the project chat follows asks before the user's send or
+  // Stop takes it over (`TakeOverDialog`); `takeOverAsk.answer` settles
+  // the send's or stop's promise with the choice, or null for Cancel.
+  const task = useConversationTask(sessionId);
+  const followedTask = task?.engagedWithProject ? task : undefined;
+  const [takeOverAsk, setTakeOverAsk] = useState<{
+    ask: TakeOverAsk;
+    answer: (takeOver: boolean | null) => void;
+  } | null>(null);
+  function askTakeOver(ask: TakeOverAsk): Promise<boolean | null> {
+    if (!followedTask) return Promise.resolve(false);
+    return new Promise((resolve) =>
+      setTakeOverAsk({
+        ask,
+        answer: (takeOver) => {
+          setTakeOverAsk(null);
+          resolve(takeOver);
+        },
+      }),
+    );
+  }
+
+  async function send(text: string): Promise<boolean> {
+    const takeOver = await askTakeOver("send");
+    if (takeOver === null) return false;
+    await submitPrompt(text, takeOver);
+    return true;
+  }
+
+  async function stop(): Promise<boolean> {
+    if (!sessionId) return true;
+    const takeOver = await askTakeOver("stop");
+    if (takeOver === null) return false;
+    await api.cancelPrompt(sessionId, takeOver);
     setSending(false);
+    return true;
   }
 
   async function retry() {
@@ -370,12 +404,19 @@ export default function ChatPanel({
             // Nothing has connected yet, so there's nothing to redo.
             onWorktreeSelected: setDraftWorktree,
           }}
-          onSubmit={submitPrompt}
+          onSubmit={send}
           onRunShell={runShellEscape}
           onCommand={runCommand}
           onStop={stop}
           onError={setChatError}
           onHeightChange={setComposerHeight}
+        />
+        {/* Always mounted, so a pending ask can't be left unanswered. */}
+        <TakeOverDialog
+          ask={takeOverAsk?.ask ?? null}
+          taskNumber={task?.number ?? 0}
+          onChoose={(takeOver) => takeOverAsk?.answer(takeOver)}
+          onCancel={() => takeOverAsk?.answer(null)}
         />
         {isNewThread && (
           <StartsWithRow

@@ -126,10 +126,13 @@ interface ChatComposerProps {
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
   // or "/compact" — is its own; what those actually do to the conversation
   // (talk to the backend, rewrite the transcript) is `ChatPanel`'s.
-  onSubmit: (text: string) => void | Promise<void>;
+  // Resolving to false: the user backed out (the takeover dialog's
+  // Cancel), so the text goes back in the box.
+  onSubmit: (text: string) => Promise<boolean>;
   onRunShell: (command: string) => Promise<void>;
   onCommand: (name: string) => Promise<void>;
-  onStop: () => Promise<void>;
+  // Resolves to false if the user backed out of stopping.
+  onStop: () => Promise<boolean>;
   onError: (message: string | null) => void;
   // Called with the dock's rendered height (and again whenever it changes —
   // the box growing, a banner appearing) so the transcript above can leave
@@ -258,7 +261,7 @@ export default function ChatComposer({
     }
     if (!text || sending || !backendReady) return;
     setInputValue("");
-    await onSubmit(text);
+    if ((await onSubmit(text)) === false) setInputValue(text);
   }
 
   // Appends the current input to the back of the queue, delivered in order
@@ -274,8 +277,9 @@ export default function ChatComposer({
     // An explicit stop means "I don't want this to keep going" — queued
     // messages auto-firing right after would contradict that, so drop them
     // all too.
+    const queued = queue.queued;
     queue.clear();
-    await onStop();
+    if ((await onStop()) === false) queue.restore(queued);
   }
 
   function acceptSlashCommand(cmd: AcpCommandInfo) {

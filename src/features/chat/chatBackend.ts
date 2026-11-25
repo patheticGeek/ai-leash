@@ -19,7 +19,8 @@ export interface ChatBackend {
   // its own loop, and one still offered) and the backend exists and is
   // switched on.
   ready: boolean;
-  send(sessionId: string, message: string): Promise<void>;
+  // `takeOver`: see `api.sendPrompt`.
+  send(sessionId: string, message: string, takeOver: boolean): Promise<void>;
   // Only when `caps.retry`.
   retry(sessionId: string): Promise<void>;
   // Only when `caps.compaction`; resolves to the summary.
@@ -54,8 +55,16 @@ export function createChatBackend(
       config.enabled &&
       modelOffered &&
       (caps.ownsAgentLoop || !!model),
-    send: (sessionId, message) =>
-      api.sendPrompt(sessionId, id, model, effort, agentMode, message),
+    send: (sessionId, message, takeOver) =>
+      api.sendPrompt(
+        sessionId,
+        id,
+        model,
+        effort,
+        agentMode,
+        message,
+        takeOver,
+      ),
     retry: caps.retry
       ? (sessionId) => api.retryLast(sessionId, id, model, effort)
       : unsupported("retry"),
