@@ -32,6 +32,7 @@ import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
+  sizeVars,
   spacingVars,
   typeScaleVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
@@ -110,8 +111,21 @@ const styles = stylex.create({
   // The flat row a step roomier than Item's compact density (4px block,
   // 8px inline): 2px more on every side.
   flatRow: {
+    position: "relative",
     paddingBlock: spacingVars["--spacing-1-5"],
     paddingInline: `calc(${spacingVars["--spacing-2"]} + ${spacingVars["--spacing-0-5"]})`,
+  },
+  flatTitle: { minWidth: 0, flexShrink: 1 },
+  // Holds the title line's room for the ⋯ while it shows. The ⋯ itself can't
+  // sit in the title line (that's inside the row's button), so it's laid over
+  // this slot from the row's end (`flatActions`), out of the flow, and the
+  // second line keeps the row's full width.
+  flatActionsSlot: { width: sizeVars["--size-element-sm"], flexShrink: 0 },
+  flatActions: {
+    position: "absolute",
+    insetInlineEnd: `calc(${spacingVars["--spacing-2"]} + ${spacingVars["--spacing-0-5"]})`,
+    // Centred on the title line.
+    insetBlockStart: `calc(${spacingVars["--spacing-1-5"]} + (1lh - ${sizeVars["--size-element-sm"]}) / 2)`,
   },
   // Second line: the project truncates first; the branch keeps its place on
   // the right (capped so a very long one can't push the project out).
@@ -173,15 +187,8 @@ function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
 
 // A chat row's end slot: a warning dot while the agent waits on the user
 // (pulsing for an approval), else elapsed time and a spinner while it works.
-// `isCompact` (while the row's ⋯ shows next to it) drops the elapsed time so
-// the title keeps room; the spinner or dot stays.
-function ChatStatus({
-  conversationId,
-  isCompact = false,
-}: {
-  conversationId: string;
-  isCompact?: boolean;
-}) {
+// It stays whole while the row's ⋯ shows; only the title gives way.
+function ChatStatus({ conversationId }: { conversationId: string }) {
   const { active: generating, startedAtMs } = useGenerating(conversationId);
   const awaitingApproval = useAppStore(
     (s) => !!permissionForSession(s.pendingPermissions, conversationId),
@@ -211,9 +218,7 @@ function ChatStatus({
   if (generating) {
     return (
       <HStack gap={1.5} vAlign="center">
-        {!isCompact && startedAtMs != null && (
-          <ElapsedTime startedAtMs={startedAtMs} />
-        )}
+        {startedAtMs != null && <ElapsedTime startedAtMs={startedAtMs} />}
         <Spinner size="sm" aria-label="Working" />
       </HStack>
     );
@@ -224,13 +229,13 @@ function ChatStatus({
 // A sidebar row with its options in a `MoreMenu` revealed on hover/focus
 // (the shell-side-nav template's ConversationItem), the same items on
 // right-click. At rest the ⋯ takes no space, so the title uses the whole
-// row and the row's end content (status) sits at its end. On hover/focus, or
-// while the menu is open, the ⋯ joins it: SideNavItem renders `endContent`
-// inside the row's button and `actions` after it, so it reads status, then
-// ⋯. `isRevealed` tells the row the ⋯ is showing, so it can compact its
-// status (a chat drops its elapsed time, a board its counts) to leave the
-// title room. The hover/focus state is tracked here (not left to the hook's
-// CSS) so the ⋯ and the compact status change at the same moment.
+// row and the row's end content (status, counts) sits at its end. On
+// hover/focus, or while the menu is open, the ⋯ joins it: SideNavItem
+// renders `endContent` inside the row's button and `actions` after it, so it
+// reads status, then ⋯. Nothing is hidden for it; only the title truncates
+// sooner. `isRevealed` tells the row the ⋯ is showing (the flat chat row
+// reserves its room in the title line). The hover/focus state is tracked here
+// (not left to the hook's CSS) so the ⋯ and that room change together.
 function RevealRow({
   menuLabel,
   items,
@@ -336,9 +341,7 @@ function ConversationRow({
       ]}
     >
       {({ actions, isRevealed }) => {
-        const endContent = (
-          <ChatStatus conversationId={conversation.id} isCompact={isRevealed} />
-        );
+        const status = <ChatStatus conversationId={conversation.id} />;
         return hasProjectLine ? (
           <Item
             // Styled like a side-nav-item row (the theme's side-nav-item
@@ -346,13 +349,28 @@ function ConversationRow({
             // hit every menu and list): 14px weight-500 label, secondary at
             // rest and primary when hovered or selected; the description a
             // step smaller, muted: project on the left, branch on the right.
+            // The status and ⋯ sit on the title line, so only the title
+            // truncates for them and the second line keeps the full width.
             label={
-              <Text
-                weight="medium"
-                xstyle={[styles.rowLabel, isSelected && styles.rowLabelOn]}
-              >
-                {conversationLabel(conversation)}
-              </Text>
+              <HStack gap={1.5} vAlign="center">
+                <Text
+                  weight="medium"
+                  maxLines={1}
+                  xstyle={[
+                    styles.rowLabel,
+                    styles.flatTitle,
+                    isSelected && styles.rowLabelOn,
+                  ]}
+                >
+                  {conversationLabel(conversation)}
+                </Text>
+                {status}
+                {isRevealed && (
+                  <HStack as="span" xstyle={styles.flatActionsSlot}>
+                    {null}
+                  </HStack>
+                )}
+              </HStack>
             }
             description={
               <HStack gap={2} hAlign="between" vAlign="center">
@@ -380,12 +398,10 @@ function ConversationRow({
             }
             density="compact"
             xstyle={[stylex.defaultMarker(), styles.flatRow]}
-            labelLines={1}
             isSelected={isSelected}
             onClick={onClick}
             endContent={
-              <HStack gap={1} vAlign="center">
-                {endContent}
+              <HStack as="span" xstyle={styles.flatActions}>
                 {actions}
               </HStack>
             }
@@ -395,7 +411,7 @@ function ConversationRow({
             label={conversationLabel(conversation)}
             isSelected={isSelected}
             onClick={onClick}
-            endContent={endContent}
+            endContent={status}
             actions={actions}
           />
         );
@@ -460,7 +476,6 @@ function BoardRow({
   isSelected,
   onClick,
   actions,
-  hideCounts = false,
 }: {
   label?: string;
   summary: BoardSummary | undefined;
@@ -468,13 +483,10 @@ function BoardRow({
   isSelected: boolean;
   onClick: () => void;
   actions?: ReactNode;
-  // Hides the counts (keeping the spinner) while a revealed ⋯ sits next to
-  // them, so the title keeps room.
-  hideCounts?: boolean;
 }) {
   const { active: generating } = useGenerating(chatId ?? "");
-  const inProgress = hideCounts ? 0 : (summary?.inProgress ?? 0);
-  const review = hideCounts ? 0 : (summary?.review ?? 0);
+  const inProgress = summary?.inProgress ?? 0;
+  const review = summary?.review ?? 0;
   const hasEnd = generating || !!inProgress || !!review;
   return (
     <SideNavItem
@@ -869,7 +881,7 @@ export default function LeftBar({
                   },
                 ]}
               >
-                {({ actions, isRevealed }) => (
+                {({ actions }) => (
                   <BoardRow
                     label={p.name}
                     summary={boardSummaries.find(
@@ -879,7 +891,6 @@ export default function LeftBar({
                     isSelected={!!boardChat && boardChat.id === activeSessionId}
                     onClick={() => void openProjectBoard(p.path)}
                     actions={actions}
-                    hideCounts={isRevealed}
                   />
                 )}
               </RevealRow>
@@ -896,7 +907,7 @@ export default function LeftBar({
               onRemove={() => setPendingRemove(p)}
               isRail={collapse.isCollapsed}
             >
-              <VStack gap={0.5} xstyle={styles.nested}>
+              <VStack gap={1} xstyle={styles.nested}>
                 <BoardRow
                   summary={boardSummaries.find((b) => b.projectRoot === p.path)}
                   chatId={boardChat?.id}
@@ -935,12 +946,12 @@ export default function LeftBar({
                 icon={MessagesSquare}
                 collapsible={false}
               >
-                <VStack gap={0.5} xstyle={styles.nested}>
+                <VStack gap={1} xstyle={styles.nested}>
                   {flatChats.map(conversationRow)}
                 </VStack>
               </SideNavItem>
             ) : (
-              <VStack gap={0.5} xstyle={styles.nested}>
+              <VStack gap={1} xstyle={styles.nested}>
                 {flatChats.map(conversationRow)}
               </VStack>
             )}
@@ -964,7 +975,7 @@ export default function LeftBar({
               }
             >
               {(collapse.isCollapsed || isDoneOpen) && (
-                <VStack gap={0.5} xstyle={styles.nested}>
+                <VStack gap={1} xstyle={styles.nested}>
                   {visibleDoneConversations.map((c) => (
                     <DoneConversationRow
                       key={c.id}
