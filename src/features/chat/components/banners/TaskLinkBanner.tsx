@@ -1,17 +1,41 @@
-import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Icon } from "@astryxdesign/core/Icon";
+import { HStack } from "@astryxdesign/core/Stack";
+import { Text } from "@astryxdesign/core/Text";
+import {
+  colorVars,
+  radiusVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { Link2, Undo2 } from "lucide-react";
 import { api } from "../../../../lib/tauriApi";
 import { useConversationTask } from "../../hooks/useConversationTask";
 
-// In a board task's chat while the project chat isn't following it (the
-// user took it over, or it was started by hand): none of its replies are
-// forwarded to the project chat, though the two can still message each
-// other. "Hand back" has the project chat follow it again — see
-// `board::messaging`. An info `Banner`: state you can change. While it is
-// followed, a quieter title-only one says so, so the takeover dialog on
-// send/Stop isn't the first the user hears of it.
+const styles = stylex.create({
+  // One quiet line at the end of the dock, only as wide as it needs. It sits
+  // over the transcript scrolling under the floating composer, so it carries
+  // a surface backdrop like the checkout pickers (`PickerTrigger`). Button's
+  // hover fill is a layer over that, so it still shows.
+  row: {
+    alignSelf: "flex-end",
+    backgroundColor: colorVars["--color-background-surface"],
+    borderRadius: radiusVars["--radius-element"],
+    paddingInlineStart: spacingVars["--spacing-2"],
+  },
+  // Without a button the text needs padding on both sides and some height.
+  textOnly: {
+    paddingInlineEnd: spacingVars["--spacing-2"],
+    paddingBlock: spacingVars["--spacing-1"],
+  },
+});
+
+// A board task's chat: whether the project chat is following it. Followed,
+// its replies are forwarded there. Taken over (the user sent or stopped
+// here and chose to, or it was started by hand), none are, though the two
+// can still message each other; "Hand back" has the project chat follow
+// it again (see `board::messaging`). A muted line above the message box,
+// not a banner: it's state, not something that needs doing.
 export default function TaskLinkBanner({
   sessionId,
 }: {
@@ -21,35 +45,27 @@ export default function TaskLinkBanner({
   if (!task || task.status === "done") return null;
   if (task.engagedWithProject) {
     return (
-      <Banner
-        status="info"
-        // Rounds the frame too: the theme paints it, and only an elevated
-        // card banner gives it the header's radius.
-        elevation="low"
-        collapsible={false}
-        // An `md` Icon, like the stock status one, fills the title's line,
-        // so it sits level with it.
-        icon={<Icon icon={Link2} size="md" />}
-        title={`The project chat is following #${task.number}. Its replies go there.`}
-      />
+      <HStack gap={1} vAlign="center" xstyle={[styles.row, styles.textOnly]}>
+        <Icon icon={Link2} size="sm" color="secondary" />
+        <Text type="supporting" color="secondary">
+          The project chat is following #{task.number}
+        </Text>
+      </HStack>
     );
   }
   return (
-    <Banner
-      status="info"
-      elevation="low"
-      collapsible={false}
-      title={`You've taken over #${task.number}`}
-      description="Its replies aren't forwarded to the project chat. You can still message each other; hand it back to have the project chat follow it again."
-      endContent={
-        <Button
-          variant="primary"
-          size="sm"
-          label="Hand back to project chat"
-          icon={<Undo2 size={14} />}
-          onClick={() => void api.setTaskEngaged(task.id, true)}
-        />
-      }
-    />
+    <HStack gap={1} vAlign="center" xstyle={styles.row}>
+      <Text type="supporting" color="secondary">
+        You've taken over #{task.number}
+      </Text>
+      <Button
+        variant="ghost"
+        size="sm"
+        label="Hand back to project chat"
+        icon={<Icon icon={Undo2} size="sm" />}
+        tooltip="Its replies go to the project chat again"
+        onClick={() => void api.setTaskEngaged(task.id, true)}
+      />
+    </HStack>
   );
 }
