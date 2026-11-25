@@ -499,6 +499,10 @@
     color: var(--color-text-gray);
   }
 
+  .astryx-badge {
+    font-size: 0.75rem;
+  }
+
   .astryx-segmented-control {
     padding: var(--spacing-1);
     --_segmented-control-padding: var(--spacing-1);

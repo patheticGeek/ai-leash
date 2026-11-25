@@ -394,6 +394,9 @@ export const aiLeashTheme = {
       "variant:gray": {
         "backgroundColor": "var(--color-background-gray)",
         "color": "var(--color-text-gray)"
+      },
+      "base": {
+        "fontSize": "0.75rem"
       }
     },
     "segmented-control": {
