@@ -15,6 +15,7 @@ import { Heading, Text } from "@astryxdesign/core/Text";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
 import { Toolbar } from "@astryxdesign/core/Toolbar";
 import {
+  borderVars,
   colorVars,
   radiusVars,
   spacingVars,
@@ -94,7 +95,7 @@ const styles = stylex.create({
   },
   // The column (or lane cell) a dragged card is over.
   dropTarget: {
-    outlineWidth: "1px",
+    outlineWidth: borderVars["--border-width"],
     outlineStyle: "solid",
     outlineColor: colorVars["--color-border-emphasized"],
   },
