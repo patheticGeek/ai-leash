@@ -175,8 +175,9 @@ current turn ends, and is delivered once. If you take a task over while a
 message is waiting for it, the message is still delivered, but the
 task's answer to it isn't forwarded.
 
-A task chat you've taken over shows a banner above its message box, **You've
-taken over #N**. Click **Hand back to project chat** to have it follow
+A followed task's chat shows a small banner above its message box, **The
+project chat is following #N**. A task chat you've taken over shows
+**You've taken over #N** there instead. Click **Hand back to project chat** to have it follow
 again. That button is the only thing that does.
 
 So two agents can't keep answering each other forever, a chat that's had

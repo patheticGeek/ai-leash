@@ -1,6 +1,6 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
-import { Undo2 } from "lucide-react";
+import { Link2, Undo2 } from "lucide-react";
 import { api } from "../../../../lib/tauriApi";
 import { useConversationTask } from "../../hooks/useConversationTask";
 
@@ -8,14 +8,26 @@ import { useConversationTask } from "../../hooks/useConversationTask";
 // user took it over, or it was started by hand): none of its replies are
 // forwarded to the project chat, though the two can still message each
 // other. "Hand back" has the project chat follow it again — see
-// `board::messaging`. An info `Banner`: state you can change.
+// `board::messaging`. An info `Banner`: state you can change. While it is
+// followed, a quieter title-only one says so, so the takeover dialog on
+// send/Stop isn't the first the user hears of it.
 export default function TaskLinkBanner({
   sessionId,
 }: {
   sessionId: string | null;
 }) {
   const task = useConversationTask(sessionId);
-  if (!task || task.engagedWithProject || task.status === "done") return null;
+  if (!task || task.status === "done") return null;
+  if (task.engagedWithProject) {
+    return (
+      <Banner
+        status="info"
+        collapsible={false}
+        icon={<Link2 size={14} />}
+        title={`The project chat is following #${task.number}. Its replies go there.`}
+      />
+    );
+  }
   return (
     <Banner
       status="info"
