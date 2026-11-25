@@ -622,6 +622,10 @@ export const api = {
   // chat's "Hand back to project chat".
   setTaskEngaged: (taskId: string, engaged: boolean) =>
     invoke<void>("set_task_engaged", { taskId, engaged }),
+  // Takes a followed task's chat over from the project chat now, as a send
+  // with `takeOver` would — for a message the user queues.
+  takeOverTask: (sessionId: string) =>
+    invoke<void>("take_over_task", { sessionId }),
   setBoardAgentDefaults: (projectRoot: string, defaults: AgentDefaults) =>
     invoke<AgentDefaults>("set_board_agent_defaults", {
       projectRoot,

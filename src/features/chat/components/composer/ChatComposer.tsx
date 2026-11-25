@@ -126,9 +126,14 @@ interface ChatComposerProps {
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
   // or "/compact" — is its own; what those actually do to the conversation
   // (talk to the backend, rewrite the transcript) is `ChatPanel`'s.
-  // Resolving to false: the user backed out (the takeover dialog's
-  // Cancel), so the text goes back in the box.
-  onSubmit: (text: string) => Promise<boolean>;
+  // `takeOver`: see `api.sendPrompt`.
+  onSubmit: (text: string, takeOver: boolean) => Promise<void>;
+  // Asked before a message is sent or queued: in a task chat the project
+  // chat follows, whether this takes it over (`TakeOverDialog`). True or
+  // false to go ahead, null if the user backed out.
+  onAskTakeOver: () => Promise<boolean | null>;
+  // Takes the task over right away — the answer for a queued message.
+  onTakeOver: () => Promise<void>;
   onRunShell: (command: string) => Promise<void>;
   onCommand: (name: string) => Promise<void>;
   // Resolves to false if the user backed out of stopping.
@@ -163,6 +168,8 @@ export default function ChatComposer({
   compact,
   showCheckout,
   onSubmit,
+  onAskTakeOver,
+  onTakeOver,
   onRunShell,
   onCommand,
   onStop,
@@ -181,7 +188,11 @@ export default function ChatComposer({
     onError,
   );
   const elicitation = useSessionElicitation(sessionId, onError);
-  const queue = useMessageQueue(sending, onSubmit);
+  // A queued message was asked about when it was queued, so it goes as is.
+  const queue = useMessageQueue(sending, (text) => void onSubmit(text, false));
+  // `sending` as of now, for after an await.
+  const sendingRef = useRef(sending);
+  sendingRef.current = sending;
   // "/help" shows a banner above the composer rather than adding an entry
   // to the transcript — closed by its own dismiss button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
@@ -261,16 +272,32 @@ export default function ChatComposer({
     }
     if (!text || sending || !backendReady) return;
     setInputValue("");
-    if ((await onSubmit(text)) === false) setInputValue(text);
+    const takeOver = await onAskTakeOver();
+    if (takeOver === null) {
+      setInputValue(text);
+      return;
+    }
+    await onSubmit(text, takeOver);
   }
 
   // Appends the current input to the back of the queue, delivered in order
-  // through `onSubmit` as the turn ahead of it finishes.
-  function queueMessage() {
+  // through `onSubmit` as the turn ahead of it finishes. The takeover
+  // question comes now, not when it's sent: taking over releases the task
+  // at once, so the turn still running isn't forwarded either.
+  async function queueMessage() {
     const text = input.trim();
     if (!text) return;
-    queue.enqueue(text);
     setInputValue("");
+    const takeOver = await onAskTakeOver();
+    if (takeOver === null) {
+      setInputValue(text);
+      return;
+    }
+    if (takeOver) await onTakeOver();
+    // The turn may have ended while the dialog was open, and the queue only
+    // flushes when it does.
+    if (sendingRef.current) queue.enqueue(text);
+    else await onSubmit(text, false);
   }
 
   async function stop() {
@@ -317,7 +344,7 @@ export default function ChatComposer({
       if (composeMode && !withModifier) return;
       e.preventDefault();
       if (sending && withModifier) {
-        queueMessage();
+        void queueMessage();
         return;
       }
       send();
@@ -432,7 +459,7 @@ export default function ChatComposer({
                       size="sm"
                       label="Queue"
                       icon={<Clock size={14} />}
-                      onClick={queueMessage}
+                      onClick={() => void queueMessage()}
                       tooltip="Send after the current turn finishes (Ctrl+Enter)"
                     />
                   )}

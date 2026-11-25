@@ -299,13 +299,6 @@ export default function ChatPanel({
     );
   }
 
-  async function send(text: string): Promise<boolean> {
-    const takeOver = await askTakeOver("send");
-    if (takeOver === null) return false;
-    await submitPrompt(text, takeOver);
-    return true;
-  }
-
   async function stop(): Promise<boolean> {
     if (!sessionId) return true;
     const takeOver = await askTakeOver("stop");
@@ -404,7 +397,11 @@ export default function ChatPanel({
             // Nothing has connected yet, so there's nothing to redo.
             onWorktreeSelected: setDraftWorktree,
           }}
-          onSubmit={send}
+          onSubmit={submitPrompt}
+          onAskTakeOver={() => askTakeOver("send")}
+          onTakeOver={async () => {
+            if (sessionId) await api.takeOverTask(sessionId);
+          }}
           onRunShell={runShellEscape}
           onCommand={runCommand}
           onStop={stop}

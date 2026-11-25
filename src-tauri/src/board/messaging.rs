@@ -500,6 +500,14 @@ pub(crate) fn on_turn_end(app: &AppHandle, session_id: &str) {
     let _ = wake(app, &project_chat, session_id, text);
 }
 
+/// The user takes `session_id` over without sending or stopping anything
+/// yet — the takeover dialog's answer when they queue a message, so the
+/// turn still running isn't forwarded either.
+#[tauri::command]
+pub fn take_over_task(app: AppHandle, session_id: String) {
+    on_user_message(&app, &session_id);
+}
+
 /// Whether the project chat is woken by `task_id` — the task chat's
 /// "Hand back to project chat" button.
 #[tauri::command]
