@@ -32,7 +32,6 @@ import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
-  sizeVars,
   spacingVars,
   typeScaleVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
@@ -118,8 +117,9 @@ const styles = stylex.create({
   flatActions: {
     position: "absolute",
     insetInlineEnd: `calc(${spacingVars["--spacing-1"]} + ${spacingVars["--spacing-0-5"]})`,
-    // Centred on the title line.
-    insetBlockStart: `calc(${spacingVars["--spacing-1"]} + (1lh - ${sizeVars["--size-element-sm"]}) / 2)`,
+    // On the title line's centre: `RevealedActions` has no height of its
+    // own and centres the ⋯ on itself.
+    insetBlockStart: `calc(${spacingVars["--spacing-1"]} + 1lh / 2)`,
   },
   // Second line: the project truncates first; the branch keeps its place on
   // the right (capped so a very long one can't push the project out).
@@ -133,29 +133,41 @@ const styles = stylex.create({
     },
     fontSize: typeScaleVars["--text-supporting-size"],
   },
-  // A hidden ⋯ is taken out of the flow at the row's end; anchoring its end
-  // edge there keeps it inside the rail instead of overflowing past it
-  // (which made the sidebar scroll sideways).
-  revealAnchor: { position: "relative" },
+  // The ⋯ never takes its full width from the title: it's out of the flow,
+  // anchored at the slot's end edge (which also keeps it inside the rail
+  // instead of overflowing past it and scrolling the sidebar sideways), and
+  // centred on the slot. At rest the slot is empty; revealed it's about the
+  // dots' width, so the title gives up that (plus the row's gap) and the
+  // button's own padding overlaps the title's end. The flat row's title line
+  // reserves the same (`flatActionsSlot`), so both layouts cut it alike.
+  revealAnchor: { position: "relative", alignItems: "center" },
+  revealAnchorOpen: {
+    width: `calc(${spacingVars["--spacing-4"]} - ${spacingVars["--spacing-0-5"]})`,
+  },
   // The row wrapper: anchors a flat row's ⋯ and marks hover for the flat
   // row's label colour (the ⋯ is outside the Item, so the Item can't).
   revealRow: { position: "relative" },
-  revealEnd: { insetInlineEnd: 0 },
+  revealEnd: { position: "absolute", insetInlineEnd: 0 },
 });
 
-// A row's ⋯ slot: hidden and out of the flow at rest (so the title keeps the
-// full row), in the flow while revealed.
+// A row's ⋯ slot: empty at rest (so the title keeps the full row), about the
+// dots' width while revealed — see `revealAnchor`.
 function RevealedActions({
   revealProps,
+  isRevealed,
   children,
 }: {
   revealProps: ReturnType<
     ReturnType<typeof useContainerReveal>["getContentRevealProps"]
   >;
+  isRevealed: boolean;
   children: ReactNode;
 }) {
   return (
-    <HStack as="span" xstyle={styles.revealAnchor}>
+    <HStack
+      as="span"
+      xstyle={[styles.revealAnchor, isRevealed && styles.revealAnchorOpen]}
+    >
       <HStack as="span" {...revealProps} xstyle={styles.revealEnd}>
         {children}
       </HStack>
@@ -263,7 +275,10 @@ function RevealRow({
       >
         {children({
           actions: (
-            <RevealedActions revealProps={getContentRevealProps()}>
+            <RevealedActions
+              revealProps={getContentRevealProps()}
+              isRevealed={isActive}
+            >
               <MoreMenu
                 size="sm"
                 label={menuLabel}
@@ -586,7 +601,10 @@ function ProjectGroup({
             onMouseLeave={() => setIsHovered(false)}
             {...focusProps}
           >
-            <RevealedActions revealProps={getContentRevealProps()}>
+            <RevealedActions
+              revealProps={getContentRevealProps()}
+              isRevealed={isMenuOpen || isHovered || isFocused}
+            >
               <MoreMenu
                 size="sm"
                 label="Project options"
