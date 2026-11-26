@@ -157,6 +157,17 @@ pub fn list_sub_agents_for_parent(
     items
 }
 
+/// Whether `id` is a sub-agent's conversation.
+pub fn is_sub_agent(db: &Db, id: &str) -> bool {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT 1 FROM conversations WHERE id = ?1 AND role = 'sub-agent'",
+        params![id],
+        |_| Ok(()),
+    )
+    .is_ok()
+}
+
 /// Deletes one sub-agent and everything it owns (see
 /// `conversations::wipe_conversation_and_sub_agents`). Intended for finished
 /// (`done`/`error`) sub-agents only — the frontend's delete button only
