@@ -856,48 +856,52 @@ export default function LeftBar({
         // long the projects/chats above it get (#69); only `children` scroll.
         <>
           {doneConversations.length > 0 && (
-            <SideNavSection title="Done" isHeaderHidden>
-              <SideNavItem
-                label="Done"
-                icon={Archive}
-                collapsible={false}
-                onClick={() => setDoneOpen(!isDoneOpen)}
-                aria-description={isDoneOpen ? "Expanded" : "Collapsed"}
-                endContent={
-                  <Text type="supporting" color="secondary" hasTabularNumbers>
-                    {doneConversations.length}
-                  </Text>
-                }
-              >
-                {(collapse.isCollapsed || isDoneOpen) && (
-                  <VStack gap={1} xstyle={[styles.nested, styles.doneList]}>
-                    {visibleDoneConversations.map((c) => (
-                      <DoneConversationRow
-                        key={c.id}
-                        conversation={c}
-                        isSelected={c.id === activeSessionId}
-                        onClick={() => openConversation(c.id)}
-                        onDelete={() => setPendingDelete(c)}
-                        onUndo={() => setConversationDone(c.id, false)}
-                      />
-                    ))}
-                    {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        label={
-                          doneExpanded
-                            ? "Show less"
-                            : `Show all (${doneConversations.length})`
-                        }
-                        onClick={() => setDoneExpanded((v) => !v)}
-                        xstyle={styles.showMore}
-                      />
-                    )}
-                  </VStack>
-                )}
-              </SideNavItem>
-            </SideNavSection>
+            <>
+              <SideNavSection title="Done" isHeaderHidden>
+                <SideNavItem
+                  label="Done"
+                  icon={Archive}
+                  collapsible={false}
+                  onClick={() => setDoneOpen(!isDoneOpen)}
+                  aria-description={isDoneOpen ? "Expanded" : "Collapsed"}
+                  endContent={
+                    <Text type="supporting" color="secondary" hasTabularNumbers>
+                      {doneConversations.length}
+                    </Text>
+                  }
+                >
+                  {(collapse.isCollapsed || isDoneOpen) && (
+                    <VStack gap={1} xstyle={[styles.nested, styles.doneList]}>
+                      {visibleDoneConversations.map((c) => (
+                        <DoneConversationRow
+                          key={c.id}
+                          conversation={c}
+                          isSelected={c.id === activeSessionId}
+                          onClick={() => openConversation(c.id)}
+                          onDelete={() => setPendingDelete(c)}
+                          onUndo={() => setConversationDone(c.id, false)}
+                        />
+                      ))}
+                      {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          label={
+                            doneExpanded
+                              ? "Show less"
+                              : `Show all (${doneConversations.length})`
+                          }
+                          onClick={() => setDoneExpanded((v) => !v)}
+                          xstyle={styles.showMore}
+                        />
+                      )}
+                    </VStack>
+                  )}
+                </SideNavItem>
+              </SideNavSection>
+              {/* A rule between Done and Settings. */}
+              <Divider />
+            </>
           )}
           <SideNavSection title="App" isHeaderHidden>
             <SideNavItem
