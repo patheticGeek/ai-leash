@@ -40,6 +40,27 @@ A small dot on a file tab means it has unsaved changes. Save before closing
 the tab if you want to keep those changes; closing a tab does not provide a
 separate unsaved-changes prompt.
 
+## Comment on lines
+
+You can leave review comments on a file's lines for the agent, like comments
+on a pull request:
+
+1. Hover the line numbers; a **+** appears beside the line under the pointer.
+2. Select the **+** to comment on that line, or press it and drag up or down
+   to comment on a range of lines.
+3. Type your comment in the box that opens under those lines and select
+   **Comment** (or press **Ctrl+Enter**). **Escape** cancels.
+
+Comments show in the file under the lines they're on, and those lines are
+highlighted. Use the pencil to edit a comment and the bin to delete it.
+They're drafts until you send them with **Send review** in the chat; see
+[Send a code review](./agent-chat.md#send-a-code-review). They belong to the
+conversation, so a new thread's files can take comments once its first
+message is sent.
+
+When the file changes, a comment moves with its lines. If those lines are
+edited, it's marked outdated and stays at its original line.
+
 ## Working alongside an agent
 
 The editor is useful for the final review of an agent's work. Open the files
@@ -48,6 +69,7 @@ focused edits when needed. You can then save the file and ask the agent to
 continue from the updated version.
 
 If an agent or terminal command changes a file that is already open, the
-editor keeps the copy currently open while the file tree refreshes. Close and
-reopen the file to load the latest version from disk, taking care first to
-save any edits you want to keep.
+editor loads the new version, unless you have unsaved edits in it: then it
+keeps your copy (the tab's dot shows it) and the file tree still refreshes.
+Save to overwrite the file with your copy, or close and reopen the tab to
+load the version on disk.

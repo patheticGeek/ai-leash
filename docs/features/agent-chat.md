@@ -394,6 +394,31 @@ Background follow-up turns caused by a completed sub-agent do not block you
 from sending another request. Your message waits its turn and is processed
 without interrupting the existing conversation.
 
+## Send a code review
+
+You can review the agent's work like a pull request. In a file tab, hover the
+line numbers and select the **+** beside a line to comment on it, or drag the
+**+** up or down to comment on a range of lines (see
+[Comment on lines](./editor.md#comment-on-lines)). Comments are drafts: they
+belong to the conversation the file is open in and are kept until you send
+them, even across restarts.
+
+Draft comments show as chips at the top of the message box, one per comment,
+labelled with the file and lines. Select a chip to open its file, or its
+**×** to delete the comment. **Send review (N)**, beside Send, posts every
+comment as one message: for each comment, the file's path, its line range,
+the quoted code and your comment, grouped by file. Whatever you've typed in
+the message box goes with it as an overall note. The review is ordinary
+message text, so it works the same for built-in providers and external
+agents. Once it's sent, those comments are cleared.
+
+A comment follows its code. If the lines it's on move (say, the agent adds
+code above them), it moves with them. If they change, the comment is marked
+outdated, stays at its original line, and is sent with the code as it was
+when you commented, flagged as outdated.
+
+Send review waits for the agent's current turn to finish, like Send.
+
 ## Retry or regenerate
 
 Use **Retry** on the last message when a response was incomplete, incorrect,

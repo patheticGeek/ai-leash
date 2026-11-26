@@ -76,6 +76,11 @@ export interface ProjectSlice {
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveFile: (path: string) => Promise<void>;
+  // Re-reads every open file with no unsaved edits that sits in one of
+  // `changedDirs` (an `fs://changed` payload — see `useFsChangeInvalidator`),
+  // so an agent's edit shows up in its open tab and the review comments on
+  // it re-anchor. A file with unsaved edits keeps them.
+  reloadChangedFiles: (changedDirs: string[]) => Promise<void>;
 }
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
@@ -160,5 +165,41 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         f.path === file.path ? { ...f, dirty: false } : f,
       ),
     }));
+  },
+
+  reloadChangedFiles: async (changedDirs) => {
+    const { openFiles, activeSessionId, draft } = get();
+    if (!activeSessionId && !draft) return;
+    const changed = new Set(changedDirs);
+    const stale = openFiles.filter(
+      (f) =>
+        !f.dirty &&
+        changed.has(
+          f.path.slice(
+            0,
+            Math.max(f.path.lastIndexOf("/"), f.path.lastIndexOf("\\")),
+          ),
+        ),
+    );
+    await Promise.all(
+      stale.map(async (file) => {
+        let content: string;
+        try {
+          content = await api.readFileText(activeSessionId, file.path);
+        } catch {
+          // Deleted or unreadable: keep what's open.
+          return;
+        }
+        // Still the same conversation, and not typed into meanwhile.
+        if (get().activeSessionId !== activeSessionId) return;
+        set((s) => ({
+          openFiles: s.openFiles.map((f) =>
+            f.path === file.path && !f.dirty && f.content !== content
+              ? { ...f, content }
+              : f,
+          ),
+        }));
+      }),
+    );
   },
 });

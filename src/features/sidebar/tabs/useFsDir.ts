@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "../../../data/keys";
 import { api } from "../../../lib/tauriApi";
 import { useTauriEvent } from "../../../lib/useTauriEvent";
+import { useAppStore } from "../../../store";
 
 // Lists `path` (or the checkout root when omitted) within `checkoutPath`.
 // The root listing's key slot is `checkoutPath` itself rather than a
@@ -41,8 +42,10 @@ export function useFsDir(
 // that project's own cached directories, never another open project's.
 export function useFsChangeInvalidator() {
   const queryClient = useQueryClient();
+  const reloadChangedFiles = useAppStore((s) => s.reloadChangedFiles);
 
   useTauriEvent<string[]>("fs://changed", (changedDirs) => {
+    void reloadChangedFiles(changedDirs);
     const changed = new Set(changedDirs);
     queryClient.invalidateQueries({
       queryKey: qk.fsDirs,

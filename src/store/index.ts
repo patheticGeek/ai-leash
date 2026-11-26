@@ -5,6 +5,7 @@ import { type ElicitationSlice, elicitationSlice } from "./elicitationSlice";
 import { type PanelSlice, panelSlice } from "./panelSlice";
 import { type PermissionSlice, permissionSlice } from "./permissionSlice";
 import { type ProjectSlice, projectSlice } from "./projectSlice";
+import { type ReviewSlice, reviewSlice } from "./reviewSlice";
 import { type SelectionSlice, selectionSlice } from "./selectionSlice";
 import { type SidebarSlice, sidebarSlice } from "./sidebarSlice";
 import { type SubAgentSlice, subAgentSlice } from "./subAgentSlice";
@@ -17,7 +18,8 @@ export type AppStore = ProjectSlice &
   PanelSlice &
   ConversationSlice &
   DebugSlice &
-  SidebarSlice;
+  SidebarSlice &
+  ReviewSlice;
 
 export const useAppStore = create<AppStore>()((...a) => ({
   ...projectSlice(...a),
@@ -29,6 +31,7 @@ export const useAppStore = create<AppStore>()((...a) => ({
   ...conversationSlice(...a),
   ...debugSlice(...a),
   ...sidebarSlice(...a),
+  ...reviewSlice(...a),
 }));
 
 export type { ConversationSummary } from "./conversationSlice";
@@ -46,5 +49,6 @@ export { permissionForSession } from "./permissionSlice";
 // import site keeps working unchanged — this module is the same public API
 // `src/store.ts` used to export directly, just backed by slices now.
 export type { RecentProject } from "./projectSlice";
+export { reviewCommentsFor } from "./reviewSlice";
 export type { ConversationBackendSelection } from "./selectionSlice";
 export type { SubAgentTask } from "./subAgentSlice";
