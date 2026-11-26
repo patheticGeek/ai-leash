@@ -538,6 +538,9 @@ export const api = {
     invoke<string>("read_file_text", { sessionId, path }),
   writeFileText: (sessionId: string | null, path: string, contents: string) =>
     invoke<void>("write_file_text", { sessionId, path, contents }),
+  // Anywhere on disk — only for a path the user picked in a Save dialog.
+  saveTextFileAs: (path: string, contents: string) =>
+    invoke<void>("save_text_file_as", { path, contents }),
   openInIde: (command: string, path: string) =>
     invoke<void>("open_in_ide", { command, path }),
   listSystemFonts: () => invoke<FontFamilyInfo[]>("list_system_fonts"),

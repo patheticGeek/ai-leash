@@ -6,6 +6,11 @@
 //! how tools chain together — the part a model won't work out from a
 //! flat list of schemas.
 
+/// Its own paragraph, appended to both transports' guidance: the chat
+/// renders HTML in a sandboxed frame (`src/ui/HtmlPreview.tsx`), and agents
+/// only use that if told it exists.
+const HTML_PREVIEWS: &str = "\n\nHTML previews: the chat renders a fenced code block tagged `html` as a live preview (with a Preview / Code switch). When the user asks for a UI prototype, mockup or small interactive demo, show it one of two ways, whichever suits the request: put one complete, self-contained HTML document in such a block in your reply, or write it to an `.html` file in the project, which gets a Preview button on its tool call in the chat, and point the user to that button. Either way, put all CSS and JavaScript inline: the preview is sandboxed with no network access (no CDNs, web fonts, remote images or fetch) and can't reach the app, storage or other pages. Images can be inline SVG or `data:` URLs. Don't re-create a page in the chat any other way (as a ```ui block, a table or prose).";
+
 /// System-prompt section for the native provider loop. `allow_subtasks` is
 /// false for sub-agents themselves, which don't get `spawn_sub_agent` and
 /// so shouldn't be told about it.
@@ -27,6 +32,7 @@ pub fn native_guidance(allow_subtasks: bool) -> String {
     }
     out.push_str("\n\n");
     out.push_str(rich_reply_guidance());
+    out.push_str(HTML_PREVIEWS);
     out
 }
 
@@ -73,6 +79,7 @@ pub fn bridge_instructions() -> String {
      \n"
         .to_string()
         + rich_reply_guidance()
+        + HTML_PREVIEWS
 }
 
 #[cfg(test)]
@@ -103,6 +110,13 @@ mod tests {
             .unwrap();
         let json: serde_json::Value = serde_json::from_str(body).unwrap();
         assert!(json.is_array());
+    }
+
+    #[test]
+    fn both_transports_mention_html_previews() {
+        for text in [native_guidance(false), bridge_instructions()] {
+            assert!(text.contains("\n\nHTML previews: the chat renders"));
+        }
     }
 
     #[test]

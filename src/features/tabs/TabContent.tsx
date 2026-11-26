@@ -2,8 +2,10 @@ import { VStack } from "@astryxdesign/core/Stack";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { HtmlPreviewContext } from "@/ui/HtmlPreview";
 import { RunCommandContext } from "@/ui/Markdown";
 import { useAppStore, type WorkspaceTab } from "../../store";
+import { useHtmlPreviewActions } from "../preview/useHtmlPreviewActions";
 import { TAB_KINDS } from "./tabKinds";
 
 // A "keep-mounted-per-tab" tab's content can't live under the panel showing
@@ -48,6 +50,8 @@ export function TabContentHost() {
     (command: string) => openPanelTab("terminal", { command }),
     [openPanelTab],
   );
+  // A transcript's ```html previews: Open in a tab, Save as file.
+  const previewActions = useHtmlPreviewActions();
 
   const tabs = ready ? [...chatTabs, ...panelTabs].filter(keepsMounted) : [];
 
@@ -64,16 +68,18 @@ export function TabContentHost() {
 
   return (
     <RunCommandContext.Provider value={openInTerminal}>
-      {tabs.map((tab) =>
-        createPortal(
-          TAB_KINDS[tab.kind].render(tab),
-          tabElement(tab.id),
-          // The primary chat restarts per conversation switch, as it did
-          // under `CenterPanel`'s `key={viewEpoch}` — not per id, so a new
-          // thread getting its id on its first message doesn't remount it.
-          tab.kind === "primary" ? `${tab.id}:${viewEpoch}` : tab.id,
-        ),
-      )}
+      <HtmlPreviewContext.Provider value={previewActions}>
+        {tabs.map((tab) =>
+          createPortal(
+            TAB_KINDS[tab.kind].render(tab),
+            tabElement(tab.id),
+            // The primary chat restarts per conversation switch, as it did
+            // under `CenterPanel`'s `key={viewEpoch}` — not per id, so a new
+            // thread getting its id on its first message doesn't remount it.
+            tab.kind === "primary" ? `${tab.id}:${viewEpoch}` : tab.id,
+          ),
+        )}
+      </HtmlPreviewContext.Provider>
     </RunCommandContext.Provider>
   );
 }

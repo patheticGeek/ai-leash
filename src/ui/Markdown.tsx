@@ -21,6 +21,11 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
+import {
+  MarkdownSourceContext,
+  type SourcePosition,
+  useHtmlCodeBlock,
+} from "./HtmlCodeBlock";
 import UiBlock from "./UiBlock";
 
 // Flattens a rendered node back to the source text it came from.
@@ -169,17 +174,25 @@ const styles = stylex.create({
 });
 
 // A fenced code block: a header with the language and a copy button above the
-// scrollable code.
-function CodeBlock({ children }: { children?: ReactNode }) {
+// scrollable code. ```html blocks add a preview (`HtmlCodeBlock.tsx`).
+function CodeBlock({
+  children,
+  position,
+}: {
+  children?: ReactNode;
+  position?: SourcePosition;
+}) {
   const { copy, copied } = useCopyToClipboard();
   const language = languageOf(children);
   const runCommand = useContext(RunCommandContext);
   const text = nodeText(children).replace(/\n$/, "");
+  const html = useHtmlCodeBlock(language, text, position);
   return (
     <div {...stylex.props(styles.codeBlock)}>
       <HStack align="center" justify="between" xstyle={styles.codeHeader}>
         <span>{language ?? "text"}</span>
         <HStack align="center">
+          {html?.actions}
           {runCommand && language && SHELL_LANGUAGES.has(language) && (
             <IconButton
               variant="ghost"
@@ -200,7 +213,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           />
         </HStack>
       </HStack>
-      <pre {...stylex.props(styles.pre)}>{children}</pre>
+      {html?.body ?? <pre {...stylex.props(styles.pre)}>{children}</pre>}
     </div>
   );
 }
@@ -266,7 +279,7 @@ const components: Components = {
         {children}
       </UiFence>
     ) : (
-      <CodeBlock>{children}</CodeBlock>
+      <CodeBlock position={node?.position}>{children}</CodeBlock>
     ),
   p: ({ node: _, ...props }) => <p {...props} {...stylex.props(styles.p)} />,
   ul: ({ node: _, ...props }) => (
@@ -332,9 +345,11 @@ function Markdown({
   return (
     <div {...stylex.props(styles.root)}>
       <SourceContext.Provider value={source}>
-        <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
-          {content}
-        </ReactMarkdown>
+        <MarkdownSourceContext.Provider value={content}>
+          <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
+            {content}
+          </ReactMarkdown>
+        </MarkdownSourceContext.Provider>
       </SourceContext.Provider>
     </div>
   );
