@@ -54,9 +54,11 @@ and says nothing about the others:
   task chats report to it with `send_message`, and you review and merge
   their work.
 - **Task chat**: it is task #N, with the task's title, its branch and
-  worktree (or the main checkout). When it's done it sets the task to
-  **Review**, never **Done**, and summarises what it changed; it reports
-  blockers to the project chat; work outside the task's scope goes on the
+  worktree (or the main checkout), and in a worktree to commit its work on
+  that branch. It keeps the task's description current, and when it's done
+  sets the task to **Review**, never **Done**, and summarises what it
+  changed. It changes other tasks only to add links or dependency notes;
+  anything bigger, and any blocker, goes to the project chat; work outside the task's scope goes on the
   board as new tasks instead of being done there.
 - **Sub-agent**: it's a one-shot job for the chat that spawned it, its last
   message is the result, and it can't start sub-agents of its own.

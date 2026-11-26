@@ -109,9 +109,28 @@ Agents can work the board too — see
 [Tools](./tools.md#plan-and-track-work-on-the-board). In the project chat
 (or any chat), ask for something like "break the settings rework into
 tasks" and they're added to the board, with epics, priorities, sizes and
-the agent each should start with if you ask for them. You can ask it to
-start tasks as well, optionally naming the agent, model and thinking level
-to use.
+the agent each should start with if you ask for them. You can ask the
+project chat to start tasks as well, optionally naming the agent, model
+and thinking level to use.
+
+Which board tools an agent gets depends on its chat:
+
+| Chat | Board tools |
+| --- | --- |
+| Project chat | all of them |
+| A task's chat | all but `start_task` |
+| Plain chat | all but `start_task` |
+| Sub-agent | `list_tasks` and `read_task` only |
+
+Only the project chat starts tasks, because a started task's updates go
+back to the chat that started it, and only the project chat follows them.
+Any other chat that wants a task started asks the project chat with
+`send_message`. A task's chat keeps its own task up to date (its
+description as it learns, then status Review). On other tasks it only adds
+links or dependency notes, and anything bigger goes to the project chat. A
+sub-agent only reads the board. If an agent calls a board tool its chat
+wasn't given (a name it remembers from earlier, say), the call is refused
+with a message saying which chat can do it.
 
 ## Starting a task
 
@@ -137,9 +156,11 @@ Starting a task:
   effort, epic and description, nothing else — as the chat's first
   message. Where and how to work comes from the agent's standing
   guidance instead, so the two don't repeat each other: it's task #N, its
-  branch and worktree (commit there), to set the task to Review (never
-  Done) and summarise what it changed, to report blockers to the project
-  chat and to put out-of-scope work on the board. For the built-in agent
+  branch and worktree (commit its work on that branch), to keep the task's
+  description current and set it to Review (never Done) and summarise what
+  it changed, to touch other tasks only for links or dependency notes, to
+  report blockers to the project chat and to put out-of-scope work on the
+  board. For the built-in agent
   that survives compaction; an external agent also gets it ahead of its
   first message (see [What the agent is told about its
   chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)).

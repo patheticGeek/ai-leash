@@ -311,7 +311,7 @@ async fn stream_turn_openai(
         cancel_flag,
         root,
         touched_dirs,
-        allow_subtasks,
+        chat,
         message_id,
         effort,
     } = request;
@@ -321,7 +321,7 @@ async fn stream_turn_openai(
         model,
         messages: history,
         stream: true,
-        tools: tools::tool_definitions(root, touched_dirs, allow_subtasks),
+        tools: tools::tool_definitions(root, touched_dirs, chat),
         stream_options: serde_json::json!({ "include_usage": true }),
         reasoning_effort: effort,
     };

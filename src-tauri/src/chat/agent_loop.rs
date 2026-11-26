@@ -105,14 +105,13 @@ pub(super) async fn run_agent_loop(
     let root = commands::get_session_root(state.inner(), scope_id).ok();
     // What kind of chat this is — read once per turn, from this session's
     // own row (a sub-agent's, not its parent's). It decides the guidance's
-    // "This chat" section and whether sub-agent tools are offered.
+    // "This chat" section and which sub-agent and board tools are offered.
     let chat = ChatContext::load(
         &state.db,
         session_id,
         root.as_deref().unwrap_or(std::path::Path::new("")),
         AgentBackend::Native,
     );
-    let allow_subtasks = chat.allows_sub_agents();
     let mut last_call: Option<(String, Value)> = None;
 
     for _ in 0..MAX_TOOL_ITERATIONS {
@@ -165,7 +164,7 @@ pub(super) async fn run_agent_loop(
                 cancel_flag,
                 root: root.as_deref(),
                 touched_dirs: &touched,
-                allow_subtasks,
+                chat: &chat,
                 message_id: assistant_message_id,
                 effort,
             };

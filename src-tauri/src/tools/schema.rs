@@ -1,3 +1,4 @@
+use crate::chat_context::ChatContext;
 use crate::context;
 use crate::tools::{action_tools, board_tools, guides, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
@@ -6,7 +7,7 @@ use std::path::{Path, PathBuf};
 pub fn tool_definitions(
     root: Option<&Path>,
     touched_dirs: &[PathBuf],
-    allow_subtasks: bool,
+    chat: &ChatContext,
 ) -> Value {
     let mut tools = json!([
         {
@@ -128,7 +129,7 @@ pub fn tool_definitions(
         }
     }
 
-    if allow_subtasks {
+    if chat.allows_sub_agents() {
         if let Value::Array(arr) = &mut tools {
             for definition in [
                 sub_agent_tools::spawn_sub_agent_def(),
@@ -149,11 +150,64 @@ pub fn tool_definitions(
         for definition in action_tools::action_defs() {
             arr.push(json!({ "type": "function", "function": definition }));
         }
-        // The project's board — always on, same reasoning as Actions.
-        for definition in board_tools::board_defs() {
+        // The project's board — always on, same reasoning as Actions, but
+        // only the tools this kind of chat may use.
+        for definition in board_tools::board_defs_for(&chat.kind) {
             arr.push(json!({ "type": "function", "function": definition }));
         }
     }
 
     tools
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chat_context::{AgentBackend, ChatKind};
+
+    fn names(kind: ChatKind) -> Vec<String> {
+        let chat = ChatContext {
+            kind,
+            backend: AgentBackend::Native,
+            project_name: "demo".into(),
+            project_root: "/proj/demo".into(),
+            checkout: "/proj/demo".into(),
+        };
+        tool_definitions(None, &[], &chat)
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["function"]["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    fn board(kind: ChatKind) -> Vec<String> {
+        names(kind)
+            .into_iter()
+            .filter(|n| board_tools::BOARD_TOOLS.contains(&n.as_str()))
+            .collect()
+    }
+
+    #[test]
+    fn board_tools_offered_per_chat_kind() {
+        let task = ChatKind::Task {
+            number: 1,
+            title: "t".into(),
+            branch: None,
+            worktree_path: None,
+        };
+        let sub = ChatKind::SubAgent { parent: "p".into() };
+        for kind in [ChatKind::Project, ChatKind::Plain, task, sub.clone()] {
+            assert_eq!(
+                board(kind.clone()),
+                board_tools::board_tools_for(&kind),
+                "{kind:?}"
+            );
+        }
+        assert!(board(ChatKind::Project).contains(&"start_task".to_string()));
+        assert!(!board(ChatKind::Plain).contains(&"start_task".to_string()));
+        assert_eq!(board(sub.clone()), ["list_tasks", "read_task"]);
+        assert!(!names(sub).contains(&"spawn_sub_agent".to_string()));
+        assert!(names(ChatKind::Plain).contains(&"spawn_sub_agent".to_string()));
+    }
 }

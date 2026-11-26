@@ -98,17 +98,22 @@ fn this_chat(ctx: &ChatContext) -> String {
             worktree_path,
         } => {
             let place = match (branch, worktree_path) {
-                (Some(b), Some(w)) => {
-                    format!("on branch `{b}` in the worktree `{w}`, and commit your work there")
-                }
-                (None, Some(w)) => format!("in the worktree `{w}`, and commit your work there"),
+                (Some(b), Some(w)) => format!("on branch `{b}` in the worktree `{w}`"),
+                (None, Some(w)) => format!("in the worktree `{w}`"),
                 (Some(b), None) => format!("on branch `{b}` in the project's main checkout"),
                 (None, None) => "in the project's main checkout".to_string(),
             };
+            // Only a worktree is this task's own: in the main checkout the
+            // branch is whatever the user has checked out.
+            let commit = match (branch, worktree_path) {
+                (Some(_), Some(_)) => "; commit your work on that branch, this task's own",
+                (None, Some(_)) => "; commit your work there",
+                _ => "",
+            };
             format!(
-                "This is the chat of task #{number}, *{title}*, on the board of {project}. You work {place}.\n\n\
-                 - When your work on it is done, set its status to `review` with `update_task` (never `done`: the user reviews and merges it, then moves it to Done) and summarise what you changed and anything left for the reviewer.\n\
-                 - If you're blocked or need a decision, report it to the project chat with `send_message` to `\"project\"`.\n\
+                "This is the chat of task #{number}, *{title}*, on the board of {project}. You work {place}{commit}.\n\n\
+                 - Keep its description current with `update_task` as you learn. When you're done, set its status to `review` (never `done`: the user reviews and merges it) and summarise what you changed and anything left for the reviewer.\n\
+                 - On other tasks, `update_task` only adds links or dependency notes. Anything bigger, or if you're blocked or need a decision, goes to the project chat with `send_message` to `\"project\"`.\n\
                  - Work outside this task's scope goes on the board as new tasks with `create_tasks`; don't do it here."
             )
         }
@@ -138,8 +143,9 @@ fn tool_rules(ctx: &ChatContext) -> Vec<&'static str> {
             "- **Memory** is AI Leash's notes for this project (`project`) and all projects (`global`). It isn't in your context: call `read_memory` at the start of a task. When the user states a lasting preference or corrects you in a way that should apply next time, save it with `update_memory` unasked; it replaces the whole file, so read first and merge. Durable facts only.",
         ],
     };
-    // A task's chat has its own board rules in "This chat".
-    if !matches!(ctx.kind, ChatKind::Task { .. }) {
+    // A task's chat has its own board rules in "This chat"; a sub-agent only
+    // reads the board.
+    if !matches!(ctx.kind, ChatKind::Task { .. } | ChatKind::SubAgent { .. }) {
         rules.push(
         "- **The board.** The project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list. `list_tasks` shows what's there.",
     );
@@ -155,6 +161,7 @@ fn tool_rules(ctx: &ChatContext) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::board_tools;
 
     fn ctx(kind: ChatKind, backend: AgentBackend) -> ChatContext {
         ChatContext {
@@ -239,9 +246,17 @@ mod tests {
             assert!(text.contains(
                 "on branch `task/12-fix` in the worktree `/proj/demo.worktrees/task-12`"
             ));
-            assert!(text.contains("set its status to `review` with `update_task` (never `done`"));
+            assert!(text.contains("set its status to `review` (never `done`"));
             assert!(text.contains("`send_message` to `\"project\"`"));
             assert!(text.contains("outside this task's scope"));
+            assert!(text.contains(
+                "in the worktree `/proj/demo.worktrees/task-12`; commit your work on that branch, this task's own."
+            ));
+            assert!(text.contains("Keep its description current with `update_task` as you learn."));
+            assert!(
+                text.contains("On other tasks, `update_task` only adds links or dependency notes")
+            );
+            assert!(text.contains("Anything bigger, or if you're blocked or need a decision, goes to the project chat"));
         }
         let main = ChatKind::Task {
             number: 1,
@@ -249,8 +264,9 @@ mod tests {
             branch: None,
             worktree_path: None,
         };
-        assert!(guidance(&ctx(main, AgentBackend::Native))
-            .contains("You work in the project's main checkout."));
+        let text = guidance(&ctx(main, AgentBackend::Native));
+        assert!(text.contains("You work in the project's main checkout."));
+        assert!(!text.contains("Commit your work"));
     }
 
     #[test]
@@ -308,13 +324,6 @@ mod tests {
     fn guidance_only_names_real_tools() {
         // Every backticked identifier that looks like a tool name must be one
         // this guidance's agent actually has.
-        let board = [
-            "create_tasks",
-            "list_tasks",
-            "update_task",
-            "start_task",
-            "send_message",
-        ];
         let sub_agents = ["spawn_sub_agent", "list_agent_options", "list_sub_agents"];
         let native = [
             "list_dir",
@@ -342,7 +351,7 @@ mod tests {
                 AgentBackend::Native => native.to_vec(),
                 AgentBackend::Acp => bridge.to_vec(),
             };
-            allowed.extend(board);
+            allowed.extend(board_tools::board_tools_for(&c.kind));
             if c.allows_sub_agents() {
                 allowed.extend(sub_agents);
             }
@@ -379,9 +388,10 @@ mod tests {
     fn task_block_gives_the_branch_worktree_and_review_rules() {
         let block = first_prompt_block(&ctx(task(), AgentBackend::Acp));
         assert!(block.contains(
-            "on branch `task/12-fix` in the worktree `/proj/demo.worktrees/task-12`, and commit your work there"
+            "on branch `task/12-fix` in the worktree `/proj/demo.worktrees/task-12`; commit your work on that branch"
         ));
-        assert!(block.contains("set its status to `review` with `update_task`"));
+        assert!(block.contains("set its status to `review`"));
+        assert!(block.contains("other tasks, `update_task` only adds links"));
         assert!(block.contains("summarise what you changed"));
     }
 }
