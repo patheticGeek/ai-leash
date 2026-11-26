@@ -8,9 +8,11 @@ mod context;
 mod crashlog;
 mod db;
 mod env;
+mod file_context;
 mod fonts;
 mod git;
 pub mod mcp_bridge;
+mod mentions;
 mod paths;
 mod preferences;
 mod provider;
@@ -120,6 +122,7 @@ pub fn run() {
             commands::list_dir,
             commands::get_starting_context,
             commands::search_files,
+            mentions::search_mentions,
             commands::read_file_text,
             commands::write_file_text,
             commands::save_text_file_as,

@@ -1,6 +1,7 @@
 import { VStack } from "@astryxdesign/core/Stack";
 import * as stylex from "@stylexjs/stylex";
 import { useCallback, useEffect, useState } from "react";
+import { pickedMentionsIn } from "@/lib/mentions";
 import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
 import { api } from "../../lib/tauriApi";
@@ -237,7 +238,13 @@ export default function ChatPanel({
     if (sessionId) {
       setEntries((prev) => [
         ...prev,
-        { kind: "text", role: "user", content: text, time: Date.now() },
+        {
+          kind: "text",
+          role: "user",
+          content: text,
+          time: Date.now(),
+          mentions: pickedMentionsIn(text),
+        },
       ]);
       setSending(true);
     }
@@ -263,7 +270,13 @@ export default function ChatPanel({
     if (text !== undefined) {
       setEntries((prev) => [
         ...prev,
-        { kind: "text", role: "user", content: text, time: Date.now() },
+        {
+          kind: "text",
+          role: "user",
+          content: text,
+          time: Date.now(),
+          mentions: pickedMentionsIn(text),
+        },
       ]);
       setSending(true);
     }

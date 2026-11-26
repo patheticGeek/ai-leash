@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export interface MentionCandidate {
+  path: string;
+  isDir: boolean;
+}
+
 export interface DirEntryInfo {
   name: string;
   path: string;
@@ -533,6 +538,10 @@ export const api = {
   // gitignore-aware, capped (see `commands.rs`'s `search_files`).
   searchFiles: (checkoutPath: string, query: string) =>
     invoke<DirEntryInfo[]>("search_files", { checkoutPath, query }),
+  // The composer's `@` picker: files and folders fuzzy-matching `query`,
+  // best first, paths relative to the checkout.
+  searchMentions: (checkoutPath: string, query: string) =>
+    invoke<MentionCandidate[]>("search_mentions", { checkoutPath, query }),
   // `sessionId` null: the checkout currently shown (a new thread's).
   readFileText: (sessionId: string | null, path: string) =>
     invoke<string>("read_file_text", { sessionId, path }),

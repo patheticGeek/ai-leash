@@ -108,6 +108,12 @@ impl Backend for AcpBackend {
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let sender = self.connect_with_picks(app, session_id);
+            // `@path` mentions go as content blocks after the text; the
+            // stored message only names them (see `crate::mentions`).
+            let mentions = crate::commands::get_session_root(&app.state::<AppState>(), session_id)
+                .map(|root| crate::mentions::resolve(&root, &message))
+                .unwrap_or_default();
+            let stored = crate::mentions::with_paths_only(&message, &mentions);
             // Board notes that arrived since its last turn ride along with
             // this prompt; the transcript keeps them as their own rows.
             let prompt = crate::board::messaging::with_pending_notes(
@@ -118,10 +124,12 @@ impl Backend for AcpBackend {
             // Before the prompt goes out, so a limit it hits again isn't
             // wiped by this.
             rate_limit::clear(app, session_id);
-            sender.send(AcpCommand::Prompt(prompt, None)).map_err(|_| {
-                "ACP agent process is no longer running; send another message to restart it."
-                    .to_string()
-            })?;
+            sender
+                .send(AcpCommand::Prompt(prompt, mentions, None))
+                .map_err(|_| {
+                    "ACP agent process is no longer running; send another message to restart it."
+                        .to_string()
+                })?;
             // Persist at command acceptance time so title lookup and
             // transcript updates do not race the ACP worker's asynchronous
             // prompt handling.
@@ -131,7 +139,7 @@ impl Backend for AcpBackend {
                 session_id,
                 ChatMessage {
                     role: "user".into(),
-                    content: message,
+                    content: stored,
                     tool_calls: None,
                 },
             );
@@ -154,7 +162,7 @@ impl Backend for AcpBackend {
             // A woken turn ends the pending limit (and its live banner).
             rate_limit::clear(app, session_id);
             self.connect_with_picks(app, session_id)
-                .send(AcpCommand::Prompt(prompt, None))
+                .send(AcpCommand::Prompt(prompt, vec![], None))
                 .map_err(|_| "ACP agent process is no longer running.".to_string())
         })
     }
@@ -196,7 +204,11 @@ impl Backend for AcpBackend {
 
             let (done_tx, done_rx) = oneshot::channel();
             sender
-                .send(AcpCommand::Prompt(prompt.to_string(), Some(done_tx)))
+                .send(AcpCommand::Prompt(
+                    prompt.to_string(),
+                    vec![],
+                    Some(done_tx),
+                ))
                 .map_err(|_| "ACP agent process is no longer running.".to_string())?;
             // Dropping this sender clone (the map's own clone goes with
             // `disconnect` below) is what lets the connection actor's
@@ -283,6 +295,7 @@ impl Backend for AcpBackend {
                     "[Sub-agent \"{}\" finished]\n\n{}",
                     result.description, result.result
                 ),
+                vec![],
                 None,
             ));
         })

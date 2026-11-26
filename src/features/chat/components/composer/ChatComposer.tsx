@@ -10,6 +10,7 @@ import { Clock } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
+import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
 import type { AcpCommandInfo } from "../../../../lib/tauriApi";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
@@ -17,6 +18,7 @@ import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
 } from "../../hooks/useChatSession";
+import { useMentionPicker } from "../../hooks/useMentionPicker";
 import { useMessageQueue } from "../../hooks/useMessageQueue";
 import { useSessionElicitation } from "../../hooks/useSessionElicitation";
 import { useSessionPermissions } from "../../hooks/useSessionPermissions";
@@ -25,6 +27,7 @@ import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
 import type { TranscriptNoticesProps } from "../banners/TranscriptNotices";
 import ElicitationPrompt from "../popovers/ElicitationPrompt";
+import MentionMenu from "../popovers/MentionMenu";
 import PermissionPrompt from "../popovers/PermissionPrompt";
 import SlashCommandMenu from "../popovers/SlashCommandMenu";
 import ChatToolbar from "./ChatToolbar";
@@ -146,15 +149,14 @@ interface ChatComposerProps {
 }
 
 // The whole bottom dock of a conversation, top to bottom: the banner stack
-// (`ChatBanners`), the Astryx `ChatComposer` — header (empty for now; the
-// `@` mention button, #24, goes in its header actions), our textarea in its
-// input slot, the queued messages in its drawer, the pickers in its footer
+// (`ChatBanners`), the Astryx `ChatComposer` — our textarea in its input
+// slot (with the `@` file picker, `MentionMenu`, above it), the queued messages in its drawer, the pickers in its footer
 // and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
 // in its place, and the checkout bar beneath. The running sub-agents banner
 // (#26) is the banner stack's last item, right above the composer.
 // Owns all the state that's only about *typing a message* — the draft text,
-// slash autocomplete, "/help" overlay, the queue of messages typed
+// slash and `@` autocomplete, "/help" overlay, the queue of messages typed
 // mid-turn, permission mode — and interprets what a submit means.
 export default function ChatComposer({
   sessionId,
@@ -192,7 +194,9 @@ export default function ChatComposer({
   const queue = useMessageQueue(sending, (text) => void onSubmit(text, false));
   // `sending` as of now, for after an await.
   const sendingRef = useRef(sending);
-  sendingRef.current = sending;
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
   // "/help" shows a banner above the composer rather than adding an entry
   // to the transcript — closed by its own dismiss button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
@@ -218,6 +222,12 @@ export default function ChatComposer({
     ),
   ];
   const slash = useSlashCommands(input, allCommands);
+  const mention = useMentionPicker(
+    input,
+    setInputValue,
+    textareaRef,
+    useActiveCheckoutPath(),
+  );
   // A dismissed popover is remembered by the query it was dismissed for —
   // that goes stale when the connected agent (and so its command list)
   // changes.
@@ -315,7 +325,14 @@ export default function ChatComposer({
     textareaRef.current?.focus();
   }
 
+  // Typing: the text and, for the `@` picker, the caret, in one render.
+  function onInputChange(value: string) {
+    setInput(value);
+    mention.syncCaret(value);
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention.onKeyDown(e)) return;
     if (slash.showPopover) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -394,7 +411,7 @@ export default function ChatComposer({
           <AstryxChatComposer
             ref={composerRef}
             value={input}
-            onChange={setInput}
+            onChange={onInputChange}
             // Send / Stop go through `ChatSendButton` below and Enter through
             // `onKeyDown`; this is only the shell's own submit path.
             onSubmit={() => void send()}
@@ -409,7 +426,7 @@ export default function ChatComposer({
             input={
               <ComposerInput
                 value={input}
-                onChange={setInput}
+                onChange={onInputChange}
                 onKeyDown={onKeyDown}
                 textareaRef={textareaRef}
                 shellMode={shellMode}
@@ -475,6 +492,9 @@ export default function ChatComposer({
               />
             }
           />
+        )}
+        {mention.showPopover && !pendingPermission && !pendingElicitation && (
+          <MentionMenu {...mention.menu} anchorRef={composerRef} />
         )}
         {slash.showPopover && !pendingPermission && !pendingElicitation && (
           <SlashCommandMenu

@@ -6,6 +6,7 @@ import Markdown from "../../../../ui/Markdown";
 import { isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { InterChatMessage } from "./FromChat";
+import MentionChips from "./MentionChips";
 import MessageFooter from "./MessageFooter";
 import SubAgentResult from "./SubAgentResult";
 import SystemNotice from "./SystemNotice";
@@ -109,6 +110,9 @@ function ChatEntryRenderer({
       return (
         <ChatMessageBubble metadata={footer}>
           <Markdown content={entry.content} />
+          {entry.mentions && entry.mentions.length > 0 && (
+            <MentionChips paths={entry.mentions} />
+          )}
         </ChatMessageBubble>
       );
     }

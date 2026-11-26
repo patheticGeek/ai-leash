@@ -34,12 +34,20 @@ impl Backend for NativeBackend {
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let state = app.state::<AppState>();
+            // `@path` mentions ride along inside the message (see `mentions`).
+            let content = match crate::commands::get_session_root(&state, session_id) {
+                Ok(root) => crate::mentions::attach_contents(
+                    &message,
+                    &crate::mentions::resolve(&root, &message),
+                ),
+                Err(_) => message,
+            };
             chat::push_message(
                 &state,
                 session_id,
                 chat::ChatMessage {
                     role: "user".into(),
-                    content: message,
+                    content,
                     tool_calls: None,
                 },
             );

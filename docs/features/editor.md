@@ -10,7 +10,10 @@ leaving the conversation.
 
 Open the file panel to see the folders and files available to the active
 conversation. Select the arrow beside a folder to expand or collapse it.
-Select a file to open it in the editor.
+Select a file to open it in the editor. Right-click a file or folder and
+choose **Mention in chat**, or drag it onto the message box, to add it to
+your message as an `@` mention (see
+[mention files with @](./agent-chat.md#mention-files-with-)).
 
 The tree keeps the usual project clutter out of the way, including dependency,
 build, and version-control folders. It also updates when files are changed by

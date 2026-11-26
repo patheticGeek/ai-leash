@@ -38,7 +38,14 @@ pub(crate) enum AcpCommand {
     /// top-level conversation does. `None` for every ordinary
     /// `AcpBackend::send` call, which has no one to notify beyond those
     /// events.
-    Prompt(String, Option<oneshot::Sender<Result<(), String>>>),
+    /// The `Vec` is files attached as context (`crate::file_context` —
+    /// `@path` mentions, say), sent as content blocks after the text;
+    /// empty for most prompts.
+    Prompt(
+        String,
+        Vec<crate::file_context::FileContext>,
+        Option<oneshot::Sender<Result<(), String>>>,
+    ),
     Cancel,
     /// Sets one of the agent's model/effort/mode session config options, if
     /// it exposes that one (see `ConfigKind::find`) — a no-op (with a
@@ -51,6 +58,18 @@ pub(crate) enum AcpCommand {
     /// Unlike `SetConfig`, a kind the agent doesn't expose is skipped
     /// silently: these weren't asked for one by one.
     ApplyPicks(Vec<(ConfigKind, String)>),
+}
+
+/// A prompt's content blocks: the message text, then its attached files
+/// (`crate::file_context::acp_blocks`).
+fn prompt_blocks(
+    text: String,
+    files: &[crate::file_context::FileContext],
+    embedded_context: bool,
+) -> Vec<ContentBlock> {
+    let mut blocks = vec![ContentBlock::Text(TextContent::new(text))];
+    blocks.extend(crate::file_context::acp_blocks(files, embedded_context));
+    blocks
 }
 
 /// `debug_json(&mcp_servers)`, but with the local MCP bridge's auth token
@@ -489,6 +508,13 @@ async fn drive_acp_connection(
             );
 
             let mcp_servers = mcp_servers_for(&app, &session_id, &cwd);
+            // Whether `@path` mentions can go as embedded resources (with
+            // their contents) or only as `resource_link`s — see
+            // `prompt_blocks`.
+            let embedded_context = init_response
+                .agent_capabilities
+                .prompt_capabilities
+                .embedded_context;
 
             // Only worth a lookup at all if the agent can actually resume
             // from it — an agent that never advertises `loadSession` would
@@ -646,7 +672,7 @@ async fn drive_acp_connection(
                 // commands fall through to one shared loop below as
                 // `(kind, value, report_missing)`.
                 let configs: Vec<(ConfigKind, String, bool)> = match cmd {
-                    AcpCommand::Prompt(text, done_tx) => {
+                    AcpCommand::Prompt(text, files, done_tx) => {
                         emit_acp_debug(
                             &app,
                             &session_id,
@@ -679,7 +705,7 @@ async fn drive_acp_connection(
                         let prompt_fut = connection
                             .send_request(PromptRequest::new(
                                 acp_session_id.clone(),
-                                vec![ContentBlock::Text(TextContent::new(text))],
+                                prompt_blocks(text, &files, embedded_context),
                             ))
                             .block_task();
                         tokio::pin!(prompt_fut);
