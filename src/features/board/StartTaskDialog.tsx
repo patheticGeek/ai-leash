@@ -14,6 +14,7 @@ import { Heading, Text } from "@astryxdesign/core/Text";
 import { Play } from "lucide-react";
 import { useEffect, useState } from "react";
 import { effortForSize } from "../../data/board";
+import { isEdited, useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { type AgentDefaults, api, type Task } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import AgentFields, { resolveAgent } from "./AgentFields";
@@ -56,16 +57,26 @@ export default function StartTaskDialog({
   const [follow, setFollow] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // What it opened with, so a backdrop click only asks once it's changed.
+  const [initial, setInitial] = useState<unknown>(null);
 
   // Fresh choices every time it opens.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on open
   useEffect(() => {
     if (task) {
-      setAgent(resolveAgent(task.agent, boardDefaults));
+      const fresh = resolveAgent(task.agent, boardDefaults);
+      setAgent(fresh);
       setFollow(true);
       setError(null);
+      setInitial({ agent: fresh, follow: true, openAfter });
     }
   }, [task]);
+
+  const guard = useDiscardGuard(
+    task !== null,
+    initial !== null && isEdited(initial, { agent, follow, openAfter }),
+    onClose,
+  );
 
   async function start() {
     if (!task || starting) return;
@@ -85,82 +96,84 @@ export default function StartTaskDialog({
   const sizeThinking = effortForSize(task?.effort ?? null);
 
   return (
-    <Dialog
-      isOpen={task !== null}
-      onOpenChange={(open) => !open && onClose()}
-      purpose="form"
-      width={576}
-    >
-      <Layout
-        header={
-          <DialogHeader
-            title={`Start task #${task?.number ?? ""}`}
-            subtitle={task?.title}
-            onOpenChange={onClose}
-          />
-        }
-        content={
-          <LayoutContent>
-            <VStack gap={5}>
-              <Text color="secondary">
-                The task gets its own chat, which starts working on it straight
-                away. In a git repository it also gets its own worktree, on a
-                new task/{task?.number}-… branch.
-              </Text>
-              <VStack gap={2}>
-                <Heading level={4} weight="normal">
-                  Agent
-                </Heading>
-                <AgentFields
-                  value={agent}
-                  onChange={setAgent}
-                  inheritLabel="Default"
-                />
-                {!agent.thinking && sizeThinking && (
-                  <Text type="supporting" color="secondary">
-                    Our own providers think at {sizeThinking} effort for a task
-                    this size unless you pick otherwise.
-                  </Text>
+    <>
+      <Dialog
+        isOpen={task !== null}
+        onOpenChange={guard.onOpenChange}
+        width={576}
+      >
+        <Layout
+          header={
+            <DialogHeader
+              title={`Start task #${task?.number ?? ""}`}
+              subtitle={task?.title}
+              onOpenChange={onClose}
+            />
+          }
+          content={
+            <LayoutContent>
+              <VStack gap={5}>
+                <Text color="secondary">
+                  The task gets its own chat, which starts working on it
+                  straight away. In a git repository it also gets its own
+                  worktree, on a new task/{task?.number}-… branch.
+                </Text>
+                <VStack gap={2}>
+                  <Heading level={4} weight="normal">
+                    Agent
+                  </Heading>
+                  <AgentFields
+                    value={agent}
+                    onChange={setAgent}
+                    inheritLabel="Default"
+                  />
+                  {!agent.thinking && sizeThinking && (
+                    <Text type="supporting" color="secondary">
+                      Our own providers think at {sizeThinking} effort for a
+                      task this size unless you pick otherwise.
+                    </Text>
+                  )}
+                </VStack>
+                <VStack gap={2}>
+                  <CheckboxInput
+                    label="The project chat follows it"
+                    description="Its updates wake the project chat."
+                    value={follow}
+                    onChange={setFollow}
+                  />
+                  <CheckboxInput
+                    label="Open its chat after starting"
+                    value={openAfter}
+                    onChange={setOpenAfter}
+                  />
+                </VStack>
+                {error && (
+                  <Banner
+                    status="error"
+                    title="Couldn't start the task"
+                    description={error}
+                  />
                 )}
               </VStack>
-              <VStack gap={2}>
-                <CheckboxInput
-                  label="The project chat follows it"
-                  description="Its updates wake the project chat."
-                  value={follow}
-                  onChange={setFollow}
+            </LayoutContent>
+          }
+          footer={
+            <LayoutFooter>
+              <HStack gap={2} hAlign="end">
+                <Button variant="secondary" label="Cancel" onClick={onClose} />
+                <Button
+                  variant="primary"
+                  label={starting ? "Starting…" : "Start"}
+                  icon={<Icon icon={Play} size="sm" />}
+                  isDisabled={starting}
+                  onClick={start}
                 />
-                <CheckboxInput
-                  label="Open its chat after starting"
-                  value={openAfter}
-                  onChange={setOpenAfter}
-                />
-              </VStack>
-              {error && (
-                <Banner
-                  status="error"
-                  title="Couldn't start the task"
-                  description={error}
-                />
-              )}
-            </VStack>
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter>
-            <HStack gap={2} hAlign="end">
-              <Button variant="secondary" label="Cancel" onClick={onClose} />
-              <Button
-                variant="primary"
-                label={starting ? "Starting…" : "Start"}
-                icon={<Icon icon={Play} size="sm" />}
-                isDisabled={starting}
-                onClick={start}
-              />
-            </HStack>
-          </LayoutFooter>
-        }
-      />
-    </Dialog>
+              </HStack>
+            </LayoutFooter>
+          }
+        />
+      </Dialog>
+      {guard.confirm}
+    </>
   );
 }

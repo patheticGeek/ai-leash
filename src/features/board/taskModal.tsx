@@ -3,8 +3,9 @@
 // (a Layout in the Dialog: DialogHeader / LayoutContent / LayoutFooter)
 // with the work-item-detail template's content inside: a title, the
 // label-less field row, the description, and an end rail of MetadataLists.
-// 1120 wide (the settings-dialog template's size); `purpose="form"` so a
-// backdrop click can't drop edits.
+// 1120 wide (the settings-dialog template's size). A backdrop click or
+// Escape closes it, asking "Discard changes?" first while `isDirty`
+// (`useDiscardGuard`); the header's close button closes it outright.
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import {
   Layout,
@@ -30,6 +31,7 @@ import {
   TASK_PRIORITIES,
   TASK_STATUSES,
 } from "../../data/board";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import type {
   ConversationSummary,
   Epic,
@@ -63,6 +65,7 @@ export function TaskModalFrame({
   rail,
   footer,
   onSubmit,
+  isDirty = false,
 }: {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,7 +77,10 @@ export function TaskModalFrame({
   footer: ReactNode;
   // Wraps it all in a form: Enter in a field / Ctrl+Enter anywhere submits.
   onSubmit?: () => void;
+  // Holds edits a dismissal would lose — a backdrop click asks first.
+  isDirty?: boolean;
 }) {
+  const guard = useDiscardGuard(isOpen, isDirty, () => onOpenChange(false));
   const layout = (
     <Layout
       header={
@@ -101,34 +107,36 @@ export function TaskModalFrame({
     />
   );
   return (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      purpose="form"
-      width={MODAL_WIDTH}
-      maxHeight="85dvh"
-    >
-      {onSubmit ? (
-        <VStack
-          as="form"
-          xstyle={styles.form}
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            onSubmit();
-          }}
-          onKeyDown={(e: KeyboardEvent) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    <>
+      <Dialog
+        isOpen={isOpen}
+        onOpenChange={guard.onOpenChange}
+        width={MODAL_WIDTH}
+        maxHeight="85dvh"
+      >
+        {onSubmit ? (
+          <VStack
+            as="form"
+            xstyle={styles.form}
+            onSubmit={(e: FormEvent) => {
               e.preventDefault();
               onSubmit();
-            }
-          }}
-        >
-          {layout}
-        </VStack>
-      ) : (
-        layout
-      )}
-    </Dialog>
+            }}
+            onKeyDown={(e: KeyboardEvent) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                onSubmit();
+              }
+            }}
+          >
+            {layout}
+          </VStack>
+        ) : (
+          layout
+        )}
+      </Dialog>
+      {guard.confirm}
+    </>
   );
 }
 

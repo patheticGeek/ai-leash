@@ -33,6 +33,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { useAppStore } from "../../store";
 import {
   PANEL_GROUPS,
@@ -76,10 +77,18 @@ const styles = stylex.create({
 
 const RESULTS_ID = "settings-search-results";
 
-function PanelBody({ panel }: { panel: PanelId }) {
+// Settings save as they change; the one exception is the Agents panel's
+// Add / Edit form, which reports whether it holds unsaved input.
+function PanelBody({
+  panel,
+  onDirtyChange,
+}: {
+  panel: PanelId;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   switch (panel) {
     case "agents":
-      return <AgentsSettingsTab />;
+      return <AgentsSettingsTab onDirtyChange={onDirtyChange} />;
     case "chat":
       return <ChatSettingsTab />;
     case "fonts":
@@ -279,60 +288,66 @@ export default function SettingsModal() {
   const search = useSettingsSearch(setActive);
   const titleId = useId();
   const config = panelConfig(active);
+  // A backdrop click or Escape closes it, asking first only while the
+  // Agents panel's Add / Edit form holds unsaved input.
+  const [formDirty, setFormDirty] = useState(false);
+  const guard = useDiscardGuard(open, formDirty, () => setOpen(false));
 
   return (
-    <Dialog
-      isOpen={open}
-      onOpenChange={setOpen}
-      purpose="form"
-      width={1120}
-      maxHeight="min(800px, calc(100dvh - 2rem))"
-      padding={0}
-      aria-labelledby={titleId}
-    >
-      <VStack xstyle={styles.shell}>
-        <Layout
-          start={
-            <SettingsSideNav
-              titleId={titleId}
-              search={search}
-              active={active}
-              onSelect={setActive}
-            />
-          }
-          content={
-            <LayoutContent isScrollable padding={4}>
-              <HStack width="100%" justify="end" xstyle={styles.closeAnchor}>
-                <HStack xstyle={styles.closeBacking}>
-                  <IconButton
-                    label="Close"
-                    variant="ghost"
-                    size="sm"
-                    icon={<Icon icon="close" size="sm" />}
-                    onClick={() => setOpen(false)}
-                  />
+    <>
+      <Dialog
+        isOpen={open}
+        onOpenChange={guard.onOpenChange}
+        width={1120}
+        maxHeight="min(800px, calc(100dvh - 2rem))"
+        padding={0}
+        aria-labelledby={titleId}
+      >
+        <VStack xstyle={styles.shell}>
+          <Layout
+            start={
+              <SettingsSideNav
+                titleId={titleId}
+                search={search}
+                active={active}
+                onSelect={setActive}
+              />
+            }
+            content={
+              <LayoutContent isScrollable padding={4}>
+                <HStack width="100%" justify="end" xstyle={styles.closeAnchor}>
+                  <HStack xstyle={styles.closeBacking}>
+                    <IconButton
+                      label="Close"
+                      variant="ghost"
+                      size="sm"
+                      icon={<Icon icon="close" size="sm" />}
+                      onClick={() => setOpen(false)}
+                    />
+                  </HStack>
                 </HStack>
-              </HStack>
-              <VStack gap={4} xstyle={settingsPanel.root}>
-                <HStack gap={2} align="start">
-                  <StackItem size="fill">
-                    <VStack gap={0.5}>
-                      <Heading level={2}>{config.label}</Heading>
-                      <Text type="supporting" color="secondary">
-                        {config.description}
-                      </Text>
-                    </VStack>
-                  </StackItem>
-                  {/* Keeps the column the close button floats over, so a long
+                <VStack gap={4} xstyle={settingsPanel.root}>
+                  <HStack gap={2} align="start">
+                    <StackItem size="fill">
+                      <VStack gap={0.5}>
+                        <Heading level={2}>{config.label}</Heading>
+                        <Text type="supporting" color="secondary">
+                          {config.description}
+                        </Text>
+                      </VStack>
+                    </StackItem>
+                    {/* Keeps the column the close button floats over, so a long
                       description wraps before it. */}
-                  <VStack aria-hidden="true" width={32} />
-                </HStack>
-                <PanelBody panel={active} />
-              </VStack>
-            </LayoutContent>
-          }
-        />
-      </VStack>
-    </Dialog>
+                    <VStack aria-hidden="true" width={32} />
+                  </HStack>
+                  <PanelBody panel={active} onDirtyChange={setFormDirty} />
+                </VStack>
+              </LayoutContent>
+            }
+          />
+        </VStack>
+      </Dialog>
+      {guard.confirm}
+    </>
   );
 }

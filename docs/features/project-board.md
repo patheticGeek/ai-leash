@@ -101,6 +101,11 @@ description; on the right, the agent settings and where its chat runs.
 - **Delete task** (bottom left, or the **⋯** menu) asks first. Deleting a
   task keeps its chat, worktree and branch.
 
+Clicking outside the window (or Escape) closes it. If you've typed a new
+task, or are partway through editing a title or description, it asks
+**Discard changes?** first; **Cancel**, **Close** and the × close it
+straight away.
+
 There's no separate full-page view of a task.
 
 ## Planning by chatting
@@ -309,7 +314,7 @@ turn (the backend) live outside it, so nothing is lost.
 The task window is one design in three states — new, not started,
 started — built from the Astryx `DialogFormDialog` block with the
 `work-item-detail` template's content inside (`taskModal.tsx`): a
-1120-wide `Dialog` (`purpose="form"`, `maxHeight` 85dvh) holding a
+1120-wide `Dialog` (default `purpose`, `maxHeight` 85dvh) holding a
 `Layout` with `DialogHeader`, `LayoutContent`, a 320px `LayoutPanel`
 rail with a divider, and `LayoutFooter`. The field row is label-less
 `Selector`s (status with its column's `StatusDot`, the priority `Badge`,
@@ -326,6 +331,15 @@ label-less ghost `Selector`s; the task window's rail, the start dialog
 all use it. `AgentSummary` is the read-only version a started task
 shows. The finish confirm (`useFinishTask.tsx`) and the delete confirm
 are `AlertDialog`s.
+
+The task window, start dialog, board settings and epics dialog close on
+a backdrop click through `useDiscardGuard` (`src/hooks/`), which asks
+"Discard changes?" only while they hold unsaved input: New task compares
+its draft with the empty one, Task details hears from its title and
+description fields whether an edit is open and changed, and the start
+and board-settings dialogs compare against a snapshot taken when they
+open (`isEdited`, which ignores key order and unset values). See
+[Dialogs](./ui-shell.md#dialogs).
 
 ## In the sidebar
 

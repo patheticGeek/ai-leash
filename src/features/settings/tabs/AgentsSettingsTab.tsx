@@ -24,7 +24,7 @@ import {
   SquareTerminal,
   Tag,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   deleteBackend,
   saveBackend,
@@ -33,6 +33,7 @@ import {
   useDefaultBackendId,
   useKeyStorageError,
 } from "../../../data/backends";
+import { isEdited } from "../../../hooks/useDiscardGuard";
 import type { BackendConfig } from "../../../lib/tauriApi";
 import { SettingsCard, SettingsRow } from "../SettingsCard";
 
@@ -96,7 +97,12 @@ function FieldRow({
   );
 }
 
-export default function AgentsSettingsTab() {
+export default function AgentsSettingsTab({
+  onDirtyChange,
+}: {
+  // Whether the Add / Edit form holds input that Save hasn't stored.
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const backends = useBackends();
   const defaultBackendId = useDefaultBackendId();
   const keyStorageError = useKeyStorageError();
@@ -105,27 +111,58 @@ export default function AgentsSettingsTab() {
   const [ollamaForm, setOllamaForm] = useState(emptyOllamaForm);
   const [openAiForm, setOpenAiForm] = useState(emptyOpenAiForm);
   const [acpForm, setAcpForm] = useState(emptyAcpForm);
+  // The form as it opened, so only a real change counts as unsaved.
+  const [formStart, setFormStart] = useState<unknown>(null);
+
+  const currentForm =
+    view.step !== "form"
+      ? null
+      : view.kind === "ollama"
+        ? ollamaForm
+        : view.kind === "openAiCompatible"
+          ? openAiForm
+          : acpForm;
+  const dirty = currentForm !== null && isEdited(formStart, currentForm);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onDirtyChange is a state setter
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: on unmount only
+  useEffect(() => () => onDirtyChange(false), []);
 
   function startAdd(kind: Kind) {
     if (kind === "ollama") setOllamaForm(emptyOllamaForm);
     if (kind === "openAiCompatible") setOpenAiForm(emptyOpenAiForm);
     if (kind === "acp") setAcpForm(emptyAcpForm);
+    setFormStart(
+      kind === "ollama"
+        ? emptyOllamaForm
+        : kind === "openAiCompatible"
+          ? emptyOpenAiForm
+          : emptyAcpForm,
+    );
     setView({ step: "form", kind, id: null });
   }
 
   function startEdit(config: BackendConfig) {
     if (config.kind === "ollama") {
-      setOllamaForm({ label: config.label, host: config.host });
+      const form = { label: config.label, host: config.host };
+      setOllamaForm(form);
+      setFormStart(form);
     } else if (config.kind === "openAiCompatible") {
-      setOpenAiForm({
+      const form = {
         label: config.label,
         baseUrl: config.baseUrl,
         // Never comes back from Rust — blank keeps the saved one.
         apiKey: "",
         model: config.model,
-      });
+      };
+      setOpenAiForm(form);
+      setFormStart(form);
     } else {
-      setAcpForm({ label: config.label, launchCommand: config.launchCommand });
+      const form = { label: config.label, launchCommand: config.launchCommand };
+      setAcpForm(form);
+      setFormStart(form);
     }
     setView({ step: "form", kind: config.kind, id: config.id });
   }
