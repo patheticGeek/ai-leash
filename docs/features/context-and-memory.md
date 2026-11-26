@@ -93,6 +93,13 @@ it to `prompt_blocks` once, as a text content block ahead of your message.
 It isn't saved to the transcript, but the ACP Events tab shows it as
 `context` on that `session/prompt`.
 
+Both are snapshots: the native one from the start of the turn, the
+external agent's from connect time. The `chat_info` tool (see
+[tools.md](./tools.md#check-what-its-chat-is-right-now)), offered to every
+chat, reads the same facts live, plus the task's status, whether the
+project chat follows it, and the agent and model; the always-sent guidance
+points at it in one line.
+
 ## Built-in guides
 
 The longer how-tos for AI Leash's own features aren't in that always-sent

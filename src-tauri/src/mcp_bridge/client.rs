@@ -2,7 +2,9 @@ use super::{BridgeRequest, BridgeResponse};
 use crate::actions;
 use crate::chat_context::{AgentBackend, ChatContext, ChatKind};
 use crate::context;
-use crate::tools::{action_tools, board_tools, guidance, guides, memory_tools, sub_agent_tools};
+use crate::tools::{
+    action_tools, board_tools, chat_info, guidance, guides, memory_tools, sub_agent_tools,
+};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -172,6 +174,7 @@ fn tools_list_result(root: &Path, chat: &ChatContext) -> Value {
             .map(mcp_tool),
     );
     tools.push(mcp_tool(guides::read_guide_def()));
+    tools.push(mcp_tool(chat_info::chat_info_def()));
 
     // Gated like the native list: only worth a tool slot if there's a skill
     // to load. A snapshot from connect time, same as the instructions' count.
@@ -276,7 +279,9 @@ fn tools_call_result(
         "read_guide" => guides::read_guide(&arguments),
         "update_memory" => update_memory_tool(root, &arguments),
         "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
-        | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action" => {
+        | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action"
+        // Live from the app: the env-var context is a connect-time snapshot.
+        | "chat_info" => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         board if board_tools::BOARD_TOOLS.contains(&board) => {
@@ -424,6 +429,7 @@ mod tests {
             assert!(text.contains("250 Actions are defined; `list_actions`"));
             assert!(text.contains("250 skills are available; `list_skills`"));
             assert!(text.contains("`read_guide`"));
+            assert!(text.contains("`chat_info`"));
         }
     }
 
@@ -485,6 +491,34 @@ mod tests {
                 board.contains(&"start_task"),
                 kind == ChatKind::Project,
                 "{kind:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn chat_info_is_listed_for_every_kind_and_relayed() {
+        let root = Path::new("/nonexistent/ai-leash-test");
+        for kind in kinds() {
+            let chat = with_kind(kind.clone());
+            let list = tools_list_result(root, &chat);
+            assert!(
+                list["tools"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|t| t["name"] == "chat_info"),
+                "{kind:?}"
+            );
+            // Relayed, not answered from the connect-time snapshot: port 0
+            // makes the relay fail.
+            let req = json!({ "params": { "name": "chat_info", "arguments": {} } });
+            let RpcOutcome::Result(r) = tools_call_result(&req, 0, "", "", root, &chat) else {
+                panic!("expected a result");
+            };
+            let text = r["content"][0]["text"].as_str().unwrap();
+            assert!(
+                text.starts_with("bridge connect failed"),
+                "{kind:?}: {text}"
             );
         }
     }

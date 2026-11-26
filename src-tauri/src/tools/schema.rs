@@ -1,6 +1,6 @@
 use crate::chat_context::ChatContext;
 use crate::context;
-use crate::tools::{action_tools, board_tools, guides, memory_tools, sub_agent_tools};
+use crate::tools::{action_tools, board_tools, chat_info, guides, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -117,9 +117,11 @@ pub fn tool_definitions(
         }
     ]);
 
-    // Always offered: the built-in guides the system prompt points at.
+    // Always offered: the built-in guides the system prompt points at, and
+    // this chat's live facts.
     if let Value::Array(arr) = &mut tools {
         arr.push(json!({ "type": "function", "function": guides::read_guide_def() }));
+        arr.push(json!({ "type": "function", "function": chat_info::chat_info_def() }));
     }
 
     let has_skills = root.is_some_and(|r| !context::list_skills(r, touched_dirs).is_empty());
@@ -209,5 +211,22 @@ mod tests {
         assert_eq!(board(sub.clone()), ["list_tasks", "read_task"]);
         assert!(!names(sub).contains(&"spawn_sub_agent".to_string()));
         assert!(names(ChatKind::Plain).contains(&"spawn_sub_agent".to_string()));
+    }
+
+    #[test]
+    fn chat_info_offered_to_every_kind() {
+        let task = ChatKind::Task {
+            number: 1,
+            title: "t".into(),
+            branch: None,
+            worktree_path: None,
+        };
+        let sub = ChatKind::SubAgent { parent: "p".into() };
+        for kind in [ChatKind::Project, ChatKind::Plain, task, sub] {
+            assert!(
+                names(kind.clone()).contains(&"chat_info".to_string()),
+                "{kind:?}"
+            );
+        }
     }
 }

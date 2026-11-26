@@ -58,7 +58,7 @@ fn guide_line() -> String {
 /// schemas until it goes looking for a tool.
 fn guide_pointers() -> String {
     let mut out = String::from(
-        "The chat renders more than Markdown, and each such feature has a short guide. Call `read_guide` with its topic first:\n",
+        "Each chat feature beyond Markdown has a short guide; call `read_guide` with its topic first:\n",
     );
     for g in guides::GUIDES {
         out.push_str(&format!("\n- `{}`: {}", g.name, g.when));
@@ -113,8 +113,8 @@ fn this_chat(ctx: &ChatContext) -> String {
             format!(
                 "This is the chat of task #{number}, *{title}*, on the board of {project}. You work {place}{commit}.\n\n\
                  - Keep its description current with `update_task` as you learn. When you're done, set its status to `review` (never `done`: the user reviews and merges it) and summarise what you changed and anything left for the reviewer.\n\
-                 - On other tasks, `update_task` only adds links or dependency notes. Anything bigger, or if you're blocked or need a decision, goes to the project chat with `send_message` to `\"project\"`.\n\
-                 - Work outside this task's scope goes on the board as new tasks with `create_tasks`; don't do it here."
+                 - On other tasks, `update_task` only adds links or dependency notes. For anything bigger, or if you're blocked or need a decision, `send_message` to `\"project\"`.\n\
+                 - Work outside this task's scope goes on the board as new tasks (`create_tasks`), not here."
             )
         }
         ChatKind::SubAgent { .. } => format!(
@@ -139,8 +139,8 @@ fn tool_rules(ctx: &ChatContext) -> Vec<&'static str> {
             "- **Memory.** When the user states a lasting preference or project convention, or corrects you in a way that should apply next time, save it with `update_memory` right away, without being asked. Keep it to durable facts, not scratch state for the current task.",
         ],
         AgentBackend::Acp => vec![
-            "- **Actions** are background commands shown in the user's Actions tab. Run a dev server, watcher or `--watch` build as one, not as an untracked background process of your own: `list_actions`, then `run_action` a match (check it with `read_action`), or `create_action` one if none fits.",
-            "- **Memory** is AI Leash's notes for this project (`project`) and all projects (`global`). It isn't in your context: call `read_memory` at the start of a task. When the user states a lasting preference or corrects you in a way that should apply next time, save it with `update_memory` unasked; it replaces the whole file, so read first and merge. Durable facts only.",
+            "- **Actions** are background commands shown in the user's Actions tab. Run a dev server, watcher or `--watch` build as one, not as an untracked process of your own: `list_actions`, then `run_action` a match (check it with `read_action`), or `create_action` one if none fits.",
+            "- **Memory** is AI Leash's notes for this project (`project`) and all projects (`global`). It isn't in your context: call `read_memory` at the start of a task. When the user states a lasting preference or corrects you for next time, save it with `update_memory` unasked; it replaces the whole file, so read first and merge. Durable facts only.",
         ],
     };
     // A task's chat has its own board rules in "This chat"; a sub-agent only
@@ -155,6 +155,9 @@ fn tool_rules(ctx: &ChatContext) -> Vec<&'static str> {
             "- **Parallel work.** Hand two or more independent parts of a request to `spawn_sub_agent` in one call so they run concurrently (`list_agent_options` to pick an agent, model or effort). Results arrive on their own as later turns; don't poll `list_sub_agents`.",
         );
     }
+    rules.push(
+        "- **Live facts.** `chat_info` re-checks this chat's task status, branch and follow state.",
+    );
     rules
 }
 
@@ -256,7 +259,9 @@ mod tests {
             assert!(
                 text.contains("On other tasks, `update_task` only adds links or dependency notes")
             );
-            assert!(text.contains("Anything bigger, or if you're blocked or need a decision, goes to the project chat"));
+            assert!(text.contains(
+                "For anything bigger, or if you're blocked or need a decision, `send_message`"
+            ));
         }
         let main = ChatKind::Task {
             number: 1,
@@ -309,6 +314,17 @@ mod tests {
     }
 
     #[test]
+    fn every_agent_is_told_about_chat_info() {
+        for c in every_context() {
+            assert!(
+                guidance(&c).contains("`chat_info` re-checks"),
+                "{:?}",
+                c.kind
+            );
+        }
+    }
+
+    #[test]
     fn every_agent_is_pointed_at_every_guide() {
         for c in every_context() {
             let text = guidance(&c);
@@ -356,6 +372,7 @@ mod tests {
                 allowed.extend(sub_agents);
             }
             allowed.push("read_guide");
+            allowed.push("chat_info");
             let text = guidance(&c);
             for name in text.split('`').skip(1).step_by(2) {
                 if name.contains('_') && !name.contains(' ') && !name.starts_with("--") {
