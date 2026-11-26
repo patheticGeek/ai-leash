@@ -30,17 +30,22 @@ export function useMentionPicker(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   checkoutPath: string | null,
 ) {
-  const [caret, setCaret] = useState(0);
+  const [caretState, setCaret] = useState(0);
   const [dismissed, setDismissed] = useState<number | null>(null);
   const [index, setIndex] = useState(0);
 
-  // The caret, kept in step with the textarea: typing, clicking and the
-  // arrow keys all move it without the text necessarily changing.
+  // The caret, read off the textarea when we render: typing re-renders
+  // anyway, since `input` changes. Clicking and the arrow keys move it
+  // without changing the text, so those re-render through `caretState`.
+  // Not on `input`: that native listener runs before React's own
+  // `onChange`, and re-rendering there with the old text writes it back
+  // over the keystroke, so typing is lost.
+  const caret = textareaRef.current?.selectionStart ?? caretState;
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     const sync = () => setCaret(el.selectionStart ?? 0);
-    const events = ["input", "select", "keyup", "click", "focus"] as const;
+    const events = ["select", "keyup", "click", "focus"] as const;
     for (const e of events) el.addEventListener(e, sync);
     return () => {
       for (const e of events) el.removeEventListener(e, sync);
