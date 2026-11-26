@@ -379,6 +379,70 @@ instead: a started task gets a full chat of its own (in its own git
 worktree), which you can write in like any other, and which reports back
 to the project chat.
 
+## Rich replies
+
+When data reads better as a table, chart or a row of figures than as prose,
+the agent can show it that way: a sortable table, a bar or line chart, stat
+tiles, key/value details, lists, progress bars, status badges, callouts,
+cards, tabs, code, and buttons to pick from. Ask for it ("compare these five
+models in a table and a chart") or let the agent decide; it's told the
+feature exists in its standing guidance (see [Tools](./tools.md)).
+
+It's part of the reply text, so it works the same for the built-in agent and
+for external ACP agents such as Claude Code or Copilot: the agent writes a
+fenced code block with the language `ui` holding JSON that describes what to
+show, and the transcript renders it with the app's own components instead of
+showing the code. For example:
+
+```ui
+[
+  {"type": "table", "columns": ["Model", "Latency (ms)"],
+   "rows": [["A", 320], ["B", 610]]},
+  {"type": "chart", "title": "Latency", "labels": ["A", "B"],
+   "series": [{"name": "Latency", "values": [320, 610]}], "unit": "ms"}
+]
+```
+
+The block is one node or an array of nodes shown top to bottom. The node
+types are `table` (string or `{key, label, align}` columns; rows as arrays or
+objects; click a header to sort), `chart` (`bar` or `line`, `labels` and up
+to eight `series`), `stats` (stat tiles with an optional change and tone),
+`keyValue`, `list`, `progress`, `badge`, `status`, `heading`, `text`,
+`divider`, `callout`, `code`, `card`, `tabs`, `stack` (vertical or
+horizontal) and `choices`. Tones are `neutral`, `info`, `success`, `warning`
+and `error`. The full field list is in `src/lib/uiSpec.ts`, which validates
+it, and in the guidance text in `src-tauri/src/tools/guidance.rs` that tells
+agents about it; the two are kept in sync.
+
+- **Safe by construction.** The JSON is data only. Nothing in it runs: there
+  are no scripts, HTML, styles or links to load, and the agent can't reach
+  anything beyond the fixed set of components above. Size limits (nesting
+  depth, node, row and point counts) keep a runaway block from slowing the
+  transcript down.
+- **While streaming**, a `ui` block whose closing fence hasn't arrived yet
+  shows a small "Rendering view…" placeholder rather than half-written JSON.
+- **Invalid blocks degrade gracefully.** Bad JSON, an unknown node type, or a
+  wrong field (for example a chart series with the wrong number of values)
+  shows the block's raw source with a one-line note saying what's wrong. A
+  block left unclosed when the reply ends is still rendered if its JSON is
+  complete. If a valid block somehow fails while rendering, the same raw
+  fallback appears instead of breaking the transcript.
+- **Choices send a message.** A `choices` node shows buttons; clicking one
+  sends its message (or its label) as your next message, exactly as if you
+  had typed it, including the take-over prompt in a followed task chat. The
+  buttons are disabled while a reply is running, and once one is picked.
+- **Copying gives readable text.** The message's **Copy** button replaces
+  each valid `ui` block with a plain-text version — tables and charts become
+  Markdown tables, stats and key/value items become lines, choices become a
+  list — so pasting it elsewhere reads naturally. Invalid blocks are copied as
+  written.
+
+Rich blocks render anywhere the app shows an agent's Markdown, including
+sub-agent results and task descriptions; the choice buttons only work in a
+chat transcript. The renderer is `src/ui/UiBlock.tsx` (Astryx components
+throughout) with a small SVG chart in `src/ui/Chart.tsx`, since Astryx has no
+chart component; both have Storybook stories.
+
 ## Send, stop, and queue messages
 
 While the agent is working, **Stop** cancels the current user-initiated turn.
@@ -569,6 +633,69 @@ the message box's place until you answer (see
 [Tools and permissions](./tools.md)). Toasts, used only to confirm that
 something happened, appear at the bottom-right corner of the window; a toast
 never asks you anything.
+
+## HTML previews
+
+When an agent writes HTML — a UI prototype, a mockup, a small interactive
+demo — the chat shows it rendered, not just as code. This is plain reply
+text, so it works the same for built-in providers and external agents; both
+are told about it (the native system prompt and the MCP server's
+instructions, `tools/guidance.rs`), and asked to reply with one complete,
+self-contained document in a fenced block tagged `html`.
+
+- **Preview / Code.** A fenced block tagged `html` (or `htm`) gets a
+  **Preview / Code** switch in its header. A whole page (it has a doctype,
+  `<html>` or `<body>`) or a block marked ` ```html preview ` opens on its
+  preview; a snippet opens on its code. While the reply is still streaming,
+  the block stays code until its closing fence arrives, then renders.
+- **Size.** The preview sizes itself to its content (the page reports its
+  height to the app), up to half the window; taller content gets an
+  **Expand** button (up to 85% of the window) and scrolls inside the frame
+  past that.
+- **Open, Save, Copy.** **Open in a tab** shows it full-size in a centre tab
+  of its own; **Save as file** writes it wherever you pick in a Save dialog;
+  **Copy** copies the HTML.
+- **Files.** A tool call that wrote (or read) an `.html` / `.htm` file has a
+  **Preview** button on its row, which opens that file from the
+  conversation's checkout in a preview tab, with **Reload** to pick up later
+  edits. Only the file itself is loaded — relative links to its CSS, scripts
+  or images aren't, so a previewed file should inline them too.
+
+### The sandbox
+
+A preview runs in an `<iframe srcdoc>` with
+`sandbox="allow-scripts allow-forms"` and no `allow-same-origin`, so its
+scripts run but in an opaque origin: they can't read the app's DOM, storage,
+cookies or Tauri globals (any access to `parent` throws), can't navigate the
+app, open windows or show modal dialogs. `allow-forms` is only there so a
+prototype's own `submit` handler fires. A Content Security Policy is put in
+front of the agent's HTML — inline scripts and styles, `data:`/`blob:`
+images, fonts and media, and nothing else:
+
+```
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';
+img-src data: blob:; font-src data:; media-src data: blob:;
+form-action 'none'; base-uri 'none'
+```
+
+So there is **no network**: no CDN scripts or stylesheets, web fonts, remote
+images, `fetch`/XHR/WebSockets/beacons, workers or nested frames. That's
+deliberate — a preview is a snapshot of what the agent wrote, it never
+reaches out (a `<meta>` CSP in the agent's own HTML can only tighten this,
+not loosen it). Link clicks that would leave the page are ignored; a page
+that navigates itself by script (`location = …`) or a meta refresh is
+caught when the next page loads without the preview's own bootstrap
+script, and stopped, with a **Reload preview** button. That
+navigation does still make its one request before it's caught, which can
+only carry what the page itself contains. The app's own IPC also needs an
+invoke key only the top frame holds, so a frame couldn't call a command
+even if it reached the webview's message handler.
+
+The sandbox was checked in Chromium and WebKitGTK (the engine the Linux app
+runs on): every one of the above was blocked, with no request reaching the
+network, while the page's own scripts, form handlers and height reporting
+kept working. The `HtmlPreview` Storybook story's **Sandbox** example runs a
+few of the same checks.
 
 ## Conversation display and persistence
 

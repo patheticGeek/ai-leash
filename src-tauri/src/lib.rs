@@ -125,6 +125,7 @@ pub fn run() {
             mentions::search_mentions,
             commands::read_file_text,
             commands::write_file_text,
+            commands::save_text_file_as,
             commands::open_in_ide,
             fonts::list_system_fonts,
             preferences::get_preferences,

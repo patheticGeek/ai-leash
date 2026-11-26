@@ -15,11 +15,18 @@ import {
   memo,
   type ReactNode,
   useContext,
+  useMemo,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
+import {
+  MarkdownSourceContext,
+  type SourcePosition,
+  useHtmlCodeBlock,
+} from "./HtmlCodeBlock";
+import UiBlock from "./UiBlock";
 
 // Flattens a rendered node back to the source text it came from.
 function nodeText(node: ReactNode): string {
@@ -37,6 +44,21 @@ function nodeText(node: ReactNode): string {
 export const RunCommandContext = createContext<
   ((command: string) => void) | null
 >(null);
+
+// The message being rendered, for a ```ui block to tell whether its closing
+// fence has arrived yet (react-markdown runs an unclosed fence to the end).
+const SourceContext = createContext<{ content: string; isStreaming: boolean }>({
+  content: "",
+  isStreaming: false,
+});
+
+// The fence's language, off react-markdown's `language-*` class on `<code>`.
+function languageOf(children: ReactNode): string | undefined {
+  const className = isValidElement<{ className?: string }>(children)
+    ? children.props.className
+    : undefined;
+  return /language-(\S+)/.exec(className ?? "")?.[1];
+}
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell", "zsh"]);
 
@@ -152,20 +174,25 @@ const styles = stylex.create({
 });
 
 // A fenced code block: a header with the language and a copy button above the
-// scrollable code.
-function CodeBlock({ children }: { children?: ReactNode }) {
+// scrollable code. ```html blocks add a preview (`HtmlCodeBlock.tsx`).
+function CodeBlock({
+  children,
+  position,
+}: {
+  children?: ReactNode;
+  position?: SourcePosition;
+}) {
   const { copy, copied } = useCopyToClipboard();
-  const className = isValidElement<{ className?: string }>(children)
-    ? children.props.className
-    : undefined;
-  const language = /language-(\S+)/.exec(className ?? "")?.[1];
+  const language = languageOf(children);
   const runCommand = useContext(RunCommandContext);
   const text = nodeText(children).replace(/\n$/, "");
+  const html = useHtmlCodeBlock(language, text, position);
   return (
     <div {...stylex.props(styles.codeBlock)}>
       <HStack align="center" justify="between" xstyle={styles.codeHeader}>
         <span>{language ?? "text"}</span>
         <HStack align="center">
+          {html?.actions}
           {runCommand && language && SHELL_LANGUAGES.has(language) && (
             <IconButton
               variant="ghost"
@@ -186,8 +213,30 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           />
         </HStack>
       </HStack>
-      <pre {...stylex.props(styles.pre)}>{children}</pre>
+      {html?.body ?? <pre {...stylex.props(styles.pre)}>{children}</pre>}
     </div>
+  );
+}
+
+// A ```ui fence: rendered as Astryx components (`UiBlock`), or a placeholder
+// while the reply is still streaming and the closing fence hasn't come.
+function UiFence({
+  children,
+  start,
+  end,
+}: {
+  children?: ReactNode;
+  start?: number;
+  end?: number;
+}) {
+  const { content, isStreaming } = useContext(SourceContext);
+  const raw = content.slice(start ?? 0, end ?? content.length);
+  const closed = /\n[ \t>]*([`~]{3,})[ \t]*$/.test(raw.trimEnd());
+  return (
+    <UiBlock
+      source={nodeText(children).replace(/\n$/, "")}
+      isPending={isStreaming && !closed}
+    />
   );
 }
 
@@ -221,7 +270,17 @@ const components: Components = {
       </code>
     );
   },
-  pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+  pre: ({ node, children }) =>
+    languageOf(children) === "ui" ? (
+      <UiFence
+        start={node?.position?.start.offset}
+        end={node?.position?.end.offset}
+      >
+        {children}
+      </UiFence>
+    ) : (
+      <CodeBlock position={node?.position}>{children}</CodeBlock>
+    ),
   p: ({ node: _, ...props }) => <p {...props} {...stylex.props(styles.p)} />,
   ul: ({ node: _, ...props }) => (
     <ul {...props} {...stylex.props(styles.list, styles.ul)} />
@@ -268,12 +327,30 @@ const components: Components = {
 // Markdown would be re-parsed on every chunk, not just the one growing.
 const remarkPlugins = [remarkGfm, remarkBreaks];
 
-function Markdown({ content }: { content: string }) {
+//
+// A fenced ```ui block is rendered as rich UI (`UiBlock`, spec in
+// `lib/uiSpec.ts`). `isStreaming` says the text is still growing, so an
+// unclosed ```ui block shows a placeholder instead of its partial JSON.
+function Markdown({
+  content,
+  isStreaming = false,
+}: {
+  content: string;
+  isStreaming?: boolean;
+}) {
+  const source = useMemo(
+    () => ({ content, isStreaming }),
+    [content, isStreaming],
+  );
   return (
     <div {...stylex.props(styles.root)}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
-        {content}
-      </ReactMarkdown>
+      <SourceContext.Provider value={source}>
+        <MarkdownSourceContext.Provider value={content}>
+          <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
+            {content}
+          </ReactMarkdown>
+        </MarkdownSourceContext.Provider>
+      </SourceContext.Provider>
     </div>
   );
 }

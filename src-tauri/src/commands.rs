@@ -463,6 +463,14 @@ pub fn write_file_text(
     std::fs::write(resolved, contents).map_err(|e| e.to_string())
 }
 
+/// Writes `contents` to a path the user picked in a native Save dialog (an
+/// HTML preview's "Save as file") — unlike `write_file_text`, not confined
+/// to the checkout, since the user chose where it goes.
+#[tauri::command]
+pub fn save_text_file_as(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(path, contents).map_err(|e| e.to_string())
+}
+
 /// Launches the user's configured IDE command (`code`, `zed`, `code -n`, ...)
 /// on a project/worktree directory. The command string is shell-split so
 /// flags work, but never run through a shell — the path is appended as one

@@ -119,7 +119,7 @@ function ChatEntryRenderer({
     return (
       <>
         <ChatMessageBubble variant="ghost" width="100%">
-          <Markdown content={entry.content} />
+          <Markdown content={entry.content} isStreaming={sending && isLast} />
         </ChatMessageBubble>
         {footer}
       </>

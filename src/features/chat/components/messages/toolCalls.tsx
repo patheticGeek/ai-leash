@@ -1,3 +1,4 @@
+import { Button } from "@astryxdesign/core/Button";
 import type { ChatToolCallItem } from "@astryxdesign/core/Chat";
 import { CodeBlock } from "@astryxdesign/core/CodeBlock";
 import { Icon } from "@astryxdesign/core/Icon";
@@ -7,7 +8,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { Eye, SquareArrowOutUpRight } from "lucide-react";
 import { type SubAgentTask, useSubAgents } from "@/data/subAgents";
 import { formatDuration } from "@/lib/format";
 import { type Entry, isToolError } from "../../../../lib/chatEntries";
@@ -95,6 +96,40 @@ function toolTarget(args: unknown): string | undefined {
   const json = JSON.stringify(args);
   if (!json || json === "{}" || json === "null") return undefined;
   return json;
+}
+
+// The `.html`/`.htm` file a tool call wrote or read, if any — its row gets a
+// Preview button.
+function htmlFileOf(args: unknown): string | undefined {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return;
+  const record = args as Record<string, unknown>;
+  for (const key of ["path", "file_path", "filePath"]) {
+    const value = record[key];
+    if (typeof value === "string" && /\.html?$/i.test(value.trim())) {
+      return value.trim();
+    }
+  }
+}
+
+// Opens a tool call's `.html` file in a preview tab, read from the active
+// conversation's checkout. It sits inside the row, which is itself a
+// button toggling the call's detail, so its click and keys stop there.
+function PreviewFileButton({ path }: { path: string }) {
+  const openPreviewTab = useAppStore((s) => s.openPreviewTab);
+  const sessionId = useAppStore((s) => s.activeSessionId);
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      label="Preview"
+      icon={<Icon icon={Eye} size="sm" />}
+      onKeyDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        openPreviewTab({ path, sessionId });
+      }}
+    />
+  );
 }
 
 const SUB_AGENT_STATUS = {
@@ -246,6 +281,8 @@ export function toolCallFor(
   if (entry.kind !== "tool") return null;
   const failed = isToolError(entry.result);
   const threads = entry.subtasks?.length ?? 0;
+  const htmlFile =
+    entry.result !== undefined && !failed ? htmlFileOf(entry.args) : undefined;
   return {
     key,
     name: entry.name,
@@ -256,6 +293,7 @@ export function toolCallFor(
     status:
       entry.result === undefined ? "running" : failed ? "error" : "complete",
     errorMessage: failed ? firstLine(entry.result ?? "") : undefined,
+    stats: htmlFile ? <PreviewFileButton path={htmlFile} /> : undefined,
     resultDetail: <ToolDetail entry={entry} />,
   };
 }
