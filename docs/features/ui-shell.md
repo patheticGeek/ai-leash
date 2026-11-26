@@ -88,7 +88,9 @@ conversation's menu to mark it as not done. Each conversation has a **⋯**
 menu that appears when you point at it (or right-click it), with **Mark as
 done** and **Delete conversation**. Titles use the whole row; while you
 point at a chat, its **⋯** takes the place of its status. **Settings** sits at the bottom of the
-sidebar.
+sidebar, with **Done** pinned just above it. The **Projects** and **Chats**
+titles stay in place; only the lists under them scroll, with a fade at an edge
+while there's more out of view that way.
 
 The sidebar can show activity while you are viewing another conversation. A
 spinner means the agent is still processing that conversation; the time next

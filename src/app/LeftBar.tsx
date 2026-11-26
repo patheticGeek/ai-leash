@@ -51,7 +51,13 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { type BoardSummary, useBoardSummaries } from "../data/board";
 import { conversationLabel, useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
@@ -129,6 +135,55 @@ const styles = stylex.create({
   // or shrink, so it scrolls on its own past a third of the window rather
   // than squeezing the projects out ("Show all" can be long).
   doneList: { maxHeight: "33vh", overflowY: "auto" },
+  // The side nav's scroll area is one column the height of the area, so
+  // the section titles stay put and only the lists under them scroll
+  // (`fillSection`, `ScrollList`). On the icon rail the area scrolls as a
+  // whole, as before, and its items stay centred.
+  navFill: { height: "100%", minHeight: 0 },
+  navRail: { alignSelf: "stretch", alignItems: "center" },
+  // A Projects/Chats section: its title in a fixed row, its list in a row
+  // that takes what's left and may shrink to nothing (a grid row's `0`
+  // minimum, where a flex item would keep its content's height).
+  fillSection: {
+    display: "grid",
+    gridTemplateRows: "auto minmax(0, 1fr)",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    minHeight: 0,
+    flexShrink: 1,
+  },
+  scrollFrame: { position: "relative", minHeight: 0, flexShrink: 1 },
+  // Out into the side nav's inline padding, so focus rings at the rows'
+  // edges aren't clipped by the scroll box.
+  scrollViewport: {
+    minHeight: 0,
+    flexShrink: 1,
+    overflowY: "auto",
+    overflowX: "hidden",
+    marginInline: `calc(-1 * ${spacingVars["--spacing-2"]})`,
+    paddingInline: spacingVars["--spacing-2"],
+  },
+  // A fade at a list's top or bottom edge while there's more scrolled out
+  // of view that way, like the chat transcript's top fade: the side nav's
+  // background (AppShell's nav wash) to transparent.
+  scrollFade: {
+    position: "absolute",
+    insetInline: `calc(-1 * ${spacingVars["--spacing-2"]})`,
+    height: spacingVars["--spacing-6"],
+    zIndex: 1,
+    pointerEvents: "none",
+    opacity: 0,
+    transitionProperty: "opacity",
+    transitionDuration: "150ms",
+  },
+  scrollFadeTop: {
+    insetBlockStart: 0,
+    backgroundImage: `linear-gradient(to bottom, ${colorVars["--color-background-body"]}, transparent)`,
+  },
+  scrollFadeBottom: {
+    insetBlockEnd: 0,
+    backgroundImage: `linear-gradient(to top, ${colorVars["--color-background-body"]}, transparent)`,
+  },
+  scrollFadeShown: { opacity: 1 },
   showMore: {
     alignSelf: "flex-start",
     color: {
@@ -633,6 +688,84 @@ function ProjectGroup({
   );
 }
 
+// Which ends of a scroll box have more scrolled out of view, kept current on
+// scroll and whenever the box or its content changes size.
+function useScrollEdges(
+  viewportRef: RefObject<HTMLDivElement | null>,
+  contentRef: RefObject<HTMLDivElement | null>,
+  isActive: boolean,
+) {
+  const [edges, setEdges] = useState({ above: false, below: false });
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const content = contentRef.current;
+    if (!isActive || !viewport || !content) return;
+    const update = () => {
+      const above = viewport.scrollTop > 0;
+      const below =
+        viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1;
+      setEdges((e) =>
+        e.above === above && e.below === below ? e : { above, below },
+      );
+    };
+    update();
+    viewport.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    observer.observe(content);
+    return () => {
+      viewport.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [viewportRef, contentRef, isActive]);
+  return edges;
+}
+
+// A section's list that scrolls on its own under the section's fixed title,
+// with a fade at whichever edge has more out of view. Inactive (the icon
+// rail), it's a plain column and the side nav scrolls as a whole.
+function ScrollList({
+  isActive,
+  children,
+}: {
+  isActive: boolean;
+  children: ReactNode;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { above, below } = useScrollEdges(viewportRef, contentRef, isActive);
+  return (
+    <VStack xstyle={isActive && styles.scrollFrame}>
+      {isActive && (
+        <VStack
+          aria-hidden
+          xstyle={[
+            styles.scrollFade,
+            styles.scrollFadeTop,
+            above && styles.scrollFadeShown,
+          ]}
+        />
+      )}
+      <VStack ref={viewportRef} xstyle={isActive && styles.scrollViewport}>
+        {/* The section body's own gap, which this one child takes over. */}
+        <VStack ref={contentRef} gap={0.5}>
+          {children}
+        </VStack>
+      </VStack>
+      {isActive && (
+        <VStack
+          aria-hidden
+          xstyle={[
+            styles.scrollFade,
+            styles.scrollFadeBottom,
+            below && styles.scrollFadeShown,
+          ]}
+        />
+      )}
+    </VStack>
+  );
+}
+
 // Only the most recently done conversations show until "Show all", so a long
 // backlog doesn't fill the open Done group.
 const DEFAULT_VISIBLE_DONE = 5;
@@ -913,125 +1046,146 @@ export default function LeftBar({
         </>
       }
     >
-      {/* Same order as the shell-side-nav template: the menu, a rule, the
+      <VStack xstyle={collapse.isCollapsed ? styles.navRail : styles.navFill}>
+        {/* Same order as the shell-side-nav template: the menu, a rule, the
           projects (and, flat, a rule and the chats). Done is in the footer. */}
-      <SideNavSection title="Menu" isHeaderHidden>
-        <SideNavItem
-          label="New thread"
-          icon={SquarePen}
-          isSelected={isNewThread}
-          endContent={<Kbd keys="ctrl+n" />}
-          onClick={() => void startNewThread()}
-        />
-        <SideNavItem
-          label="Add project"
-          icon={FolderPlus}
-          onClick={() => void pickAndAddProject()}
-        />
-      </SideNavSection>
-      <Divider />
-      <SideNavSection title="Projects" endContent={filterMenu}>
-        {projects.length === 0 && !collapse.isCollapsed && (
-          <Text type="supporting" color="secondary">
-            No projects yet
-          </Text>
-        )}
-        {visibleProjects.map((p) => {
-          const boardChat = boardChatFor(p.path);
-          if (isFlat) {
-            // Flat: each project is just its board, named after it, with the
-            // project's ⋯ menu; its chats are in the Chats section below.
-            return (
-              <RevealRow
-                key={p.path}
-                menuLabel="Project options"
-                tooltip={p.path}
-                items={[
-                  {
-                    label: "Remove project",
-                    icon: <FolderMinus size={14} />,
-                    variant: "destructive",
-                    onClick: () => setPendingRemove(p),
-                  },
-                ]}
-              >
-                {({ actions }) => (
-                  <BoardRow
-                    label={p.name}
-                    summary={boardSummaries.find(
-                      (b) => b.projectRoot === p.path,
-                    )}
-                    chatId={boardChat?.id}
-                    isSelected={!!boardChat && boardChat.id === activeSessionId}
-                    onClick={() => void openProjectBoard(p.path)}
-                    actions={actions}
-                  />
-                )}
-              </RevealRow>
-            );
-          }
-          return (
-            <ProjectGroup
-              key={p.path}
-              project={p}
-              isCollapsed={collapsedProjects.includes(p.path)}
-              onCollapsedChange={(collapsed) =>
-                setProjectCollapsed(p.path, collapsed)
-              }
-              onRemove={() => setPendingRemove(p)}
-              isRail={collapse.isCollapsed}
-            >
-              <VStack gap={1} xstyle={styles.nested}>
-                <BoardRow
-                  summary={boardSummaries.find((b) => b.projectRoot === p.path)}
-                  chatId={boardChat?.id}
-                  isSelected={!!boardChat && boardChat.id === activeSessionId}
-                  onClick={() => void openProjectBoard(p.path)}
-                />
-                {chatsFor(p.path).map(conversationRow)}
-              </VStack>
-            </ProjectGroup>
-          );
-        })}
-        {!collapse.isCollapsed && idleCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            label={idleExpanded ? "Show less" : `More projects (${idleCount})`}
-            onClick={() => setIdleExpanded((v) => !v)}
-            xstyle={styles.showMore}
+        <SideNavSection title="Menu" isHeaderHidden>
+          <SideNavItem
+            label="New thread"
+            icon={SquarePen}
+            isSelected={isNewThread}
+            endContent={<Kbd keys="ctrl+n" />}
+            onClick={() => void startNewThread()}
           />
-        )}
-      </SideNavSection>
-      {isFlat && (
-        <>
-          <Divider />
-          <SideNavSection title="Chats">
-            {flatChats.length === 0 && !collapse.isCollapsed && (
+          <SideNavItem
+            label="Add project"
+            icon={FolderPlus}
+            onClick={() => void pickAndAddProject()}
+          />
+        </SideNavSection>
+        <Divider />
+        <SideNavSection
+          title="Projects"
+          endContent={filterMenu}
+          xstyle={!collapse.isCollapsed && styles.fillSection}
+        >
+          <ScrollList isActive={!collapse.isCollapsed}>
+            {projects.length === 0 && !collapse.isCollapsed && (
               <Text type="supporting" color="secondary">
-                No chats yet
+                No projects yet
               </Text>
             )}
-            {collapse.isCollapsed ? (
-              // On the icon rail the chats are one icon with a flyout, the
-              // way a project's folder is when they're grouped.
-              <SideNavItem
-                label="Chats"
-                icon={MessagesSquare}
-                collapsible={false}
-              >
-                <VStack gap={1} xstyle={styles.nested}>
-                  {flatChats.map(conversationRow)}
-                </VStack>
-              </SideNavItem>
-            ) : (
-              <VStack gap={1} xstyle={styles.nested}>
-                {flatChats.map(conversationRow)}
-              </VStack>
+            {visibleProjects.map((p) => {
+              const boardChat = boardChatFor(p.path);
+              if (isFlat) {
+                // Flat: each project is just its board, named after it, with the
+                // project's ⋯ menu; its chats are in the Chats section below.
+                return (
+                  <RevealRow
+                    key={p.path}
+                    menuLabel="Project options"
+                    tooltip={p.path}
+                    items={[
+                      {
+                        label: "Remove project",
+                        icon: <FolderMinus size={14} />,
+                        variant: "destructive",
+                        onClick: () => setPendingRemove(p),
+                      },
+                    ]}
+                  >
+                    {({ actions }) => (
+                      <BoardRow
+                        label={p.name}
+                        summary={boardSummaries.find(
+                          (b) => b.projectRoot === p.path,
+                        )}
+                        chatId={boardChat?.id}
+                        isSelected={
+                          !!boardChat && boardChat.id === activeSessionId
+                        }
+                        onClick={() => void openProjectBoard(p.path)}
+                        actions={actions}
+                      />
+                    )}
+                  </RevealRow>
+                );
+              }
+              return (
+                <ProjectGroup
+                  key={p.path}
+                  project={p}
+                  isCollapsed={collapsedProjects.includes(p.path)}
+                  onCollapsedChange={(collapsed) =>
+                    setProjectCollapsed(p.path, collapsed)
+                  }
+                  onRemove={() => setPendingRemove(p)}
+                  isRail={collapse.isCollapsed}
+                >
+                  <VStack gap={1} xstyle={styles.nested}>
+                    <BoardRow
+                      summary={boardSummaries.find(
+                        (b) => b.projectRoot === p.path,
+                      )}
+                      chatId={boardChat?.id}
+                      isSelected={
+                        !!boardChat && boardChat.id === activeSessionId
+                      }
+                      onClick={() => void openProjectBoard(p.path)}
+                    />
+                    {chatsFor(p.path).map(conversationRow)}
+                  </VStack>
+                </ProjectGroup>
+              );
+            })}
+            {!collapse.isCollapsed && idleCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                label={
+                  idleExpanded ? "Show less" : `More projects (${idleCount})`
+                }
+                onClick={() => setIdleExpanded((v) => !v)}
+                xstyle={styles.showMore}
+              />
             )}
-          </SideNavSection>
-        </>
-      )}
+          </ScrollList>
+        </SideNavSection>
+        {isFlat && (
+          <>
+            <Divider />
+            <SideNavSection
+              title="Chats"
+              xstyle={!collapse.isCollapsed && styles.fillSection}
+            >
+              <ScrollList isActive={!collapse.isCollapsed}>
+                {flatChats.length === 0 && !collapse.isCollapsed && (
+                  <Text type="supporting" color="secondary">
+                    No chats yet
+                  </Text>
+                )}
+                {collapse.isCollapsed ? (
+                  // On the icon rail the chats are one icon with a flyout, the
+                  // way a project's folder is when they're grouped.
+                  <SideNavItem
+                    label="Chats"
+                    icon={MessagesSquare}
+                    collapsible={false}
+                  >
+                    <VStack gap={1} xstyle={styles.nested}>
+                      {flatChats.map(conversationRow)}
+                    </VStack>
+                  </SideNavItem>
+                ) : (
+                  <VStack gap={1} xstyle={styles.nested}>
+                    {flatChats.map(conversationRow)}
+                  </VStack>
+                )}
+              </ScrollList>
+            </SideNavSection>
+          </>
+        )}
+      </VStack>
       <DeleteConversationDialog
         conversation={pendingDelete}
         onCancel={() => setPendingDelete(null)}
