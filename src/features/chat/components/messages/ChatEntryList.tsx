@@ -23,9 +23,9 @@ import {
   groupActivity,
   groupEntries,
   hasTurnActivity,
-  isSubAgentResult,
   isVisibleFinalChunk,
   type RenderItem,
+  toRows,
 } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import ActivityGroup from "./ActivityGroup";
@@ -146,44 +146,6 @@ function useStickOnUserMessage(entries: PanelEntry[], stick: () => void) {
     }
     previous.current = userMessages;
   }, [userMessages, stick]);
-}
-
-// How the grouped items become `ChatMessageList` rows: a user message is
-// its own `ChatMessage`; another chat's message, a note, a local notice or
-// a sub-agent's result its own system row; and everything the agent did in
-// between (activity, folded work, reply text) one assistant `ChatMessage`,
-// so a turn's tool rows, prose and footer share one left edge.
-type Row =
-  | { kind: "user"; key: string; item: RenderItem }
-  | { kind: "system"; key: string; item: RenderItem }
-  | { kind: "assistant"; key: string; items: RenderItem[] };
-
-function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
-  const rows: Row[] = [];
-  for (const item of items) {
-    if (item.kind === "single") {
-      const entry = entries[item.index];
-      if (entry.kind === "text" && entry.role === "user" && !entry.from) {
-        rows.push({ kind: "user", key: itemKey(item), item });
-        continue;
-      }
-      // Another chat's message or note, a local notice, or a sub-agent's
-      // result: a line of its own, outside any agent turn.
-      if (
-        (entry.kind === "text" && entry.role === "user") ||
-        entry.kind === "note" ||
-        entry.kind === "info" ||
-        isSubAgentResult(entry)
-      ) {
-        rows.push({ kind: "system", key: itemKey(item), item });
-        continue;
-      }
-    }
-    const last = rows[rows.length - 1];
-    if (last?.kind === "assistant") last.items.push(item);
-    else rows.push({ kind: "assistant", key: itemKey(item), items: [item] });
-  }
-  return rows;
 }
 
 export interface ChatEntryListProps {

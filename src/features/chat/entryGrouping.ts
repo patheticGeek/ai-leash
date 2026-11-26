@@ -68,7 +68,9 @@ export function isSubAgentResult(entry: PanelEntry): boolean {
 // Groups runs of consecutive thinking/tool entries so the transcript can
 // show only the latest activity by default (see `ActivityGroup`) instead of
 // every individual step — a multi-step agent turn can otherwise bury the
-// actual conversation. Sub-agent entries (`isSubAgentEntry`) are never
+// actual conversation. Every run is a group, even of one step, so a run
+// keeps its item (and its `ActivityGroup`) as it grows; only a run of
+// `GROUP_MIN` or more steps hides any of them (`hiddenSteps`). Sub-agent entries (`isSubAgentEntry`) are never
 // grouped: each is its own `single` item and ends the run before it, so a
 // sub-agent's start and result always show as rows of their own (a start
 // can still sit inside a finished turn's `work` fold; a result never does).
@@ -94,6 +96,24 @@ export function groupActivity(
     }
   }
   return items;
+}
+
+// Below this many steps a run shows all of them and no "Show N more": a
+// button for one or two hidden rows would take about as much room as they do.
+export const GROUP_MIN = 3;
+
+// How many of a run's `length` steps `ActivityGroup` hides behind its
+// "Show N more" (all but the latest), or 0 for a run too short to collapse.
+export function hiddenSteps(length: number): number {
+  return length >= GROUP_MIN ? length - 1 : 0;
+}
+
+// The entry an item starts at; `entries` only ever grows, so this stays put
+// while the item grows or changes kind (a finished turn's work folding into
+// `work`), which makes it the key for a transcript row that must not
+// remount when that happens.
+export function firstIndex(item: RenderItem): number {
+  return item.kind === "single" ? item.index : item.indices[0];
 }
 
 // Like `groupActivity`, but a finished turn's work — everything between the
@@ -181,4 +201,51 @@ export function hasTurnActivity(entries: PanelEntry[]): boolean {
       last.kind === "thinking" ||
       last.kind === "tool")
   );
+}
+
+// How the grouped items become `ChatMessageList` rows: a user message is
+// its own `ChatMessage`; another chat's message, a note, a local notice or
+// a sub-agent's result its own system row; and everything the agent did in
+// between (activity, folded work, reply text) one assistant `ChatMessage`,
+// so a turn's tool rows, prose and footer share one left edge.
+export type Row =
+  | { kind: "user"; key: string; item: RenderItem }
+  | { kind: "system"; key: string; item: RenderItem }
+  | { kind: "assistant"; key: string; items: RenderItem[] };
+
+export function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
+  const rows: Row[] = [];
+  for (const item of items) {
+    if (item.kind === "single") {
+      const entry = entries[item.index];
+      if (entry.kind === "text" && entry.role === "user" && !entry.from) {
+        rows.push({ kind: "user", key: String(item.index), item });
+        continue;
+      }
+      // Another chat's message or note, a local notice, or a sub-agent's
+      // result: a line of its own, outside any agent turn.
+      if (
+        (entry.kind === "text" && entry.role === "user") ||
+        entry.kind === "note" ||
+        entry.kind === "info" ||
+        isSubAgentResult(entry)
+      ) {
+        rows.push({ kind: "system", key: String(item.index), item });
+        continue;
+      }
+    }
+    const last = rows[rows.length - 1];
+    if (last?.kind === "assistant") last.items.push(item);
+    // Keyed on the turn's first entry whatever its first item is, since
+    // that item changes kind as the turn finishes (its work folding into
+    // `work`): the row must not remount for that.
+    else {
+      rows.push({
+        kind: "assistant",
+        key: String(firstIndex(item)),
+        items: [item],
+      });
+    }
+  }
+  return rows;
 }
