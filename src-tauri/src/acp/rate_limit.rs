@@ -43,7 +43,8 @@ impl ResumeKind {
     }
 }
 
-/// The message sent when a limit resets. A limit is per account, but the
+/// The message sent when a limit resets. A limit belongs to the agent's
+/// login, so it lifts for every chat that uses the same agent, but the
 /// agent's own history still says its task chats and sub-agents were
 /// blocked too, so a bare "continue" let it conclude they still were and do
 /// their work itself. Followed task chats and sub-agents have no timer of
@@ -52,21 +53,21 @@ impl ResumeKind {
 fn resume_prompt(kind: ResumeKind) -> &'static str {
     match kind {
         ResumeKind::Chat => {
-            "The rate limit has reset, for this chat and for every other chat on this account, \
-             including task chats and sub-agents. Anything that failed or stopped because of it \
+            "The rate limit has reset, for this chat and for every other chat that uses the same \
+             agent, including task chats and sub-agents. Anything that failed or stopped because of it \
              can run again. Task chats you follow and sub-agents that stopped on the limit don't \
              resume on their own: message those task chats to carry on, and spawn sub-agents \
              again for work that didn't finish. Continue as you were, delegating as usual."
         }
         ResumeKind::TaskChat => {
-            "The rate limit has reset, for this task chat and for every other chat on this \
-             account, including the project chat, other task chats and sub-agents. Anything that \
+            "The rate limit has reset, for this task chat and for every other chat that uses \
+             the same agent, including the project chat, other task chats and sub-agents. Anything that \
              failed or stopped because of it can run again; spawn sub-agents again for work that \
              didn't finish. Continue as you were, delegating as usual."
         }
         ResumeKind::SubAgent => {
-            "The rate limit has reset, for this sub-agent and for every other chat on this \
-             account, including task chats and other sub-agents. Anything that failed or stopped \
+            "The rate limit has reset, for this sub-agent and for every other chat that uses \
+             the same agent, including task chats and other sub-agents. Anything that failed or stopped \
              because of it can run again. Continue as you were."
         }
     }
@@ -747,7 +748,10 @@ mod tests {
             let p = resume_prompt(kind);
             assert!(p.starts_with("The rate limit has reset, "), "{kind:?}");
             assert!(p.contains(noun), "{kind:?}");
-            assert!(p.contains("every other chat on this account"), "{kind:?}");
+            assert!(
+                p.contains("every other chat that uses the same agent"),
+                "{kind:?}"
+            );
             assert!(p.contains("task chats"), "{kind:?}");
             assert!(p.contains("sub-agents"), "{kind:?}");
             assert!(p.contains("Continue as you were"), "{kind:?}");

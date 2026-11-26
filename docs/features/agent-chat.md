@@ -619,9 +619,9 @@ armed, the banner counts down to it ("resuming in 1:42:07"), and **Don't
 resume** turns it off.
 
 The resume message tells the agent the limit has reset for this chat and for
-every other chat on the account, task chats and sub-agents included, so it
-doesn't go on believing (from its history before the limit) that they're
-still blocked and do their work itself. It names the conversation as a
+every other chat that uses the same agent, task chats and sub-agents
+included, so it doesn't go on believing (from its history before the limit)
+that they're still blocked and do their work itself. It names the conversation as a
 "chat", "task chat" or "sub-agent". A chat's message also says that task
 chats it follows and sub-agents that stopped on the limit don't resume on
 their own, so it should message those task chats and spawn sub-agents again
