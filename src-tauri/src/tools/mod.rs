@@ -1,5 +1,6 @@
 pub(crate) mod action_tools;
 pub(crate) mod board_tools;
+pub(crate) mod chat_info;
 mod fs_tools;
 pub(crate) mod guidance;
 pub(crate) mod guides;
@@ -136,6 +137,12 @@ pub async fn execute_tool(
         "list_agent_options" => sub_agent_tools::list_agent_options(state, backend.native()).await,
         "load_skill" => memory_tools::load_skill(state, session_id, &root, args),
         "read_guide" => guides::read_guide(args),
+        "chat_info" => Ok(chat_info::chat_info(
+            &state.db,
+            session_id,
+            &root,
+            crate::chat_context::AgentBackend::Native,
+        )),
         "create_action" => action_tools::create_action(app, state, session_id, &root, args).await,
         "run_action" => action_tools::run_action(app, &root, args),
         "stop_action" => action_tools::stop_action(app, &root, args),

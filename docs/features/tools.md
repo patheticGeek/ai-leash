@@ -77,6 +77,23 @@ These don't need an approval prompt: they change the board, not your
 files. Moving a task to Done removes its worktree, so the agent can only do
 that when nothing would be lost; otherwise it's left for you.
 
+### Check what its chat is right now
+
+Every chat, sub-agents included, has a `chat_info` tool that reads the
+chat's facts as they are now: its kind and project, for a task chat the
+task's number, title and status, its branch and worktree, and whether the
+project chat follows it or you've taken it over, plus the agent and model
+it runs on. What the agent is told about its chat at the start (see [What
+the agent is told about its
+chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)) can
+go stale over a long run or after a compaction, so the guidance tells it
+to re-check with this instead. The built-in agent answers it from the
+database (`tools/chat_info.rs`, loading a fresh `ChatContext`); an
+external agent's MCP bridge relays it to the app over the same loopback
+connection as the board tools (`mcp_bridge::server`), since the context it
+was started with (`AI_LEASH_CHAT_CONTEXT`) is a snapshot from connect
+time. It needs no approval.
+
 ### Use project skills
 
 Projects may provide optional skills with specialized instructions. The
@@ -110,7 +127,7 @@ instructions are added after this guidance, so they can refine or override it.
 
 External agents connected over ACP get the same guidance, from the same
 builder, for the AI Leash tools they can reach (Actions, memory, sub-agents,
-the board and `read_guide`), with the same "This chat" section and guide
+the board, `read_guide` and `chat_info`), with the same "This chat" section and guide
 pointers, when they connect, including a preference for those over their own
 built-in equivalents so the work shows up in the app. Instead of the lists,
 they're told how many Actions and skills exist and which tool lists them

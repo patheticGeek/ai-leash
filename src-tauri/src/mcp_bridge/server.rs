@@ -1,6 +1,7 @@
 use super::{BridgeRequest, BridgeResponse, McpBridgeInfo};
 use crate::acp::AcpBackend;
 use crate::backend::Backend;
+use crate::chat_context::AgentBackend;
 use crate::state::AppState;
 use crate::tools;
 use std::io;
@@ -94,6 +95,7 @@ const RELAYED_TOOLS: &[&str] = &[
     "stop_action",
     "list_actions",
     "read_action",
+    "chat_info",
 ];
 
 async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
@@ -105,6 +107,15 @@ async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
     }
 
     let state = app.state::<AppState>();
+    // Answered here rather than by `execute_tool`, which assumes a native
+    // agent is asking.
+    if name == "chat_info" {
+        let root = crate::commands::get_session_root(&state, &req.session_id).unwrap_or_default();
+        let result =
+            tools::chat_info::chat_info(&state.db, &req.session_id, &root, AgentBackend::Acp);
+        return BridgeResponse::Ok { result };
+    }
+
     let Some(session) = state
         .acp_sessions
         .lock()
