@@ -66,5 +66,7 @@ export const qk = {
   backend: (id: string) => ["backend", id] as const,
   backendHealth: (id: string) => ["backend", id, "health"] as const,
   backendModels: (id: string) => ["backend", id, "models"] as const,
+  modelVision: (id: string, model: string) =>
+    ["backend", id, "vision", model] as const,
   systemFonts: ["system-fonts"] as const,
 };

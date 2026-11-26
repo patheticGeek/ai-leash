@@ -3,6 +3,7 @@ import ClaudeRateLimitBanner, {
   type ClaudeRateLimit,
 } from "./ClaudeRateLimitBanner";
 import HelpBanner from "./HelpBanner";
+import NoVisionBanner from "./NoVisionBanner";
 import SubAgentsBanner from "./SubAgentsBanner";
 import TaskLinkBanner from "./TaskLinkBanner";
 import TranscriptNotices, {
@@ -20,11 +21,14 @@ export interface ChatBannersProps {
   helpOpen: boolean;
   commands: AcpCommandInfo[];
   onCloseHelp: () => void;
+  // Images are attached and this model can't see them.
+  noVisionModel?: string | null;
 }
 
 // Every notice above the composer, in one stack ordered by severity, top to
 // bottom: errors (provider error, failed restore), then warnings (history
-// not shared, Claude's session limit), then info (task link, "/help"). The
+// not shared, a model that can't see the attached images, Claude's session
+// limit), then info (task link, "/help"). The
 // Banner's `status` is the severity: error = something broke, warning =
 // needs a decision, info = state you can change. The theme backs banner
 // frames with the solid card surface, so they read over the transcript.
@@ -39,11 +43,13 @@ export default function ChatBanners({
   helpOpen,
   commands,
   onCloseHelp,
+  noVisionModel,
 }: ChatBannersProps) {
   return (
     <>
       {notices && <TranscriptNotices {...notices} severity="error" />}
       {notices && <TranscriptNotices {...notices} severity="warning" />}
+      {noVisionModel && <NoVisionBanner model={noVisionModel} />}
       {claudeRateLimit && (
         <ClaudeRateLimitBanner
           rateLimit={claudeRateLimit}

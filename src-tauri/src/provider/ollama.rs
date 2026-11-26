@@ -2,6 +2,7 @@
 //! tool_calls sent whole (not incrementally) right before the final `done`.
 
 use super::client::{BackendError, ModelClient, TurnRequest};
+use super::wire::{self, ImageMode};
 use super::{emit_line_effects, ChunkPersister, LineEffects, ModelSummary, ProviderConfig};
 use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
@@ -40,6 +41,10 @@ impl ModelClient for OllamaClient {
         Box::pin(async move { list_ollama_models(&self.host).await.is_ok() })
     }
 
+    fn supports_vision<'a>(&'a self, model: &'a str) -> BoxFuture<'a, Option<bool>> {
+        Box::pin(ollama_vision(&self.host, model))
+    }
+
     fn complete<'a>(
         &'a self,
         model: &'a str,
@@ -63,6 +68,7 @@ async fn complete_ollama(
 ) -> Result<String, BackendError> {
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
+    let messages = wire::messages(messages, ImageMode::Text);
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
     let resp = client
         .post(format!("{base_url}/api/chat"))
@@ -90,6 +96,42 @@ async fn complete_ollama(
         .and_then(|c| c.as_str())
         .map(str::to_string)
         .ok_or_else(|| BackendError::Fatal("ollama response had no message content".to_string()))
+}
+
+/// Whether `model` lists `vision` among its capabilities (`/api/show`),
+/// remembered per host and model. `None` when Ollama can't be asked or is
+/// too old to report capabilities; not remembered then, so it's asked again.
+async fn ollama_vision(host: &str, model: &str) -> Option<bool> {
+    let base_url = ProviderConfig::ollama_base_url(host);
+    let key = wire::vision_key(&base_url, model);
+    if let Some(known) = wire::vision_known(&key) {
+        return Some(known);
+    }
+    if model.is_empty() {
+        return None;
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+    let resp = client
+        .post(format!("{base_url}/api/show"))
+        .json(&serde_json::json!({ "model": model }))
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let value: Value = resp.json().await.ok()?;
+    let vision = vision_from_show(&value)?;
+    wire::remember_vision(key, vision);
+    Some(vision)
+}
+
+fn vision_from_show(show: &Value) -> Option<bool> {
+    let capabilities = show.get("capabilities")?.as_array()?;
+    Some(capabilities.iter().any(|c| c.as_str() == Some("vision")))
 }
 
 async fn list_ollama_models(host: &str) -> Result<Vec<ModelSummary>, BackendError> {
@@ -132,7 +174,7 @@ struct OllamaModelDetails {
 #[derive(Serialize)]
 struct OllamaChatRequest<'a> {
     model: &'a str,
-    messages: &'a [ChatMessage],
+    messages: Vec<Value>,
     stream: bool,
     tools: Value,
 }
@@ -223,11 +265,19 @@ async fn stream_turn_ollama(
         message_id,
         effort: _,
     } = request;
+    // A model known not to see images gets them described instead; Ollama
+    // would otherwise drop them without a word.
+    let image_mode = if wire::has_images(history) && ollama_vision(host, model).await == Some(false)
+    {
+        ImageMode::Text
+    } else {
+        ImageMode::Ollama
+    };
     let base_url = ProviderConfig::ollama_base_url(host);
     let client = reqwest::Client::new();
     let body = OllamaChatRequest {
         model,
-        messages: history,
+        messages: wire::messages(history, image_mode),
         stream: true,
         tools: tools::tool_definitions(root, touched_dirs, chat),
     };
@@ -338,6 +388,20 @@ mod tests {
         let calls = accum.tool_calls.expect("tool calls");
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].function.name, "read_file");
+    }
+
+    #[test]
+    fn vision_comes_from_show_capabilities() {
+        let show = |v: Value| vision_from_show(&v);
+        assert_eq!(
+            show(serde_json::json!({"capabilities": ["completion", "vision"]})),
+            Some(true)
+        );
+        assert_eq!(
+            show(serde_json::json!({"capabilities": ["completion", "tools"]})),
+            Some(false)
+        );
+        assert_eq!(show(serde_json::json!({"details": {}})), None);
     }
 
     #[test]

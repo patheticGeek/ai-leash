@@ -327,6 +327,33 @@ export function useBackendModels(): Record<string, ModelSummary[]> {
 }
 
 /**
+ * Whether `model` on native backend `backendId` accepts images: null until
+ * known, and always for an ACP agent (#75 handles those) or an
+ * OpenAI-compatible host that hasn't yet refused one (Rust learns it from
+ * the refusal, then sends images as path lines). Asked only while
+ * `enabled` (images are attached), and again each time it turns on.
+ */
+export function useModelVision(
+  backendId: string,
+  model: string,
+  enabled: boolean,
+): boolean | null {
+  const { data } = useQuery({
+    queryKey: qk.modelVision(backendId, model),
+    queryFn: async () => {
+      try {
+        return await api.modelSupportsVision(backendId, model);
+      } catch {
+        return null;
+      }
+    },
+    enabled: enabled && !!backendId && !!model,
+    staleTime: 0,
+  });
+  return data ?? null;
+}
+
+/**
  * Whether `config` currently answers its connection check: `null` until the
  * first check lands, or for a backend that isn't checked. Polled only while
  * something is observing it (the open conversation's backend).

@@ -552,6 +552,21 @@ pub async fn list_backend_models(
         .map_err(|e| e.message().to_string())
 }
 
+/// Whether `model` on native backend `backend_id` accepts images — what the
+/// composer warns from when images are attached. `None` when it can't be
+/// told (an ACP agent, an OpenAI-compatible host that hasn't refused one).
+#[tauri::command]
+pub async fn model_supports_vision(
+    state: State<'_, AppState>,
+    backend_id: String,
+    model: String,
+) -> Result<Option<bool>, String> {
+    let Ok(provider) = provider_for(&state, &backend_id) else {
+        return Ok(None);
+    };
+    Ok(provider.client().supports_vision(&model).await)
+}
+
 /// Reachability for a native backend's health indicator — any HTTP response
 /// counts: this checks the host, not the credentials.
 #[tauri::command]

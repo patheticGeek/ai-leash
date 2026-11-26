@@ -3,6 +3,7 @@
 //! and must be concatenated before parsing as JSON.
 
 use super::client::{BackendError, ModelClient, TurnRequest};
+use super::wire::{self, ImageMode};
 use super::{emit_line_effects, ChunkPersister, LineEffects, ModelSummary};
 use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
@@ -47,6 +48,16 @@ impl ModelClient for OpenAiCompatClient {
             &self.base_url,
             &self.api_key,
         ))
+    }
+
+    fn supports_vision<'a>(&'a self, model: &'a str) -> BoxFuture<'a, Option<bool>> {
+        // No standard way to ask: known only once the host refused an image
+        // (`stream_turn_openai`).
+        let known = wire::vision_known(&wire::vision_key(
+            self.base_url.trim_end_matches('/'),
+            model,
+        ));
+        Box::pin(async move { known })
     }
 
     fn complete<'a>(
@@ -97,6 +108,7 @@ async fn complete_openai(
 ) -> Result<String, BackendError> {
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
+    let messages = wire::messages(messages, ImageMode::Text);
     let body = serde_json::json!({ "model": model, "messages": messages, "stream": false });
     let mut request = client
         .post(format!("{base_url}/chat/completions"))
@@ -135,7 +147,7 @@ async fn complete_openai(
 #[derive(Serialize)]
 struct OpenAiChatRequest<'a> {
     model: &'a str,
-    messages: &'a [ChatMessage],
+    messages: Vec<Value>,
     stream: bool,
     tools: Value,
     stream_options: Value,
@@ -296,6 +308,19 @@ fn accumulate_openai_data(data: &str, accum: &mut OpenAiAccum) -> Vec<LineEffect
     effects
 }
 
+/// Whether an error response is the host turning down image input. Hosts
+/// word it differently ("does not support image input", "image_url is only
+/// supported by certain models", "multimodal"), so this goes by a 4xx that
+/// talks about images at all.
+fn refuses_images(status: reqwest::StatusCode, body: &str) -> bool {
+    let body = body.to_ascii_lowercase();
+    status.is_client_error()
+        && !matches!(status.as_u16(), 401 | 403 | 429)
+        && ["image", "vision", "multimodal", "multi-modal"]
+            .iter()
+            .any(|w| body.contains(w))
+}
+
 async fn stream_turn_openai(
     base_url: &str,
     api_key: &str,
@@ -317,40 +342,62 @@ async fn stream_turn_openai(
     } = request;
     let base_url = base_url.trim_end_matches('/');
     let client = reqwest::Client::new();
-    let body = OpenAiChatRequest {
-        model,
-        messages: history,
-        stream: true,
-        tools: tools::tool_definitions(root, touched_dirs, chat),
-        stream_options: serde_json::json!({ "include_usage": true }),
-        reasoning_effort: effort,
+    let vision_key = wire::vision_key(base_url, model);
+    let mut image_mode = if wire::vision_known(&vision_key) == Some(false) {
+        ImageMode::Text
+    } else {
+        ImageMode::OpenAi
     };
-    let mut request = client
-        .post(format!("{base_url}/chat/completions"))
-        .header("Accept", "text/event-stream")
-        .json(&body);
-    if !api_key.is_empty() {
-        request = request.header("Authorization", format!("Bearer {api_key}"));
-    }
-    let resp = match request.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            return Err(BackendError::Unreachable(format!(
-                "failed to reach {base_url}: {e}"
-            )));
+    let tools = tools::tool_definitions(root, touched_dirs, chat);
+    let resp = loop {
+        let body = OpenAiChatRequest {
+            model,
+            messages: wire::messages(history, image_mode),
+            stream: true,
+            tools: tools.clone(),
+            stream_options: serde_json::json!({ "include_usage": true }),
+            reasoning_effort: effort,
+        };
+        let mut request = client
+            .post(format!("{base_url}/chat/completions"))
+            .header("Accept", "text/event-stream")
+            .json(&body);
+        if !api_key.is_empty() {
+            request = request.header("Authorization", format!("Bearer {api_key}"));
         }
-    };
-
-    if !resp.status().is_success() {
+        let resp = match request.send().await {
+            Ok(r) => r,
+            Err(e) => {
+                return Err(BackendError::Unreachable(format!(
+                    "failed to reach {base_url}: {e}"
+                )));
+            }
+        };
+        if resp.status().is_success() {
+            break resp;
+        }
         let status = resp.status();
         let body_text = resp.text().await.unwrap_or_default();
-        let msg = format!("provider returned {status}: {body_text}");
+        // The model can't take the images we sent: remember that (the
+        // composer warns from it) and send this turn again with each image
+        // described in a line instead.
+        if image_mode == ImageMode::OpenAi
+            && wire::has_images(history)
+            && refuses_images(status, &body_text)
+        {
+            wire::remember_vision(vision_key.clone(), false);
+            image_mode = ImageMode::Text;
+            continue;
+        }
         return Err(BackendError::from_status(
             status,
-            msg,
+            format!("provider returned {status}: {body_text}"),
             false,
             RETRY_SERVER_ERRORS,
         ));
+    };
+    if image_mode == ImageMode::OpenAi && wire::has_images(history) {
+        wire::remember_vision(vision_key, true);
     }
 
     let mut stream = resp.bytes_stream();
@@ -413,6 +460,25 @@ async fn stream_turn_openai(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_refusals_are_told_apart() {
+        let bad = reqwest::StatusCode::BAD_REQUEST;
+        assert!(refuses_images(
+            bad,
+            r#"{"error":{"message":"This model does not support image input"}}"#
+        ));
+        assert!(refuses_images(
+            bad,
+            "Invalid content type. image_url is only supported by certain models."
+        ));
+        assert!(!refuses_images(bad, "context length exceeded"));
+        assert!(!refuses_images(reqwest::StatusCode::UNAUTHORIZED, "image"));
+        assert!(!refuses_images(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            "image"
+        ));
+    }
 
     #[test]
     fn openai_concatenates_incremental_tool_call_arguments_by_index() {

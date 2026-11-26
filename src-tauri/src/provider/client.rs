@@ -101,7 +101,15 @@ pub trait ModelClient: Send + Sync {
     /// 401: this checks reachability, not credentials.
     fn check_connection(&self) -> BoxFuture<'_, bool>;
 
+    /// Whether `model` accepts images: `None` when the provider can't say
+    /// (yet) — images are sent then, and the answer learned from a refusal.
+    /// The composer warns on `Some(false)`; the turn then describes each
+    /// image in a line instead of sending it (`wire::ImageMode::Text`).
+    fn supports_vision<'a>(&'a self, model: &'a str) -> BoxFuture<'a, Option<bool>>;
+
     /// One non-streaming, tool-free completion (`/compact`'s summary).
+    /// Attachments go as text only (images described in a line), so a
+    /// summary never fails over a model's vision.
     fn complete<'a>(
         &'a self,
         model: &'a str,

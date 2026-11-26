@@ -605,6 +605,9 @@ export const api = {
     invoke<BackendRegistry>("set_default_backend", { id }),
   listBackendModels: (backendId: string) =>
     invoke<ModelSummary[]>("list_backend_models", { backendId }),
+  // Whether `model` accepts images; null when it can't be told.
+  modelSupportsVision: (backendId: string, model: string) =>
+    invoke<boolean | null>("model_supports_vision", { backendId, model }),
   checkBackendConnection: (backendId: string) =>
     invoke<boolean>("check_backend_connection", { backendId }),
   loadConversationHistory: (sessionId: string) =>

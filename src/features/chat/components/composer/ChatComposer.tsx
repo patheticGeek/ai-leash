@@ -10,6 +10,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { Clock, MessageSquare, Paperclip } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useModelVision } from "@/data/backends";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { rememberMention } from "@/lib/mentions";
@@ -466,6 +467,12 @@ export default function ChatComposer({
   }
 
   const usedTokens = usage ? usage.prompt + usage.completion : null;
+  const hasImages = attach.attachments.some((a) => a.kind === "image");
+  const vision = useModelVision(
+    backend.kind === "acp" ? "" : backend.id,
+    model,
+    hasImages,
+  );
   const hasAttachments =
     attach.attachments.length > 0 || attach.pending.length > 0;
   const hasContent = input.trim().length > 0 || attach.attachments.length > 0;
@@ -496,6 +503,7 @@ export default function ChatComposer({
         helpOpen={helpOpen}
         commands={allCommands}
         onCloseHelp={() => setHelpOpen(false)}
+        noVisionModel={hasImages && vision === false ? model : null}
       />
       <VStack gap={2}>
         {pendingPermission ? (
