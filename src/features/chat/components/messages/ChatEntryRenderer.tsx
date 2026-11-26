@@ -82,8 +82,8 @@ function mentionsNotInline(content: string, mentions: string[]) {
 // chat sent, and a note, is a collapsed `InterChatMessage` line; an
 // assistant reply is a full-width ghost bubble; local notices and sub-agent
 // results (`SubAgentResult`) are `SystemNotice`s; a
-// sub-agent's start is a one-row `ChatToolCalls` (every other thinking/tool
-// step goes through `ActivityGroup`, see `toDisplayItems`). Also reused as-is by `SubAgentChatTab.tsx` (via
+// lone thinking/tool entry is a one-row `ChatToolCalls` (runs of them go
+// through `ActivityGroup`). Also reused as-is by `SubAgentChatTab.tsx` (via
 // `ChatEntryList`) with `allowRetry` off. `memo`'d: while a reply streams
 // only the entry it grows gets a new object (`chatEntries.ts`), so every
 // other row skips the re-render, given the stable props `ChatEntryList`

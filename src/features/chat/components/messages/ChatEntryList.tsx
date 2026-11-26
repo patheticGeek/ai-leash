@@ -20,15 +20,12 @@ import { uiBlocksToText } from "@/lib/uiSpec";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import {
   type ActivityItem,
-  type DisplayItem,
-  firstIndex,
   groupActivity,
   groupEntries,
   hasTurnActivity,
-  isSubAgentResult,
   isVisibleFinalChunk,
   type RenderItem,
-  toDisplayItems,
+  toRows,
 } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import ActivityGroup from "./ActivityGroup";
@@ -114,14 +111,11 @@ const styles = stylex.create({
 // per render, so the `memo`'d rows don't re-render for it.
 function noop() {}
 
-// Keyed on an item's first index (`firstIndex`), which stays stable as long
-// as `entries` only ever grows (it does). A short run's `steps` and the
-// `activitygroup` it grows into share one key, so its `ActivityGroup` stays
-// mounted when the third step arrives.
-function itemKey(item: DisplayItem): string {
+// Keyed on an item's first index, which stays stable as long as `entries`
+// only ever grows (it does).
+function itemKey(item: RenderItem): string {
   if (item.kind === "single") return String(item.index);
-  const kind = item.kind === "work" ? "work" : "run";
-  return `${kind}-${item.indices[0]}`;
+  return `${item.kind}-${item.indices[0]}`;
 }
 
 // Whether the viewport is scrolled away from its top (drives the top fade).
@@ -152,53 +146,6 @@ function useStickOnUserMessage(entries: PanelEntry[], stick: () => void) {
     }
     previous.current = userMessages;
   }, [userMessages, stick]);
-}
-
-// How the grouped items become `ChatMessageList` rows: a user message is
-// its own `ChatMessage`; another chat's message, a note, a local notice or
-// a sub-agent's result its own system row; and everything the agent did in
-// between (activity, folded work, reply text) one assistant `ChatMessage`,
-// so a turn's tool rows, prose and footer share one left edge.
-type Row =
-  | { kind: "user"; key: string; item: RenderItem }
-  | { kind: "system"; key: string; item: RenderItem }
-  | { kind: "assistant"; key: string; items: RenderItem[] };
-
-function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
-  const rows: Row[] = [];
-  for (const item of items) {
-    if (item.kind === "single") {
-      const entry = entries[item.index];
-      if (entry.kind === "text" && entry.role === "user" && !entry.from) {
-        rows.push({ kind: "user", key: String(item.index), item });
-        continue;
-      }
-      // Another chat's message or note, a local notice, or a sub-agent's
-      // result: a line of its own, outside any agent turn.
-      if (
-        (entry.kind === "text" && entry.role === "user") ||
-        entry.kind === "note" ||
-        entry.kind === "info" ||
-        isSubAgentResult(entry)
-      ) {
-        rows.push({ kind: "system", key: String(item.index), item });
-        continue;
-      }
-    }
-    const last = rows[rows.length - 1];
-    if (last?.kind === "assistant") last.items.push(item);
-    // Keyed on the turn's first entry whatever its item is, which changes
-    // kind as the turn goes on (a step becoming part of an `activitygroup`,
-    // the work folding into `work`): the row must not remount for that.
-    else {
-      rows.push({
-        kind: "assistant",
-        key: String(firstIndex(item)),
-        items: [item],
-      });
-    }
-  }
-  return rows;
 }
 
 export interface ChatEntryListProps {
@@ -317,8 +264,8 @@ export default function ChatEntryList({
     );
   }
 
-  function renderActivity(item: DisplayItem<ActivityItem>): ReactNode {
-    return item.kind !== "single" ? (
+  function renderActivity(item: ActivityItem): ReactNode {
+    return item.kind === "activitygroup" ? (
       <ActivityGroup
         key={itemKey(item)}
         entries={entries}
@@ -329,7 +276,7 @@ export default function ChatEntryList({
     );
   }
 
-  function renderItem(item: DisplayItem): ReactNode {
+  function renderItem(item: RenderItem): ReactNode {
     if (item.kind !== "work") return renderActivity(item);
     return (
       <WorkSummary
@@ -340,9 +287,7 @@ export default function ChatEntryList({
           item.replyIndex === null ? undefined : turnDurations[item.replyIndex]
         }
       >
-        {toDisplayItems(entries, groupActivity(entries, item.indices)).map(
-          renderActivity,
-        )}
+        {groupActivity(entries, item.indices).map(renderActivity)}
       </WorkSummary>
     );
   }
@@ -433,7 +378,7 @@ export default function ChatEntryList({
                     }
                     return (
                       <ChatMessage key={row.key} sender="assistant">
-                        {toDisplayItems(entries, row.items).map(renderItem)}
+                        {row.items.map(renderItem)}
                         {workingInLastRow && r === rows.length - 1 && working}
                       </ChatMessage>
                     );

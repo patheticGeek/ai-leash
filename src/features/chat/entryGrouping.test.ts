@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  firstIndex,
+  GROUP_MIN,
   groupActivity,
   groupEntries,
-  toDisplayItems,
+  hiddenSteps,
+  toRows,
 } from "./entryGrouping";
 import type { PanelEntry } from "./hooks/useChatStream";
 
@@ -32,143 +33,87 @@ const thinking = (): PanelEntry => ({
 });
 
 describe("groupActivity", () => {
-  it("leaves a lone tool call as a single row", () => {
+  it("makes a lone step a group of one", () => {
     expect(groupActivity([user(), tool(), reply()])).toEqual([
       { kind: "single", index: 0 },
-      { kind: "single", index: 1 },
+      { kind: "activitygroup", indices: [1] },
       { kind: "single", index: 2 },
     ]);
   });
 
-  it("leaves two consecutive steps as two single rows", () => {
-    expect(groupActivity([user(), thinking(), tool(), reply()])).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "single", index: 1 },
-      { kind: "single", index: 2 },
-      { kind: "single", index: 3 },
-    ]);
-  });
-
-  it("groups a run of three or more steps", () => {
+  it("groups every run of consecutive steps, short or long", () => {
     expect(
-      groupActivity([user(), thinking(), tool(), tool(), tool(), reply()]),
+      groupActivity([thinking(), tool(), reply(), tool(), tool(), tool()]),
     ).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "activitygroup", indices: [1, 2, 3, 4] },
-      { kind: "single", index: 5 },
-    ]);
-  });
-
-  it("groups a run of three at the end of the entries", () => {
-    expect(groupActivity([user(), tool(), tool(), tool()])).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "activitygroup", indices: [1, 2, 3] },
-    ]);
-  });
-
-  it("counts each run separately around text", () => {
-    expect(
-      groupActivity([tool(), tool(), reply(), tool(), tool(), tool()]),
-    ).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "single", index: 1 },
+      { kind: "activitygroup", indices: [0, 1] },
       { kind: "single", index: 2 },
       { kind: "activitygroup", indices: [3, 4, 5] },
     ]);
   });
 
-  it("splits runs at a sub-agent entry, which is never grouped", () => {
+  it("splits runs at a sub-agent start, which is never grouped", () => {
     expect(
-      groupActivity([
-        tool(),
-        tool(),
-        tool("spawn_sub_agent"),
-        tool(),
-        tool(),
-        tool(),
-      ]),
+      groupActivity([tool(), tool("spawn_sub_agent"), tool(), tool()]),
     ).toEqual([
-      { kind: "single", index: 0 },
+      { kind: "activitygroup", indices: [0] },
       { kind: "single", index: 1 },
-      { kind: "single", index: 2 },
-      { kind: "activitygroup", indices: [3, 4, 5] },
+      { kind: "activitygroup", indices: [2, 3] },
     ]);
   });
 
   it("only groups the given indices", () => {
-    const entries = [tool(), tool(), tool(), tool()];
-    expect(groupActivity(entries, [1, 2])).toEqual([
-      { kind: "single", index: 1 },
-      { kind: "single", index: 2 },
-    ]);
-    expect(groupActivity(entries, [0, 1, 2])).toEqual([
-      { kind: "activitygroup", indices: [0, 1, 2] },
-    ]);
-  });
-});
-
-describe("groupEntries", () => {
-  it("still folds a finished turn's work, however short", () => {
-    expect(groupEntries([user(), tool(), reply()], false, true)).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "work", indices: [1], replyIndex: 2 },
-      { kind: "single", index: 2 },
+    expect(groupActivity([tool(), tool(), tool()], [1, 2])).toEqual([
+      { kind: "activitygroup", indices: [1, 2] },
     ]);
   });
 
-  it("leaves the in-flight turn's short run as single rows", () => {
-    expect(groupEntries([user(), tool(), tool()], true, true)).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "single", index: 1 },
-      { kind: "single", index: 2 },
-    ]);
-  });
-});
-
-describe("toDisplayItems", () => {
-  it("puts a short run's single steps back together", () => {
-    const entries = [user(), thinking(), tool(), reply()];
-    expect(toDisplayItems(entries, groupActivity(entries))).toEqual([
-      { kind: "single", index: 0 },
-      { kind: "steps", indices: [1, 2] },
-      { kind: "single", index: 3 },
-    ]);
-  });
-
-  it("keeps a sub-agent start a single of its own", () => {
-    const entries = [tool(), tool("spawn_sub_agent"), tool()];
-    expect(toDisplayItems(entries, groupActivity(entries))).toEqual([
-      { kind: "steps", indices: [0] },
-      { kind: "single", index: 1 },
-      { kind: "steps", indices: [2] },
-    ]);
-  });
-});
-
-describe("firstIndex", () => {
-  // The assistant row and the run inside it are keyed on it, so neither
-  // remounts as a streamed turn grows.
-  it("stays put while a turn's opening run grows into a group", () => {
+  it("keeps a growing run's item, so its group stays the same one", () => {
     const entries: PanelEntry[] = [user()];
-    const starts: number[] = [];
-    const runStarts: number[] = [];
-    for (let n = 0; n < 4; n++) {
+    for (let n = 1; n <= 4; n++) {
       entries.push(tool(`t${n}`));
-      const items = groupEntries(entries, true, true);
-      starts.push(firstIndex(items[1]));
-      const display = toDisplayItems(entries, items);
-      runStarts.push(firstIndex(display[1]));
+      const items = groupActivity(entries);
+      expect(items[1]).toMatchObject({ kind: "activitygroup" });
+      expect(items[1]).toHaveProperty("indices.0", 1);
     }
-    expect(starts).toEqual([1, 1, 1, 1]);
-    expect(runStarts).toEqual([1, 1, 1, 1]);
+  });
+});
+
+describe("hiddenSteps", () => {
+  it("hides nothing below GROUP_MIN steps", () => {
+    expect(GROUP_MIN).toBe(3);
+    expect(hiddenSteps(1)).toBe(0);
+    expect(hiddenSteps(2)).toBe(0);
   });
 
-  it("stays put when the finished turn folds into work", () => {
-    const entries = [user(), tool(), tool(), tool(), reply()];
-    const running = groupEntries(entries, true, true);
+  it("hides all but the latest from GROUP_MIN steps on", () => {
+    expect(hiddenSteps(3)).toBe(2);
+    expect(hiddenSteps(7)).toBe(6);
+  });
+});
+
+describe("toRows", () => {
+  it("keeps the assistant row's key while its turn grows and folds", () => {
+    const entries: PanelEntry[] = [user()];
+    const keys: string[] = [];
+    for (const entry of [tool(), tool(), tool(), reply()]) {
+      entries.push(entry);
+      keys.push(toRows(entries, groupEntries(entries, true, true))[1].key);
+    }
+    // The finished turn: its work is now a `work` fold, not an activity run.
     const done = groupEntries(entries, false, true);
-    expect(running[1].kind).toBe("activitygroup");
-    expect(done[1].kind).toBe("work");
-    expect(firstIndex(done[1])).toBe(firstIndex(running[1]));
+    expect(done[1]).toMatchObject({ kind: "work" });
+    keys.push(toRows(entries, done)[1].key);
+    expect(new Set(keys)).toEqual(new Set(["1"]));
+  });
+
+  it("starts a new assistant row after each user message", () => {
+    const entries = [user(), tool(), reply(), user(), tool(), reply()];
+    const rows = toRows(entries, groupEntries(entries, false, true));
+    expect(rows.map((r) => [r.kind, r.key])).toEqual([
+      ["user", "0"],
+      ["assistant", "1"],
+      ["user", "3"],
+      ["assistant", "4"],
+    ]);
   });
 });
