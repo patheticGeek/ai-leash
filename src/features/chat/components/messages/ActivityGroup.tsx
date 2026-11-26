@@ -10,6 +10,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { memo, useState } from "react";
+import { GROUP_MIN } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { toolCallFor } from "./toolCalls";
 import { turnInset } from "./turnInset";
@@ -45,18 +46,21 @@ interface ActivityGroupProps {
   indices: number[];
 }
 
-// A run of three or more consecutive thinking/tool entries
-// (`groupActivity`; shorter runs are `single` rows): one
-// `ChatToolCalls` row per step, collapsed to just the latest step, with a
-// "Show N more" button under it that lists the earlier ones above it and
-// turns into "Show less". It never opens on its own, even while the run is
-// still growing. The rows and the button sit on the turn's left edge
-// (`turnInset`). Its parent keys it on the run's first index, which stays stable as long as `entries` only ever grows (it
-// does), so the expanded state can live here.
+// A run of consecutive thinking/tool entries: one `ChatToolCalls` row per
+// step. A run of `GROUP_MIN` or more (an `activitygroup`) is collapsed to
+// just the latest step, with a "Show N more" button under it that lists the
+// earlier ones above it and turns into "Show less"; it never opens on its
+// own, even while the run is still growing. A shorter run (`groupActivity`'s
+// `single` steps, put back together by `toDisplayItems`) shows all its rows
+// and no button, in the same frame. The rows and the button sit on the
+// turn's left edge (`turnInset`). Its parent keys it on the run's first
+// index, which stays stable as long as `entries` only ever grows (it does),
+// also when a short run grows into a group, so the expanded state can live
+// here.
 function ActivityGroup({ entries, indices }: ActivityGroupProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const last = entries.length - 1;
-  const hidden = indices.length - 1;
+  const hidden = indices.length >= GROUP_MIN ? indices.length - 1 : 0;
   const visible = hidden > 0 && !isExpanded ? indices.slice(-1) : indices;
   return (
     <VStack xstyle={styles.group}>

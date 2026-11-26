@@ -20,12 +20,15 @@ import { uiBlocksToText } from "@/lib/uiSpec";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import {
   type ActivityItem,
+  type DisplayItem,
+  firstIndex,
   groupActivity,
   groupEntries,
   hasTurnActivity,
   isSubAgentResult,
   isVisibleFinalChunk,
   type RenderItem,
+  toDisplayItems,
 } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import ActivityGroup from "./ActivityGroup";
@@ -111,11 +114,14 @@ const styles = stylex.create({
 // per render, so the `memo`'d rows don't re-render for it.
 function noop() {}
 
-// Keyed on an item's first index, which stays stable as long as `entries`
-// only ever grows (it does).
-function itemKey(item: RenderItem): string {
+// Keyed on an item's first index (`firstIndex`), which stays stable as long
+// as `entries` only ever grows (it does). A short run's `steps` and the
+// `activitygroup` it grows into share one key, so its `ActivityGroup` stays
+// mounted when the third step arrives.
+function itemKey(item: DisplayItem): string {
   if (item.kind === "single") return String(item.index);
-  return `${item.kind}-${item.indices[0]}`;
+  const kind = item.kind === "work" ? "work" : "run";
+  return `${kind}-${item.indices[0]}`;
 }
 
 // Whether the viewport is scrolled away from its top (drives the top fade).
@@ -164,7 +170,7 @@ function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
     if (item.kind === "single") {
       const entry = entries[item.index];
       if (entry.kind === "text" && entry.role === "user" && !entry.from) {
-        rows.push({ kind: "user", key: itemKey(item), item });
+        rows.push({ kind: "user", key: String(item.index), item });
         continue;
       }
       // Another chat's message or note, a local notice, or a sub-agent's
@@ -175,13 +181,22 @@ function toRows(entries: PanelEntry[], items: RenderItem[]): Row[] {
         entry.kind === "info" ||
         isSubAgentResult(entry)
       ) {
-        rows.push({ kind: "system", key: itemKey(item), item });
+        rows.push({ kind: "system", key: String(item.index), item });
         continue;
       }
     }
     const last = rows[rows.length - 1];
     if (last?.kind === "assistant") last.items.push(item);
-    else rows.push({ kind: "assistant", key: itemKey(item), items: [item] });
+    // Keyed on the turn's first entry whatever its item is, which changes
+    // kind as the turn goes on (a step becoming part of an `activitygroup`,
+    // the work folding into `work`): the row must not remount for that.
+    else {
+      rows.push({
+        kind: "assistant",
+        key: String(firstIndex(item)),
+        items: [item],
+      });
+    }
   }
   return rows;
 }
@@ -302,8 +317,8 @@ export default function ChatEntryList({
     );
   }
 
-  function renderActivity(item: ActivityItem): ReactNode {
-    return item.kind === "activitygroup" ? (
+  function renderActivity(item: DisplayItem<ActivityItem>): ReactNode {
+    return item.kind !== "single" ? (
       <ActivityGroup
         key={itemKey(item)}
         entries={entries}
@@ -314,7 +329,7 @@ export default function ChatEntryList({
     );
   }
 
-  function renderItem(item: RenderItem): ReactNode {
+  function renderItem(item: DisplayItem): ReactNode {
     if (item.kind !== "work") return renderActivity(item);
     return (
       <WorkSummary
@@ -325,7 +340,9 @@ export default function ChatEntryList({
           item.replyIndex === null ? undefined : turnDurations[item.replyIndex]
         }
       >
-        {groupActivity(entries, item.indices).map(renderActivity)}
+        {toDisplayItems(entries, groupActivity(entries, item.indices)).map(
+          renderActivity,
+        )}
       </WorkSummary>
     );
   }
@@ -416,7 +433,7 @@ export default function ChatEntryList({
                     }
                     return (
                       <ChatMessage key={row.key} sender="assistant">
-                        {row.items.map(renderItem)}
+                        {toDisplayItems(entries, row.items).map(renderItem)}
                         {workingInLastRow && r === rows.length - 1 && working}
                       </ChatMessage>
                     );

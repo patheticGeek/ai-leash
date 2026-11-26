@@ -76,7 +76,7 @@ export function isSubAgentResult(entry: PanelEntry): boolean {
 // rows of their own (a start can still sit inside a finished turn's `work`
 // fold; a result never does). `indices` restricts grouping to those entries
 // (used for the inside of a collapsed `work` item); defaults to all of them.
-const GROUP_MIN = 3;
+export const GROUP_MIN = 3;
 
 export function groupActivity(
   entries: PanelEntry[],
@@ -94,8 +94,7 @@ export function groupActivity(
   };
   for (const i of indices) {
     const entry = entries[i];
-    const isActivity = entry.kind === "thinking" || entry.kind === "tool";
-    if (isActivity && !isSubAgentEntry(entry)) {
+    if (isActivityStep(entry)) {
       run.push(i);
     } else {
       flush();
@@ -104,6 +103,49 @@ export function groupActivity(
   }
   flush();
   return items;
+}
+
+// A thinking or tool step that can be part of an activity run (sub-agent
+// entries never are, see `groupActivity`).
+export function isActivityStep(entry: PanelEntry): boolean {
+  return (
+    (entry.kind === "thinking" || entry.kind === "tool") &&
+    !isSubAgentEntry(entry)
+  );
+}
+
+// The entry an item starts at; `entries` only ever grows, so this stays put
+// while the item grows or changes kind (a run's 1–2 `single` steps becoming
+// an `activitygroup`, a finished turn's work folding into `work`), which
+// makes it the key for anything that must not remount when that happens.
+export function firstIndex(item: DisplayItem): number {
+  return item.kind === "single" ? item.index : item.indices[0];
+}
+
+// What the transcript renders a list of items as: `groupActivity`'s 1–2
+// `single` steps of a short run are put back together as one `steps` item,
+// so they render in the same `ActivityGroup` frame as a longer run (just
+// without its toggle). A `steps` and the `activitygroup` it grows into
+// share their `firstIndex`, which keys both.
+export type DisplayItem<T extends RenderItem = RenderItem> =
+  | T
+  | { kind: "steps"; indices: number[] };
+
+export function toDisplayItems<T extends RenderItem>(
+  entries: PanelEntry[],
+  items: T[],
+): DisplayItem<T>[] {
+  const out: DisplayItem<T>[] = [];
+  for (const item of items) {
+    if (item.kind === "single" && isActivityStep(entries[item.index])) {
+      const last = out[out.length - 1];
+      if (last?.kind === "steps") last.indices.push(item.index);
+      else out.push({ kind: "steps", indices: [item.index] });
+    } else {
+      out.push(item);
+    }
+  }
+  return out;
 }
 
 // Like `groupActivity`, but a finished turn's work — everything between the

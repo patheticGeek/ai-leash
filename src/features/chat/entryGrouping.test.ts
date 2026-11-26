@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { groupActivity, groupEntries } from "./entryGrouping";
+import {
+  firstIndex,
+  groupActivity,
+  groupEntries,
+  toDisplayItems,
+} from "./entryGrouping";
 import type { PanelEntry } from "./hooks/useChatStream";
 
 const user = (content = "hi"): PanelEntry => ({
@@ -117,5 +122,53 @@ describe("groupEntries", () => {
       { kind: "single", index: 1 },
       { kind: "single", index: 2 },
     ]);
+  });
+});
+
+describe("toDisplayItems", () => {
+  it("puts a short run's single steps back together", () => {
+    const entries = [user(), thinking(), tool(), reply()];
+    expect(toDisplayItems(entries, groupActivity(entries))).toEqual([
+      { kind: "single", index: 0 },
+      { kind: "steps", indices: [1, 2] },
+      { kind: "single", index: 3 },
+    ]);
+  });
+
+  it("keeps a sub-agent start a single of its own", () => {
+    const entries = [tool(), tool("spawn_sub_agent"), tool()];
+    expect(toDisplayItems(entries, groupActivity(entries))).toEqual([
+      { kind: "steps", indices: [0] },
+      { kind: "single", index: 1 },
+      { kind: "steps", indices: [2] },
+    ]);
+  });
+});
+
+describe("firstIndex", () => {
+  // The assistant row and the run inside it are keyed on it, so neither
+  // remounts as a streamed turn grows.
+  it("stays put while a turn's opening run grows into a group", () => {
+    const entries: PanelEntry[] = [user()];
+    const starts: number[] = [];
+    const runStarts: number[] = [];
+    for (let n = 0; n < 4; n++) {
+      entries.push(tool(`t${n}`));
+      const items = groupEntries(entries, true, true);
+      starts.push(firstIndex(items[1]));
+      const display = toDisplayItems(entries, items);
+      runStarts.push(firstIndex(display[1]));
+    }
+    expect(starts).toEqual([1, 1, 1, 1]);
+    expect(runStarts).toEqual([1, 1, 1, 1]);
+  });
+
+  it("stays put when the finished turn folds into work", () => {
+    const entries = [user(), tool(), tool(), tool(), reply()];
+    const running = groupEntries(entries, true, true);
+    const done = groupEntries(entries, false, true);
+    expect(running[1].kind).toBe("activitygroup");
+    expect(done[1].kind).toBe("work");
+    expect(firstIndex(done[1])).toBe(firstIndex(running[1]));
   });
 });
