@@ -38,6 +38,9 @@ export const LS_KEYS = {
   // Per-session draft text — not a standalone key, see `chatDraftKey` in
   // `chatDraft.ts` for how a session id is appended to this.
   chatDraftPrefix: "ai-leash:chatDraft:",
+  // Draft review comments on file lines, keyed by conversation id — see
+  // `store/reviewSlice.ts`.
+  reviewComments: "ai-leash:reviewComments",
   // Per-conversation side-area and centre-area open-tab (`WorkspaceTab`)
   // state, keyed by conversation id — see `panelSlice.ts`'s
   // `persistActiveSessionTabState`. Only ever written for conversations that

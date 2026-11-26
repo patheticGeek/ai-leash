@@ -467,7 +467,10 @@ Keep typing to filter: the match is fuzzy over the whole relative path
 and lists folders with a trailing `/`. Use the arrow keys and **Tab** or
 **Enter** to pick, or **Escape** to close the list. The pick is written into
 the message as `@path` (quoted, `@"my file.md"`, when the name has spaces);
-**Backspace** right after a picked mention removes it whole.
+**Backspace** right after a picked mention removes it whole. You can point at
+lines too, by adding them after the path, `@path:12` or `@path:12-18`, as a
+review does (see [Send a code review](#send-a-code-review)). The whole file
+is still attached, once, however many times it's mentioned.
 
 You can also right-click a file or folder in the Files tab and choose
 **Mention in chat**, or drag it from the tree onto the message box.
@@ -486,8 +489,13 @@ working directory goes to the agent with it:
   `embeddedContext`, otherwise a `resource_link` (which every ACP agent
   accepts). The message text still names the path either way.
 
-The sent message shows its mentions as chips; select a file chip to open the
-file in a tab.
+In the sent message, each mention shows in place as a small badge instead of
+the `@path` text: the file's name plus its lines when you gave them
+(`AppShell.tsx:12-18`), with the full path in its tooltip. Select a file's
+badge to open the file in a tab. If the badge has lines, the editor scrolls
+to them and selects them. An `@` that doesn't name an attached file stays as
+you typed it. A mention that only appears inside code, where it can't be a
+badge, shows as a chip under the message instead.
 
 Under the hood, the stored message ends in an `<ai-leash-mentions>` trailer
 naming the paths (and, for the built-in agent, holding the contents). The
@@ -498,6 +506,39 @@ shared `src-tauri/src/file_context.rs` (size caps, `native_block` for the
 built-in agent, `acp_blocks` for ACP), which any feature that attaches files
 to a prompt should use. The frontend side (`src/lib/mentions.ts`,
 `useMentionPicker`, `MentionMenu`) mirrors the slash-command menu.
+
+## Send a code review
+
+You can review the agent's work like a pull request. In a file tab, hover the
+line numbers and select the **+** beside a line to comment on it, or drag the
+**+** up or down to comment on a range of lines (see
+[Comment on lines](./editor.md#comment-on-lines)). Comments are drafts: they
+belong to the conversation the file is open in and are kept until you send
+them, even across restarts.
+
+Draft comments show as chips at the top of the message box, one per comment,
+labelled with the file and lines. Select a chip to open its file, or its
+**×** to delete the comment. **Send review (N)**, beside Send, posts every
+comment as one message, grouped by file: each comment is the file tagged at
+its lines, like `@src/app/AppShell.tsx:12-18`, followed by your comment.
+Whatever you've typed in the message box goes with it as an overall note.
+The code itself isn't pasted in. Each commented file goes with the review
+once, the way [`@` mentions](#mention-files-with-) attach files: its
+contents for the built-in agent and an ACP resource for external agents. In
+the sent message, each comment's heading shows its file and lines as a badge
+(`AppShell.tsx:12-18`); select it to open the file at those lines. There are
+two exceptions, which quote the code
+they're about: an outdated comment (see below), since its lines now say
+something else, and a comment on a file outside the chat's working
+directory, which can't be attached and is named by its plain path and lines.
+Once it's sent, those comments are cleared.
+
+A comment follows its code. If the lines it's on move (say, the agent adds
+code above them), it moves with them. If they change, the comment is marked
+outdated, stays at its original line, and is sent flagged as outdated with
+the code as it was when you commented.
+
+Send review waits for the agent's current turn to finish, like Send.
 
 ## Retry or regenerate
 

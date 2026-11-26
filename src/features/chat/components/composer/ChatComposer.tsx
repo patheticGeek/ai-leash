@@ -6,12 +6,23 @@ import {
 import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { Clock } from "lucide-react";
+import { Clock, MessageSquare } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
+import { rememberMention } from "@/lib/mentions";
 import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
-import type { AcpCommandInfo } from "../../../../lib/tauriApi";
+import { type AcpCommandInfo, api } from "../../../../lib/tauriApi";
+import { reviewCommentsFor, useAppStore } from "../../../../store";
+import ReviewDrawer from "../../../review/ReviewDrawer";
+import {
+  type AnchoredComment,
+  anchorComment,
+  formatReview,
+  linesOf,
+  relativePath,
+  reviewMentions,
+} from "../../../review/reviewComments";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
   type ChatSession,
@@ -150,7 +161,8 @@ interface ChatComposerProps {
 
 // The whole bottom dock of a conversation, top to bottom: the banner stack
 // (`ChatBanners`), the Astryx `ChatComposer` — our textarea in its input
-// slot (with the `@` file picker, `MentionMenu`, above it), the queued messages in its drawer, the pickers in its footer
+// slot (with the `@` file picker, `MentionMenu`, above it), the draft review
+// comments (`ReviewDrawer`) and queued messages in its drawer, the pickers in its footer
 // and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
 // in its place, and the checkout bar beneath. The running sub-agents banner
@@ -204,6 +216,10 @@ export default function ChatComposer({
   // Lives here (not in `ChatToolbar`) so "/model" can open the picker
   // without a real click.
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  // Draft review comments left on file lines (`features/review/`).
+  const reviewComments = useAppStore((s) => reviewCommentsFor(s, sessionId));
+  const deleteReviewComment = useAppStore((s) => s.deleteReviewComment);
+  const checkoutPath = useActiveCheckoutPath();
 
   const { backend, model } = session;
   const backendReady = backend.ready;
@@ -310,6 +326,57 @@ export default function ChatComposer({
     else await onSubmit(text, false);
   }
 
+  // "Send review": every draft comment, re-anchored in its file's current
+  // text (the open tab's, else the file on disk), as one message — with
+  // whatever's in the box as the review's overall note.
+  async function sendReview() {
+    if (!sessionId || sending || !backendReady) return;
+    const comments = reviewComments;
+    if (comments.length === 0) return;
+    const note = input.trim();
+    const { openFiles } = useAppStore.getState();
+    const anchored = await Promise.all(
+      comments.map(async (comment): Promise<AnchoredComment> => {
+        let content = openFiles.find((f) => f.path === comment.path)?.content;
+        if (content === undefined) {
+          content = await api
+            .readFileText(sessionId, comment.path)
+            .catch(() => undefined);
+        }
+        const anchor =
+          content === undefined
+            ? {
+                startLine: comment.startLine,
+                endLine: comment.endLine,
+                outdated: true,
+              }
+            : anchorComment(comment, content);
+        return {
+          comment,
+          anchor,
+          code:
+            anchor.outdated || content === undefined
+              ? comment.snippet
+              : linesOf(content, anchor.startLine, anchor.endLine),
+          relPath: relativePath(comment.path, checkoutPath),
+        };
+      }),
+    );
+    setHelpOpen(false);
+    setInputValue("");
+    const takeOver = await onAskTakeOver();
+    if (takeOver === null) {
+      setInputValue(note);
+      return;
+    }
+    // The files it attaches show as chips on the sent message, like picked
+    // `@` mentions.
+    for (const path of reviewMentions(anchored)) rememberMention(path);
+    await onSubmit(formatReview(anchored, note), takeOver);
+    // Only the ones sent: more may have been left while it went out.
+    for (const c of comments) deleteReviewComment(sessionId, c.id);
+  }
+
   async function stop() {
     // An explicit stop means "I don't want this to keep going" — queued
     // messages auto-firing right after would contradict that, so drop them
@@ -370,6 +437,7 @@ export default function ChatComposer({
 
   const usedTokens = usage ? usage.prompt + usage.completion : null;
   const showQueue = sending && input.trim().length > 0;
+  const hasReview = sessionId !== null && reviewComments.length > 0;
   const sendDisabled = !input.trim() || !backendReady;
   const { pendingPermission, respondPermission } = permissions;
   const { pendingElicitation, respondElicitation } = elicitation;
@@ -419,8 +487,21 @@ export default function ChatComposer({
             isStopShown={sending}
             density={compact ? "compact" : "balanced"}
             drawer={
-              queue.queued.length > 0 ? (
-                <QueuedDrawer messages={queue.queued} onCancel={queue.remove} />
+              queue.queued.length > 0 || hasReview ? (
+                <>
+                  {sessionId && hasReview && (
+                    <ReviewDrawer
+                      sessionId={sessionId}
+                      comments={reviewComments}
+                    />
+                  )}
+                  {queue.queued.length > 0 && (
+                    <QueuedDrawer
+                      messages={queue.queued}
+                      onCancel={queue.remove}
+                    />
+                  )}
+                </>
               ) : undefined
             }
             input={
@@ -460,13 +541,28 @@ export default function ChatComposer({
             // nothing on its left, so the text started a whole row lower than
             // the footer sits above the bottom edge.
             sendActions={
-              usedTokens !== null || showQueue ? (
+              usedTokens !== null || showQueue || hasReview ? (
                 <>
                   {usedTokens !== null && (
                     <ContextUsage
                       usedTokens={usedTokens}
                       contextLength={
                         usage?.contextLength ?? session.contextLength
+                      }
+                    />
+                  )}
+                  {hasReview && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      label={`Send review (${reviewComments.length})`}
+                      icon={<MessageSquare size={14} />}
+                      isDisabled={sending || !backendReady}
+                      onClick={() => void sendReview()}
+                      tooltip={
+                        sending
+                          ? "Send once the agent's turn finishes"
+                          : "Send every comment as one message, with what's in the box as an overall note"
                       }
                     />
                   )}

@@ -2,11 +2,15 @@ import { ChatMessageBubble, ChatToolCalls } from "@astryxdesign/core/Chat";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Info } from "lucide-react";
 import { memo } from "react";
-import Markdown from "../../../../ui/Markdown";
+import {
+  type InlineMention,
+  splitInlineMentions,
+} from "../../../../lib/mentions";
+import Markdown, { MentionBadgeContext } from "../../../../ui/Markdown";
 import { isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
 import { InterChatMessage } from "./FromChat";
-import MentionChips from "./MentionChips";
+import MentionChips, { MentionToken } from "./MentionChips";
 import MessageFooter from "./MessageFooter";
 import SubAgentResult from "./SubAgentResult";
 import SystemNotice from "./SystemNotice";
@@ -43,6 +47,33 @@ function InfoRow({ content }: { content: string }) {
       {body ? <Markdown content={body} /> : undefined}
     </SystemNotice>
   );
+}
+
+function renderMentionBadge(mention: InlineMention) {
+  return <MentionToken mention={mention} isInline />;
+}
+
+// The mentions a user message's text doesn't tag outside code (where
+// `Markdown` draws them as inline badges), for the chip row under it.
+function mentionsNotInline(content: string, mentions: string[]) {
+  const prose = content
+    .replace(/(`{3,})[\s\S]*?\1/g, "")
+    .replace(/`[^`\n]*`/g, "");
+  const inline = new Set(
+    splitInlineMentions(prose, mentions)
+      .filter((part) => typeof part !== "string")
+      .map((part) => part.path),
+  );
+  // Lines from wherever else the text tagged it (inside code, say).
+  const tagged = new Map<string, InlineMention>();
+  for (const part of splitInlineMentions(content, mentions)) {
+    if (typeof part !== "string" && !tagged.has(part.path)) {
+      tagged.set(part.path, part);
+    }
+  }
+  return mentions
+    .filter((p) => !inline.has(p))
+    .map((path) => tagged.get(path) ?? { path });
 }
 
 // Renders one transcript entry as its Astryx chat part — the counterpart to
@@ -107,12 +138,15 @@ function ChatEntryRenderer({
       />
     ) : undefined;
     if (isUser) {
+      const chips = entry.mentions
+        ? mentionsNotInline(entry.content, entry.mentions)
+        : [];
       return (
         <ChatMessageBubble metadata={footer}>
-          <Markdown content={entry.content} />
-          {entry.mentions && entry.mentions.length > 0 && (
-            <MentionChips paths={entry.mentions} />
-          )}
+          <MentionBadgeContext.Provider value={renderMentionBadge}>
+            <Markdown content={entry.content} mentions={entry.mentions} />
+          </MentionBadgeContext.Provider>
+          {chips.length > 0 && <MentionChips mentions={chips} />}
         </ChatMessageBubble>
       );
     }

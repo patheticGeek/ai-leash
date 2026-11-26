@@ -72,10 +72,24 @@ export interface ProjectSlice {
   // sidebar project group's ⋯ / right-click menu (`LeftBar.tsx`'s
   // `ProjectGroup`), behind `RemoveProjectDialog`.
   removeProject: (root: string) => Promise<void>;
-  openFile: (path: string, name: string) => Promise<void>;
+  // `lines`: also scroll to and select those lines (1-based, inclusive) —
+  // an inline `@path:12-18` badge's click. `FileEditorTab` picks it up from
+  // `revealLines` and clears it.
+  openFile: (
+    path: string,
+    name: string,
+    lines?: { startLine: number; endLine: number },
+  ) => Promise<void>;
+  revealLines: { path: string; startLine: number; endLine: number } | null;
+  clearRevealLines: () => void;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveFile: (path: string) => Promise<void>;
+  // Re-reads every open file with no unsaved edits that sits in one of
+  // `changedDirs` (an `fs://changed` payload — see `useFsChangeInvalidator`),
+  // so an agent's edit shows up in its open tab and the review comments on
+  // it re-anchor. A file with unsaved edits keeps them.
+  reloadChangedFiles: (changedDirs: string[]) => Promise<void>;
 }
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
@@ -127,7 +141,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
     });
   },
 
-  openFile: async (path, name) => {
+  revealLines: null,
+  clearRevealLines: () => set({ revealLines: null }),
+
+  openFile: async (path, name, lines) => {
     // No session in a new thread — Rust then reads from the checkout it's
     // showing (`set_view_root`).
     const { activeSessionId: sessionId, draft } = get();
@@ -138,6 +155,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         openFiles: [...s.openFiles, { path, name, content, dirty: false }],
       }));
     }
+    if (lines) set({ revealLines: { path, ...lines } });
     get().openPanelTab("file", { path, label: name });
   },
 
@@ -160,5 +178,41 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         f.path === file.path ? { ...f, dirty: false } : f,
       ),
     }));
+  },
+
+  reloadChangedFiles: async (changedDirs) => {
+    const { openFiles, activeSessionId, draft } = get();
+    if (!activeSessionId && !draft) return;
+    const changed = new Set(changedDirs);
+    const stale = openFiles.filter(
+      (f) =>
+        !f.dirty &&
+        changed.has(
+          f.path.slice(
+            0,
+            Math.max(f.path.lastIndexOf("/"), f.path.lastIndexOf("\\")),
+          ),
+        ),
+    );
+    await Promise.all(
+      stale.map(async (file) => {
+        let content: string;
+        try {
+          content = await api.readFileText(activeSessionId, file.path);
+        } catch {
+          // Deleted or unreadable: keep what's open.
+          return;
+        }
+        // Still the same conversation, and not typed into meanwhile.
+        if (get().activeSessionId !== activeSessionId) return;
+        set((s) => ({
+          openFiles: s.openFiles.map((f) =>
+            f.path === file.path && !f.dirty && f.content !== content
+              ? { ...f, content }
+              : f,
+          ),
+        }));
+      }),
+    );
   },
 });
