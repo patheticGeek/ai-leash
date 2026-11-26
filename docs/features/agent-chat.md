@@ -379,6 +379,70 @@ instead: a started task gets a full chat of its own (in its own git
 worktree), which you can write in like any other, and which reports back
 to the project chat.
 
+## Rich replies
+
+When data reads better as a table, chart or a row of figures than as prose,
+the agent can show it that way: a sortable table, a bar or line chart, stat
+tiles, key/value details, lists, progress bars, status badges, callouts,
+cards, tabs, code, and buttons to pick from. Ask for it ("compare these five
+models in a table and a chart") or let the agent decide; it's told the
+feature exists in its standing guidance (see [Tools](./tools.md)).
+
+It's part of the reply text, so it works the same for the built-in agent and
+for external ACP agents such as Claude Code or Copilot: the agent writes a
+fenced code block with the language `ui` holding JSON that describes what to
+show, and the transcript renders it with the app's own components instead of
+showing the code. For example:
+
+```ui
+[
+  {"type": "table", "columns": ["Model", "Latency (ms)"],
+   "rows": [["A", 320], ["B", 610]]},
+  {"type": "chart", "title": "Latency", "labels": ["A", "B"],
+   "series": [{"name": "Latency", "values": [320, 610]}], "unit": "ms"}
+]
+```
+
+The block is one node or an array of nodes shown top to bottom. The node
+types are `table` (string or `{key, label, align}` columns; rows as arrays or
+objects; click a header to sort), `chart` (`bar` or `line`, `labels` and up
+to eight `series`), `stats` (stat tiles with an optional change and tone),
+`keyValue`, `list`, `progress`, `badge`, `status`, `heading`, `text`,
+`divider`, `callout`, `code`, `card`, `tabs`, `stack` (vertical or
+horizontal) and `choices`. Tones are `neutral`, `info`, `success`, `warning`
+and `error`. The full field list is in `src/lib/uiSpec.ts`, which validates
+it, and in the guidance text in `src-tauri/src/tools/guidance.rs` that tells
+agents about it; the two are kept in sync.
+
+- **Safe by construction.** The JSON is data only. Nothing in it runs: there
+  are no scripts, HTML, styles or links to load, and the agent can't reach
+  anything beyond the fixed set of components above. Size limits (nesting
+  depth, node, row and point counts) keep a runaway block from slowing the
+  transcript down.
+- **While streaming**, a `ui` block whose closing fence hasn't arrived yet
+  shows a small "Rendering view…" placeholder rather than half-written JSON.
+- **Invalid blocks degrade gracefully.** Bad JSON, an unknown node type, or a
+  wrong field (for example a chart series with the wrong number of values)
+  shows the block's raw source with a one-line note saying what's wrong. A
+  block left unclosed when the reply ends is still rendered if its JSON is
+  complete. If a valid block somehow fails while rendering, the same raw
+  fallback appears instead of breaking the transcript.
+- **Choices send a message.** A `choices` node shows buttons; clicking one
+  sends its message (or its label) as your next message, exactly as if you
+  had typed it, including the take-over prompt in a followed task chat. The
+  buttons are disabled while a reply is running, and once one is picked.
+- **Copying gives readable text.** The message's **Copy** button replaces
+  each valid `ui` block with a plain-text version — tables and charts become
+  Markdown tables, stats and key/value items become lines, choices become a
+  list — so pasting it elsewhere reads naturally. Invalid blocks are copied as
+  written.
+
+Rich blocks render anywhere the app shows an agent's Markdown, including
+sub-agent results and task descriptions; the choice buttons only work in a
+chat transcript. The renderer is `src/ui/UiBlock.tsx` (Astryx components
+throughout) with a small SVG chart in `src/ui/Chart.tsx`, since Astryx has no
+chart component; both have Storybook stories.
+
 ## Send, stop, and queue messages
 
 While the agent is working, **Stop** cancels the current user-initiated turn.
