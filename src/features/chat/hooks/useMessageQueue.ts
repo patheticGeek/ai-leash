@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import type { Attachment } from "../../../lib/tauriApi";
+
+export interface QueuedMessage {
+  text: string;
+  attachments: Attachment[];
+}
 
 // Messages typed while a turn is in flight, held FIFO until each gets its
 // turn: whenever `sending` flips to false the head is popped and handed to
@@ -7,9 +13,9 @@ import { useEffect, useState } from "react";
 // there's always a turn ahead of it to wait on.
 export function useMessageQueue(
   sending: boolean,
-  submit: (text: string) => void,
+  submit: (message: QueuedMessage) => void,
 ) {
-  const [queued, setQueued] = useState<string[]>([]);
+  const [queued, setQueued] = useState<QueuedMessage[]>([]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only `sending`'s transition to false should trigger this — `queued`/`submit` are read fresh, not meant to re-run the effect on their own
   useEffect(() => {
@@ -21,11 +27,13 @@ export function useMessageQueue(
 
   return {
     queued,
-    enqueue: (text: string) => setQueued((prev) => [...prev, text]),
+    enqueue: (message: QueuedMessage) =>
+      setQueued((prev) => [...prev, message]),
     remove: (index: number) =>
       setQueued((prev) => prev.filter((_, i) => i !== index)),
     clear: () => setQueued([]),
     // Puts back what `clear` dropped, ahead of anything queued since.
-    restore: (items: string[]) => setQueued((prev) => [...items, ...prev]),
+    restore: (items: QueuedMessage[]) =>
+      setQueued((prev) => [...items, ...prev]),
   };
 }

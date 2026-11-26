@@ -1,18 +1,25 @@
 import { Button } from "@astryxdesign/core/Button";
 import {
   ChatComposer as AstryxChatComposer,
+  ChatComposerDrawer,
   ChatSendButton,
 } from "@astryxdesign/core/Chat";
+import { Thumbnail } from "@astryxdesign/core/Thumbnail";
+import { Token } from "@astryxdesign/core/Token";
 import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
-import { Clock, MessageSquare } from "lucide-react";
+import { Clock, MessageSquare, Paperclip } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { rememberMention } from "@/lib/mentions";
 import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
-import { type AcpCommandInfo, api } from "../../../../lib/tauriApi";
+import {
+  type AcpCommandInfo,
+  type Attachment,
+  api,
+} from "../../../../lib/tauriApi";
 import { reviewCommentsFor, useAppStore } from "../../../../store";
 import ReviewDrawer from "../../../review/ReviewDrawer";
 import {
@@ -23,6 +30,7 @@ import {
   relativePath,
   reviewMentions,
 } from "../../../review/reviewComments";
+import { useAttachments } from "../../hooks/useAttachments";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
   type ChatSession,
@@ -37,6 +45,7 @@ import { useSlashCommands } from "../../hooks/useSlashCommands";
 import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
 import type { TranscriptNoticesProps } from "../banners/TranscriptNotices";
+import AttachmentChips from "../messages/AttachmentChips";
 import ElicitationPrompt from "../popovers/ElicitationPrompt";
 import MentionMenu from "../popovers/MentionMenu";
 import PermissionPrompt from "../popovers/PermissionPrompt";
@@ -140,8 +149,13 @@ interface ChatComposerProps {
   // What the composer *decides* — a plain prompt, a shell escape, a "/clear"
   // or "/compact" — is its own; what those actually do to the conversation
   // (talk to the backend, rewrite the transcript) is `ChatPanel`'s.
-  // `takeOver`: see `api.sendPrompt`.
-  onSubmit: (text: string, takeOver: boolean) => Promise<void>;
+  // `takeOver`: see `api.sendPrompt`. `attachments`: the files attached in
+  // the box (`useAttachments`), already staged.
+  onSubmit: (
+    text: string,
+    takeOver: boolean,
+    attachments: Attachment[],
+  ) => Promise<void>;
   // Asked before a message is sent or queued: in a task chat the project
   // chat follows, whether this takes it over (`TakeOverDialog`). True or
   // false to go ahead, null if the user backed out.
@@ -161,8 +175,9 @@ interface ChatComposerProps {
 
 // The whole bottom dock of a conversation, top to bottom: the banner stack
 // (`ChatBanners`), the Astryx `ChatComposer` — our textarea in its input
-// slot (with the `@` file picker, `MentionMenu`, above it), the draft review
-// comments (`ReviewDrawer`) and queued messages in its drawer, the pickers in its footer
+// slot (with the `@` file picker, `MentionMenu`, above it), the attachments
+// (`AttachmentChips`), draft review comments (`ReviewDrawer`) and queued
+// messages in its drawer, the attach button and pickers in its footer
 // and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
 // in its place, and the checkout bar beneath. The running sub-agents banner
@@ -203,7 +218,13 @@ export default function ChatComposer({
   );
   const elicitation = useSessionElicitation(sessionId, onError);
   // A queued message was asked about when it was queued, so it goes as is.
-  const queue = useMessageQueue(sending, (text) => void onSubmit(text, false));
+  const queue = useMessageQueue(
+    sending,
+    ({ text, attachments }) => void onSubmit(text, false, attachments),
+  );
+  // Files attached in the box — pasted, dropped anywhere on the dock, or
+  // picked with the attach button.
+  const attach = useAttachments(dockRef, onError);
   // `sending` as of now, for after an await.
   const sendingRef = useRef(sending);
   useEffect(() => {
@@ -296,14 +317,19 @@ export default function ChatComposer({
       await runLocalCommand(localMatch[1]);
       return;
     }
-    if (!text || sending || !backendReady) return;
+    const hasAttachments = attach.attachments.length > 0;
+    if ((!text && !hasAttachments) || sending || !backendReady) return;
+    // Still copying one in: send once it's there.
+    if (attach.pending.length > 0) return;
     setInputValue("");
+    const attachments = attach.take();
     const takeOver = await onAskTakeOver();
     if (takeOver === null) {
       setInputValue(text);
+      attach.restore(attachments);
       return;
     }
-    await onSubmit(text, takeOver);
+    await onSubmit(text, takeOver, attachments);
   }
 
   // Appends the current input to the back of the queue, delivered in order
@@ -312,18 +338,21 @@ export default function ChatComposer({
   // at once, so the turn still running isn't forwarded either.
   async function queueMessage() {
     const text = input.trim();
-    if (!text) return;
+    if ((!text && attach.attachments.length === 0) || attach.pending.length > 0)
+      return;
     setInputValue("");
+    const attachments = attach.take();
     const takeOver = await onAskTakeOver();
     if (takeOver === null) {
       setInputValue(text);
+      attach.restore(attachments);
       return;
     }
     if (takeOver) await onTakeOver();
     // The turn may have ended while the dialog was open, and the queue only
     // flushes when it does.
-    if (sendingRef.current) queue.enqueue(text);
-    else await onSubmit(text, false);
+    if (sendingRef.current) queue.enqueue({ text, attachments });
+    else await onSubmit(text, false, attachments);
   }
 
   // "Send review": every draft comment, re-anchored in its file's current
@@ -332,7 +361,7 @@ export default function ChatComposer({
   async function sendReview() {
     if (!sessionId || sending || !backendReady) return;
     const comments = reviewComments;
-    if (comments.length === 0) return;
+    if (comments.length === 0 || attach.pending.length > 0) return;
     const note = input.trim();
     const { openFiles } = useAppStore.getState();
     const anchored = await Promise.all(
@@ -364,15 +393,17 @@ export default function ChatComposer({
     );
     setHelpOpen(false);
     setInputValue("");
+    const attachments = attach.take();
     const takeOver = await onAskTakeOver();
     if (takeOver === null) {
       setInputValue(note);
+      attach.restore(attachments);
       return;
     }
     // The files it attaches show as chips on the sent message, like picked
     // `@` mentions.
     for (const path of reviewMentions(anchored)) rememberMention(path);
-    await onSubmit(formatReview(anchored, note), takeOver);
+    await onSubmit(formatReview(anchored, note), takeOver, attachments);
     // Only the ones sent: more may have been left while it went out.
     for (const c of comments) deleteReviewComment(sessionId, c.id);
   }
@@ -436,9 +467,13 @@ export default function ChatComposer({
   }
 
   const usedTokens = usage ? usage.prompt + usage.completion : null;
-  const showQueue = sending && input.trim().length > 0;
+  const hasAttachments =
+    attach.attachments.length > 0 || attach.pending.length > 0;
+  const hasContent = input.trim().length > 0 || attach.attachments.length > 0;
+  const showQueue = sending && hasContent;
   const hasReview = sessionId !== null && reviewComments.length > 0;
-  const sendDisabled = !input.trim() || !backendReady;
+  const sendDisabled =
+    !hasContent || attach.pending.length > 0 || !backendReady;
   const { pendingPermission, respondPermission } = permissions;
   const { pendingElicitation, respondElicitation } = elicitation;
 
@@ -487,8 +522,32 @@ export default function ChatComposer({
             isStopShown={sending}
             density={compact ? "compact" : "balanced"}
             drawer={
-              queue.queued.length > 0 || hasReview ? (
+              queue.queued.length > 0 ||
+              hasReview ||
+              hasAttachments ||
+              attach.isDragOver ? (
                 <>
+                  {(hasAttachments || attach.isDragOver) && (
+                    <ChatComposerDrawer
+                      label="Attachments"
+                      aria-label="Attachments"
+                    >
+                      <AttachmentChips
+                        attachments={attach.attachments}
+                        onRemove={attach.remove}
+                        isInDrawer
+                      />
+                      {attach.pending.map((p) => (
+                        <Thumbnail key={p.key} label={p.name} isLoading />
+                      ))}
+                      {attach.isDragOver && (
+                        <Token
+                          label="Drop to attach"
+                          icon={<Paperclip size={14} />}
+                        />
+                      )}
+                    </ChatComposerDrawer>
+                  )}
                   {sessionId && hasReview && (
                     <ReviewDrawer
                       sessionId={sessionId}
@@ -509,32 +568,46 @@ export default function ChatComposer({
                 value={input}
                 onChange={onInputChange}
                 onKeyDown={onKeyDown}
+                onPaste={attach.onPaste}
                 textareaRef={textareaRef}
                 shellMode={shellMode}
               />
             }
             footerActions={
-              <ChatToolbar
-                backendOptions={session.backendOptions}
-                activeBackendKey={session.activeBackendKey}
-                activeBackendLabel={session.activeBackendLabel}
-                sendBlockedReason={session.sendBlockedReason}
-                onSelectBackend={session.selectBackendOption}
-                modelSwitchPending={session.modelSwitchPending}
-                modelPickerOpen={modelPickerOpen}
-                onModelPickerOpenChange={setModelPickerOpen}
-                effortOptions={session.effortOptions}
-                effortChoice={session.effortChoice}
-                onSelectEffort={session.selectEffort}
-                permissionMode={permissions.permissionMode}
-                onSelectPermissionMode={permissions.setPermissionMode}
-                modeOptions={session.modeOptions}
-                modeChoice={session.modeChoice}
-                onSelectMode={session.selectMode}
-                showModelIdInput={backend.caps.freeTextModel}
-                model={model}
-                onModelChange={session.setModel}
-              />
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  label="Attach files"
+                  isIconOnly
+                  icon={<Paperclip size={14} />}
+                  onClick={() =>
+                    void attach.pickFiles().catch((e) => onError(String(e)))
+                  }
+                  tooltip="Attach images or files from anywhere (or paste or drop them here)"
+                />
+                <ChatToolbar
+                  backendOptions={session.backendOptions}
+                  activeBackendKey={session.activeBackendKey}
+                  activeBackendLabel={session.activeBackendLabel}
+                  sendBlockedReason={session.sendBlockedReason}
+                  onSelectBackend={session.selectBackendOption}
+                  modelSwitchPending={session.modelSwitchPending}
+                  modelPickerOpen={modelPickerOpen}
+                  onModelPickerOpenChange={setModelPickerOpen}
+                  effortOptions={session.effortOptions}
+                  effortChoice={session.effortChoice}
+                  onSelectEffort={session.selectEffort}
+                  permissionMode={permissions.permissionMode}
+                  onSelectPermissionMode={permissions.setPermissionMode}
+                  modeOptions={session.modeOptions}
+                  modeChoice={session.modeChoice}
+                  onSelectMode={session.selectMode}
+                  showModelIdInput={backend.caps.freeTextModel}
+                  model={model}
+                  onModelChange={session.setModel}
+                />
+              </>
             }
             // Context usage sits here, beside Send, rather than in the header
             // (`headerContext`): alone up there it made a header row with

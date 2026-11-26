@@ -7,6 +7,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import { SquareTerminal } from "lucide-react";
 import {
+  type ClipboardEvent,
   type KeyboardEvent,
   type RefObject,
   useImperativeHandle,
@@ -79,12 +80,15 @@ export default function ComposerInput({
   value,
   onChange,
   onKeyDown,
+  onPaste,
   textareaRef,
   shellMode,
 }: {
   value: string;
   onChange: (value: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
+  // Pasted images and files become attachments (`useAttachments`).
+  onPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   shellMode: boolean;
 }) {
@@ -109,6 +113,7 @@ export default function ComposerInput({
       value={value}
       onChange={onChange}
       onKeyDown={(e) => onKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
+      onPaste={onPaste}
       placeholder={placeholderText(composeMode)}
       rows={COMPOSER_MIN_ROWS}
       startIcon={shellMode ? SquareTerminal : undefined}

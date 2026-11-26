@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { pickedMentionsIn } from "@/lib/mentions";
 import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
-import { api } from "../../lib/tauriApi";
+import { type Attachment, api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
 import { UiSendContext } from "../../ui/UiBlock";
 import ChatComposer from "./components/composer/ChatComposer";
@@ -228,12 +228,16 @@ export default function ChatPanel({
   // active" round trip — shared by the composer's send path and message
   // queue. The guards about whether the *user* is allowed to
   // send right now live in the composer, not here.
-  async function submitPrompt(text: string, takeOver: boolean) {
+  async function submitPrompt(
+    text: string,
+    takeOver: boolean,
+    attachments: Attachment[] = [],
+  ) {
     // Also covers a queued message delivered after its backend was turned
     // off — the composer's own `backend.ready` check only gates typed sends.
     if (!backend.ready) return;
     setChatError(null);
-    const id = sessionId ?? (await startConversation(text));
+    const id = sessionId ?? (await startConversation(text, attachments));
     if (!id) return;
     if (sessionId) {
       setEntries((prev) => [
@@ -244,12 +248,13 @@ export default function ChatPanel({
           content: text,
           time: Date.now(),
           mentions: pickedMentionsIn(text),
+          ...(attachments.length > 0 ? { attachments } : {}),
         },
       ]);
       setSending(true);
     }
     try {
-      await backend.send(id, text, takeOver);
+      await backend.send(id, text, attachments, takeOver);
       const title = await api.getConversationTitle(id);
       setConversationTitle(id, title);
     } catch (e) {
@@ -263,7 +268,10 @@ export default function ChatPanel({
   // in on the backend before anything can run in it. `text` (a prompt, not
   // a shell escape) shows straight away while that happens. Resolves to the
   // new id once its stream listeners are up, or null if that failed.
-  async function startConversation(text?: string): Promise<string | null> {
+  async function startConversation(
+    text?: string,
+    attachments: Attachment[] = [],
+  ): Promise<string | null> {
     const cwd = worktreeCwd;
     const id = promoteDraft();
     if (!id) return null;
@@ -276,6 +284,7 @@ export default function ChatPanel({
           content: text,
           time: Date.now(),
           mentions: pickedMentionsIn(text),
+          ...(attachments.length > 0 ? { attachments } : {}),
         },
       ]);
       setSending(true);

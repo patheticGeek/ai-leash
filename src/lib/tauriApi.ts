@@ -1,5 +1,31 @@
 import { invoke } from "@tauri-apps/api/core";
 
+// A file attached to a user message (#73) — Rust's `attachments::Attachment`.
+// Staged (copied into the app's attachments folder) as soon as it's added in
+// the composer; the message is sent with the ids.
+export type AttachmentKind = "image" | "text" | "binary";
+
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  name: string;
+  // The stored copy's mime type.
+  mime: string;
+  // The original file's size in bytes.
+  size: number;
+  // Null for pasted bytes.
+  originalPath: string | null;
+  // Null for a binary file too big to copy (it stays a reference).
+  storedPath: string | null;
+  storedSize: number;
+  width: number | null;
+  height: number | null;
+  // An image downscaled or re-encoded to fit the 5 MB cap.
+  downscaled: boolean;
+  // A text file over 1 MB: only its start was kept.
+  truncated: boolean;
+}
+
 export interface MentionCandidate {
   path: string;
   isDir: boolean;
@@ -90,6 +116,7 @@ export interface PersistedMessage {
   // Set when another conversation sent it (`board::messaging`): a message
   // from a task's chat or the project chat, or a note (`role: "event"`).
   fromConversationId: string | null;
+  attachments: Attachment[];
 }
 
 // An ACP agent's "model" session config option (see
@@ -659,6 +686,8 @@ export const api = {
     effort: string | null,
     agentMode: string | null,
     message: string,
+    // Staged attachments' ids (`stageAttachment*`).
+    attachments: string[],
     // The user chose to take a followed task's chat over from the project
     // chat (see `TakeOverDialog`); false leaves it followed.
     takeOver: boolean,
@@ -670,8 +699,25 @@ export const api = {
       effort,
       agentMode,
       message,
+      attachments,
       takeOver,
     }),
+  // Attachments (#73): copy a file from disk, or pasted bytes, into the
+  // app's attachments folder.
+  stageAttachmentPath: (path: string) =>
+    invoke<Attachment>("stage_attachment_path", { path }),
+  stageAttachmentBytes: async (file: File) =>
+    invoke<Attachment>(
+      "stage_attachment_bytes",
+      new Uint8Array(await file.arrayBuffer()),
+      { headers: { "x-attachment-name": encodeURIComponent(file.name) } },
+    ),
+  discardAttachment: (id: string) => invoke<void>("discard_attachment", { id }),
+  readAttachment: (id: string) =>
+    invoke<ArrayBuffer>("read_attachment", { id }),
+  // Opens it with the OS's default app, or shows it in the file manager.
+  openAttachment: (id: string, reveal: boolean) =>
+    invoke<void>("open_attachment", { id, reveal }),
   retryLast: (
     sessionId: string,
     backendId: string,

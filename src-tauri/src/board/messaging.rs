@@ -159,6 +159,7 @@ pub(crate) fn note(app: &AppHandle, to: &str, from: &str, text: &str) -> Result<
             role: "event".into(),
             content: text.to_string(),
             tool_calls: None,
+            attachments: Vec::new(),
         },
         Some(from),
     );
@@ -175,6 +176,7 @@ pub(crate) fn note(app: &AppHandle, to: &str, from: &str, text: &str) -> Result<
                 role: "user".into(),
                 content: text.to_string(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
     } else {
@@ -242,6 +244,7 @@ pub(crate) fn wake(
         role: "user".into(),
         content: text.clone(),
         tool_calls: None,
+        attachments: Vec::new(),
     };
     db::save_message_from(&state.db, to, &row.project_root, &message, Some(from));
     chat::remember_in_memory(&state, to, message);

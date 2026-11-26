@@ -5,6 +5,7 @@
 
 use super::conversations::upsert_conversation;
 use super::{now, Db};
+use crate::attachments::Attachment;
 use crate::chat::ChatMessage;
 use crate::tools::ToolCall;
 use rusqlite::params;
@@ -46,6 +47,8 @@ pub struct PersistedMessage {
     /// The conversation that sent this, when it came from another agent's
     /// chat rather than the user — see `board::messaging`.
     pub from_conversation_id: Option<String>,
+    /// Files attached to a user message — see `crate::attachments`.
+    pub attachments: Vec<Attachment>,
 }
 
 /// Appends one message to `conversation_id`'s history on disk. No-op for
@@ -75,12 +78,17 @@ pub fn save_message_from(
         .tool_calls
         .as_ref()
         .map(|c| serde_json::to_string(c).unwrap_or_default());
+    let attachments_json = (!message.attachments.is_empty())
+        .then(|| serde_json::to_string(&message.attachments).unwrap_or_default());
     let _ = conn.execute(
-        "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at, from_conversation_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![conversation_id, message.role, message.content, tool_calls_json, ts, from_conversation_id],
+        "INSERT INTO messages (conversation_id, role, content, tool_calls, created_at, from_conversation_id, attachments) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![conversation_id, message.role, message.content, tool_calls_json, ts, from_conversation_id, attachments_json],
     );
     if message.role == "user" && from_conversation_id.is_none() {
-        if let Some(title) = title_from_message(&message.content) {
+        // A message that's only attachments is titled by its first one.
+        let title = title_from_message(&message.content)
+            .or_else(|| message.attachments.first().map(|a| a.name.clone()));
+        if let Some(title) = title {
             let _ = conn.execute(
                 "UPDATE conversations SET title = ?1 WHERE id = ?2 AND title IS NULL",
                 params![title, conversation_id],
@@ -250,7 +258,7 @@ pub fn update_tool_call_args(
 pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
     let conn = db.0.lock().unwrap();
     let mut stmt = match conn.prepare(
-        "SELECT id, role, content, tool_calls, created_at, duration_seconds, from_conversation_id FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
+        "SELECT id, role, content, tool_calls, created_at, duration_seconds, from_conversation_id, attachments FROM messages WHERE conversation_id = ?1 ORDER BY id ASC",
     ) {
         Ok(s) => s,
         Err(_) => return vec![],
@@ -263,8 +271,12 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
         let created_at: i64 = row.get(4)?;
         let duration_seconds: Option<i64> = row.get(5)?;
         let from_conversation_id: Option<String> = row.get(6)?;
+        let attachments_json: Option<String> = row.get(7)?;
         let tool_calls =
             tool_calls_json.and_then(|s| serde_json::from_str::<Vec<ToolCall>>(&s).ok());
+        let attachments = attachments_json
+            .and_then(|s| serde_json::from_str::<Vec<Attachment>>(&s).ok())
+            .unwrap_or_default();
         Ok(PersistedMessage {
             id,
             role,
@@ -273,12 +285,33 @@ pub fn load_messages(db: &Db, conversation_id: &str) -> Vec<PersistedMessage> {
             created_at,
             duration_seconds,
             from_conversation_id,
+            attachments,
         })
     });
     match rows {
         Ok(iter) => iter.filter_map(Result::ok).collect(),
         Err(_) => vec![],
     }
+}
+
+/// Every attachment id any message still references — what
+/// `attachments::sweep` must keep.
+pub fn referenced_attachment_ids(db: &Db) -> std::collections::HashSet<String> {
+    let conn = db.0.lock().unwrap();
+    let Ok(mut stmt) =
+        conn.prepare("SELECT attachments FROM messages WHERE attachments IS NOT NULL")
+    else {
+        return Default::default();
+    };
+    let rows: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map(|rows| rows.filter_map(Result::ok).collect())
+        .unwrap_or_default();
+    rows.iter()
+        .filter_map(|json| serde_json::from_str::<Vec<Attachment>>(json).ok())
+        .flatten()
+        .map(|a| a.id)
+        .collect()
 }
 
 /// How many messages in a row other agents have sent `conversation_id`
@@ -333,6 +366,7 @@ mod tests {
             role: role.into(),
             content: content.into(),
             tool_calls: None,
+            attachments: Vec::new(),
         }
     }
 
@@ -422,6 +456,7 @@ mod tests {
                 role: "user".into(),
                 content: "hello".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -432,6 +467,7 @@ mod tests {
                 role: "assistant".into(),
                 content: "hi there".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -441,6 +477,26 @@ mod tests {
         assert_eq!(loaded[0].content, "hello");
         assert_eq!(loaded[1].role, "assistant");
         assert_eq!(loaded[1].content, "hi there");
+    }
+
+    #[test]
+    fn round_trips_attachments_and_titles_by_them() {
+        let db = temp_db();
+        let root = std::env::temp_dir().join(format!("al-msg-attach-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let attachment =
+            crate::attachments::stage_bytes(&root, "notes.md", b"# hi".to_vec()).unwrap();
+        let mut sent = message("user", "");
+        sent.attachments = vec![attachment.clone()];
+        save_message(&db, "c", "/p", &sent);
+        let loaded = load_messages(&db, "c");
+        assert_eq!(loaded[0].attachments, vec![attachment.clone()]);
+        assert_eq!(
+            crate::db::get_conversation_title(&db, "c").as_deref(),
+            Some("notes.md")
+        );
+        assert!(referenced_attachment_ids(&db).contains(&attachment.id));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -460,6 +516,7 @@ mod tests {
                         arguments: serde_json::json!({ "path": "a.rs" }),
                     },
                 }]),
+                attachments: Vec::new(),
             },
         );
 
@@ -484,6 +541,7 @@ mod tests {
                 role: "system".into(),
                 content: "AGENTS.md content".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -501,6 +559,7 @@ mod tests {
                 role: "user".into(),
                 content: "sub-agent prompt".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -538,6 +597,7 @@ mod tests {
                         arguments: serde_json::json!({ "path": "a.rs" }),
                     },
                 }]),
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -548,6 +608,7 @@ mod tests {
                 role: "tool".into(),
                 content: "fn main() {}".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -588,6 +649,7 @@ mod tests {
                         arguments: serde_json::Value::Null,
                     },
                 }]),
+                attachments: Vec::new(),
             },
         );
 
@@ -617,6 +679,7 @@ mod tests {
                 role: "user".into(),
                 content: "hi".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -627,6 +690,7 @@ mod tests {
                 role: "assistant".into(),
                 content: "first reply".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -637,6 +701,7 @@ mod tests {
                 role: "user".into(),
                 content: "again".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -647,6 +712,7 @@ mod tests {
                 role: "assistant".into(),
                 content: "second reply".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -670,6 +736,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project a".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -680,6 +747,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project b".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 

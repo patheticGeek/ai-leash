@@ -1,5 +1,6 @@
 mod acp;
 mod actions;
+mod attachments;
 mod backend;
 #[cfg(test)]
 mod bench;
@@ -114,6 +115,12 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 backend::registry::move_file_keys_to_keychain(&handle);
             });
+            // Staged attachments no message references (removed before
+            // sending, or their conversation deleted).
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                attachments::sweep(&handle.state::<state::AppState>().db);
+            });
 
             Ok(())
         })
@@ -126,6 +133,11 @@ pub fn run() {
             commands::get_starting_context,
             commands::search_files,
             mentions::search_mentions,
+            attachments::stage_attachment_path,
+            attachments::stage_attachment_bytes,
+            attachments::discard_attachment,
+            attachments::read_attachment,
+            attachments::open_attachment,
             commands::read_file_text,
             commands::write_file_text,
             commands::save_text_file_as,

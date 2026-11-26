@@ -96,6 +96,7 @@ mod tests {
             role: "user".into(),
             content: "hi".into(),
             tool_calls: None,
+            attachments: Vec::new(),
         };
         save_message(db, id, "/proj/demo", &message);
     }

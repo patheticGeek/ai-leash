@@ -5,6 +5,7 @@
 use super::discovery::ConfigKind;
 use super::process::{ensure_acp_session, session_ready, AcpCommand};
 use super::rate_limit;
+use crate::attachments::Attachment;
 use crate::backend::{Backend, BoxFuture, Capabilities, NativeBackend, TaskResult};
 use crate::chat::{self, ChatMessage};
 use crate::db;
@@ -105,6 +106,7 @@ impl Backend for AcpBackend {
         app: &'a AppHandle,
         session_id: &'a str,
         message: String,
+        attachments: Vec<Attachment>,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let sender = self.connect_with_picks(app, session_id);
@@ -141,6 +143,9 @@ impl Backend for AcpBackend {
                     role: "user".into(),
                     content: stored,
                     tool_calls: None,
+                    // Stored with the message for the transcript; sending
+                    // them to the agent as content blocks is #75.
+                    attachments,
                 },
             );
             Ok(())
@@ -191,6 +196,7 @@ impl Backend for AcpBackend {
                     role: "user".into(),
                     content: prompt.to_string(),
                     tool_calls: None,
+                    attachments: Vec::new(),
                 },
             );
 
@@ -237,6 +243,7 @@ impl Backend for AcpBackend {
                         role: "assistant".into(),
                         content: format!("Error: {e}"),
                         tool_calls: None,
+                        attachments: Vec::new(),
                     },
                 );
             }
@@ -258,6 +265,7 @@ impl Backend for AcpBackend {
                             role: "assistant".into(),
                             content: text.clone(),
                             tool_calls: None,
+                            attachments: Vec::new(),
                         },
                     );
                     text

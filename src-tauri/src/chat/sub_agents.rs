@@ -54,6 +54,7 @@ pub(crate) fn run_sub_agent<'a>(
                 role: "user".into(),
                 content: prompt.to_string(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -98,6 +99,7 @@ pub(crate) fn run_sub_agent<'a>(
                     role: "assistant".into(),
                     content: text,
                     tool_calls: None,
+                    attachments: Vec::new(),
                 },
             );
         };
@@ -154,6 +156,7 @@ pub(crate) fn record_sub_agent_result(
                     arguments: arguments.clone(),
                 },
             }]),
+            attachments: Vec::new(),
         },
     );
     let _ = app.emit(
@@ -168,6 +171,7 @@ pub(crate) fn record_sub_agent_result(
             role: "tool".into(),
             content: result.to_string(),
             tool_calls: None,
+            attachments: Vec::new(),
         },
     );
     let _ = app.emit(

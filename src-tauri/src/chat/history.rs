@@ -68,6 +68,7 @@ fn hydrate_in_memory(state: &AppState, session_id: &str, messages: &[PersistedMe
                 },
                 content: m.content.clone(),
                 tool_calls: m.tool_calls.clone(),
+                attachments: m.attachments.clone(),
             })
             .collect()
     });

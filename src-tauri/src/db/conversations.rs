@@ -447,6 +447,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project a".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -457,6 +458,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project b".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -477,6 +479,7 @@ mod tests {
                 role: "user".into(),
                 content: "before clear".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         clear_conversation(&db, "/proj");
@@ -488,6 +491,7 @@ mod tests {
                 role: "user".into(),
                 content: "after clear".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -508,6 +512,7 @@ mod tests {
                 role: "user".into(),
                 content: "sub-agent prompt".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         record_sub_agent_started(&db, "sub-xyz", "/other", "unrelated task", "llama3", None);
@@ -560,6 +565,7 @@ mod tests {
                 role: "user".into(),
                 content: "first".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -570,6 +576,7 @@ mod tests {
                 role: "user".into(),
                 content: "second".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         // Both saves above land in the same wall-clock second (`now()` is
@@ -597,6 +604,7 @@ mod tests {
                 role: "user".into(),
                 content: "sub-agent prompt".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -619,6 +627,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project a".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         save_message(
@@ -629,6 +638,7 @@ mod tests {
                 role: "user".into(),
                 content: "in project b".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
 
@@ -657,6 +667,7 @@ mod tests {
                 role: "user".into(),
                 content: "sub-agent prompt".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         record_sub_agent_started(&db, "sub-xyz", "/other", "unrelated task", "llama3", None);
@@ -675,6 +686,7 @@ mod tests {
             role: "user".into(),
             content: text.into(),
             tool_calls: None,
+            attachments: Vec::new(),
         }
     }
 
