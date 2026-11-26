@@ -2,6 +2,7 @@ pub(crate) mod action_tools;
 pub(crate) mod board_tools;
 mod fs_tools;
 pub(crate) mod guidance;
+pub(crate) mod guides;
 pub(crate) mod memory_tools;
 // `pub(crate)` (not private): `lib.rs`'s `tauri::generate_handler!` list needs
 // to name `respond_permission`/`set_permission_mode`/`run_shell_command` by
@@ -134,6 +135,7 @@ pub async fn execute_tool(
         "read_sub_agent" => sub_agent_tools::read_sub_agent(state, session_id, args),
         "list_agent_options" => sub_agent_tools::list_agent_options(state, backend.native()).await,
         "load_skill" => memory_tools::load_skill(state, session_id, &root, args),
+        "read_guide" => guides::read_guide(args),
         "create_action" => action_tools::create_action(app, state, session_id, &root, args).await,
         "run_action" => action_tools::run_action(app, &root, args),
         "stop_action" => action_tools::stop_action(app, &root, args),

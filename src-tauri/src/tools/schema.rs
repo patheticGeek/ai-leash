@@ -1,5 +1,5 @@
 use crate::context;
-use crate::tools::{action_tools, board_tools, memory_tools, sub_agent_tools};
+use crate::tools::{action_tools, board_tools, guides, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -115,6 +115,11 @@ pub fn tool_definitions(
             }
         }
     ]);
+
+    // Always offered: the built-in guides the system prompt points at.
+    if let Value::Array(arr) = &mut tools {
+        arr.push(json!({ "type": "function", "function": guides::read_guide_def() }));
+    }
 
     let has_skills = root.is_some_and(|r| !context::list_skills(r, touched_dirs).is_empty());
     if has_skills {

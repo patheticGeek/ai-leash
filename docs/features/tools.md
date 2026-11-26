@@ -91,21 +91,26 @@ reach for each one: look through the
 project before answering, run long-lived commands such as a development
 server as an Action instead of a one-off command, save lasting preferences to
 memory when you state them, split independent parts of a request across
-sub-agents, put planned work on the board as tasks, and show tables, charts
-and similar data as [rich replies](./agent-chat.md#rich-replies). Before
+sub-agents, and put planned work on the board as tasks. The longer how-tos —
+[rich replies](./agent-chat.md#rich-replies), [HTML
+previews](./agent-chat.md#html-previews), the board and Actions — are
+[built-in guides](./context-and-memory.md#built-in-guides) the agent reads
+with `read_guide` before using the feature; the guidance names each one. Before
 those rules it's told what its chat is for — a project chat, a task's chat,
 a sub-agent or a plain chat (see [What the agent is told about its
-chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)). The agent is also shown which Actions and skills already exist, so it can
+chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)). The built-in agent is also shown which Actions and skills already exist, so it can
 reuse them without having to look them up first. Your own `AGENTS.md`
 instructions are added after this guidance, so they can refine or override it.
 
 External agents connected over ACP get the same guidance, from the same
-builder, for the AI Leash tools they can reach (Actions, memory, sub-agents
-and the board), with the same "This chat" section and rich-reply format,
-when they connect, along with the Actions and skills that exist at that point (they can
-call `list_actions` for the current set), including a preference for those over their own built-in equivalents
-so the work shows up in the app. They keep their own tools for files and
-commands.
+builder, for the AI Leash tools they can reach (Actions, memory, sub-agents,
+the board and `read_guide`), with the same "This chat" section and guide
+pointers, when they connect, including a preference for those over their own
+built-in equivalents so the work shows up in the app. Instead of the lists,
+they're told how many Actions and skills exist and which tool lists them
+(`list_actions`, `list_skills`), which keeps the instructions short enough
+that Claude Code doesn't cut them off. They keep their own tools for files
+and commands.
 
 ## Why permission prompts appear
 

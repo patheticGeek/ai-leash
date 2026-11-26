@@ -2,7 +2,7 @@ use super::{BridgeRequest, BridgeResponse};
 use crate::actions;
 use crate::chat_context::{AgentBackend, ChatContext, ChatKind};
 use crate::context;
-use crate::tools::{action_tools, board_tools, guidance, memory_tools, sub_agent_tools};
+use crate::tools::{action_tools, board_tools, guidance, guides, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpStream;
@@ -167,25 +167,70 @@ fn tools_list_result(root: &Path, chat: &ChatContext) -> Value {
     // knows this capability exists and can offer create_action itself.
     tools.extend(action_tools::action_defs().into_iter().map(mcp_tool));
     tools.extend(board_tools::board_defs().into_iter().map(mcp_tool));
+    tools.push(mcp_tool(guides::read_guide_def()));
 
     // Gated like the native list: only worth a tool slot if there's a skill
-    // to load. A snapshot from connect time, same as the instructions' list.
+    // to load. A snapshot from connect time, same as the instructions' count.
     if !context::list_skills(root, &[]).is_empty() {
+        tools.push(mcp_tool(list_skills_def()));
         tools.push(mcp_tool(memory_tools::load_skill_def()));
     }
 
     json!({ "tools": tools })
 }
 
-/// Bridge guidance plus what already exists in this project — the defined
-/// Actions and available skills — so the agent doesn't have to spend a call
-/// discovering them. Snapshots from connect time; the guidance points at
-/// `list_actions` for the live set.
+/// Bridge guidance plus how many Actions and skills this project has, with
+/// the tool that lists each. Only counts, not the lists themselves: Claude
+/// Code cuts `instructions` off at about 4K characters, so the whole text
+/// is kept under `INSTRUCTIONS_BUDGET` however many there are. Snapshots
+/// from connect time; the tools give the live set.
 fn bridge_instructions(root: &Path, chat: &ChatContext) -> String {
-    let mut sections = vec![guidance::guidance(chat)];
-    sections.extend(context::actions_section(&actions::load_actions(root)));
-    sections.extend(context::skills_section(&context::list_skills(root, &[])));
-    sections.join("\n\n")
+    instructions_for(
+        chat,
+        actions::load_actions(root).len(),
+        context::list_skills(root, &[]).len(),
+    )
+}
+
+/// Well under where Claude Code truncates (about 4,096 characters).
+#[cfg(test)]
+const INSTRUCTIONS_BUDGET: usize = 3_000;
+
+fn instructions_for(chat: &ChatContext, actions: usize, skills: usize) -> String {
+    let mut out = guidance::guidance(chat);
+    let mut lines = vec![];
+    if actions > 0 {
+        lines.push(format!(
+            "- {actions} Action{} defined; `list_actions` shows them.",
+            if actions == 1 { " is" } else { "s are" }
+        ));
+    }
+    if skills > 0 {
+        lines.push(format!(
+            "- {skills} skill{} available; `list_skills` shows them, `load_skill` loads one.",
+            if skills == 1 { " is" } else { "s are" }
+        ));
+    }
+    if !lines.is_empty() {
+        out.push_str("\n\n# In this project\n\n");
+        out.push_str(&lines.join("\n"));
+    }
+    out
+}
+
+/// The skills' names and descriptions, which the native agent gets in its
+/// system prompt; the bridge's instructions only count them.
+fn list_skills_def() -> Value {
+    json!({
+        "name": "list_skills",
+        "description": "List the skills available in this project (its own and the user's global ones): each one's name and what it's for. Load one with load_skill when it's relevant to the task.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+    })
+}
+
+fn list_skills_tool(root: &Path) -> Result<String, String> {
+    Ok(context::skills_section(&context::list_skills(root, &[]))
+        .unwrap_or_else(|| "There are no skills available in this project.".to_string()))
 }
 
 fn mcp_tool(mut definition: Value) -> Value {
@@ -223,6 +268,8 @@ fn tools_call_result(
         }
         "read_memory" => read_memory_tool(root, &arguments),
         "load_skill" => load_skill_tool(root, &arguments),
+        "list_skills" => list_skills_tool(root),
+        "read_guide" => guides::read_guide(&arguments),
         "update_memory" => update_memory_tool(root, &arguments),
         "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
         | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action" => {
@@ -329,5 +376,81 @@ fn relay_over_tcp(
     match serde_json::from_str::<BridgeResponse>(&line).map_err(|e| e.to_string())? {
         BridgeResponse::Ok { result } => Ok(result),
         BridgeResponse::Err { message } => Err(message),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chat_context::AgentBackend;
+
+    fn kinds() -> Vec<ChatKind> {
+        vec![
+            ChatKind::Plain,
+            ChatKind::Project,
+            ChatKind::Task {
+                number: 12345,
+                title: "A fairly long task title, as titles on a real board tend to get".into(),
+                branch: Some("task/12345-a-fairly-long-task-title-as-titles-on-a-real".into()),
+                worktree_path: Some(
+                    "/home/someone/Projects/some-project.worktrees/task-12345-a-fairly-long-task-title"
+                        .into(),
+                ),
+            },
+            ChatKind::SubAgent { parent: "p".into() },
+        ]
+    }
+
+    #[test]
+    fn worst_case_instructions_stay_under_budget() {
+        for kind in kinds() {
+            let chat = ChatContext {
+                kind: kind.clone(),
+                backend: AgentBackend::Acp,
+                project_name: "some-project-with-a-long-name".into(),
+                project_root: "/home/someone/Projects/some-project-with-a-long-name".into(),
+                checkout: "/home/someone/Projects/some-project.worktrees/task-12345".into(),
+            };
+            let text = instructions_for(&chat, 250, 250);
+            let len = text.chars().count();
+            assert!(len < INSTRUCTIONS_BUDGET, "{kind:?}: {len} chars\n{text}");
+            assert!(text.contains("250 Actions are defined; `list_actions`"));
+            assert!(text.contains("250 skills are available; `list_skills`"));
+            assert!(text.contains("`read_guide`"));
+        }
+    }
+
+    #[test]
+    fn nothing_to_count_adds_no_section() {
+        let chat = chat_context(Path::new("/tmp/x"));
+        assert!(!instructions_for(&chat, 0, 0).contains("# In this project"));
+        let one = instructions_for(&chat, 1, 1);
+        assert!(one.contains("1 Action is defined"));
+        assert!(one.contains("1 skill is available"));
+    }
+
+    #[test]
+    fn read_guide_is_always_offered_and_answered_locally() {
+        let root = Path::new("/nonexistent/ai-leash-test");
+        let chat = chat_context(root);
+        let list = tools_list_result(root, &chat);
+        let names: Vec<&str> = list["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"read_guide"));
+        assert!(!names.contains(&"list_skills"));
+        let req = json!({ "params": { "name": "read_guide", "arguments": { "topic": "board" } } });
+        // Port 0: a relayed call would fail, so this proves it's local.
+        let RpcOutcome::Result(r) = tools_call_result(&req, 0, "", "", root, &chat) else {
+            panic!("expected a result");
+        };
+        assert_eq!(r["isError"], false);
+        assert!(r["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("# The board"));
     }
 }
