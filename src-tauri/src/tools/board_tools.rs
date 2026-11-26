@@ -620,8 +620,6 @@ mod tests {
         ChatKind::Task {
             number: 1,
             title: "t".into(),
-            branch: None,
-            worktree_path: None,
         }
     }
 
