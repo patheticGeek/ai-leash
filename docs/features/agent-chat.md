@@ -267,6 +267,13 @@ history.
 The messages stay visible for you; they are just not part of what the new
 agent knows.
 
+Every time an external agent connects, new session or resumed, the first
+message it gets starts with a short block from AI Leash describing the chat
+(the task, branch and worktree for a task chat, say) and naming the
+built-in guides. Later messages on the same connection don't repeat it, and
+it isn't added to the transcript. See [What the agent is told about its
+chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat).
+
 A conversation keeps its external agent's session only once something has
 been sent in it. Opening a chat that has no messages yet, such as a
 project's board chat, connects the agent but doesn't save the session, and
