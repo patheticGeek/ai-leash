@@ -26,9 +26,13 @@ function baseName(path: string): string {
 // as soon as it's added (`api.stageAttachment*`), so a sent message only
 // names their ids. In memory only, like a new thread's draft: a staged
 // attachment nobody sends is swept by the backend later.
+// `imagesUnsupportedReason`: set when the chat's agent doesn't take images
+// — one staged anyway (its kind is only known once it's staged) is dropped
+// with that as the error.
 export function useAttachments(
   dropTargetRef: RefObject<HTMLElement | null>,
   onError: (message: string | null) => void,
+  imagesUnsupportedReason: string | null = null,
 ) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
@@ -36,8 +40,10 @@ export function useAttachments(
   const [isDragOver, setDragOver] = useState(false);
 
   const onErrorRef = useRef(onError);
+  const imagesReasonRef = useRef(imagesUnsupportedReason);
   useEffect(() => {
     onErrorRef.current = onError;
+    imagesReasonRef.current = imagesUnsupportedReason;
   });
 
   async function stage(name: string, run: () => Promise<Attachment>) {
@@ -45,6 +51,13 @@ export function useAttachments(
     setPending((prev) => [...prev, { key, name }]);
     try {
       const attachment = await run();
+      const refused =
+        attachment.kind === "image" ? imagesReasonRef.current : null;
+      if (refused) {
+        void api.discardAttachment(attachment.id).catch(() => {});
+        onErrorRef.current(`Couldn't attach ${name}: ${refused}`);
+        return;
+      }
       setAttachments((prev) => [...prev, attachment]);
     } catch (e) {
       onErrorRef.current(`Couldn't attach ${name}: ${e}`);

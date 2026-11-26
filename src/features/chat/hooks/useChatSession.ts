@@ -159,6 +159,13 @@ export function useChatSession(
   // a spinner until it can be applied. A failed start drops the connection,
   // which ends this too.
   const modelSwitchPending = !!live && !live.ready && !!model;
+  // An ACP agent takes images only if it said so (`promptCapabilities.image`,
+  // `images` once it's ready); until it has, they're let through (and go as
+  // a `resource_link` if it turns out not to).
+  const imagesUnsupportedReason =
+    config?.kind === "acp" && live?.ready && !live.images
+      ? `${config.label} doesn't accept images.`
+      : null;
 
   // The picked model is no longer offered (removed from Ollama, or the
   // agent dropped it) — judged only against a list that has actually loaded:
@@ -404,6 +411,7 @@ export function useChatSession(
     activeBackendKey,
     activeBackendLabel,
     modelSwitchPending,
+    imagesUnsupportedReason,
     selectBackendOption,
   };
 }

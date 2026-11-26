@@ -157,7 +157,13 @@ function ChatEntryRenderer({
     return (
       <>
         <ChatMessageBubble variant="ghost" width="100%">
-          <Markdown content={entry.content} isStreaming={sending && isLast} />
+          {entry.content && (
+            <Markdown content={entry.content} isStreaming={sending && isLast} />
+          )}
+          {/* Images an ACP agent sent in its reply. */}
+          {entry.attachments && entry.attachments.length > 0 && (
+            <AttachmentChips attachments={entry.attachments} />
+          )}
         </ChatMessageBubble>
         {footer}
       </>

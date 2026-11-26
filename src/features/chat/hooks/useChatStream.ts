@@ -5,6 +5,7 @@ import {
   getPrefetchedConversationHistory,
 } from "../../../data/conversationHistory";
 import {
+  appendAttachment,
   appendChunk,
   appendThinking,
   appendToolCall,
@@ -17,7 +18,7 @@ import {
   updateToolArgs,
 } from "../../../lib/chatEntries";
 import { createFrameBatcher, type FrameBatcher } from "../../../lib/frameBatch";
-import { api } from "../../../lib/tauriApi";
+import { type Attachment, api } from "../../../lib/tauriApi";
 import { useAppStore } from "../../../store";
 
 export interface SubtaskThread {
@@ -255,6 +256,14 @@ export function useChatStream(
       listen<string>(`chat://${sessionId}/chunk`, (e) => {
         update(
           (prev) => appendChunk(prev as Entry[], e.payload) as PanelEntry[],
+        );
+      }),
+    );
+    unlistens.push(
+      listen<Attachment>(`chat://${sessionId}/attachment`, (e) => {
+        update(
+          (prev) =>
+            appendAttachment(prev as Entry[], e.payload) as PanelEntry[],
         );
       }),
     );

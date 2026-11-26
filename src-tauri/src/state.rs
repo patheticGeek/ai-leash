@@ -61,6 +61,9 @@ pub struct AcpSession {
     pub effort_options: Option<serde_json::Value>,
     pub mode_options: Option<serde_json::Value>,
     pub available_commands: Option<serde_json::Value>,
+    /// It advertised `promptCapabilities.image` — attached images can go as
+    /// `image` blocks (`acp::attachments`); published as `images`.
+    pub images: bool,
 }
 
 /// One enabled ACP backend from the registry (id/label/launch command) plus

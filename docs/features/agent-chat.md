@@ -562,10 +562,9 @@ database, under `~/.config/ai-leash`) the moment you add it, so the transcript
 keeps working after the original moves or is deleted. A pasted image has no
 path, so that copy is all there is.
 
-How the agent receives attachments depends on its backend. ACP agents are
-covered by #75; until it lands, they're stored and shown with the message but
-not sent to an ACP agent. A native provider (Ollama or OpenAI-compatible)
-gets them with the message they were attached to:
+How the agent receives attachments depends on its backend. A native provider
+(Ollama or OpenAI-compatible) gets them with the message they were attached
+to:
 
 - **Images** go as images: an `image_url` content part holding a `data:` URL
   for an OpenAI-compatible host, an entry in the message's `images` for
@@ -589,6 +588,31 @@ Attachments are read from their stored copies each time a request is built,
 and they're stored on their message, so a resumed chat replays them in its
 history like the first turn did. A copy that has gone missing is sent as a
 line saying the file is no longer available.
+
+An ACP agent gets each one as a content block after the
+message text, in the richest form it advertised in `initialize`'s
+`promptCapabilities`:
+
+- **Image**: an `image` block (base64, with a `file://` uri to the stored
+  copy) if the agent advertises `image`. If it doesn't, the composer won't
+  take images for that chat: one you add is dropped with an error, and the
+  paperclip's tooltip says so. Before the agent has connected, images are
+  let through and go as a `resource_link` if it turns out not to take them.
+- **Text**: an embedded `resource` with the file's text (and a note if it
+  was cut at 1 MB) if the agent advertises `embeddedContext`, otherwise a
+  `resource_link`.
+- **Binary**: an embedded blob `resource` if the agent advertises
+  `embeddedContext` and the stored copy is 5 MB or smaller, otherwise a
+  `resource_link`.
+
+A `resource_link` points at the stored copy (or, for a binary file too big to
+copy, the original) with a percent-encoded `file://` URI, plus its name, mime
+type and size. It's the baseline every ACP agent accepts. An attachment whose
+file is gone from disk is left out.
+
+An image an ACP agent sends back in its reply (an `image` content block in
+`agent_message_chunk`) is staged like a pasted one and shows under that
+message as an image chip.
 
 Under the hood, `src-tauri/src/attachments.rs` stages each file as
 `<attachments>/<id>/` (the copy plus a `meta.json` holding its `Attachment`).
@@ -619,6 +643,17 @@ it still exists, else the copy). On the frontend, `useAttachments` owns the
 composer's list along with paste, drop (Tauri's `onDragDropEvent`, hit-tested
 against the dock) and the dialog. `AttachmentChips` renders the chips in both
 places. Queued messages carry their attachments too.
+
+For ACP agents, `acp/attachments.rs` builds the blocks (`prompt_blocks`, with
+`PromptCaps` read from `initialize` in `process.rs`) and stages the agent's
+images (`stage_agent_image`). `AcpCommand::Prompt` carries the attachments
+next to the `@path` files. The agent's `image` capability is published as
+`images` on `AcpSessionOptions`, which `useChatSession` turns into
+`imagesUnsupportedReason` for the composer. In `events.rs`, an image goes on
+the open assistant run's `attachments` (`db::set_message_attachments` on its
+row) and is emitted on `chat://{id}/attachment`, where `appendAttachment`
+adds it to the streaming message. A tool call's image output is summarized
+as `[image: <mime>]`.
 
 ## Send a code review
 
