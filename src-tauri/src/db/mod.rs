@@ -49,7 +49,7 @@ pub use rate_limit::{
     set_pending_rate_limit, set_rate_limit_choice,
 };
 pub use sub_agents::{
-    delete_sub_agent, get_sub_agent_for_parent, list_sub_agents_for_parent,
+    delete_sub_agent, get_sub_agent_for_parent, is_sub_agent, list_sub_agents_for_parent,
     record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
 };
 pub use tasks::{

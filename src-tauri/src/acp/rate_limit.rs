@@ -20,7 +20,58 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-const RESUME_PROMPT: &str = "continue working";
+/// What kind of conversation a resume prompt goes to, which picks its
+/// wording.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ResumeKind {
+    /// A board task's chat.
+    TaskChat,
+    SubAgent,
+    /// The project chat or a normal chat.
+    Chat,
+}
+
+impl ResumeKind {
+    fn of(db: &db::Db, session_id: &str) -> Self {
+        if db::task_for_conversation(db, session_id).is_some() {
+            Self::TaskChat
+        } else if db::is_sub_agent(db, session_id) {
+            Self::SubAgent
+        } else {
+            Self::Chat
+        }
+    }
+}
+
+/// The message sent when a limit resets. A limit belongs to the agent's
+/// login, so it lifts for every chat that uses the same agent, but the
+/// agent's own history still says its task chats and sub-agents were
+/// blocked too, so a bare "continue" let it conclude they still were and do
+/// their work itself. Followed task chats and sub-agents have no timer of
+/// their own (the project chat / parent deals with them), so the chat that
+/// resumes is told to restart them.
+fn resume_prompt(kind: ResumeKind) -> &'static str {
+    match kind {
+        ResumeKind::Chat => {
+            "The rate limit has reset, for this chat and for every other chat that uses the same \
+             agent, including task chats and sub-agents. Anything that failed or stopped because of it \
+             can run again. Task chats you follow and sub-agents that stopped on the limit don't \
+             resume on their own: message those task chats to carry on, and spawn sub-agents \
+             again for work that didn't finish. Continue as you were, delegating as usual."
+        }
+        ResumeKind::TaskChat => {
+            "The rate limit has reset, for this task chat and for every other chat that uses \
+             the same agent, including the project chat, other task chats and sub-agents. Anything that \
+             failed or stopped because of it can run again; spawn sub-agents again for work that \
+             didn't finish. Continue as you were, delegating as usual."
+        }
+        ResumeKind::SubAgent => {
+            "The rate limit has reset, for this sub-agent and for every other chat that uses \
+             the same agent, including task chats and other sub-agents. Anything that failed or stopped \
+             because of it can run again. Continue as you were."
+        }
+    }
+}
 /// The agent can still report the limit for a moment after the printed
 /// reset minute, which would just produce another limit error.
 const GRACE_MS: i64 = 10_000;
@@ -275,6 +326,7 @@ pub(crate) fn try_fire(app: &AppHandle, session_id: &str) {
     if !d.armed || d.reset_at + GRACE_MS > now_ms() {
         return;
     }
+    let prompt = resume_prompt(ResumeKind::of(&state.db, session_id));
     let sender = state
         .acp_sessions
         .lock()
@@ -289,7 +341,7 @@ pub(crate) fn try_fire(app: &AppHandle, session_id: &str) {
     db::clear_pending_rate_limit(&state.db, session_id);
     cancel_timer(&state, session_id);
     if sender
-        .send(AcpCommand::Prompt(RESUME_PROMPT.into(), vec![], None))
+        .send(AcpCommand::Prompt(prompt.into(), vec![], None))
         .is_err()
     {
         return;
@@ -299,11 +351,11 @@ pub(crate) fn try_fire(app: &AppHandle, session_id: &str) {
         session_id,
         ChatMessage {
             role: "user".into(),
-            content: RESUME_PROMPT.into(),
+            content: prompt.into(),
             tool_calls: None,
         },
     );
-    let _ = app.emit(&format!("chat://{session_id}/user_message"), RESUME_PROMPT);
+    let _ = app.emit(&format!("chat://{session_id}/user_message"), prompt);
     let _ = app.emit(
         &format!("chat://{session_id}/rate_limit"),
         Option::<RateLimitResume>::None,
@@ -624,7 +676,7 @@ mod tests {
         record_error(&db, "conv", &real_limit_error(), 0);
         // What `clear` does when `AcpBackend::send` pushes the message.
         db::clear_pending_rate_limit(&db, "conv");
-        say(&db, "conv", "user", "continue working");
+        say(&db, "conv", "user", resume_prompt(ResumeKind::Chat));
         assert!(detect(&db, "conv").is_none());
         assert!(db::armed_rate_limit_conversations(&db).is_empty());
     }
@@ -663,5 +715,47 @@ mod tests {
             detect(&db, "task-chat").is_some(),
             "unfollowed task chats show it"
         );
+    }
+
+    #[test]
+    fn the_resume_prompt_names_the_kind_of_chat() {
+        let db = temp_db();
+        assert_eq!(ResumeKind::of(&db, "conv"), ResumeKind::Chat);
+
+        let task = db::create_task(
+            &db,
+            "/proj",
+            db::NewTask {
+                title: "t".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db::set_task_conversation(&db, &task.id, Some("task-chat"), false);
+        assert_eq!(ResumeKind::of(&db, "task-chat"), ResumeKind::TaskChat);
+
+        db::record_sub_agent_started(&db, "sub", "conv", "do it", "", None);
+        assert_eq!(ResumeKind::of(&db, "sub"), ResumeKind::SubAgent);
+    }
+
+    #[test]
+    fn every_resume_prompt_says_other_chats_are_free() {
+        for (kind, noun) in [
+            (ResumeKind::Chat, "for this chat "),
+            (ResumeKind::TaskChat, "for this task chat "),
+            (ResumeKind::SubAgent, "for this sub-agent "),
+        ] {
+            let p = resume_prompt(kind);
+            assert!(p.starts_with("The rate limit has reset, "), "{kind:?}");
+            assert!(p.contains(noun), "{kind:?}");
+            assert!(
+                p.contains("every other chat that uses the same agent"),
+                "{kind:?}"
+            );
+            assert!(p.contains("task chats"), "{kind:?}");
+            assert!(p.contains("sub-agents"), "{kind:?}");
+            assert!(p.contains("Continue as you were"), "{kind:?}");
+        }
+        assert!(resume_prompt(ResumeKind::Chat).contains("don't resume on their own"));
     }
 }
