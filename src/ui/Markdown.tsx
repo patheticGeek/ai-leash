@@ -15,10 +15,12 @@ import {
   memo,
   type ReactNode,
   useContext,
+  useMemo,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { type InlineMention, splitInlineMentions } from "@/lib/mentions";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 
 // Flattens a rendered node back to the source text it came from.
@@ -36,6 +38,13 @@ function nodeText(node: ReactNode): string {
 // no provider, shell blocks just don't get a run button.
 export const RunCommandContext = createContext<
   ((command: string) => void) | null
+>(null);
+
+// How an inline `@path` mention (`splitInlineMentions`) is drawn — a
+// badge, supplied by the transcript (this file doesn't know about files or
+// tabs). Only used when `Markdown` is given `mentions`.
+export const MentionBadgeContext = createContext<
+  ((mention: InlineMention) => ReactNode) | null
 >(null);
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell", "zsh"]);
@@ -268,10 +277,73 @@ const components: Components = {
 // Markdown would be re-parsed on every chunk, not just the one growing.
 const remarkPlugins = [remarkGfm, remarkBreaks];
 
-function Markdown({ content }: { content: string }) {
+interface MdNode {
+  type: string;
+  value?: string;
+  children?: MdNode[];
+  data?: { hName: string; hProperties: InlineMention };
+}
+
+// Remark step: the `@path` tokens in plain text (not code) that name one
+// of `mentions` become `mention` elements, drawn by `MentionBadge`.
+function remarkMentions(mentions: readonly string[]) {
+  function walk(node: MdNode) {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child): MdNode[] => {
+      if (child.type !== "text" || !child.value?.includes("@")) {
+        walk(child);
+        return [child];
+      }
+      return splitInlineMentions(child.value, mentions).map((part) =>
+        typeof part === "string"
+          ? { type: "text", value: part }
+          : {
+              type: "mention",
+              children: [],
+              data: { hName: "mention", hProperties: part },
+            },
+      );
+    });
+  }
+  return () => walk;
+}
+
+function MentionBadge({ node }: { node?: { properties?: unknown } }) {
+  const render = useContext(MentionBadgeContext);
+  const mention = node?.properties as InlineMention | undefined;
+  return mention && render ? render(mention) : null;
+}
+
+// `mention` isn't an HTML tag, so it's outside `Components`' keys.
+const mentionComponents = {
+  ...components,
+  mention: MentionBadge,
+} as Components;
+
+// `mentions`: a sent user message's attached paths, drawn inline as
+// badges (via `MentionBadgeContext`) where the text tags them.
+function Markdown({
+  content,
+  mentions,
+}: {
+  content: string;
+  mentions?: readonly string[];
+}) {
+  const mentionsKey = mentions?.join("\n") ?? "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the paths by value
+  const plugins = useMemo(
+    () =>
+      mentions && mentions.length > 0
+        ? [...remarkPlugins, remarkMentions(mentions)]
+        : remarkPlugins,
+    [mentionsKey],
+  );
   return (
     <div {...stylex.props(styles.root)}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} components={components}>
+      <ReactMarkdown
+        remarkPlugins={plugins}
+        components={plugins === remarkPlugins ? components : mentionComponents}
+      >
         {content}
       </ReactMarkdown>
     </div>

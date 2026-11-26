@@ -72,7 +72,16 @@ export interface ProjectSlice {
   // sidebar project group's ⋯ / right-click menu (`LeftBar.tsx`'s
   // `ProjectGroup`), behind `RemoveProjectDialog`.
   removeProject: (root: string) => Promise<void>;
-  openFile: (path: string, name: string) => Promise<void>;
+  // `lines`: also scroll to and select those lines (1-based, inclusive) —
+  // an inline `@path:12-18` badge's click. `FileEditorTab` picks it up from
+  // `revealLines` and clears it.
+  openFile: (
+    path: string,
+    name: string,
+    lines?: { startLine: number; endLine: number },
+  ) => Promise<void>;
+  revealLines: { path: string; startLine: number; endLine: number } | null;
+  clearRevealLines: () => void;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveFile: (path: string) => Promise<void>;
@@ -132,7 +141,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
     });
   },
 
-  openFile: async (path, name) => {
+  revealLines: null,
+  clearRevealLines: () => set({ revealLines: null }),
+
+  openFile: async (path, name, lines) => {
     // No session in a new thread — Rust then reads from the checkout it's
     // showing (`set_view_root`).
     const { activeSessionId: sessionId, draft } = get();
@@ -143,6 +155,7 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
         openFiles: [...s.openFiles, { path, name, content, dirty: false }],
       }));
     }
+    if (lines) set({ revealLines: { path, ...lines } });
     get().openPanelTab("file", { path, label: name });
   },
 

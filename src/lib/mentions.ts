@@ -92,3 +92,55 @@ export function requestMention(path: string) {
 
 // What a file-tree row puts on a drag, read by the composer on drop.
 export const MENTION_DRAG_TYPE = "application/x-ai-leash-path";
+
+// One `@path` / `@path:12` / `@path:12-18` token in a sent message that
+// names one of its attached `mentions`; `startLine`/`endLine` are its
+// lines, when it had them.
+export interface InlineMention {
+  path: string;
+  startLine?: number;
+  endLine?: number;
+}
+
+function linesOf(start?: string, end?: string) {
+  if (!start) return {};
+  const startLine = Number(start);
+  return { startLine, endLine: end ? Number(end) : startLine };
+}
+
+// `text` cut into plain runs and the mention tokens in it that name one of
+// `mentions` (the paths the backend attached — see `splitMentions`). A
+// token's trailing punctuation stays text; `@` tokens naming anything else
+// stay text too.
+export function splitInlineMentions(
+  text: string,
+  mentions: readonly string[],
+): (string | InlineMention)[] {
+  const known = new Set(mentions);
+  const out: (string | InlineMention)[] = [];
+  const re = /(^|\s)@(?:"([^"]+)"(\S*)|(\S+))/g;
+  let last = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    const at = m.index + m[1].length;
+    let mention: InlineMention | null = null;
+    let length = 0;
+    if (m[2] !== undefined) {
+      const lines = /^:(\d+)(?:-(\d+))?/.exec(m[3]);
+      mention = { path: m[2], ...linesOf(lines?.[1], lines?.[2]) };
+      length = 1 + m[2].length + 2 + (lines?.[0].length ?? 0);
+    } else {
+      const token = m[4].replace(/[,.;:!?)'"]+$/, "");
+      const parts = /^(.*?)(?::(\d+)(?:-(\d+))?)?$/.exec(token);
+      if (parts) {
+        mention = { path: parts[1], ...linesOf(parts[2], parts[3]) };
+        length = 1 + token.length;
+      }
+    }
+    if (!mention || !known.has(mention.path)) continue;
+    if (at > last) out.push(text.slice(last, at));
+    out.push(mention);
+    last = at + length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}

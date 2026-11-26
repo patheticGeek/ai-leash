@@ -183,6 +183,28 @@ export default function FileEditorTab({ path }: { path: string }) {
     return () => view.destroy();
   }, [path, loaded, canComment]);
 
+  // An `@path:12-18` badge's click (`openFile`'s `lines`): select those
+  // lines and scroll them into view, once the file is loaded.
+  const revealLines = useAppStore((s) =>
+    s.revealLines?.path === path ? s.revealLines : null,
+  );
+  const clearRevealLines = useAppStore((s) => s.clearRevealLines);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `loaded` re-runs it once the view exists
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !revealLines) return;
+    const { doc } = view.state;
+    const clamp = (n: number) => Math.min(Math.max(1, n), doc.lines);
+    const from = doc.line(clamp(revealLines.startLine)).from;
+    const to = doc.line(clamp(revealLines.endLine)).to;
+    view.dispatch({
+      selection: { anchor: from, head: to },
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
+    });
+    view.focus();
+    clearRevealLines();
+  }, [revealLines, loaded]);
+
   // A newer copy from disk (an agent's edit — see `reloadChangedFiles`):
   // swap it into the view. Typing round-trips through the store unchanged,
   // so it never differs here.
