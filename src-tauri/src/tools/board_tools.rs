@@ -1,12 +1,15 @@
 //! The project board as tools, so an agent can plan and track work by
 //! chatting: list, read, create and update tasks, start them, and manage
-//! epics. Offered to every conversation, natively and over the MCP bridge.
+//! epics. Offered natively and over the MCP bridge, but not all of them to
+//! every chat: `board_tools_for` picks them by chat kind, and `refusal`
+//! turns down a call to one the chat wasn't offered.
 //!
 //! Tasks are named the way people name them — `#12` — and a task's own chat
 //! can leave the task out entirely: `update_task` and `read_task` default to
 //! the task the calling conversation was started for.
 
 use crate::board::{emit_board_changed, lifecycle, messaging};
+use crate::chat_context::{AgentBackend, ChatContext, ChatKind};
 use crate::commands;
 use crate::db::{self, AgentDefaults, Epic, NewEpic, NewTask, Task, TaskPatch};
 use crate::state::AppState;
@@ -157,6 +160,53 @@ pub(crate) const BOARD_TOOLS: &[&str] = &[
     "list_epics",
     "create_epic",
 ];
+
+/// The board tools a chat of this kind is offered. Only the project chat
+/// starts tasks: their updates come back to the chat that started them, and
+/// any other chat starting one would leave a task chat nobody follows, so it
+/// asks the project chat instead. A sub-agent only reads the board.
+pub(crate) fn board_tools_for(kind: &ChatKind) -> &'static [&'static str] {
+    match kind {
+        ChatKind::Project => BOARD_TOOLS,
+        ChatKind::Task { .. } | ChatKind::Plain => &[
+            "list_tasks",
+            "read_task",
+            "create_tasks",
+            "update_task",
+            "send_message",
+            "list_epics",
+            "create_epic",
+        ],
+        ChatKind::SubAgent { .. } => &["list_tasks", "read_task"],
+    }
+}
+
+/// `board_defs`, filtered to what `kind` is offered.
+pub(crate) fn board_defs_for(kind: &ChatKind) -> Vec<Value> {
+    let allowed = board_tools_for(kind);
+    board_defs()
+        .into_iter()
+        .filter(|d| d["name"].as_str().is_some_and(|n| allowed.contains(&n)))
+        .collect()
+}
+
+/// Why a chat of `kind` can't call the board tool `name`, or `None` if it
+/// can. An agent may still call a tool it wasn't offered (a name it
+/// remembers from an earlier list), so the call is checked too.
+pub(crate) fn refusal(kind: &ChatKind, name: &str) -> Option<String> {
+    if board_tools_for(kind).contains(&name) {
+        return None;
+    }
+    Some(match kind {
+        ChatKind::Task { .. } | ChatKind::Plain => format!(
+            "`{name}` can only be used from the project chat, which follows the tasks it starts. Ask the project chat to start it with `send_message` to \"project\"."
+        ),
+        ChatKind::SubAgent { .. } => format!(
+            "`{name}` can't be used by a sub-agent: sub-agents only read the board (`list_tasks`, `read_task`). Put what you'd change in your result for the chat that spawned you."
+        ),
+        ChatKind::Project => format!("unknown board tool `{name}`"),
+    })
+}
 
 fn project_root(state: &AppState, session_id: &str) -> Result<String, String> {
     let root = commands::get_conversation_root(state, session_id)?.project_root;
@@ -524,6 +574,16 @@ pub(crate) async fn execute(
 ) -> Result<String, String> {
     let state = app.state::<AppState>();
     let root = project_root(&state, session_id)?;
+    // Only the kind matters here, so the backend is a placeholder.
+    let chat = ChatContext::load(
+        &state.db,
+        session_id,
+        std::path::Path::new(&root),
+        AgentBackend::Native,
+    );
+    if let Some(why) = refusal(&chat.kind, name) {
+        return Err(why);
+    }
     match name {
         "list_tasks" => list_tasks(&state, &root, args),
         "read_task" => read_task(&state, session_id, &root, args),
@@ -554,5 +614,61 @@ mod tests {
             .map(|d| d["name"].as_str().unwrap().to_string())
             .collect();
         assert_eq!(names, BOARD_TOOLS);
+    }
+
+    fn task() -> ChatKind {
+        ChatKind::Task {
+            number: 1,
+            title: "t".into(),
+            branch: None,
+            worktree_path: None,
+        }
+    }
+
+    fn names(kind: &ChatKind) -> Vec<String> {
+        board_defs_for(kind)
+            .iter()
+            .map(|d| d["name"].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn each_kind_gets_its_board_tools() {
+        assert_eq!(names(&ChatKind::Project), BOARD_TOOLS);
+        let all_but_start_task = [
+            "list_tasks",
+            "read_task",
+            "create_tasks",
+            "update_task",
+            "send_message",
+            "list_epics",
+            "create_epic",
+        ];
+        assert_eq!(names(&ChatKind::Plain), all_but_start_task);
+        assert_eq!(names(&task()), all_but_start_task);
+        let sub = ChatKind::SubAgent { parent: "p".into() };
+        assert_eq!(names(&sub), ["list_tasks", "read_task"]);
+    }
+
+    #[test]
+    fn refused_calls_say_who_can_make_them() {
+        assert_eq!(refusal(&ChatKind::Project, "start_task"), None);
+        assert_eq!(refusal(&task(), "update_task"), None);
+        for kind in [task(), ChatKind::Plain] {
+            let why = refusal(&kind, "start_task").unwrap();
+            assert!(
+                why.contains("can only be used from the project chat"),
+                "{why}"
+            );
+            assert!(why.contains("`send_message` to \"project\""), "{why}");
+        }
+        let sub = ChatKind::SubAgent { parent: "p".into() };
+        assert_eq!(refusal(&sub, "read_task"), None);
+        let why = refusal(&sub, "create_tasks").unwrap();
+        assert!(
+            why.contains("`create_tasks` can't be used by a sub-agent"),
+            "{why}"
+        );
+        assert!(why.contains("the chat that spawned you"), "{why}");
     }
 }

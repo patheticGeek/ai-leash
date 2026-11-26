@@ -219,7 +219,7 @@ async fn stream_turn_ollama(
         cancel_flag,
         root,
         touched_dirs,
-        allow_subtasks,
+        chat,
         message_id,
         effort: _,
     } = request;
@@ -229,7 +229,7 @@ async fn stream_turn_ollama(
         model,
         messages: history,
         stream: true,
-        tools: tools::tool_definitions(root, touched_dirs, allow_subtasks),
+        tools: tools::tool_definitions(root, touched_dirs, chat),
     };
     let resp = match client
         .post(format!("{base_url}/api/chat"))

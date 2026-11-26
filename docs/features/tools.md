@@ -59,13 +59,19 @@ For more about this, see [agent-chat.md](./agent-chat.md#sub-agents).
 The agent can read and change the project's
 [board](./project-board.md): list tasks and epics, read a task, add tasks
 (several at once, creating any epic they name), change a task's fields or
-status, and start a task. Ask it to "plan this as tasks" or "add a task for
-…" and the tasks show up on the board; it can also give each task the
+status, and (from the project chat) start a task. Ask it to "plan this as
+tasks" or "add a task for …" and the tasks show up on the board; it can also give each task the
 agent, model, thinking level and permission it should start with. In a task's own chat it can update
 that task without naming it, and is asked to move it to Review when its
 work is done. It can also message the project chat from a task's chat, or
 a task from the project chat — see
 [The project chat and task chats](./project-board.md#the-project-chat-and-task-chats).
+Which of these tools it has depends on the chat: only the project chat
+gets `start_task`, and a sub-agent can only list and read tasks (see
+[Planning by chatting](./project-board.md#planning-by-chatting)). The
+built-in agent and external agents get the same set, and a call to one
+the chat wasn't given is refused with a message saying which chat can
+make it.
 
 These don't need an approval prompt: they change the board, not your
 files. Moving a task to Done removes its worktree, so the agent can only do

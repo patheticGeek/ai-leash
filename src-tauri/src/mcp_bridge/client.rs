@@ -166,7 +166,11 @@ fn tools_list_result(root: &Path, chat: &ChatContext) -> Value {
     // defined yet) — same as `tools::tool_definitions` — so the agent
     // knows this capability exists and can offer create_action itself.
     tools.extend(action_tools::action_defs().into_iter().map(mcp_tool));
-    tools.extend(board_tools::board_defs().into_iter().map(mcp_tool));
+    tools.extend(
+        board_tools::board_defs_for(&chat.kind)
+            .into_iter()
+            .map(mcp_tool),
+    );
     tools.push(mcp_tool(guides::read_guide_def()));
 
     // Gated like the native list: only worth a tool slot if there's a skill
@@ -276,7 +280,10 @@ fn tools_call_result(
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         board if board_tools::BOARD_TOOLS.contains(&board) => {
-            relay_over_tcp(port, token, session_id, name, arguments)
+            match board_tools::refusal(&chat.kind, board) {
+                Some(why) => Err(why),
+                None => relay_over_tcp(port, token, session_id, name, arguments),
+            }
         }
         other => Err(format!("unknown tool `{other}`")),
     };
@@ -452,5 +459,66 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("# The board"));
+    }
+
+    fn with_kind(kind: ChatKind) -> ChatContext {
+        ChatContext {
+            kind,
+            ..chat_context(Path::new("/nonexistent/ai-leash-test"))
+        }
+    }
+
+    #[test]
+    fn board_tools_listed_per_chat_kind() {
+        let root = Path::new("/nonexistent/ai-leash-test");
+        for kind in kinds() {
+            let list = tools_list_result(root, &with_kind(kind.clone()));
+            let board: Vec<&str> = list["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["name"].as_str().unwrap())
+                .filter(|n| board_tools::BOARD_TOOLS.contains(n))
+                .collect();
+            assert_eq!(board, board_tools::board_tools_for(&kind), "{kind:?}");
+            assert_eq!(
+                board.contains(&"start_task"),
+                kind == ChatKind::Project,
+                "{kind:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stale_board_tool_call_is_refused_locally() {
+        let root = Path::new("/nonexistent/ai-leash-test");
+        let call = |kind: ChatKind, name: &str| {
+            let req = json!({ "params": { "name": name, "arguments": { "task": "#1" } } });
+            // Port 0: a relayed call fails with "bridge connect failed".
+            let RpcOutcome::Result(r) = tools_call_result(&req, 0, "", "", root, &with_kind(kind))
+            else {
+                panic!("expected a result");
+            };
+            (
+                r["isError"].as_bool().unwrap(),
+                r["content"][0]["text"].as_str().unwrap().to_string(),
+            )
+        };
+        let task = kinds()[2].clone();
+        let (err, text) = call(task, "start_task");
+        assert!(err);
+        assert!(
+            text.contains("can only be used from the project chat"),
+            "{text}"
+        );
+        let sub = ChatKind::SubAgent { parent: "p".into() };
+        let (err, text) = call(sub.clone(), "update_task");
+        assert!(err);
+        assert!(text.contains("can't be used by a sub-agent"), "{text}");
+        // An allowed one goes on to the relay.
+        let (_, text) = call(sub, "read_task");
+        assert!(text.starts_with("bridge connect failed"), "{text}");
+        let (_, text) = call(ChatKind::Project, "start_task");
+        assert!(text.starts_with("bridge connect failed"), "{text}");
     }
 }

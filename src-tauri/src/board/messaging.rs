@@ -306,7 +306,7 @@ fn plan_send(
     })?;
     let conversation_id = task.conversation_id.clone().ok_or_else(|| {
         format!(
-            "Task #{} hasn't been started, so it has no chat to message yet; start_task it first.",
+            "Task #{} hasn't been started, so it has no chat to message yet.",
             task.number
         )
     })?;

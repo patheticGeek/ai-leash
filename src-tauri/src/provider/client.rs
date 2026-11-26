@@ -11,6 +11,7 @@
 use super::ModelSummary;
 use crate::backend::{BoxFuture, Capabilities};
 use crate::chat::{ChatMessage, TurnResult};
+use crate::chat_context::ChatContext;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -82,7 +83,8 @@ pub struct TurnRequest<'a> {
     pub cancel_flag: &'a Arc<AtomicBool>,
     pub root: Option<&'a Path>,
     pub touched_dirs: &'a [PathBuf],
-    pub allow_subtasks: bool,
+    /// What kind of chat this is; picks the sub-agent and board tools offered.
+    pub chat: &'a ChatContext,
     /// Row to flush streamed text into as it arrives; `None` when there's no
     /// project root to persist under.
     pub message_id: Option<i64>,
