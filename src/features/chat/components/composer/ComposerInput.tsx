@@ -9,7 +9,7 @@ import { SquareTerminal } from "lucide-react";
 import {
   type KeyboardEvent,
   type RefObject,
-  useEffect,
+  useImperativeHandle,
   useLayoutEffect,
 } from "react";
 import { COMPOSER_MIN_ROWS, usePreference } from "@/data/preferences";
@@ -94,14 +94,11 @@ export default function ComposerInput({
 
   // Lets a click on the composer's empty space focus this field.
   const composer = useChatComposerContext();
-  const controlRef = composer?.inputControlRef;
-  useEffect(() => {
-    if (!controlRef) return;
-    controlRef.current = { focus: () => textareaRef.current?.focus() };
-    return () => {
-      controlRef.current = null;
-    };
-  }, [controlRef, textareaRef]);
+  useImperativeHandle(
+    composer?.inputControlRef,
+    () => ({ focus: () => textareaRef.current?.focus() }),
+    [textareaRef],
+  );
 
   return (
     <TextArea
