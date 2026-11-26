@@ -32,6 +32,7 @@ import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
+  sizeVars,
   spacingVars,
   typeScaleVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
@@ -39,6 +40,7 @@ import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
+  BellDot,
   Check,
   Folder,
   FolderMinus,
@@ -46,6 +48,7 @@ import {
   ListFilter,
   MessagesSquare,
   SettingsIcon,
+  ShieldAlert,
   SquareKanban,
   SquarePen,
   Trash2,
@@ -82,6 +85,12 @@ import { pickAndAddProject, startNewThread } from "./projectActions";
 import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
+const pulse = stylex.keyframes({
+  "0%": { opacity: 1 },
+  "50%": { opacity: 0.4 },
+  "100%": { opacity: 1 },
+});
+
 const styles = stylex.create({
   // The hairline between the sidebar and the rest of the window, full
   // height. AppShell draws one only in its `section` variant, which would
@@ -117,9 +126,9 @@ const styles = stylex.create({
   // Holds the title line's room for the ⋯ while it shows. The ⋯ itself can't
   // sit in the title line (that's inside the row's button), so it's laid over
   // the row's end from outside the Item (`flatActions`), out of the flow, and
-  // the second line keeps the row's full width. The slot only covers the
-  // dots; the button's own padding may overlap the title's end.
-  flatActionsSlot: { width: spacingVars["--spacing-4"], flexShrink: 0 },
+  // the second line keeps the row's full width. The slot is the whole ⋯
+  // button, so its hit area never covers the status before it.
+  flatActionsSlot: { width: sizeVars["--size-element-sm"], flexShrink: 0 },
   flatActions: {
     position: "absolute",
     insetInlineEnd: `calc(${spacingVars["--spacing-1"]} + ${spacingVars["--spacing-0-5"]})`,
@@ -195,18 +204,33 @@ const styles = stylex.create({
   // The ⋯ never takes its full width from the title: it's out of the flow,
   // anchored at the slot's end edge (which also keeps it inside the rail
   // instead of overflowing past it and scrolling the sidebar sideways), and
-  // centred on the slot. At rest the slot is empty; revealed it's about the
-  // dots' width, so the title gives up that (plus the row's gap) and the
-  // button's own padding overlaps the title's end. The flat row's title line
-  // reserves the same (`flatActionsSlot`), so both layouts cut it alike.
+  // centred on the slot. At rest the slot is empty; revealed it's the
+  // button's full width, so the title gives up that (plus the row's gap) and
+  // the button's padding never lies over the spinner or timer before it. The
+  // flat row's title line reserves the same (`flatActionsSlot`), so both
+  // layouts cut it alike.
   revealAnchor: { position: "relative", alignItems: "center" },
-  revealAnchorOpen: {
-    width: `calc(${spacingVars["--spacing-4"]} - ${spacingVars["--spacing-0-5"]})`,
-  },
+  revealAnchorOpen: { width: sizeVars["--size-element-sm"] },
   // The row wrapper: anchors a flat row's ⋯ and marks hover for the flat
   // row's label colour (the ⋯ is outside the Item, so the Item can't).
   revealRow: { position: "relative" },
   revealEnd: { position: "absolute", insetInlineEnd: 0 },
+  // The working spinner and timer, in the theme's blue (its accent is
+  // neutral, so `color="accent"` would be white); the Spinner and Text take
+  // it through `shade="inherit"` / `color="inherit"`. Never shrinks, so the
+  // timer stays on one line and only the title gives way.
+  working: { color: colorVars["--color-text-blue"], flexShrink: 0 },
+  attention: { flexShrink: 0, display: "inline-flex" },
+  // The pending-approval icon's pulse, like StatusDot's `isPulsing`.
+  attentionPulse: {
+    animationName: {
+      default: pulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationDuration: "2s",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "ease-in-out",
+  },
 });
 
 // A row's ⋯ slot: empty at rest (so the title keeps the full row), about the
@@ -247,16 +271,49 @@ function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
   }, []);
 
   return (
-    <Text type="supporting" color="secondary" hasTabularNumbers>
+    <Text type="supporting" color="inherit" textWrap="nowrap" hasTabularNumbers>
       {formatDuration((now - startedAtMs) / 1000)}
     </Text>
   );
 }
 
-// A chat row's end slot: a warning dot while the agent waits on the user
-// (pulsing for an approval), else elapsed time and a spinner while it works.
-// It stays whole while the row's ⋯ shows; only the title gives way.
-function ChatStatus({ conversationId }: { conversationId: string }) {
+// A warning icon saying what the chat needs from the user, right after the
+// flat row's title (where a dot alone would be easy to miss).
+function AttentionIcon({
+  icon,
+  label,
+  tooltip,
+  isPulsing = false,
+}: {
+  icon: typeof ShieldAlert;
+  label: string;
+  tooltip: string;
+  isPulsing?: boolean;
+}) {
+  return (
+    <Tooltip content={tooltip} hasHoverIndication={false}>
+      <HStack
+        as="span"
+        xstyle={[styles.attention, isPulsing && styles.attentionPulse]}
+      >
+        <Icon icon={icon} size="sm" color="warning" label={label} />
+      </HStack>
+    </Tooltip>
+  );
+}
+
+// A chat row's status: while the agent waits on the user, a warning marker
+// (pulsing for an approval) — an icon after the title in the flat layout
+// (`hasIcon`), the side nav's dot in the end slot in the grouped one; else
+// the elapsed time and a spinner, in blue, while it works. It stays whole
+// while the row's ⋯ shows; only the title gives way.
+function ChatStatus({
+  conversationId,
+  hasIcon = false,
+}: {
+  conversationId: string;
+  hasIcon?: boolean;
+}) {
   const { active: generating, startedAtMs } = useGenerating(conversationId);
   const awaitingApproval = useAppStore(
     (s) => !!permissionForSession(s.pendingPermissions, conversationId),
@@ -265,6 +322,16 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
     (s) => !!elicitationForSession(s.pendingElicitations, conversationId),
   );
   if (awaitingApproval) {
+    if (hasIcon) {
+      return (
+        <AttentionIcon
+          icon={ShieldAlert}
+          isPulsing
+          label="Needs approval"
+          tooltip="Waiting for you to approve an action"
+        />
+      );
+    }
     return (
       <StatusDot
         variant="warning"
@@ -275,6 +342,15 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
     );
   }
   if (awaitingAnswer) {
+    if (hasIcon) {
+      return (
+        <AttentionIcon
+          icon={BellDot}
+          label="Has a question"
+          tooltip="Waiting for your answer"
+        />
+      );
+    }
     return (
       <StatusDot
         variant="warning"
@@ -285,9 +361,9 @@ function ChatStatus({ conversationId }: { conversationId: string }) {
   }
   if (generating) {
     return (
-      <HStack gap={1.5} vAlign="center">
+      <HStack gap={1.5} vAlign="center" xstyle={styles.working}>
         {startedAtMs != null && <ElapsedTime startedAtMs={startedAtMs} />}
-        <Spinner size="sm" aria-label="Working" />
+        <Spinner size="sm" shade="inherit" aria-label="Working" />
       </HStack>
     );
   }
@@ -413,7 +489,12 @@ function ConversationRow({
       ]}
     >
       {({ actions, isRevealed }) => {
-        const status = <ChatStatus conversationId={conversation.id} />;
+        const status = (
+          <ChatStatus
+            conversationId={conversation.id}
+            hasIcon={hasProjectLine}
+          />
+        );
         return hasProjectLine ? (
           <>
             <Item
