@@ -155,8 +155,8 @@ Starting a task:
 - moves it to **In progress** and sends the task — its title, priority,
   effort, epic and description, nothing else — as the chat's first
   message. Where and how to work comes from the agent's standing
-  guidance instead, so the two don't repeat each other: it's task #N, its
-  branch and worktree (commit its work on that branch), to keep the task's
+  guidance instead, so the two don't repeat each other: it's task #N, in
+  its own worktree on its own branch (commit its work there), to keep the task's
   description current and set it to Review (never Done) and summarise what
   it changed, to touch other tasks only for links or dependency notes, to
   report blockers to the project chat and to put out-of-scope work on the

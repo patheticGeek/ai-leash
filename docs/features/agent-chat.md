@@ -269,7 +269,7 @@ agent knows.
 
 Every time an external agent connects, new session or resumed, the first
 message it gets starts with a short block from AI Leash describing the chat
-(the task, branch and worktree for a task chat, say) and naming the
+(for a task chat, the task and whether it has its own worktree, say) and naming the
 built-in guides. Later messages on the same connection don't repeat it, and
 it isn't added to the transcript. See [What the agent is told about its
 chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat).

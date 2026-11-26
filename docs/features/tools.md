@@ -81,9 +81,11 @@ that when nothing would be lost; otherwise it's left for you.
 
 Every chat, sub-agents included, has a `chat_info` tool that reads the
 chat's facts as they are now: its kind and project, for a task chat the
-task's number, title and status, its branch and worktree, and whether the
-project chat follows it or you've taken it over, plus the agent and model
-it runs on. What the agent is told about its chat at the start (see [What
+task's number, title and status, and whether the project chat follows it
+or you've taken it over, plus whether it works in its own worktree or the
+main checkout. It leaves out what the agent can find out itself: the
+branch name and worktree path (its working folder and `git branch`), and
+which agent and model it is. What the agent is told about its chat at the start (see [What
 the agent is told about its
 chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)) can
 go stale over a long run or after a compaction, so the guidance tells it

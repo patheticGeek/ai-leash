@@ -173,7 +173,7 @@ mod tests {
             backend: AgentBackend::Native,
             project_name: "demo".into(),
             project_root: "/proj/demo".into(),
-            checkout: "/proj/demo".into(),
+            in_worktree: false,
         };
         tool_definitions(None, &[], &chat)
             .as_array()
@@ -195,8 +195,6 @@ mod tests {
         let task = ChatKind::Task {
             number: 1,
             title: "t".into(),
-            branch: None,
-            worktree_path: None,
         };
         let sub = ChatKind::SubAgent { parent: "p".into() };
         for kind in [ChatKind::Project, ChatKind::Plain, task, sub.clone()] {
@@ -218,8 +216,6 @@ mod tests {
         let task = ChatKind::Task {
             number: 1,
             title: "t".into(),
-            branch: None,
-            worktree_path: None,
         };
         let sub = ChatKind::SubAgent { parent: "p".into() };
         for kind in [ChatKind::Project, ChatKind::Plain, task, sub] {

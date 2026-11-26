@@ -53,17 +53,20 @@ and says nothing about the others:
 - **Project chat** (the one beside the board): it plans and delegates,
   task chats report to it with `send_message`, and you review and merge
   their work.
-- **Task chat**: it is task #N, with the task's title, its branch and
-  worktree (or the main checkout), and in a worktree to commit its work on
-  that branch. It keeps the task's description current, and when it's done
+- **Task chat**: it is task #N, with the task's title, and whether it works
+  in the task's own worktree and branch (where it commits its work) or in
+  the main checkout. The branch name and worktree path aren't given: the
+  agent's working folder is the worktree, and git names the branch. It keeps the task's description current, and when it's done
   sets the task to **Review**, never **Done**, and summarises what it
   changed. It changes other tasks only to add links or dependency notes;
   anything bigger, and any blocker, goes to the project chat; work outside the task's scope goes on the
   board as new tasks instead of being done there.
-- **Sub-agent**: it's a one-shot job for the chat that spawned it, its last
+- **Sub-agent**: it's a one-shot job for the chat that spawned it, working
+  in that chat's worktree or the main checkout, its last
   message is the result, and it can't start sub-agents of its own.
-- **Any other chat**: which project and checkout it works in, and that it
-  has no role on the board.
+- **Any other chat**: which project it's in, whether it works in a
+  worktree of its own or the main checkout, and that it has no role on the
+  board.
 
 The built-in agent's system prompt is rebuilt every turn, so this section
 is never lost when a long conversation is compacted (unlike a task's first
@@ -78,9 +81,11 @@ on that connection don't repeat it; a reconnect (the app restarted, or the
 agent switched) sends it again with the context as it is then.
 
 How it's built: `src-tauri/src/chat_context.rs` reads a `ChatContext`
-(kind, backend, project name and root, checkout) from the conversation's
-row — its `role`, linked task and worktree, and for a sub-agent the chat
-that owns it — and the branch live from git. One builder,
+(kind, backend, project name and root, and whether it has its own
+worktree) from the conversation's row — its `role`, linked task and
+worktree, and for a sub-agent the chat that owns it. The backend only
+picks the tool rules; the agent isn't told which agent or model it is,
+since it knows that itself. One builder,
 `tools::guidance::guidance`, makes the text for both kinds of agent from
 it: `context::build_system_prompt` folds it into the native system prompt,
 and `acp::discovery::mcp_servers_for` passes the context as JSON to the
@@ -96,8 +101,8 @@ It isn't saved to the transcript, but the ACP Events tab shows it as
 Both are snapshots: the native one from the start of the turn, the
 external agent's from connect time. The `chat_info` tool (see
 [tools.md](./tools.md#check-what-its-chat-is-right-now)), offered to every
-chat, reads the same facts live, plus the task's status, whether the
-project chat follows it, and the agent and model; the always-sent guidance
+chat, reads the same facts live, plus the task's status and whether the
+project chat follows it; the always-sent guidance
 points at it in one line.
 
 ## Built-in guides

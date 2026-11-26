@@ -93,7 +93,7 @@ fn chat_context(root: &Path) -> ChatContext {
                 .and_then(|n| n.to_str())
                 .unwrap_or(&root)
                 .to_string(),
-            checkout: root.clone(),
+            in_worktree: false,
             project_root: root,
         }
     })
@@ -403,11 +403,6 @@ mod tests {
             ChatKind::Task {
                 number: 12345,
                 title: "A fairly long task title, as titles on a real board tend to get".into(),
-                branch: Some("task/12345-a-fairly-long-task-title-as-titles-on-a-real".into()),
-                worktree_path: Some(
-                    "/home/someone/Projects/some-project.worktrees/task-12345-a-fairly-long-task-title"
-                        .into(),
-                ),
             },
             ChatKind::SubAgent { parent: "p".into() },
         ]
@@ -421,7 +416,7 @@ mod tests {
                 backend: AgentBackend::Acp,
                 project_name: "some-project-with-a-long-name".into(),
                 project_root: "/home/someone/Projects/some-project-with-a-long-name".into(),
-                checkout: "/home/someone/Projects/some-project.worktrees/task-12345".into(),
+                in_worktree: true,
             };
             let text = instructions_for(&chat, 250, 250);
             let len = text.chars().count();

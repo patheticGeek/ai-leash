@@ -1,14 +1,13 @@
 //! What kind of chat a conversation is, for the guidance's "This chat"
 //! section (`tools::guidance::guidance`): a project's board chat, a task's
 //! chat, a sub-agent, or a plain chat. Built from the conversation row
-//! (`role`, `task_id`, `worktree_path`) plus the task and sub-agent tables,
+//! (`role`, `task_id`, whether it has a `worktree_path`) plus the task and sub-agent tables,
 //! so it's the same facts whether the native loop (`chat::agent_loop`)
 //! rebuilds its system prompt or an ACP agent's MCP bridge is spawned
 //! (`acp::discovery::mcp_servers_for`, which hands it over as JSON in
 //! `mcp_bridge::CHAT_CONTEXT_ENV`).
 
 use crate::db::{self, Db};
-use crate::git;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -29,16 +28,9 @@ pub enum ChatKind {
     Plain,
     /// The project's board chat (`role = 'project'`).
     Project,
-    /// A board task's own chat. `branch` is read live from the checkout
-    /// (`None` outside git or on a detached HEAD); `worktree_path` is `None`
-    /// when the task runs in the project's main checkout.
-    #[serde(rename_all = "camelCase")]
-    Task {
-        number: i64,
-        title: String,
-        branch: Option<String>,
-        worktree_path: Option<String>,
-    },
+    /// A board task's own chat. Whether it has its own worktree is
+    /// `ChatContext::in_worktree`.
+    Task { number: i64, title: String },
     /// A one-shot sub-agent; `parent` is the conversation that spawned it.
     SubAgent { parent: String },
 }
@@ -50,8 +42,11 @@ pub struct ChatContext {
     pub backend: AgentBackend,
     pub project_name: String,
     pub project_root: String,
-    /// Where this chat works: its worktree, or the project root.
-    pub checkout: String,
+    /// Whether this chat works in a worktree of its own (a sub-agent: its
+    /// parent's) rather than the project's main checkout. Only the fact is
+    /// passed on, not the path or branch: the agent's working folder is the
+    /// worktree, and `git branch` names the branch.
+    pub in_worktree: bool,
 }
 
 impl ChatContext {
@@ -72,7 +67,7 @@ impl ChatContext {
             .unwrap_or_else(|| fallback_root.display().to_string());
         let worktree = conversation.as_ref().and_then(|c| c.worktree_path.clone());
 
-        let (kind, checkout) = match conversation.as_ref().and_then(|c| c.role.as_deref()) {
+        let (kind, worktree) = match conversation.as_ref().and_then(|c| c.role.as_deref()) {
             Some("project") => (ChatKind::Project, worktree),
             Some("sub-agent") => {
                 let parent = db::sub_agent_parent(db, session_id).unwrap_or_default();
@@ -82,13 +77,9 @@ impl ChatContext {
             }
             _ => match db::task_for_conversation(db, session_id) {
                 Some(task) => {
-                    let dir = worktree.clone().unwrap_or_else(|| project_root.clone());
-                    let branch = git::current_branch(Path::new(&dir)).ok().flatten();
                     let kind = ChatKind::Task {
                         number: task.number,
                         title: task.title,
-                        branch,
-                        worktree_path: worktree.clone(),
                     };
                     (kind, worktree)
                 }
@@ -100,7 +91,7 @@ impl ChatContext {
             kind,
             backend,
             project_name: project_name(&project_root),
-            checkout: checkout.unwrap_or_else(|| project_root.clone()),
+            in_worktree: worktree.is_some_and(|w| !w.is_empty() && w != project_root),
             project_root,
         }
     }
@@ -148,7 +139,7 @@ mod tests {
         assert_eq!(ctx.kind, ChatKind::Plain);
         assert_eq!(ctx.project_root, "/elsewhere");
         assert_eq!(ctx.project_name, "elsewhere");
-        assert_eq!(ctx.checkout, "/elsewhere");
+        assert!(!ctx.in_worktree);
     }
 
     #[test]
@@ -179,11 +170,9 @@ mod tests {
             ChatKind::Task {
                 number: task.number,
                 title: "Fix it".into(),
-                branch: None,
-                worktree_path: Some("/nowhere/wt".into()),
             }
         );
-        assert_eq!(ctx.checkout, "/nowhere/wt");
+        assert!(ctx.in_worktree);
 
         record_sub_agent_started(&db, "sub", "task-chat", "look around", "m", None);
         let ctx = load(&db, "sub");
@@ -193,8 +182,9 @@ mod tests {
                 parent: "task-chat".into()
             }
         );
-        assert_eq!(ctx.checkout, "/nowhere/wt");
+        assert!(ctx.in_worktree);
         assert!(!ctx.allows_sub_agents());
+        assert!(!load(&db, &project).in_worktree);
     }
 
     #[test]
@@ -203,13 +193,11 @@ mod tests {
             kind: ChatKind::Task {
                 number: 3,
                 title: "t".into(),
-                branch: Some("task/3".into()),
-                worktree_path: None,
             },
             backend: AgentBackend::Acp,
             project_name: "p".into(),
             project_root: "/p".into(),
-            checkout: "/p".into(),
+            in_worktree: true,
         };
         let json = serde_json::to_string(&ctx).unwrap();
         assert_eq!(serde_json::from_str::<ChatContext>(&json).unwrap(), ctx);

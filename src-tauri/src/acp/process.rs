@@ -896,13 +896,11 @@ mod tests {
             kind: ChatKind::Task {
                 number: 7,
                 title: "Add dark mode".into(),
-                branch: Some("task/7-add-dark-mode".into()),
-                worktree_path: Some("/p/demo.worktrees/task-7".into()),
             },
             backend: AgentBackend::Acp,
             project_name: "demo".into(),
             project_root: "/p/demo".into(),
-            checkout: "/p/demo.worktrees/task-7".into(),
+            in_worktree: true,
         }
     }
 
@@ -944,11 +942,11 @@ mod tests {
     fn a_resumed_session_gets_the_context_as_it_is_now() {
         let mut chat = task_chat();
         let before = connection(&chat, &["hi"]);
-        if let ChatKind::Task { branch, .. } = &mut chat.kind {
-            *branch = Some("renamed".into());
+        if let ChatKind::Task { title, .. } = &mut chat.kind {
+            *title = "Add a dark theme".into();
         }
         let after = connection(&chat, &["hi"]);
-        assert!(before[0][0].contains("`task/7-add-dark-mode`"));
-        assert!(after[0][0].contains("on branch `renamed`"));
+        assert!(before[0][0].contains("*Add dark mode*"));
+        assert!(after[0][0].contains("*Add a dark theme*"));
     }
 }
