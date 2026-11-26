@@ -10,8 +10,9 @@ import { Clock, MessageSquare } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
+import { rememberMention } from "@/lib/mentions";
+import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
 import { type AcpCommandInfo, api } from "../../../../lib/tauriApi";
-import { useActiveCheckoutPath } from "../../../../lib/useActiveCheckoutPath";
 import { reviewCommentsFor, useAppStore } from "../../../../store";
 import ReviewDrawer from "../../../review/ReviewDrawer";
 import {
@@ -20,6 +21,7 @@ import {
   formatReview,
   linesOf,
   relativePath,
+  reviewMentions,
 } from "../../../review/reviewComments";
 import { useChatInput } from "../../hooks/useChatInput";
 import {
@@ -27,6 +29,7 @@ import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
 } from "../../hooks/useChatSession";
+import { useMentionPicker } from "../../hooks/useMentionPicker";
 import { useMessageQueue } from "../../hooks/useMessageQueue";
 import { useSessionElicitation } from "../../hooks/useSessionElicitation";
 import { useSessionPermissions } from "../../hooks/useSessionPermissions";
@@ -35,6 +38,7 @@ import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
 import type { TranscriptNoticesProps } from "../banners/TranscriptNotices";
 import ElicitationPrompt from "../popovers/ElicitationPrompt";
+import MentionMenu from "../popovers/MentionMenu";
 import PermissionPrompt from "../popovers/PermissionPrompt";
 import SlashCommandMenu from "../popovers/SlashCommandMenu";
 import ChatToolbar from "./ChatToolbar";
@@ -156,15 +160,15 @@ interface ChatComposerProps {
 }
 
 // The whole bottom dock of a conversation, top to bottom: the banner stack
-// (`ChatBanners`), the Astryx `ChatComposer` — header (empty for now; the
-// `@` mention button, #24, goes in its header actions), our textarea in its
-// input slot, the draft review comments (`ReviewDrawer`) and queued messages in its drawer, the pickers in its footer
+// (`ChatBanners`), the Astryx `ChatComposer` — our textarea in its input
+// slot (with the `@` file picker, `MentionMenu`, above it), the draft review
+// comments (`ReviewDrawer`) and queued messages in its drawer, the pickers in its footer
 // and context usage beside Send —
 // or, while the agent is asking something, the permission / question prompt
 // in its place, and the checkout bar beneath. The running sub-agents banner
 // (#26) is the banner stack's last item, right above the composer.
 // Owns all the state that's only about *typing a message* — the draft text,
-// slash autocomplete, "/help" overlay, the queue of messages typed
+// slash and `@` autocomplete, "/help" overlay, the queue of messages typed
 // mid-turn, permission mode — and interprets what a submit means.
 export default function ChatComposer({
   sessionId,
@@ -232,6 +236,12 @@ export default function ChatComposer({
     ),
   ];
   const slash = useSlashCommands(input, allCommands);
+  const mention = useMentionPicker(
+    input,
+    setInputValue,
+    textareaRef,
+    useActiveCheckoutPath(),
+  );
   // A dismissed popover is remembered by the query it was dismissed for —
   // that goes stale when the connected agent (and so its command list)
   // changes.
@@ -357,6 +367,9 @@ export default function ChatComposer({
       setInputValue(note);
       return;
     }
+    // The files it attaches show as chips on the sent message, like picked
+    // `@` mentions.
+    for (const path of reviewMentions(anchored)) rememberMention(path);
     await onSubmit(formatReview(anchored, note), takeOver);
     // Only the ones sent: more may have been left while it went out.
     for (const c of comments) deleteReviewComment(sessionId, c.id);
@@ -378,6 +391,7 @@ export default function ChatComposer({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention.onKeyDown(e)) return;
     if (slash.showPopover) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -566,6 +580,9 @@ export default function ChatComposer({
               />
             }
           />
+        )}
+        {mention.showPopover && !pendingPermission && !pendingElicitation && (
+          <MentionMenu {...mention.menu} anchorRef={composerRef} />
         )}
         {slash.showPopover && !pendingPermission && !pendingElicitation && (
           <SlashCommandMenu

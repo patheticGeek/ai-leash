@@ -39,7 +39,7 @@ const styles = stylex.create({
 });
 
 const placeholderText = (composeMode: boolean) =>
-  `Ask the agent, / for commands, ! for shell\n${composeMode ? "Ctrl+Enter" : "Enter"} to send`;
+  `Ask the agent, @ for files, / for commands, ! for shell\n${composeMode ? "Ctrl+Enter" : "Enter"} to send`;
 
 // Grows the textarea with its content between `minRows` and `maxRows`
 // lines, then scrolls. Re-measured whenever the text changes — typed or
@@ -72,7 +72,8 @@ function useAutoGrow(
 // The message field in `ChatComposer`'s input slot: a plain textarea (the
 // Astryx composer's custom-input contract — `useChatComposerContext`) rather
 // than the stock token input, because the keys are ours: Enter / Ctrl+Enter
-// per compose mode, Ctrl+Enter to queue mid-turn, the slash menu's arrows,
+// per compose mode, Ctrl+Enter to queue mid-turn, the slash and `@` menus'
+// arrows,
 // and "!" for shell mode (which shows a terminal icon at the start).
 export default function ComposerInput({
   value,

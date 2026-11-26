@@ -1,19 +1,71 @@
+import { ContextMenu } from "@astryxdesign/core/ContextMenu";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Layout, LayoutContent } from "@astryxdesign/core/Layout";
-import { VStack } from "@astryxdesign/core/Stack";
+import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { TreeList, type TreeListItemData } from "@astryxdesign/core/TreeList";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { FileText, Folder, Search } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { AtSign, FileText, Folder, Search } from "lucide-react";
+import {
+  type DragEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { qk } from "../../../data/keys";
+import {
+  MENTION_DRAG_TYPE,
+  mentionToken,
+  requestMention,
+} from "../../../lib/mentions";
 import { api, type DirEntryInfo } from "../../../lib/tauriApi";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
 import { useAppStore } from "../../../store";
 import { useFsDir } from "./useFsDir";
 
-const label = (text: string) => <Text maxLines={1}>{text}</Text>;
+// A row's label: right-click for "Mention in chat", and draggable onto the
+// chat composer (`useMentionPicker` reads `MENTION_DRAG_TYPE` on drop) —
+// both put `@path` into the message (#24). `rel` is checkout-relative,
+// folders ending in "/".
+function RowLabel({ text, rel }: { text: string; rel: string }) {
+  return (
+    <ContextMenu
+      label={`${text} actions`}
+      menuWidth="auto"
+      triggerAs="span"
+      items={[
+        {
+          label: "Mention in chat",
+          icon: <AtSign size={14} />,
+          onClick: () => requestMention(rel),
+        },
+      ]}
+    >
+      <HStack
+        as="span"
+        draggable
+        onDragStart={(e: DragEvent) => {
+          e.dataTransfer.setData(MENTION_DRAG_TYPE, rel);
+          e.dataTransfer.setData("text/plain", mentionToken(rel));
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+      >
+        <Text maxLines={1}>{text}</Text>
+      </HStack>
+    </ContextMenu>
+  );
+}
+
+function relativePath(checkoutPath: string, path: string): string {
+  return path.startsWith(checkoutPath)
+    ? path
+        .slice(checkoutPath.length)
+        .replace(/^[/\\]/, "")
+        .replace(/\\/g, "/")
+    : path;
+}
 
 // Placed as an unloaded folder's only child. `TreeList` keeps expansion to
 // itself and only renders a row's children while it's expanded, so this
@@ -83,7 +135,12 @@ function Files({ checkoutPath }: { checkoutPath: string }) {
   function fileItem(entry: DirEntryInfo, description?: string) {
     return {
       id: entry.path,
-      label: label(entry.name),
+      label: (
+        <RowLabel
+          text={entry.name}
+          rel={relativePath(checkoutPath, entry.path)}
+        />
+      ),
       description,
       startContent: <Icon icon={FileText} size="xsm" />,
       isSelected: entry.path === activePath,
@@ -119,7 +176,12 @@ function Files({ checkoutPath }: { checkoutPath: string }) {
     }
     return {
       id: entry.path,
-      label: label(entry.name),
+      label: (
+        <RowLabel
+          text={entry.name}
+          rel={`${relativePath(checkoutPath, entry.path)}/`}
+        />
+      ),
       startContent: <Icon icon={Folder} size="xsm" />,
       children,
     };

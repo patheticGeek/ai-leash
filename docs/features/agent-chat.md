@@ -394,6 +394,47 @@ Background follow-up turns caused by a completed sub-agent do not block you
 from sending another request. Your message waits its turn and is processed
 without interrupting the existing conversation.
 
+## Mention files with @
+
+Type `@` in the message box (at the start or after a space) to pick a file
+or folder from the chat's working directory — its worktree, for a task chat.
+Keep typing to filter: the match is fuzzy over the whole relative path
+(`src/app/Ap` finds `src/app/AppShell.tsx`), skips what `.gitignore` ignores,
+and lists folders with a trailing `/`. Use the arrow keys and **Tab** or
+**Enter** to pick, or **Escape** to close the list. The pick is written into
+the message as `@path` (quoted, `@"my file.md"`, when the name has spaces);
+**Backspace** right after a picked mention removes it whole.
+
+You can also right-click a file or folder in the Files tab and choose
+**Mention in chat**, or drag it from the tree onto the message box.
+
+When you send, every `@path` in the message that names something inside the
+working directory goes to the agent with it:
+
+- **Built-in agent**: the file's current contents (or, for a folder, a
+  listing up to three levels deep) are attached to your message. Each file is
+  capped at 100 KB with a note that it was cut, and one message's
+  attachments at 400 KB; binary files and anything past the cap go as the
+  path only. The attachment is part of the conversation history, so a retry
+  sees the same snapshot.
+- **External ACP agents**: the file is added to the prompt as ACP content —
+  an embedded `resource` with its text when the agent advertises
+  `embeddedContext`, otherwise a `resource_link` (which every ACP agent
+  accepts). The message text still names the path either way.
+
+The sent message shows its mentions as chips; select a file chip to open the
+file in a tab.
+
+Under the hood, the stored message ends in an `<ai-leash-mentions>` trailer
+naming the paths (and, for the built-in agent, holding the contents). The
+transcript hides it and the chat title ignores it. The picker uses the
+`search_mentions` command; `src-tauri/src/mentions.rs` finds the `@path`s and
+writes the trailer. Reading the files and handing them to an agent is the
+shared `src-tauri/src/file_context.rs` (size caps, `native_block` for the
+built-in agent, `acp_blocks` for ACP), which any feature that attaches files
+to a prompt should use. The frontend side (`src/lib/mentions.ts`,
+`useMentionPicker`, `MentionMenu`) mirrors the slash-command menu.
+
 ## Send a code review
 
 You can review the agent's work like a pull request. In a file tab, hover the
@@ -408,9 +449,12 @@ labelled with the file and lines. Select a chip to open its file, or its
 **×** to delete the comment. **Send review (N)**, beside Send, posts every
 comment as one message: for each comment, the file's path, its line range,
 the quoted code and your comment, grouped by file. Whatever you've typed in
-the message box goes with it as an overall note. The review is ordinary
-message text, so it works the same for built-in providers and external
-agents. Once it's sent, those comments are cleared.
+the message box goes with it as an overall note. The review also mentions
+each commented file as `@path` on a **Files:** line, so the whole file goes
+with it the way [`@` mentions](#mention-files-with-) attach files: its
+contents for the built-in agent, an ACP resource for external agents, and a
+chip on the sent message. A file outside the chat's working directory sends
+only its quoted lines. Once it's sent, those comments are cleared.
 
 A comment follows its code. If the lines it's on move (say, the agent adds
 code above them), it moves with them. If they change, the comment is marked

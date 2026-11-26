@@ -1,3 +1,4 @@
+import { mentionToken } from "@/lib/mentions";
 // Review comments: draft notes left on a file's lines, like a GitHub PR
 // review, sent to the agent together as one chat message ("Send review").
 // The store side (per-chat, persisted) is `store/reviewSlice.ts`; the
@@ -102,6 +103,18 @@ export function relativePath(path: string, checkoutPath: string | null) {
   return path;
 }
 
+// The commented files a review mentions (attaches): those inside the
+// checkout, by path relative to it, once each.
+export function reviewMentions(comments: AnchoredComment[]): string[] {
+  return [
+    ...new Set(
+      comments
+        .map((c) => c.relPath)
+        .filter((p) => !/^([A-Za-z]:)?[\\/]/.test(p)),
+    ),
+  ];
+}
+
 // A fence longer than any backtick run in `code`, so a snippet holding
 // ``` can't close it early.
 function fenceFor(code: string): string {
@@ -137,6 +150,15 @@ export function formatReview(comments: AnchoredComment[], note: string) {
   const byFile = new Map<string, AnchoredComment[]>();
   for (const c of comments) {
     byFile.set(c.relPath, [...(byFile.get(c.relPath) ?? []), c]);
+  }
+  // Each commented file inside the checkout as an `@path` mention, so the
+  // agent gets the whole file with the review the way `@` mentions attach
+  // files (#24, `src-tauri/src/mentions.rs`): its contents for our own
+  // loop, an ACP resource otherwise. A file outside the checkout keeps
+  // only its quoted lines.
+  const attached = reviewMentions(comments);
+  if (attached.length > 0) {
+    parts.push(`Files: ${attached.map(mentionToken).join(" ")}`);
   }
   let i = 0;
   for (const [relPath, fileComments] of byFile) {

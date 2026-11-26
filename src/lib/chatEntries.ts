@@ -1,3 +1,4 @@
+import { splitMentions } from "./mentions";
 import type { PersistedMessage } from "./tauriApi";
 
 export interface TextEntry {
@@ -12,6 +13,9 @@ export interface TextEntry {
   // A user-role message another conversation sent (a task's chat or the
   // project chat), rather than one the user typed.
   from?: string;
+  // Files/folders the message `@`-mentioned (user messages only) — shown as
+  // chips under it. See `lib/mentions.ts`.
+  mentions?: string[];
 }
 
 // A note another conversation left without waking this one — a task's
@@ -157,10 +161,12 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
   const entries: Entry[] = [];
   for (const message of messages) {
     if (message.role === "user") {
+      const { text, mentions } = splitMentions(message.content);
       entries.push({
         kind: "text",
         role: "user",
-        content: message.content,
+        content: text,
+        ...(mentions.length > 0 ? { mentions } : {}),
         time: message.createdAt * 1000,
         ...(message.fromConversationId
           ? { from: message.fromConversationId }
