@@ -125,6 +125,10 @@ const styles = stylex.create({
   // the right (capped so a very long one can't push the project out).
   projectName: { minWidth: 0, flexShrink: 1 },
   branchName: { flexShrink: 0, maxWidth: "60%" },
+  // The open Done list lives in the side nav's footer, which doesn't scroll
+  // or shrink, so it scrolls on its own past a third of the window rather
+  // than squeezing the projects out ("Show all" can be long).
+  doneList: { maxHeight: "33vh", overflowY: "auto" },
   showMore: {
     alignSelf: "flex-start",
     color: {
@@ -848,17 +852,65 @@ export default function LeftBar({
         />
       }
       footer={
-        <SideNavSection title="App" isHeaderHidden>
-          <SideNavItem
-            label="Settings"
-            icon={SettingsIcon}
-            onClick={() => setSettingsModalOpen(true)}
-          />
-        </SideNavSection>
+        // Done is pinned here, just above Settings, so it stays put however
+        // long the projects/chats above it get (#69); only `children` scroll.
+        <>
+          {doneConversations.length > 0 && (
+            <SideNavSection title="Done" isHeaderHidden>
+              <SideNavItem
+                label="Done"
+                icon={Archive}
+                collapsible={false}
+                onClick={() => setDoneOpen(!isDoneOpen)}
+                aria-description={isDoneOpen ? "Expanded" : "Collapsed"}
+                endContent={
+                  <Text type="supporting" color="secondary" hasTabularNumbers>
+                    {doneConversations.length}
+                  </Text>
+                }
+              >
+                {(collapse.isCollapsed || isDoneOpen) && (
+                  <VStack gap={1} xstyle={[styles.nested, styles.doneList]}>
+                    {visibleDoneConversations.map((c) => (
+                      <DoneConversationRow
+                        key={c.id}
+                        conversation={c}
+                        isSelected={c.id === activeSessionId}
+                        onClick={() => openConversation(c.id)}
+                        onDelete={() => setPendingDelete(c)}
+                        onUndo={() => setConversationDone(c.id, false)}
+                      />
+                    ))}
+                    {doneConversations.length > DEFAULT_VISIBLE_DONE && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        label={
+                          doneExpanded
+                            ? "Show less"
+                            : `Show all (${doneConversations.length})`
+                        }
+                        onClick={() => setDoneExpanded((v) => !v)}
+                        xstyle={styles.showMore}
+                      />
+                    )}
+                  </VStack>
+                )}
+              </SideNavItem>
+            </SideNavSection>
+          )}
+          <SideNavSection title="App" isHeaderHidden>
+            <SideNavItem
+              label="Settings"
+              icon={SettingsIcon}
+              onClick={() => setSettingsModalOpen(true)}
+            />
+          </SideNavSection>
+        </>
       }
     >
       {/* Same order as the shell-side-nav template: the menu, a rule, the
-          projects, a rule, Done. */}
+          projects (and, flat, a rule and the chats). Done is in the footer. */}
       <SideNavSection title="Menu" isHeaderHidden>
         <SideNavItem
           label="New thread"
@@ -973,53 +1025,6 @@ export default function LeftBar({
                 {flatChats.map(conversationRow)}
               </VStack>
             )}
-          </SideNavSection>
-        </>
-      )}
-      {doneConversations.length > 0 && (
-        <>
-          <Divider />
-          <SideNavSection title="Done" isHeaderHidden>
-            <SideNavItem
-              label="Done"
-              icon={Archive}
-              collapsible={false}
-              onClick={() => setDoneOpen(!isDoneOpen)}
-              aria-description={isDoneOpen ? "Expanded" : "Collapsed"}
-              endContent={
-                <Text type="supporting" color="secondary" hasTabularNumbers>
-                  {doneConversations.length}
-                </Text>
-              }
-            >
-              {(collapse.isCollapsed || isDoneOpen) && (
-                <VStack gap={1} xstyle={styles.nested}>
-                  {visibleDoneConversations.map((c) => (
-                    <DoneConversationRow
-                      key={c.id}
-                      conversation={c}
-                      isSelected={c.id === activeSessionId}
-                      onClick={() => openConversation(c.id)}
-                      onDelete={() => setPendingDelete(c)}
-                      onUndo={() => setConversationDone(c.id, false)}
-                    />
-                  ))}
-                  {doneConversations.length > DEFAULT_VISIBLE_DONE && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      label={
-                        doneExpanded
-                          ? "Show less"
-                          : `Show all (${doneConversations.length})`
-                      }
-                      onClick={() => setDoneExpanded((v) => !v)}
-                      xstyle={styles.showMore}
-                    />
-                  )}
-                </VStack>
-              )}
-            </SideNavItem>
           </SideNavSection>
         </>
       )}
