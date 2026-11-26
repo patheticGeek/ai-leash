@@ -27,6 +27,31 @@ pub fn guidance(ctx: &ChatContext) -> String {
     out
 }
 
+/// The "This chat" block sent ahead of the first `session/prompt` of each
+/// ACP connection (`acp::process::FirstPromptContext`), for agents that clip
+/// or ignore the bridge's `instructions`: the same `this_chat` facts plus a
+/// one-line `read_guide` pointer. Kept short — it rides along with the
+/// user's own first message.
+pub fn first_prompt_block(ctx: &ChatContext) -> String {
+    format!(
+        "[AI Leash, the harness running this session, adds this context to your first message. It is not from the user.]\n\n# This chat\n\n{}\n\n{}",
+        this_chat(ctx),
+        guide_line(),
+    )
+}
+
+/// One line naming every built-in guide's topic, for `first_prompt_block`.
+fn guide_line() -> String {
+    let topics: Vec<String> = guides::GUIDES
+        .iter()
+        .map(|g| format!("`{}`", g.name))
+        .collect();
+    format!(
+        "Before using one of this chat's features, call `read_guide` with its topic: {}.",
+        topics.join(", ")
+    )
+}
+
 /// (d) One line per built-in guide (`guides::GUIDES`): the long specs live
 /// there, behind `read_guide`. The list has to be here, in the always-seen
 /// text, not only in the tool's schema — Claude Code defers MCP tool
@@ -73,8 +98,10 @@ fn this_chat(ctx: &ChatContext) -> String {
             worktree_path,
         } => {
             let place = match (branch, worktree_path) {
-                (Some(b), Some(w)) => format!("on branch `{b}` in the worktree `{w}`"),
-                (None, Some(w)) => format!("in the worktree `{w}`"),
+                (Some(b), Some(w)) => {
+                    format!("on branch `{b}` in the worktree `{w}`, and commit your work there")
+                }
+                (None, Some(w)) => format!("in the worktree `{w}`, and commit your work there"),
                 (Some(b), None) => format!("on branch `{b}` in the project's main checkout"),
                 (None, None) => "in the project's main checkout".to_string(),
             };
@@ -327,5 +354,34 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn first_prompt_block_is_this_chat_and_a_guide_pointer() {
+        for kind in kinds() {
+            let c = ctx(kind, AgentBackend::Acp);
+            let block = first_prompt_block(&c);
+            // The very same "This chat" text the instructions carry.
+            assert!(guidance(&c).contains(&this_chat(&c)));
+            assert!(block.contains(&format!("# This chat\n\n{}", this_chat(&c))));
+            assert!(block.contains("It is not from the user."));
+            for g in guides::GUIDES {
+                assert!(block.contains(&format!("`{}`", g.name)), "{}", g.name);
+            }
+            // Only the pointer, not the guides' one-liners or the tool rules.
+            assert!(!block.contains("# Using your tools"));
+            assert!(!block.contains("# Guides"));
+            assert!(block.len() < 1_500, "{} chars: {block}", block.len());
+        }
+    }
+
+    #[test]
+    fn task_block_gives_the_branch_worktree_and_review_rules() {
+        let block = first_prompt_block(&ctx(task(), AgentBackend::Acp));
+        assert!(block.contains(
+            "on branch `task/12-fix` in the worktree `/proj/demo.worktrees/task-12`, and commit your work there"
+        ));
+        assert!(block.contains("set its status to `review` with `update_task`"));
+        assert!(block.contains("summarise what you changed"));
     }
 }

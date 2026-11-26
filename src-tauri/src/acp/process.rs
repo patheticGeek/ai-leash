@@ -6,10 +6,12 @@ use super::events::{
 };
 use super::permissions::bridge_acp_permission;
 use crate::backend::NativeBackend;
+use crate::chat_context::{AgentBackend, ChatContext};
 use crate::commands;
 use crate::db;
 use crate::mcp_bridge;
 use crate::state::{AcpSession, AppState};
+use crate::tools::guidance;
 use agent_client_protocol::schema::v1::{
     CancelNotification, ClientCapabilities, ContentBlock, CreateElicitationRequest,
     CreateElicitationResponse, ElicitationCapabilities, ElicitationFormCapabilities,
@@ -60,16 +62,41 @@ pub(crate) enum AcpCommand {
     ApplyPicks(Vec<(ConfigKind, String)>),
 }
 
-/// A prompt's content blocks: the message text, then its attached files
-/// (`crate::file_context::acp_blocks`).
+/// A prompt's content blocks: the chat's context block if this is the
+/// connection's first prompt (`FirstPromptContext`), the message text, then
+/// its attached files (`crate::file_context::acp_blocks`).
 fn prompt_blocks(
+    context: Option<String>,
     text: String,
     files: &[crate::file_context::FileContext],
     embedded_context: bool,
 ) -> Vec<ContentBlock> {
-    let mut blocks = vec![ContentBlock::Text(TextContent::new(text))];
+    let mut blocks: Vec<ContentBlock> = context
+        .map(|c| ContentBlock::Text(TextContent::new(c)))
+        .into_iter()
+        .collect();
+    blocks.push(ContentBlock::Text(TextContent::new(text)));
     blocks.extend(crate::file_context::acp_blocks(files, embedded_context));
     blocks
+}
+
+/// The "This chat" block (`guidance::first_prompt_block`) for the first
+/// `session/prompt` after this connection's `session/new` or `session/load`,
+/// and for no later one. Agents may clip or ignore the MCP bridge's
+/// `instructions`, but they read their prompt. Made once per connection,
+/// so a resumed session (a new connection doing `session/load`) gets it
+/// again, with the context as it is now (a task's branch, say).
+struct FirstPromptContext(Option<String>);
+
+impl FirstPromptContext {
+    fn new(chat: &ChatContext) -> Self {
+        Self(Some(guidance::first_prompt_block(chat)))
+    }
+
+    /// The block, the first time only.
+    fn take(&mut self) -> Option<String> {
+        self.0.take()
+    }
 }
 
 /// `debug_json(&mcp_servers)`, but with the local MCP bridge's auth token
@@ -507,7 +534,16 @@ async fn drive_acp_connection(
                 debug_json(&init_response),
             );
 
-            let mcp_servers = mcp_servers_for(&app, &session_id, &cwd);
+            // Snapshot at connect time, like the Actions and skills the
+            // bridge lists: for the bridge's instructions and the first
+            // prompt's context block.
+            let chat = ChatContext::load(
+                &app.state::<AppState>().db,
+                &session_id,
+                &cwd,
+                AgentBackend::Acp,
+            );
+            let mcp_servers = mcp_servers_for(&app, &session_id, &cwd, &chat);
             // Whether `@path` mentions can go as embedded resources (with
             // their contents) or only as `resource_link`s — see
             // `prompt_blocks`.
@@ -659,6 +695,9 @@ async fn drive_acp_connection(
             let config_id = |kind: ConfigKind| -> Option<SessionConfigId> {
                 kind.find(&config_options).map(|o| o.id.clone())
             };
+            // Whether the session was new or loaded, its first prompt here
+            // carries the chat's context.
+            let mut first_prompt_context = FirstPromptContext::new(&chat);
             cache_acp_config(&app, &session_id, |s| {
                 s.model_options = None;
                 s.effort_options = None;
@@ -673,12 +712,13 @@ async fn drive_acp_connection(
                 // `(kind, value, report_missing)`.
                 let configs: Vec<(ConfigKind, String, bool)> = match cmd {
                     AcpCommand::Prompt(text, files, done_tx) => {
+                        let context = first_prompt_context.take();
                         emit_acp_debug(
                             &app,
                             &session_id,
                             "sent",
                             "session/prompt",
-                            json!({ "text": text }),
+                            json!({ "context": context, "text": text }),
                         );
                         if let Some(id) = unsaved_session_id.take() {
                             let state = app.state::<AppState>();
@@ -705,7 +745,7 @@ async fn drive_acp_connection(
                         let prompt_fut = connection
                             .send_request(PromptRequest::new(
                                 acp_session_id.clone(),
-                                prompt_blocks(text, &files, embedded_context),
+                                prompt_blocks(context, text, &files, embedded_context),
                             ))
                             .block_task();
                         tokio::pin!(prompt_fut);
@@ -844,4 +884,71 @@ async fn drive_acp_connection(
             Ok(())
         })
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chat_context::ChatKind;
+
+    fn task_chat() -> ChatContext {
+        ChatContext {
+            kind: ChatKind::Task {
+                number: 7,
+                title: "Add dark mode".into(),
+                branch: Some("task/7-add-dark-mode".into()),
+                worktree_path: Some("/p/demo.worktrees/task-7".into()),
+            },
+            backend: AgentBackend::Acp,
+            project_name: "demo".into(),
+            project_root: "/p/demo".into(),
+            checkout: "/p/demo.worktrees/task-7".into(),
+        }
+    }
+
+    fn texts(blocks: &[ContentBlock]) -> Vec<String> {
+        blocks
+            .iter()
+            .map(|b| match b {
+                ContentBlock::Text(t) => t.text.clone(),
+                _ => panic!("not text"),
+            })
+            .collect()
+    }
+
+    /// One connection's prompts, as the prompt loop sends them.
+    fn connection(chat: &ChatContext, prompts: &[&str]) -> Vec<Vec<String>> {
+        let mut first = FirstPromptContext::new(chat);
+        prompts
+            .iter()
+            .map(|p| texts(&prompt_blocks(first.take(), p.to_string(), &[], true)))
+            .collect()
+    }
+
+    #[test]
+    fn first_prompt_carries_the_context_block_then_never_again() {
+        let chat = task_chat();
+        let block = guidance::first_prompt_block(&chat);
+        // A `session/new` connection, then a later `session/load` one: each
+        // starts with its own `FirstPromptContext`.
+        for _ in ["new", "resumed"] {
+            let sent = connection(&chat, &["Work on task #7", "and again", "once more"]);
+            assert_eq!(sent[0], vec![block.clone(), "Work on task #7".to_string()]);
+            assert!(sent[0][0].contains("This is the chat of task #7, *Add dark mode*"));
+            assert_eq!(sent[1], vec!["and again".to_string()]);
+            assert_eq!(sent[2], vec!["once more".to_string()]);
+        }
+    }
+
+    #[test]
+    fn a_resumed_session_gets_the_context_as_it_is_now() {
+        let mut chat = task_chat();
+        let before = connection(&chat, &["hi"]);
+        if let ChatKind::Task { branch, .. } = &mut chat.kind {
+            *branch = Some("renamed".into());
+        }
+        let after = connection(&chat, &["hi"]);
+        assert!(before[0][0].contains("`task/7-add-dark-mode`"));
+        assert!(after[0][0].contains("on branch `renamed`"));
+    }
 }

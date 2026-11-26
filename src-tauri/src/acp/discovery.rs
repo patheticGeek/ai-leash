@@ -1,4 +1,4 @@
-use crate::chat_context::{AgentBackend, ChatContext};
+use crate::chat_context::ChatContext;
 use crate::mcp_bridge;
 use crate::state::{AcpSession, AppState};
 use agent_client_protocol::schema::v1::{
@@ -19,6 +19,7 @@ pub(super) fn mcp_servers_for(
     app: &AppHandle,
     session_id: &str,
     root: &std::path::Path,
+    chat: &ChatContext,
 ) -> Vec<McpServer> {
     let Some(bridge) = app.state::<AppState>().mcp_bridge.lock().unwrap().clone() else {
         return Vec::new();
@@ -26,13 +27,6 @@ pub(super) fn mcp_servers_for(
     let Ok(exe) = std::env::current_exe() else {
         return Vec::new();
     };
-    // Snapshot at connect time, like the Actions and skills the bridge lists.
-    let chat = ChatContext::load(
-        &app.state::<AppState>().db,
-        session_id,
-        root,
-        AgentBackend::Acp,
-    );
     vec![McpServer::Stdio(
         McpServerStdio::new("ai-leash", exe)
             .args(vec!["--mcp-bridge".to_string()])
@@ -43,7 +37,7 @@ pub(super) fn mcp_servers_for(
                 EnvVariable::new(mcp_bridge::PROJECT_ROOT_ENV, root.display().to_string()),
                 EnvVariable::new(
                     mcp_bridge::CHAT_CONTEXT_ENV,
-                    serde_json::to_string(&chat).unwrap_or_default(),
+                    serde_json::to_string(chat).unwrap_or_default(),
                 ),
             ]),
     )]

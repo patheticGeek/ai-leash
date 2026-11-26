@@ -110,8 +110,12 @@ fn task_branch(task: &Task) -> String {
     }
 }
 
-/// The task's first message.
-fn task_prompt(task: &Task, epic: Option<&str>, branch: Option<&str>) -> String {
+/// The task's first message: the work itself. Where to work (branch,
+/// worktree) and how to finish (review, reporting to the project chat) are
+/// the chat's context, given to every agent: the "This chat" section of the
+/// native system prompt and of the MCP bridge's instructions, and the first
+/// ACP prompt's context block (`guidance::first_prompt_block`).
+fn task_prompt(task: &Task, epic: Option<&str>) -> String {
     let mut details = vec![format!("Priority: {}", task.priority)];
     if let Some(effort) = &task.effort {
         details.push(format!("Effort: {}", effort.to_uppercase()));
@@ -129,17 +133,6 @@ fn task_prompt(task: &Task, epic: Option<&str>, branch: Option<&str>) -> String 
         prompt.push_str("\n\n");
         prompt.push_str(task.description.trim());
     }
-    prompt.push_str("\n\n");
-    prompt.push_str(&match branch {
-        Some(branch) => format!(
-            "You're in a git worktree of your own on branch `{branch}`; commit your work there."
-        ),
-        None => "You're in the project's main checkout.".to_string(),
-    });
-    prompt.push_str(
-        "\n\nWhen you're done, move the task to review with `update_task` (status \"review\"), \
-             then summarise what you changed and anything left for the reviewer.",
-    );
     prompt
 }
 
@@ -278,7 +271,7 @@ pub(crate) fn start(
                 .find(|e| e.id == id)
         })
         .map(|e| e.title);
-    let prompt = task_prompt(&task, epic.as_deref(), branch.as_deref());
+    let prompt = task_prompt(&task, epic.as_deref());
     let app = app.clone();
     let id = conversation_id.clone();
     tauri::async_runtime::spawn(async move {
@@ -472,15 +465,20 @@ mod tests {
     }
 
     #[test]
-    fn the_prompt_carries_the_task_and_where_to_work() {
+    fn the_prompt_is_the_work_itself() {
         let mut t = task(7, "Add dark mode");
         t.description = "Use the existing tokens.".into();
-        let prompt = task_prompt(&t, Some("Theming"), Some("task/7-add-dark-mode"));
-        assert!(prompt.starts_with("Work on task #7 from this project's board: Add dark mode"));
-        assert!(prompt.contains("Priority: high · Effort: M · Epic: Theming"));
-        assert!(prompt.contains("Use the existing tokens."));
-        assert!(prompt.contains("`task/7-add-dark-mode`"));
-        assert!(task_prompt(&t, None, None).contains("main checkout"));
-        assert!(prompt.contains("`update_task`"));
+        let prompt = task_prompt(&t, Some("Theming"));
+        assert_eq!(
+            prompt,
+            "Work on task #7 from this project's board: Add dark mode\n\n\
+             Priority: high · Effort: M · Epic: Theming\n\n\
+             Use the existing tokens."
+        );
+        // Branch, worktree and review rules are the chat context's job.
+        assert!(!prompt.contains("worktree"));
+        assert!(!prompt.contains("update_task"));
+        t.description.clear();
+        assert!(task_prompt(&t, None).ends_with("Priority: high · Effort: M"));
     }
 }

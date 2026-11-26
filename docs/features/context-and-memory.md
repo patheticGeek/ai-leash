@@ -67,7 +67,13 @@ The built-in agent's system prompt is rebuilt every turn, so this section
 is never lost when a long conversation is compacted (unlike a task's first
 message, which compaction folds into the summary). External agents
 connected over ACP get the same guidance from AI Leash's tool server when
-they connect.
+they connect. Because some agents clip or ignore a tool server's
+instructions, the first message an external agent gets after each
+connect, whether the session is new or resumed, also carries a short
+context block: the same **This chat** text, marked as from AI Leash and
+not from you, and one line naming the `read_guide` topics. Later messages
+on that connection don't repeat it; a reconnect (the app restarted, or the
+agent switched) sends it again with the context as it is then.
 
 How it's built: `src-tauri/src/chat_context.rs` reads a `ChatContext`
 (kind, backend, project name and root, checkout) from the conversation's
@@ -78,6 +84,12 @@ it: `context::build_system_prompt` folds it into the native system prompt,
 and `acp::discovery::mcp_servers_for` passes the context as JSON to the
 `--mcp-bridge` process (`AI_LEASH_CHAT_CONTEXT`), which returns it as its
 `instructions`. A sub-agent's bridge also leaves the sub-agent tools out.
+The first-prompt block is `tools::guidance::first_prompt_block`, built from
+the same `ChatContext` (loaded once per connection in
+`acp/process.rs`) and the same `this_chat` text; `FirstPromptContext` hands
+it to `prompt_blocks` once, as a text content block ahead of your message.
+It isn't saved to the transcript, but the ACP Events tab shows it as
+`context` on that `session/prompt`.
 
 ## Built-in guides
 
