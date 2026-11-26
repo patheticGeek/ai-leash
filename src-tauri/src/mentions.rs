@@ -116,6 +116,11 @@ fn mention_tokens(message: &str) -> Vec<Vec<String>> {
             if trimmed != token {
                 candidates.push(trimmed.to_string());
             }
+            // `@src/a.ts:12` / `@src/a.ts:12-18` points at lines of the
+            // file; the whole file is what's attached.
+            if let Some(path) = without_line_range(trimmed) {
+                candidates.push(path.to_string());
+            }
             out.push(candidates);
             i = end;
             continue;
@@ -123,6 +128,14 @@ fn mention_tokens(message: &str) -> Vec<Vec<String>> {
         i += 1;
     }
     out
+}
+
+/// `path` without a trailing `:12` or `:12-18` line range, if it has one.
+fn without_line_range(token: &str) -> Option<&str> {
+    let (path, range) = token.rsplit_once(':')?;
+    let (start, end) = range.split_once('-').unwrap_or((range, range));
+    let is_line = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
+    (!path.is_empty() && is_line(start) && is_line(end)).then_some(path)
 }
 
 /// Every `@path` in `message` naming a file or folder inside `root`, read
@@ -188,6 +201,14 @@ pub fn strip_trailer(content: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tokens_drop_a_line_range() {
+        let t = mention_tokens("fix @src/a.ts:12-18 and @b.rs:3. not @c.ts:x");
+        assert_eq!(t[0].last().unwrap(), "src/a.ts");
+        assert_eq!(t[1].last().unwrap(), "b.rs");
+        assert_eq!(t[2], vec!["c.ts:x".to_string()]);
+    }
 
     #[test]
     fn tokens_handle_quotes_and_punctuation() {

@@ -103,16 +103,16 @@ export function relativePath(path: string, checkoutPath: string | null) {
   return path;
 }
 
+// Whether `relPath` is inside the checkout (`relativePath` left it
+// relative), so it can be attached as an `@` mention.
+function isInCheckout(relPath: string): boolean {
+  return !/^([A-Za-z]:)?[\\/]/.test(relPath);
+}
+
 // The commented files a review mentions (attaches): those inside the
 // checkout, by path relative to it, once each.
 export function reviewMentions(comments: AnchoredComment[]): string[] {
-  return [
-    ...new Set(
-      comments
-        .map((c) => c.relPath)
-        .filter((p) => !/^([A-Za-z]:)?[\\/]/.test(p)),
-    ),
-  ];
+  return [...new Set(comments.map((c) => c.relPath).filter(isInCheckout))];
 }
 
 // A fence longer than any backtick run in `code`, so a snippet holding
@@ -125,9 +125,9 @@ function fenceFor(code: string): string {
   return "`".repeat(longest + 1);
 }
 
-function languageOf(path: string): string {
-  const ext = path.split("/").pop()?.split(".").slice(1).pop() ?? "";
-  return /^[a-z0-9]+$/i.test(ext) ? ext : "";
+function quoted(code: string): string {
+  const fence = fenceFor(code);
+  return `${fence}\n${code}\n${fence}`;
 }
 
 export interface AnchoredComment {
@@ -138,46 +138,42 @@ export interface AnchoredComment {
   relPath: string;
 }
 
-// The one message "Send review" posts: every comment with its path, line
-// range and quoted code, grouped by file in the order they were left, then
-// the overall note. Plain markdown, so it reads the same to a native or an
-// ACP agent.
+// The one message "Send review" posts: each comment as `@path:lines`
+// and its text, grouped by file in the order they were left, then the
+// overall note. The `@path:lines` token attaches the whole file once (#24,
+// `src-tauri/src/mentions.rs` drops the line range), so the code itself
+// isn't quoted — except for an outdated comment (its lines say something
+// else now) and a file outside the checkout (it can't be attached), which
+// quote the code they're about. Plain markdown, so it reads the same to a
+// native or an ACP agent.
 export function formatReview(comments: AnchoredComment[], note: string) {
   const n = comments.length;
   const parts = [
-    `Code review: ${n} comment${n === 1 ? "" : "s"}. Please address each one.`,
+    `Code review: ${n} comment${n === 1 ? "" : "s"}. Please address each one.${
+      reviewMentions(comments).length > 0
+        ? " The files are attached; line numbers are the file's current lines."
+        : ""
+    }`,
   ];
   const byFile = new Map<string, AnchoredComment[]>();
   for (const c of comments) {
     byFile.set(c.relPath, [...(byFile.get(c.relPath) ?? []), c]);
   }
-  // Each commented file inside the checkout as an `@path` mention, so the
-  // agent gets the whole file with the review the way `@` mentions attach
-  // files (#24, `src-tauri/src/mentions.rs`): its contents for our own
-  // loop, an ACP resource otherwise. A file outside the checkout keeps
-  // only its quoted lines.
-  const attached = reviewMentions(comments);
-  if (attached.length > 0) {
-    parts.push(`Files: ${attached.map(mentionToken).join(" ")}`);
-  }
   let i = 0;
   for (const [relPath, fileComments] of byFile) {
+    const attached = isInCheckout(relPath);
     for (const { comment, anchor, code } of fileComments) {
       i++;
-      const where = `\`${relPath}\` ${lineLabel(anchor.startLine, anchor.endLine)}`;
-      const outdated = anchor.outdated
-        ? " (outdated: these lines have changed since; the quote is what they said)"
-        : "";
-      const fence = fenceFor(code);
-      parts.push(
-        [
-          `### ${i}. ${where}${outdated}`,
-          `${fence}${languageOf(relPath)}`,
-          code,
-          fence,
-          comment.body.trim(),
-        ].join("\n"),
-      );
+      const { startLine: start, endLine: end } = anchor;
+      const where = attached
+        ? `${mentionToken(relPath)}:${start === end ? start : `${start}-${end}`}`
+        : `\`${relPath}\` ${lineLabel(start, end)}`;
+      const lines = [
+        `### ${i}. ${where}${anchor.outdated ? " (outdated: these lines have changed since; the quote is what they said)" : ""}`,
+      ];
+      if (anchor.outdated || !attached) lines.push(quoted(code));
+      lines.push(comment.body.trim());
+      parts.push(lines.join("\n"));
     }
   }
   if (note.trim()) parts.push(`### Overall\n${note.trim()}`);

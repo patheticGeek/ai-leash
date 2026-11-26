@@ -403,7 +403,10 @@ Keep typing to filter: the match is fuzzy over the whole relative path
 and lists folders with a trailing `/`. Use the arrow keys and **Tab** or
 **Enter** to pick, or **Escape** to close the list. The pick is written into
 the message as `@path` (quoted, `@"my file.md"`, when the name has spaces);
-**Backspace** right after a picked mention removes it whole.
+**Backspace** right after a picked mention removes it whole. You can point at
+lines too, by adding them after the path, `@path:12` or `@path:12-18`, as a
+review does (see [Send a code review](#send-a-code-review)). The whole file
+is still attached, once, however many times it's mentioned.
 
 You can also right-click a file or folder in the Files tab and choose
 **Mention in chat**, or drag it from the tree onto the message box.
@@ -447,19 +450,22 @@ them, even across restarts.
 Draft comments show as chips at the top of the message box, one per comment,
 labelled with the file and lines. Select a chip to open its file, or its
 **×** to delete the comment. **Send review (N)**, beside Send, posts every
-comment as one message: for each comment, the file's path, its line range,
-the quoted code and your comment, grouped by file. Whatever you've typed in
-the message box goes with it as an overall note. The review also mentions
-each commented file as `@path` on a **Files:** line, so the whole file goes
-with it the way [`@` mentions](#mention-files-with-) attach files: its
+comment as one message, grouped by file: each comment is the file tagged at
+its lines, like `@src/app/AppShell.tsx:12-18`, followed by your comment.
+Whatever you've typed in the message box goes with it as an overall note.
+The code itself isn't pasted in. Each commented file goes with the review
+once, the way [`@` mentions](#mention-files-with-) attach files: its
 contents for the built-in agent, an ACP resource for external agents, and a
-chip on the sent message. A file outside the chat's working directory sends
-only its quoted lines. Once it's sent, those comments are cleared.
+chip on the sent message. There are two exceptions, which quote the code
+they're about: an outdated comment (see below), since its lines now say
+something else, and a comment on a file outside the chat's working
+directory, which can't be attached and is named by its plain path and lines.
+Once it's sent, those comments are cleared.
 
 A comment follows its code. If the lines it's on move (say, the agent adds
 code above them), it moves with them. If they change, the comment is marked
-outdated, stays at its original line, and is sent with the code as it was
-when you commented, flagged as outdated.
+outdated, stays at its original line, and is sent flagged as outdated with
+the code as it was when you commented.
 
 Send review waits for the agent's current turn to finish, like Send.
 

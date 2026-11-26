@@ -65,8 +65,10 @@ export function pickedMentionsIn(text: string): string[] {
   const seen = new Set<string>();
   for (const { path } of mentionSpans(text)) {
     const clean = path.replace(/[,.;:!?)'"]+$/, "");
-    if (picked.has(path)) seen.add(path);
-    else if (picked.has(clean)) seen.add(clean);
+    // `@path:12` / `@path:12-18` (a review comment's lines) is the file.
+    const unranged = clean.replace(/:\d+(-\d+)?$/, "");
+    const hit = [path, clean, unranged].find((p) => picked.has(p));
+    if (hit) seen.add(hit);
   }
   return [...seen];
 }
