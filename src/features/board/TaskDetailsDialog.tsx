@@ -16,6 +16,7 @@ import { Heading, Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
+import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Pencil, Play, Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -206,6 +207,14 @@ function ChatState({
   );
 }
 
+// The app's chrome is unselectable (`index.css`); the title and
+// description are text you copy from.
+const styles = stylex.create({
+  selectable: {
+    userSelect: "text",
+  },
+});
+
 // The title: a Heading with an edit button, or a TextInput while editing
 // (Enter or blur saves, Escape cancels).
 function TitleField({
@@ -219,7 +228,12 @@ function TitleField({
   if (editing === null) {
     return (
       <HStack gap={2} vAlign="start" hAlign="between">
-        <Heading level={2} weight="normal" maxLines={2}>
+        <Heading
+          level={2}
+          weight="normal"
+          maxLines={2}
+          xstyle={styles.selectable}
+        >
           {title}
         </Heading>
         <IconButton
@@ -289,7 +303,9 @@ function DescriptionField({
     >
       {editing === null ? (
         description.trim() ? (
-          <Markdown content={description} />
+          <VStack xstyle={styles.selectable}>
+            <Markdown content={description} />
+          </VStack>
         ) : (
           <Text color="secondary">No description</Text>
         )
