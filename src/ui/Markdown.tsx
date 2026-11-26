@@ -15,7 +15,6 @@ import {
   memo,
   type ReactNode,
   useContext,
-  useMemo,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkBreaks from "remark-breaks";
@@ -329,15 +328,12 @@ function Markdown({
   content: string;
   mentions?: readonly string[];
 }) {
-  const mentionsKey = mentions?.join("\n") ?? "";
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the paths by value
-  const plugins = useMemo(
-    () =>
-      mentions && mentions.length > 0
-        ? [...remarkPlugins, remarkMentions(mentions)]
-        : remarkPlugins,
-    [mentionsKey],
-  );
+  // Memoized on `mentions` by the React Compiler (a sent message's list is
+  // stable while it's on screen).
+  const plugins =
+    mentions && mentions.length > 0
+      ? [...remarkPlugins, remarkMentions(mentions)]
+      : remarkPlugins;
   return (
     <div {...stylex.props(styles.root)}>
       <ReactMarkdown
