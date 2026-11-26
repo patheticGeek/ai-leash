@@ -125,7 +125,9 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   prebuilt ones, and ours are unlayered, so they silently override the
   `astryx-theme` layer for every Astryx element sharing that class.
 - **`src/ui` holds only the hand-written pieces Astryx has no component
-  for**: `Logo`, `json-viewer`, `Markdown` and `ErrorBoundary`, built
+  for**: `Logo`, `json-viewer`, `Markdown`, `ErrorBoundary`, `Chart`
+  (SVG bar/line chart) and `UiBlock` (the ```` ```ui ```` rich-reply
+  renderer, spec in `lib/uiSpec.ts`), built
   from Astryx primitives + StyleX tokens, each with a Storybook story.
   Anything else comes from `@astryxdesign/core` (pane resizing, for
   instance, is Astryx `useResizable` + `ResizeHandle`, via

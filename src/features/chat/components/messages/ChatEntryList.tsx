@@ -16,6 +16,7 @@ import {
 } from "react";
 import { usePreference } from "@/data/preferences";
 import { useStickToEnd } from "@/hooks/useStickToEnd";
+import { uiBlocksToText } from "@/lib/uiSpec";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import {
   type ActivityItem,
@@ -257,7 +258,10 @@ export default function ChatEntryList({
     retryRef.current = onRetry;
   });
   const copyEntry = useCallback(
-    (text: string, index: number) => copyRef.current(text, index),
+    // A ```ui block copies as its readable text (tables as Markdown tables,
+    // stats as lines, …), not its JSON.
+    (text: string, index: number) =>
+      copyRef.current(uiBlocksToText(text), index),
     [],
   );
   const retry = useCallback(() => retryRef.current(), []);

@@ -36,6 +36,12 @@ And a long unbroken inline token: \`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 | 1     | 2     |
 
 ---
+
+A rich view in a \`\`\`ui block:
+
+\`\`\`ui
+{"type": "stats", "items": [{"label": "Tests", "value": "128", "change": "+4", "tone": "success"}, {"label": "Failures", "value": "0"}]}
+\`\`\`
 `;
 
 const meta = {
