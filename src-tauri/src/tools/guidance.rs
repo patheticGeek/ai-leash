@@ -37,7 +37,7 @@ pub fn native_guidance(allow_subtasks: bool) -> String {
 /// appended to both `native_guidance` and `bridge_instructions`.
 pub fn rich_reply_guidance() -> &'static str {
     "# Rich replies\n\n\
-     The chat renders a fenced code block with the language `ui` as interactive UI instead of code. Use one when data reads better as a table, chart, stat tiles or the like than as prose or a Markdown table — comparisons, metrics, results, status overviews. Keep explanations in normal Markdown around it; don't use it for a sentence or two.\n\n\
+     The chat renders a fenced code block with the language `ui` as interactive UI instead of code. Use one when data reads better as a table, chart, stat tiles or the like than as prose or a Markdown table — comparisons, metrics, results, status overviews. Keep explanations in normal Markdown around it; don't use it for a sentence or two. It's for showing data, not for pages or UI prototypes: don't rebuild a web page, mockup or `.html` file with it.\n\n\
      The block holds JSON: one node, or an array of nodes stacked vertically. Every node has a `type`:\n\
      - `table`: `columns` (strings, or `{key, label, align}` with align start/center/end) and `rows` (arrays in column order, or objects by key); cells are strings, numbers, booleans or null. Sortable by clicking a header unless `\"sortable\": false`. Optional `caption`.\n\
      - `chart`: `kind` bar (default) or line, `labels` (x-axis categories), `series` (`[{name, values}]`, one number per label, up to 8 series), optional `title` and `unit`.\n\
