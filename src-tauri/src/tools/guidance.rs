@@ -6,6 +6,11 @@
 //! how tools chain together — the part a model won't work out from a
 //! flat list of schemas.
 
+/// Its own paragraph, appended to both transports' guidance: the chat
+/// renders HTML in a sandboxed frame (`src/ui/HtmlPreview.tsx`), and agents
+/// only use that if told it exists.
+const HTML_PREVIEWS: &str = "\n\nHTML previews: the chat renders a fenced code block tagged `html` as a live preview (with a Preview / Code switch). When the user asks for a UI prototype, mockup or small interactive demo, reply with one complete, self-contained HTML document in such a block. Put all CSS and JavaScript inline: the preview is sandboxed with no network access (no CDNs, web fonts, remote images or fetch) and can't reach the app, storage or other pages. Images can be inline SVG or `data:` URLs. An `.html` file you write in the project can also be previewed from its tool call in the chat.";
+
 /// System-prompt section for the native provider loop. `allow_subtasks` is
 /// false for sub-agents themselves, which don't get `spawn_sub_agent` and
 /// so shouldn't be told about it.
@@ -25,6 +30,7 @@ pub fn native_guidance(allow_subtasks: bool) -> String {
             "\n- **Parallel work.** If a request has two or more independent parts, hand them to `spawn_sub_agent` in a single call so they run concurrently, instead of working through them one by one. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own; don't poll.",
         );
     }
+    out.push_str(HTML_PREVIEWS);
     out
 }
 
@@ -39,6 +45,7 @@ pub fn bridge_instructions() -> String {
      - Sub-agents: if a request has two or more independent parts, hand them to `spawn_sub_agent` in one call so they run concurrently. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own as later turns; don't poll with `list_sub_agents`.\n\
      - The board: the project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list; `list_tasks` shows what's there. If this conversation is a task's own chat, set it to review with `update_task` when your work on it is done, and use `send_message` to the project chat if you're blocked or need a decision. From the project chat, `send_message` to a task's number gives it instructions."
         .to_string()
+        + HTML_PREVIEWS
 }
 
 #[cfg(test)]
@@ -49,6 +56,13 @@ mod tests {
     fn native_guidance_only_mentions_sub_agents_when_allowed() {
         assert!(native_guidance(true).contains("spawn_sub_agent"));
         assert!(!native_guidance(false).contains("spawn_sub_agent"));
+    }
+
+    #[test]
+    fn both_transports_mention_html_previews() {
+        for text in [native_guidance(false), bridge_instructions()] {
+            assert!(text.contains("\n\nHTML previews: the chat renders"));
+        }
     }
 
     #[test]
