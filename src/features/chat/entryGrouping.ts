@@ -65,34 +65,44 @@ export function isSubAgentResult(entry: PanelEntry): boolean {
   return entry.kind === "tool" && SUB_AGENT_RESULT.test(entry.name);
 }
 
-// Groups runs of consecutive thinking/tool entries so the transcript can
-// show only the latest activity by default (see `ActivityGroup`) instead of
-// every individual step — a multi-step agent turn can otherwise bury the
-// actual conversation. Sub-agent entries (`isSubAgentEntry`) are never
-// grouped: each is its own `single` item and ends the run before it, so a
-// sub-agent's start and result always show as rows of their own (a start
-// can still sit inside a finished turn's `work` fold; a result never does).
-// `indices` restricts grouping to those entries (used for the inside of a
-// collapsed `work` item); defaults to all of them.
+// Groups runs of more than two consecutive thinking/tool entries
+// (`GROUP_MIN`) so the transcript can show only the latest activity by
+// default (see `ActivityGroup`) instead of every individual step — a
+// multi-step agent turn can otherwise bury the actual conversation. A run of
+// one or two steps is left as `single` items: a "Show 1 more" button would
+// take as much room as the row it hides. Sub-agent entries
+// (`isSubAgentEntry`) are never grouped: each is its own `single` item and
+// ends the run before it, so a sub-agent's start and result always show as
+// rows of their own (a start can still sit inside a finished turn's `work`
+// fold; a result never does). `indices` restricts grouping to those entries
+// (used for the inside of a collapsed `work` item); defaults to all of them.
+const GROUP_MIN = 3;
+
 export function groupActivity(
   entries: PanelEntry[],
   indices: number[] = entries.map((_, i) => i),
 ): ActivityItem[] {
   const items: ActivityItem[] = [];
+  let run: number[] = [];
+  const flush = () => {
+    if (run.length >= GROUP_MIN) {
+      items.push({ kind: "activitygroup", indices: run });
+    } else {
+      for (const index of run) items.push({ kind: "single", index });
+    }
+    run = [];
+  };
   for (const i of indices) {
     const entry = entries[i];
     const isActivity = entry.kind === "thinking" || entry.kind === "tool";
     if (isActivity && !isSubAgentEntry(entry)) {
-      const last = items[items.length - 1];
-      if (last && last.kind === "activitygroup") {
-        last.indices.push(i);
-      } else {
-        items.push({ kind: "activitygroup", indices: [i] });
-      }
+      run.push(i);
     } else {
+      flush();
       items.push({ kind: "single", index: i });
     }
   }
+  flush();
   return items;
 }
 

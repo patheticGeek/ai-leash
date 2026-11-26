@@ -1,7 +1,11 @@
 import { Button } from "@astryxdesign/core/Button";
 import { ChatToolCalls } from "@astryxdesign/core/Chat";
 import { Icon } from "@astryxdesign/core/Icon";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import {
+  colorVars,
+  spacingVars,
+  typeScaleVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -24,6 +28,15 @@ const styles = stylex.create({
   },
   row: { marginBlockStart: 0 },
   toggle: { alignSelf: "flex-start" },
+  // Muted like the sidebar's "More projects"/"Show all" (`showMore` in
+  // `LeftBar.tsx`): secondary text, primary on hover, supporting size.
+  showMore: {
+    color: {
+      default: colorVars["--color-text-secondary"],
+      ":hover": colorVars["--color-text-primary"],
+    },
+    fontSize: typeScaleVars["--text-supporting-size"],
+  },
 });
 
 interface ActivityGroupProps {
@@ -32,13 +45,13 @@ interface ActivityGroupProps {
   indices: number[];
 }
 
-// A run of consecutive thinking/tool entries (`groupActivity`): one
+// A run of three or more consecutive thinking/tool entries
+// (`groupActivity`; shorter runs are `single` rows): one
 // `ChatToolCalls` row per step, collapsed to just the latest step, with a
 // "Show N more" button under it that lists the earlier ones above it and
 // turns into "Show less". It never opens on its own, even while the run is
-// still growing. A one-step run is just its row. The rows and the button sit
-// on the turn's left edge (`turnInset`). Its parent keys it on the run's
-// first index, which stays stable as long as `entries` only ever grows (it
+// still growing. The rows and the button sit on the turn's left edge
+// (`turnInset`). Its parent keys it on the run's first index, which stays stable as long as `entries` only ever grows (it
 // does), so the expanded state can live here.
 function ActivityGroup({ entries, indices }: ActivityGroupProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -68,6 +81,7 @@ function ActivityGroup({ entries, indices }: ActivityGroupProps) {
               <Icon icon={isExpanded ? ChevronUp : ChevronDown} size="sm" />
             }
             onClick={() => setIsExpanded((v) => !v)}
+            xstyle={styles.showMore}
           />
         </VStack>
       )}

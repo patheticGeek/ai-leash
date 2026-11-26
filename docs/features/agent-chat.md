@@ -74,8 +74,9 @@ file path, a command, a search. Click a row to open its detail: the thought
 itself, or a tool's input and output. A failed tool call keeps its output
 (titled **Error**) available for inspection.
 
-Consecutive thinking and tool steps form a group, shown as its latest step
-with **Show N more** under it; click it to list the earlier steps above (the
+Three or more consecutive thinking and tool steps form a group, shown as its
+latest step with a muted **Show N more** under it (one or two steps in a row
+just show as their rows); click it to list the earlier steps above (the
 button becomes **Show less**). A group stays collapsed while it grows, so
 the newest step is always the one on show. Sub-agent steps are never part of
 a group: starting sub-agents (`spawn_sub_agent`) always gets a row of its
