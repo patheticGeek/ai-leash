@@ -17,7 +17,7 @@ export type PanelTabKind =
 // `CenterPanel` has always shown. Any tab can be dragged between the centre
 // and side areas (see `TabDnd.tsx`) except the primary Agent tab, which is
 // pinned to the centre.
-export type TabKind = PanelTabKind | "primary" | "subagent";
+export type TabKind = PanelTabKind | "primary" | "subagent" | "preview";
 
 export type TabArea = "center" | "side";
 
@@ -31,7 +31,29 @@ export interface WorkspaceTab {
   command?: string;
   /** Sub-agent tabs only: the sub-agent session whose transcript it shows. */
   subSessionId?: string;
+  /** Preview tabs of a chat's ```html block: the HTML itself (a file preview
+   * has `path` instead). */
+  html?: string;
+  /** File preview tabs: the session whose checkout `path` is read from. */
+  sessionId?: string;
   label: string;
+}
+
+// What `openPreviewTab` opens: a ```html block's own HTML, or an `.html`
+// file in a session's checkout.
+export type PreviewSource =
+  | { html: string; label?: string }
+  | { path: string; sessionId: string | null; label?: string };
+
+// A short, stable id for a block's HTML, so opening the same block twice
+// re-activates its tab instead of adding another.
+function hashText(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
 }
 
 // `panelTabs` is the side area, `chatTabs` the centre area — named for what
@@ -199,6 +221,9 @@ export interface PanelSlice {
   ) => void;
   // Same, for a sub-agent's transcript, opening in the centre area.
   openChatTab: (subSessionId: string, label: string) => void;
+  // Same, for an HTML preview (a ```html block or an `.html` file), opening
+  // in the centre area.
+  openPreviewTab: (source: PreviewSource) => void;
   // Both take a tab in either area.
   activateTab: (id: string) => void;
   closeTab: (id: string) => void;
@@ -317,6 +342,35 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
       chatTabs: [...s.chatTabs, { id, kind: "subagent", subSessionId, label }],
       activeChatTabId: id,
     }));
+    get().persistActiveSessionTabState();
+  },
+
+  openPreviewTab: (source) => {
+    const id =
+      "html" in source
+        ? `preview:${hashText(source.html)}`
+        : `preview:file:${source.path}`;
+    if (tabAreaOf(get(), id)) {
+      get().activateTab(id);
+      return;
+    }
+    const tab: WorkspaceTab =
+      "html" in source
+        ? {
+            id,
+            kind: "preview",
+            html: source.html,
+            label: source.label ?? "Preview",
+          }
+        : {
+            id,
+            kind: "preview",
+            path: source.path,
+            sessionId: source.sessionId ?? undefined,
+            label:
+              source.label ?? source.path.split(/[\\/]/).pop() ?? "Preview",
+          };
+    set((s) => ({ chatTabs: [...s.chatTabs, tab], activeChatTabId: id }));
     get().persistActiveSessionTabState();
   },
 

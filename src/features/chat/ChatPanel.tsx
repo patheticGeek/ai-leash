@@ -6,6 +6,7 @@ import { useConversations } from "../../data/conversations";
 import { useGenerating } from "../../lib/generatingQuery";
 import { api } from "../../lib/tauriApi";
 import { useAppStore } from "../../store";
+import { UiSendContext } from "../../ui/UiBlock";
 import ChatComposer from "./components/composer/ChatComposer";
 import NewThreadHero from "./components/empty-states/NewThreadHero";
 import StartsWithRow from "./components/empty-states/StartsWithRow";
@@ -321,6 +322,16 @@ export default function ChatPanel({
     return true;
   }
 
+  // A `choices` option in a ```ui block (`ui/UiBlock.tsx`) sends its
+  // message as the user's next turn — through the same take-over ask a typed
+  // send gets. Withheld (options disabled) while a reply is running.
+  async function sendChoice(message: string) {
+    const takeOver = await askTakeOver("send");
+    if (takeOver === null) return;
+    await submitPrompt(message, takeOver);
+  }
+  const uiSend = sending || !backend.ready ? null : sendChoice;
+
   async function retry() {
     if (!sessionId || sending || !backend.caps.retry || !backend.ready) return;
     setChatError(null);
@@ -362,20 +373,22 @@ export default function ChatPanel({
           <NewThreadHero projectRoot={projectRoot} />
         ) : (
           <VStack xstyle={styles.transcript}>
-            <ChatEntryList
-              entries={entries}
-              systemPrompt={systemPrompt}
-              historyLoaded={historyLoaded}
-              historyError={historyError}
-              onReloadHistory={reloadHistory}
-              sending={sending}
-              allowRetry={backend.caps.retry}
-              turnDurations={turnDurations}
-              replyStartedAt={replyStartedAt}
-              onRetry={retry}
-              isCompact={compact}
-              bottomInset={composerHeight}
-            />
+            <UiSendContext.Provider value={uiSend}>
+              <ChatEntryList
+                entries={entries}
+                systemPrompt={systemPrompt}
+                historyLoaded={historyLoaded}
+                historyError={historyError}
+                onReloadHistory={reloadHistory}
+                sending={sending}
+                allowRetry={backend.caps.retry}
+                turnDurations={turnDurations}
+                replyStartedAt={replyStartedAt}
+                onRetry={retry}
+                isCompact={compact}
+                bottomInset={composerHeight}
+              />
+            </UiSendContext.Provider>
           </VStack>
         )}
         <ChatComposer

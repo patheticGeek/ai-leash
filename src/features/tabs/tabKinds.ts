@@ -11,6 +11,7 @@ import {
 import ProjectBoardView from "../board/ProjectBoardView";
 import ChatPanel from "../chat/ChatPanel";
 import SubAgentChatTab from "../chat/SubAgentChatTab";
+import HtmlPreviewTab from "../preview/HtmlPreviewTab";
 import ActionsTab from "../sidebar/tabs/ActionsTab";
 import ActionTerminalTab from "../sidebar/tabs/ActionTerminalTab";
 import FileEditorTab from "../sidebar/tabs/FileEditorTab";
@@ -122,6 +123,14 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
     kind: "file",
     render: (tab) =>
       tab.path ? createElement(FileEditorTab, { path: tab.path }) : null,
+    mountMode: "active-only",
+    openableFromPicker: false,
+  },
+  // Active-only: moving an iframe in the DOM reloads it anyway, and its
+  // HTML (or file path) lives on the tab.
+  preview: {
+    kind: "preview",
+    render: (tab) => createElement(HtmlPreviewTab, { tab }),
     mountMode: "active-only",
     openableFromPicker: false,
   },

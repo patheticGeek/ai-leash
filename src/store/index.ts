@@ -39,6 +39,7 @@ export type { AcpDebugEvent } from "./debugSlice";
 export { elicitationForSession } from "./elicitationSlice";
 export type {
   PanelTabKind,
+  PreviewSource,
   TabArea,
   TabKind,
   WorkspaceTab,

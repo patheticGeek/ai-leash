@@ -38,6 +38,8 @@ backend, not a bundled Chromium.
   task chats in both directions.
 - **Sub-agents** — delegate independent chunks of work to isolated,
   concurrent agents, shown as nested threads or their own tabs.
+- **HTML previews** — prototypes and mockups an agent writes render live in
+  the chat, in a sandbox with no access to the app or the network.
 - **`AGENTS.md`, memory & skills** — project and global instructions, notes,
   and on-demand skills, picked up mid-session without a restart.
 - **Actions** — named project commands (`.ai-leash/actions.json`) that run in
