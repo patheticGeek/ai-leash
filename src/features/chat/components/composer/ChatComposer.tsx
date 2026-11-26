@@ -194,7 +194,9 @@ export default function ChatComposer({
   const queue = useMessageQueue(sending, (text) => void onSubmit(text, false));
   // `sending` as of now, for after an await.
   const sendingRef = useRef(sending);
-  sendingRef.current = sending;
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
   // "/help" shows a banner above the composer rather than adding an entry
   // to the transcript — closed by its own dismiss button or, more usually,
   // implicitly by sending the next message (see the top of `send()`).
@@ -323,6 +325,12 @@ export default function ChatComposer({
     textareaRef.current?.focus();
   }
 
+  // Typing: the text and, for the `@` picker, the caret, in one render.
+  function onInputChange(value: string) {
+    setInput(value);
+    mention.syncCaret(value);
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (mention.onKeyDown(e)) return;
     if (slash.showPopover) {
@@ -403,7 +411,7 @@ export default function ChatComposer({
           <AstryxChatComposer
             ref={composerRef}
             value={input}
-            onChange={setInput}
+            onChange={onInputChange}
             // Send / Stop go through `ChatSendButton` below and Enter through
             // `onKeyDown`; this is only the shell's own submit path.
             onSubmit={() => void send()}
@@ -418,7 +426,7 @@ export default function ChatComposer({
             input={
               <ComposerInput
                 value={input}
-                onChange={setInput}
+                onChange={onInputChange}
                 onKeyDown={onKeyDown}
                 textareaRef={textareaRef}
                 shellMode={shellMode}

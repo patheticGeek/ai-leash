@@ -30,17 +30,17 @@ export function useMentionPicker(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
   checkoutPath: string | null,
 ) {
-  const [caretState, setCaret] = useState(0);
+  const [caret, setCaret] = useState(0);
   const [dismissed, setDismissed] = useState<number | null>(null);
   const [index, setIndex] = useState(0);
 
-  // The caret, read off the textarea when we render: typing re-renders
-  // anyway, since `input` changes. Clicking and the arrow keys move it
-  // without changing the text, so those re-render through `caretState`.
-  // Not on `input`: that native listener runs before React's own
-  // `onChange`, and re-rendering there with the old text writes it back
-  // over the keystroke, so typing is lost.
-  const caret = textareaRef.current?.selectionStart ?? caretState;
+  // The caret, kept in state. A keystroke sets it in the same render as the
+  // text (`syncCaret`, from the field's change handler), so typing costs one
+  // render. Clicks, arrow keys and focus move it without changing the text;
+  // those listeners set it too, and are a no-op when it hasn't moved. Not
+  // on the native `input` event: that runs before React's own `onChange`,
+  // and re-rendering there with the old text writes it back over the
+  // keystroke, so typing is lost.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -51,6 +51,12 @@ export function useMentionPicker(
       for (const e of events) el.removeEventListener(e, sync);
     };
   });
+
+  // Called from the field's change handler, next to setting the text, so
+  // both land in one render.
+  function syncCaret(value: string) {
+    setCaret(textareaRef.current?.selectionStart ?? value.length);
+  }
 
   // The `@query` being typed right before the caret, if any.
   const before = input.slice(0, caret);
@@ -128,7 +134,9 @@ export function useMentionPicker(
 
   // The file tree's "Mention in chat".
   const insertRef = useRef(insertPath);
-  insertRef.current = insertPath;
+  useEffect(() => {
+    insertRef.current = insertPath;
+  });
   useEffect(() => onMentionRequest((path) => insertRef.current(path)), []);
 
   // A file-tree row dropped on the box.
@@ -197,6 +205,7 @@ export function useMentionPicker(
 
   return {
     showPopover,
+    syncCaret,
     onKeyDown,
     // `MentionMenu`'s props, but for its anchor.
     menu: {
