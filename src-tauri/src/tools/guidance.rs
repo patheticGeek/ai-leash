@@ -30,8 +30,40 @@ pub fn native_guidance(allow_subtasks: bool) -> String {
             "\n- **Parallel work.** If a request has two or more independent parts, hand them to `spawn_sub_agent` in a single call so they run concurrently, instead of working through them one by one. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own; don't poll.",
         );
     }
+    out.push_str("\n\n");
+    out.push_str(rich_reply_guidance());
     out.push_str(HTML_PREVIEWS);
     out
+}
+
+/// How to show data as rich UI in a reply: a fenced ` ```ui ` block of JSON
+/// the chat renders with real components (`src/ui/UiBlock.tsx`, spec and
+/// validation in `src/lib/uiSpec.ts` — keep this in sync with it). Plain
+/// reply text, so it's the same for the native loop and every ACP agent;
+/// appended to both `native_guidance` and `bridge_instructions`.
+pub fn rich_reply_guidance() -> &'static str {
+    "# Rich replies\n\n\
+     The chat renders a fenced code block with the language `ui` as interactive UI instead of code. Use one when data reads better as a table, chart, stat tiles or the like than as prose or a Markdown table — comparisons, metrics, results, status overviews. Keep explanations in normal Markdown around it; don't use it for a sentence or two. It's for showing data, not for pages or UI prototypes: don't rebuild a web page, mockup or `.html` file with it.\n\n\
+     The block holds JSON: one node, or an array of nodes stacked vertically. Every node has a `type`:\n\
+     - `table`: `columns` (strings, or `{key, label, align}` with align start/center/end) and `rows` (arrays in column order, or objects by key); cells are strings, numbers, booleans or null. Sortable by clicking a header unless `\"sortable\": false`. Optional `caption`.\n\
+     - `chart`: `kind` bar (default) or line, `labels` (x-axis categories), `series` (`[{name, values}]`, one number per label, up to 8 series), optional `title` and `unit`.\n\
+     - `stats`: `items` of `{label, value, change, tone, description}` (only label and value required) — a row of stat tiles.\n\
+     - `keyValue`: `items` of `{label, value}`, optional `title`.\n\
+     - `list`: `items` of strings or `{title, description, badge, tone}`; `ordered` true for a numbered list.\n\
+     - `progress`: `label`, `value`, optional `max` (default 100) and `tone`.\n\
+     - `badge` / `status`: `label` and `tone`.\n\
+     - `heading` (`text`, `level` 1-3), `text` (`text`, `tone` default/secondary), `divider`.\n\
+     - `callout`: `title`, optional `text` and `tone`.\n\
+     - `code`: `code`, optional `language` and `title`.\n\
+     - `card`: optional `title` and `description`, `children` nodes.\n\
+     - `tabs`: `tabs` of `{label, children}`.\n\
+     - `stack`: `children`, `direction` vertical (default) or horizontal.\n\
+     - `choices`: optional `prompt`, `options` of strings or `{label, message}` — buttons; clicking one sends its message (or label) as the user's next message. Only offer them when you actually want the user to pick.\n\n\
+     `tone` is one of neutral, info, success, warning, error. The JSON must be valid and is only displayed, never executed; an invalid block is shown raw with the error. Example:\n\n\
+     ```ui\n\
+     [{\"type\": \"table\", \"columns\": [\"Model\", \"Latency (ms)\"], \"rows\": [[\"A\", 320], [\"B\", 610]]},\n \
+     {\"type\": \"chart\", \"title\": \"Latency\", \"labels\": [\"A\", \"B\"], \"series\": [{\"name\": \"Latency\", \"values\": [320, 610]}], \"unit\": \"ms\"}]\n\
+     ```"
 }
 
 /// `instructions` for the MCP bridge server. The ACP agent already has its
@@ -43,8 +75,10 @@ pub fn bridge_instructions() -> String {
      - Actions are named background commands shown in the user's Actions tab. Before starting a long-running process yourself (dev server, watcher, `--watch` build), call `list_actions`; if one matches, `run_action` it and use `read_action` to check its output or compile errors. If none matches, `create_action` one instead of leaving an untracked background process.\n\
      - Memory is AI Leash's persistent notes for this project (`project`) and across projects (`global`). It is not put in your context for you: call `read_memory` at the start of a task in this project. When the user states a lasting preference or convention, or corrects you in a way that should apply next time, save it with `update_memory` without being asked — it replaces the whole file, so `read_memory` first and pass the merged contents. Durable facts only, not scratch state.\n\
      - Sub-agents: if a request has two or more independent parts, hand them to `spawn_sub_agent` in one call so they run concurrently. Call `list_agent_options` first if you want a specific agent, model or effort. Results arrive on their own as later turns; don't poll with `list_sub_agents`.\n\
-     - The board: the project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list; `list_tasks` shows what's there. If this conversation is a task's own chat, set it to review with `update_task` when your work on it is done, and use `send_message` to the project chat if you're blocked or need a decision. From the project chat, `send_message` to a task's number gives it instructions."
+     - The board: the project has a Kanban board of tasks the user plans with. When asked to plan or break down work, add it with `create_tasks` rather than only writing a list; `list_tasks` shows what's there. If this conversation is a task's own chat, set it to review with `update_task` when your work on it is done, and use `send_message` to the project chat if you're blocked or need a decision. From the project chat, `send_message` to a task's number gives it instructions.\n\
+     \n"
         .to_string()
+        + rich_reply_guidance()
         + HTML_PREVIEWS
 }
 
@@ -56,6 +90,26 @@ mod tests {
     fn native_guidance_only_mentions_sub_agents_when_allowed() {
         assert!(native_guidance(true).contains("spawn_sub_agent"));
         assert!(!native_guidance(false).contains("spawn_sub_agent"));
+    }
+
+    #[test]
+    fn both_transports_describe_rich_replies() {
+        assert!(native_guidance(false).contains("```ui"));
+        assert!(bridge_instructions().contains("```ui"));
+    }
+
+    #[test]
+    fn rich_reply_example_is_valid_json() {
+        let text = rich_reply_guidance();
+        let body = text
+            .split("```ui\n")
+            .nth(1)
+            .unwrap()
+            .split("\n```")
+            .next()
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert!(json.is_array());
     }
 
     #[test]
