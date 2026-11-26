@@ -50,7 +50,7 @@ pub use rate_limit::{
 };
 pub use sub_agents::{
     delete_sub_agent, get_sub_agent_for_parent, is_sub_agent, list_sub_agents_for_parent,
-    record_sub_agent_finished, record_sub_agent_started, SubAgentSummary,
+    record_sub_agent_finished, record_sub_agent_started, sub_agent_parent, SubAgentSummary,
 };
 pub use tasks::{
     board_agent_defaults, board_summaries, count_done_tasks, create_task, delete_project_board,

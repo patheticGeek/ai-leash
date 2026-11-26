@@ -219,8 +219,7 @@ pub(crate) async fn run_turn(
     native: &NativeBackend,
     autonomous: bool,
 ) -> Result<(), String> {
-    agent_loop::run_with_cancellation(app, state, session_id, session_id, native, true, autonomous)
-        .await
+    agent_loop::run_with_cancellation(app, state, session_id, session_id, native, autonomous).await
 }
 
 /// Drops trailing assistant/tool messages back to the last user message, then

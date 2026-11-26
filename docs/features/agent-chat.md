@@ -336,7 +336,11 @@ Sub-agents:
   piece to finish before returning control to you.
 - Work from a focused task and their own fresh conversation context.
 - Can inspect the project and use the same project tools as the main agent,
-  but cannot create more sub-agents.
+  but cannot create more sub-agents. Their guidance says so: they're told
+  they're a one-shot job for the chat that spawned them and that their
+  last message is the result (see [What the agent is told about its
+  chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)).
+  An ACP sub-agent isn't offered AI Leash's sub-agent tools either.
 - Return their final result to the main agent, which can then react to it
   automatically.
 

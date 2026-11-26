@@ -15,6 +15,9 @@ pub const PORT_ENV: &str = "AI_LEASH_MCP_PORT";
 pub const TOKEN_ENV: &str = "AI_LEASH_MCP_TOKEN";
 pub const SESSION_ID_ENV: &str = "AI_LEASH_SESSION_ID";
 pub const PROJECT_ROOT_ENV: &str = "AI_LEASH_PROJECT_ROOT";
+/// The session's `ChatContext` as JSON, for the guidance's "This chat"
+/// section — the bridge process has no database of its own.
+pub const CHAT_CONTEXT_ENV: &str = "AI_LEASH_CHAT_CONTEXT";
 
 #[derive(Clone)]
 pub struct McpBridgeInfo {

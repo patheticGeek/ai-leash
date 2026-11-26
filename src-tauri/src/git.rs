@@ -83,7 +83,7 @@ fn sort_by_recent_checkout(branches: &mut [GitBranch], recent: &[String]) {
 }
 
 /// `None` for a detached HEAD (`--abbrev-ref` prints the literal `HEAD`).
-fn current_branch(root: &Path) -> Result<Option<String>, String> {
+pub(crate) fn current_branch(root: &Path) -> Result<Option<String>, String> {
     let branch = run_git(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
     Ok((branch != "HEAD").then_some(branch))
 }

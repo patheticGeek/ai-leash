@@ -1,4 +1,5 @@
 use crate::actions::{self, ActionDef};
+use crate::chat_context::ChatContext;
 use crate::tools::guidance;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -267,11 +268,12 @@ pub fn starting_context(root: &Path) -> StartingContext {
 pub fn build_system_prompt(
     root: &Path,
     touched_dirs: &[PathBuf],
-    allow_subtasks: bool,
+    chat: &ChatContext,
 ) -> Option<String> {
     // First, so the user's own AGENTS.md/memory read as additions to (and
     // can override) these built-in defaults rather than the other way round.
-    let mut sections = vec![guidance::native_guidance(allow_subtasks)];
+    // Rebuilt every turn, so its "This chat" section survives compaction.
+    let mut sections = vec![guidance::guidance(chat)];
 
     if let Some(global_agents) = global_agents_md() {
         sections.push(format!(

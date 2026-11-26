@@ -3,6 +3,7 @@ mod actions;
 mod backend;
 mod board;
 mod chat;
+mod chat_context;
 mod commands;
 mod context;
 mod crashlog;

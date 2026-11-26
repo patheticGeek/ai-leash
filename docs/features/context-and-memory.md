@@ -40,6 +40,44 @@ The agent reads these instructions as part of its working context. Changes
 take effect as the conversation continues, so you can refine the guidance
 without having to recreate the project.
 
+## What the agent is told about its chat
+
+Before your `AGENTS.md`, every agent gets AI Leash's own built-in guidance,
+in three parts: what AI Leash is, a **This chat** section saying what this
+particular chat is for, and the rules for its tools (see [Default tools &
+permissions](./tools.md#how-the-agent-knows-which-tool-to-use)). The
+**This chat** section is stated as facts for the one kind of chat it is,
+and says nothing about the others:
+
+- **Project chat** (the one beside the board): it plans and delegates,
+  task chats report to it with `send_message`, and you review and merge
+  their work.
+- **Task chat**: it is task #N, with the task's title, its branch and
+  worktree (or the main checkout). When it's done it sets the task to
+  **Review**, never **Done**, and summarises what it changed; it reports
+  blockers to the project chat; work outside the task's scope goes on the
+  board as new tasks instead of being done there.
+- **Sub-agent**: it's a one-shot job for the chat that spawned it, its last
+  message is the result, and it can't start sub-agents of its own.
+- **Any other chat**: which project and checkout it works in, and that it
+  has no role on the board.
+
+The built-in agent's system prompt is rebuilt every turn, so this section
+is never lost when a long conversation is compacted (unlike a task's first
+message, which compaction folds into the summary). External agents
+connected over ACP get the same guidance from AI Leash's tool server when
+they connect.
+
+How it's built: `src-tauri/src/chat_context.rs` reads a `ChatContext`
+(kind, backend, project name and root, checkout) from the conversation's
+row — its `role`, linked task and worktree, and for a sub-agent the chat
+that owns it — and the branch live from git. One builder,
+`tools::guidance::guidance`, makes the text for both kinds of agent from
+it: `context::build_system_prompt` folds it into the native system prompt,
+and `acp::discovery::mcp_servers_for` passes the context as JSON to the
+`--mcp-bridge` process (`AI_LEASH_CHAT_CONTEXT`), which returns it as its
+`instructions`. A sub-agent's bridge also leaves the sub-agent tools out.
+
 ## Memory: useful details that persist
 
 Memory is information the agent records so it can use it again in later
