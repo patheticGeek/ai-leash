@@ -64,7 +64,8 @@ message. Some agents can provide a more specific title. The title helps you
 recognize the conversation in the sidebar; it does not change the transcript.
 
 When you are finished with a conversation, mark it **Done** to move it into
-the **Done** group at the bottom of the sidebar. You can reopen it or mark
+the **Done** group, pinned to the bottom of the sidebar just above
+Settings (on the icon rail too). You can reopen it or mark
 it as not done later. To remove a conversation permanently, open its **⋯**
 menu (it appears when you point at the conversation) or right-click it, and
 choose **Delete conversation**. Deleting removes its transcript
