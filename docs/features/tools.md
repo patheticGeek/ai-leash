@@ -92,13 +92,17 @@ project before answering, run long-lived commands such as a development
 server as an Action instead of a one-off command, save lasting preferences to
 memory when you state them, split independent parts of a request across
 sub-agents, put planned work on the board as tasks, and show tables, charts
-and similar data as [rich replies](./agent-chat.md#rich-replies). The agent is also shown which Actions and skills already exist, so it can
+and similar data as [rich replies](./agent-chat.md#rich-replies). Before
+those rules it's told what its chat is for — a project chat, a task's chat,
+a sub-agent or a plain chat (see [What the agent is told about its
+chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)). The agent is also shown which Actions and skills already exist, so it can
 reuse them without having to look them up first. Your own `AGENTS.md`
 instructions are added after this guidance, so they can refine or override it.
 
-External agents connected over ACP get the same kind of guidance for the AI
-Leash tools they can reach (Actions, memory, sub-agents and the board), and
-the same rich-reply format, when they connect, along with the Actions and skills that exist at that point (they can
+External agents connected over ACP get the same guidance, from the same
+builder, for the AI Leash tools they can reach (Actions, memory, sub-agents
+and the board), with the same "This chat" section and rich-reply format,
+when they connect, along with the Actions and skills that exist at that point (they can
 call `list_actions` for the current set), including a preference for those over their own built-in equivalents
 so the work shows up in the app. They keep their own tools for files and
 commands.

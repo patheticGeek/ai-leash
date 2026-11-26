@@ -1,5 +1,6 @@
 use super::{BridgeRequest, BridgeResponse};
 use crate::actions;
+use crate::chat_context::{AgentBackend, ChatContext, ChatKind};
 use crate::context;
 use crate::tools::{action_tools, board_tools, guidance, memory_tools, sub_agent_tools};
 use serde_json::{json, Value};
@@ -23,6 +24,7 @@ pub fn run() {
     let token = env_var(super::TOKEN_ENV);
     let session_id = env_var(super::SESSION_ID_ENV);
     let root = PathBuf::from(env_var(super::PROJECT_ROOT_ENV));
+    let chat = chat_context(&root);
 
     let stdin = io::stdin();
     let mut out = io::stdout();
@@ -39,10 +41,17 @@ pub fn run() {
         let method = req.get("method").and_then(Value::as_str).unwrap_or("");
 
         let outcome = match method {
-            "initialize" => Some(RpcOutcome::Result(initialize_result(&req, &root))),
+            "initialize" => Some(RpcOutcome::Result(initialize_result(&req, &root, &chat))),
             "notifications/initialized" => None,
-            "tools/list" => Some(RpcOutcome::Result(tools_list_result(&root))),
-            "tools/call" => Some(tools_call_result(&req, port, &token, &session_id, &root)),
+            "tools/list" => Some(RpcOutcome::Result(tools_list_result(&root, &chat))),
+            "tools/call" => Some(tools_call_result(
+                &req,
+                port,
+                &token,
+                &session_id,
+                &root,
+                &chat,
+            )),
             _ => id.as_ref().map(|_| RpcOutcome::Error {
                 code: -32601,
                 message: format!("method not found: {method}"),
@@ -69,7 +78,26 @@ fn env_var(name: &str) -> String {
     std::env::var(name).unwrap_or_default()
 }
 
-fn initialize_result(req: &Value, root: &Path) -> Value {
+/// The `ChatContext` the app handed over (`CHAT_CONTEXT_ENV`), or a plain
+/// chat in `root` if it's missing — e.g. a bridge spawned by an older build.
+fn chat_context(root: &Path) -> ChatContext {
+    serde_json::from_str(&env_var(super::CHAT_CONTEXT_ENV)).unwrap_or_else(|_| {
+        let root = root.display().to_string();
+        ChatContext {
+            kind: ChatKind::Plain,
+            backend: AgentBackend::Acp,
+            project_name: Path::new(&root)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&root)
+                .to_string(),
+            checkout: root.clone(),
+            project_root: root,
+        }
+    })
+}
+
+fn initialize_result(req: &Value, root: &Path, chat: &ChatContext) -> Value {
     // Just agree to whatever protocol version the agent asked for — this
     // server only relies on the `tools/list`/`tools/call` baseline, which
     // has been stable across MCP protocol revisions.
@@ -82,16 +110,33 @@ fn initialize_result(req: &Value, root: &Path) -> Value {
         "protocolVersion": protocol_version,
         "capabilities": { "tools": {} },
         "serverInfo": { "name": "ai-leash", "version": env!("CARGO_PKG_VERSION") },
-        "instructions": bridge_instructions(root)
+        "instructions": bridge_instructions(root, chat)
     })
 }
 
-fn tools_list_result(root: &Path) -> Value {
-    let mut tools = vec![
-        mcp_tool(sub_agent_tools::spawn_sub_agent_def()),
-        mcp_tool(sub_agent_tools::list_sub_agents_def()),
-        mcp_tool(sub_agent_tools::read_sub_agent_def()),
-        mcp_tool(sub_agent_tools::list_agent_options_def()),
+/// Offered to every chat but sub-agents, which can't spawn their own.
+const SUB_AGENT_TOOLS: &[&str] = &[
+    "spawn_sub_agent",
+    "list_sub_agents",
+    "read_sub_agent",
+    "list_agent_options",
+];
+
+fn tools_list_result(root: &Path, chat: &ChatContext) -> Value {
+    let mut tools = vec![];
+    if chat.allows_sub_agents() {
+        tools.extend(
+            [
+                sub_agent_tools::spawn_sub_agent_def(),
+                sub_agent_tools::list_sub_agents_def(),
+                sub_agent_tools::read_sub_agent_def(),
+                sub_agent_tools::list_agent_options_def(),
+            ]
+            .into_iter()
+            .map(mcp_tool),
+        );
+    }
+    tools.extend([
         json!({
             "name": "read_memory",
             "description": "Read AI Leash's persistent memory notes for this project or globally. Unlike AI Leash's native-provider agent, these aren't injected into your context automatically — call this yourself at the start of a task in this project (and before update_memory, which replaces the whole file).",
@@ -115,7 +160,7 @@ fn tools_list_result(root: &Path) -> Value {
                 "required": ["scope", "content"]
             }
         }),
-    ];
+    ]);
 
     // Always advertised (not gated on whether the project has any Actions
     // defined yet) — same as `tools::tool_definitions` — so the agent
@@ -136,8 +181,8 @@ fn tools_list_result(root: &Path) -> Value {
 /// Actions and available skills — so the agent doesn't have to spend a call
 /// discovering them. Snapshots from connect time; the guidance points at
 /// `list_actions` for the live set.
-fn bridge_instructions(root: &Path) -> String {
-    let mut sections = vec![guidance::bridge_instructions()];
+fn bridge_instructions(root: &Path, chat: &ChatContext) -> String {
+    let mut sections = vec![guidance::guidance(chat)];
     sections.extend(context::actions_section(&actions::load_actions(root)));
     sections.extend(context::skills_section(&context::list_skills(root, &[])));
     sections.join("\n\n")
@@ -160,6 +205,7 @@ fn tools_call_result(
     token: &str,
     session_id: &str,
     root: &Path,
+    chat: &ChatContext,
 ) -> RpcOutcome {
     let params = req.get("params").cloned().unwrap_or(Value::Null);
     let name = params
@@ -172,6 +218,9 @@ fn tools_call_result(
         .unwrap_or_else(|| json!({}));
 
     let outcome: Result<String, String> = match name {
+        sub if SUB_AGENT_TOOLS.contains(&sub) && !chat.allows_sub_agents() => {
+            Err("sub-agents can't spawn or manage sub-agents of their own".to_string())
+        }
         "read_memory" => read_memory_tool(root, &arguments),
         "load_skill" => load_skill_tool(root, &arguments),
         "update_memory" => update_memory_tool(root, &arguments),

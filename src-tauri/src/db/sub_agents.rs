@@ -157,6 +157,19 @@ pub fn list_sub_agents_for_parent(
     items
 }
 
+/// The conversation that spawned sub-agent `id` — `None` if `id` isn't a
+/// sub-agent.
+pub fn sub_agent_parent(db: &Db, id: &str) -> Option<String> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT owner_conversation_id FROM conversations WHERE id = ?1 AND role = 'sub-agent'",
+        params![id],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .ok()
+    .flatten()
+}
+
 /// Whether `id` is a sub-agent's conversation.
 pub fn is_sub_agent(db: &Db, id: &str) -> bool {
     let conn = db.0.lock().unwrap();

@@ -135,7 +135,12 @@ Starting a task:
   touching each other or your main checkout;
 - moves it to **In progress** and sends the task — its title, priority,
   effort, epic and description — as the chat's first message, asking the
-  agent to move the task to **Review** when it's done.
+  agent to move the task to **Review** when it's done. Separately, the
+  agent's standing guidance tells it it's task #N, its branch and
+  worktree, to set the task to Review (never Done), to report blockers
+  to the project chat and to put out-of-scope work on the board; for the
+  built-in agent that survives compaction (see [What the agent is told
+  about its chat](./context-and-memory.md#what-the-agent-is-told-about-its-chat)).
 
 A started card has a chat button that opens its chat. The chat is a normal
 conversation: you can read along, answer questions, approve tool use and

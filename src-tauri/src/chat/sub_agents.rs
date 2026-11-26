@@ -64,7 +64,6 @@ pub(crate) fn run_sub_agent<'a>(
             parent_session_id,
             native,
             cancel_flag,
-            false,
         )
         .await;
 

@@ -1,5 +1,6 @@
 use super::ChatMessage;
 use crate::backend::{Backend, NativeBackend};
+use crate::chat_context::{AgentBackend, ChatContext};
 use crate::commands;
 use crate::context;
 use crate::db;
@@ -57,7 +58,6 @@ pub(super) async fn run_with_cancellation(
     session_id: &str,
     scope_id: &str,
     native: &NativeBackend,
-    allow_subtasks: bool,
     autonomous: bool,
 ) -> Result<(), String> {
     let lock = session_lock(state.inner(), session_id);
@@ -71,16 +71,7 @@ pub(super) async fn run_with_cancellation(
         .insert(session_id.to_string(), cancel_flag.clone());
     super::set_generating(app, session_id, true, autonomous);
 
-    let result = run_agent_loop(
-        app,
-        state,
-        session_id,
-        scope_id,
-        native,
-        &cancel_flag,
-        allow_subtasks,
-    )
-    .await;
+    let result = run_agent_loop(app, state, session_id, scope_id, native, &cancel_flag).await;
 
     state.cancellations.lock().unwrap().remove(session_id);
     super::set_generating(app, session_id, false, autonomous);
@@ -97,7 +88,6 @@ pub(super) async fn run_agent_loop(
     scope_id: &str,
     native: &NativeBackend,
     cancel_flag: &Arc<AtomicBool>,
-    allow_subtasks: bool,
 ) -> Result<(), String> {
     let model = native.model.as_str();
     let effort = native.effort.as_deref();
@@ -113,6 +103,16 @@ pub(super) async fn run_agent_loop(
     let usage_event = format!("chat://{}/usage", session_id);
 
     let root = commands::get_session_root(state.inner(), scope_id).ok();
+    // What kind of chat this is — read once per turn, from this session's
+    // own row (a sub-agent's, not its parent's). It decides the guidance's
+    // "This chat" section and whether sub-agent tools are offered.
+    let chat = ChatContext::load(
+        &state.db,
+        session_id,
+        root.as_deref().unwrap_or(std::path::Path::new("")),
+        AgentBackend::Native,
+    );
+    let allow_subtasks = chat.allows_sub_agents();
     let mut last_call: Option<(String, Value)> = None;
 
     for _ in 0..MAX_TOOL_ITERATIONS {
@@ -126,7 +126,7 @@ pub(super) async fn run_agent_loop(
         // skills should apply starting with the very next model call.
         let touched = touched_dirs_for(state, scope_id);
         if let Some(r) = &root {
-            refresh_system_prompt(app, state, session_id, r, &touched, allow_subtasks);
+            refresh_system_prompt(app, state, session_id, r, &touched, &chat);
         }
 
         let history = {
@@ -285,7 +285,8 @@ pub(super) async fn run_agent_loop(
     Err(msg)
 }
 
-/// Rebuilds AGENTS.md/memory/skills and keeps them as the first (system)
+/// Rebuilds the guidance (with its "This chat" section) and AGENTS.md/
+/// memory/skills, and keeps them as the first (system)
 /// message in history, refreshed on every turn rather than only once at the
 /// start of a session — otherwise editing AGENTS.md (or adding a skill) after
 /// a session already started would never be picked up for that session.
@@ -295,11 +296,11 @@ fn refresh_system_prompt(
     session_id: &str,
     root: &std::path::Path,
     touched_dirs: &[std::path::PathBuf],
-    allow_subtasks: bool,
+    chat: &ChatContext,
 ) {
     let mut sessions = state.chat_sessions.lock().unwrap();
     let history = sessions.entry(session_id.to_string()).or_default();
-    let system_prompt = context::build_system_prompt(root, touched_dirs, allow_subtasks);
+    let system_prompt = context::build_system_prompt(root, touched_dirs, chat);
     let has_system_first = history.first().is_some_and(|m| m.role == "system");
 
     let _ = app.emit(
