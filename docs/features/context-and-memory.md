@@ -43,9 +43,10 @@ without having to recreate the project.
 ## What the agent is told about its chat
 
 Before your `AGENTS.md`, every agent gets AI Leash's own built-in guidance,
-in three parts: what AI Leash is, a **This chat** section saying what this
-particular chat is for, and the rules for its tools (see [Default tools &
-permissions](./tools.md#how-the-agent-knows-which-tool-to-use)). The
+in four parts: what AI Leash is, a **This chat** section saying what this
+particular chat is for, the rules for its tools (see [Default tools &
+permissions](./tools.md#how-the-agent-knows-which-tool-to-use)), and a
+one-line pointer to each [built-in guide](#built-in-guides). The
 **This chat** section is stated as facts for the one kind of chat it is,
 and says nothing about the others:
 
@@ -77,6 +78,39 @@ it: `context::build_system_prompt` folds it into the native system prompt,
 and `acp::discovery::mcp_servers_for` passes the context as JSON to the
 `--mcp-bridge` process (`AI_LEASH_CHAT_CONTEXT`), which returns it as its
 `instructions`. A sub-agent's bridge also leaves the sub-agent tools out.
+
+## Built-in guides
+
+The longer how-tos for AI Leash's own features aren't in that always-sent
+text. They're built-in guides the agent reads with the `read_guide` tool
+when it's about to use the feature:
+
+| Topic | Read before |
+| --- | --- |
+| `rich-replies` | writing a ` ```ui ` block (tables, charts, stat tiles, choice buttons) |
+| `html-previews` | showing a prototype or mockup as a ` ```html ` block or `.html` file |
+| `board` | planning work as tasks, starting tasks, or finishing one |
+| `actions` | running a dev server, watcher or other long-running command |
+
+They're markdown files in `src-tauri/guides/`, compiled into the app with
+`include_str!` and listed in `src-tauri/src/tools/guides.rs`. Every agent
+gets `read_guide`: the built-in agent as one of its tools, external agents
+from the MCP bridge, which answers it itself since it is the same binary.
+The guidance names each topic (not only the tool's schema), because Claude
+Code only loads an MCP tool's schema when it goes looking for one.
+
+Guides aren't skills: `load_skill` stays for your own project and global
+skills.
+
+Why: Claude Code cuts an MCP server's `instructions` off at about 4,096
+characters, and with the specs inline the guidance ran past 5,000, so the
+end (HTML previews, Actions, skills) never reached it. The bridge's
+instructions now give only counts of the project's Actions and skills, with
+the tools that list them (`list_actions`; `list_skills` and `load_skill`,
+offered when there are skills), and a unit test keeps the worst case — any
+chat kind, hundreds of Actions and skills — under 3,000 characters. The
+built-in agent has no such limit, so its system prompt still lists the
+Actions and skills in full.
 
 ## Memory: useful details that persist
 
@@ -111,8 +145,9 @@ workflow, or handle a specialized technical area.
 
 When a skill is available, the agent sees its name and a short description.
 It loads the full instructions only when that skill is relevant to the task.
-External agents connected over ACP see the same list when they connect and can
-load a skill through AI Leash. Project skills are picked up for them from the
+External agents connected over ACP are told how many there are when they
+connect, list them with `list_skills` and load one with `load_skill`, both
+through AI Leash. Project skills are picked up for them from the
 project and general skill folders as of when the agent connected.
 This keeps everyday conversations focused while making specialized guidance
 available when needed.

@@ -415,8 +415,9 @@ to eight `series`), `stats` (stat tiles with an optional change and tone),
 `divider`, `callout`, `code`, `card`, `tabs`, `stack` (vertical or
 horizontal) and `choices`. Tones are `neutral`, `info`, `success`, `warning`
 and `error`. The full field list is in `src/lib/uiSpec.ts`, which validates
-it, and in the guidance text in `src-tauri/src/tools/guidance.rs` that tells
-agents about it; the two are kept in sync.
+it, and in the built-in `rich-replies` guide (`src-tauri/guides/rich-replies.md`)
+that agents read with `read_guide` before writing a block; the two are kept
+in sync, and a test checks the guide covers every node type.
 
 - **Safe by construction.** The JSON is data only. Nothing in it runs: there
   are no scripts, HTML, styles or links to load, and the agent can't reach
@@ -693,9 +694,10 @@ never asks you anything.
 When an agent writes HTML — a UI prototype, a mockup, a small interactive
 demo — the chat shows it rendered, not just as code. This is plain reply
 text, so it works the same for built-in providers and external agents; both
-are told about it (the native system prompt and the MCP server's
-instructions, `tools/guidance.rs`), and asked to reply with one complete,
-self-contained document in a fenced block tagged `html`.
+are pointed at it (the native system prompt and the MCP server's
+instructions, `tools/guidance.rs`) and read the built-in `html-previews`
+guide (`src-tauri/guides/html-previews.md`) with `read_guide`, which asks
+for one complete, self-contained document in a fenced block tagged `html`.
 
 - **Preview / Code.** A fenced block tagged `html` (or `htm`) gets a
   **Preview / Code** switch in its header. A whole page (it has a doctype,

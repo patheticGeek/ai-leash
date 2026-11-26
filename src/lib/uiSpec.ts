@@ -3,8 +3,9 @@
 // tiles, charts, …) that `ui/UiBlock.tsx` renders with Astryx components.
 // It's plain reply text, so it works the same for every backend; it's data
 // only — nothing in it is ever executed. Documented for the agent in
-// `src-tauri/src/tools/guidance.rs` (keep the two in sync) and for people in
-// `docs/features/agent-chat.md`.
+// `src-tauri/guides/rich-replies.md` (keep the two in sync; a test in
+// `src-tauri/src/tools/guides.rs` checks every node type is documented)
+// and for people in `docs/features/agent-chat.md`.
 //
 // `parseUiSpec` validates a block's source and normalises the shorthand
 // forms (string columns, array rows, string list items and options) into
