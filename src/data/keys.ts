@@ -53,6 +53,9 @@ export const qk = {
   // names directories, and a search spans the whole checkout.
   fileSearch: (checkoutPath: string, query: string) =>
     ["file-search", checkoutPath, query] as const,
+  // The composer's `@` picker (`search_mentions`).
+  mentionSearch: (checkoutPath: string, query: string) =>
+    ["mention-search", checkoutPath, query] as const,
   generating: (sessionId: string) => ["generating", sessionId] as const,
   gitBranch: (path: string) => ["git-branch", path] as const,
   preferences: ["preferences"] as const,

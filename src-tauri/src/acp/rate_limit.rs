@@ -289,7 +289,7 @@ pub(crate) fn try_fire(app: &AppHandle, session_id: &str) {
     db::clear_pending_rate_limit(&state.db, session_id);
     cancel_timer(&state, session_id);
     if sender
-        .send(AcpCommand::Prompt(RESUME_PROMPT.into(), None))
+        .send(AcpCommand::Prompt(RESUME_PROMPT.into(), vec![], None))
         .is_err()
     {
         return;

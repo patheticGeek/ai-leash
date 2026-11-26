@@ -12,6 +12,7 @@ use serde::Serialize;
 use std::time::{Duration, Instant};
 
 pub(super) fn title_from_message(content: &str) -> Option<String> {
+    let content = crate::mentions::strip_trailer(content);
     let normalized = content.split_whitespace().collect::<Vec<_>>().join(" ");
     let first_sentence = normalized
         .split_once(['.', '!', '?'])
