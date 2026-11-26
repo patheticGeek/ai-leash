@@ -180,8 +180,9 @@ message is waiting for it, the message is still delivered, but the
 task's answer to it isn't forwarded.
 
 A task's chat shows which it is in a small line above its message box:
-**The project chat is following #N**, or **You've taken over #N** with a
-**Hand back to project chat** button to have it follow again. That button is the only thing that does.
+**The project chat is following #N** (click it to open the project chat),
+or **You've taken over #N** with a **Hand back to project chat** button to
+have it follow again. That button is the only thing that does.
 
 So two agents can't keep answering each other forever, a chat that's had
 8 messages from other chats in a row, with nothing from you in between,
