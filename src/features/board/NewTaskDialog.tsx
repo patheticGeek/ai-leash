@@ -6,6 +6,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useEffect, useState } from "react";
+import { isEdited } from "../../hooks/useDiscardGuard";
 import {
   type AgentDefaults,
   api,
@@ -111,6 +112,7 @@ export default function NewTaskDialog({
     <TaskModalFrame
       isOpen={open}
       onOpenChange={onOpenChange}
+      isDirty={isEdited(emptyDraft(status, epicId), draft) || startNow}
       title="New task"
       subtitle={`${projectName(projectRoot)} board`}
       onSubmit={create}

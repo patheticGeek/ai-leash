@@ -294,6 +294,25 @@ replaced by the matching settings while you type; use the arrow keys and
 first, then closes the dialog. The searchable list lives in
 `src/features/settings/panels.ts`, next to the panel registry.
 
+Clicking outside the dialog closes it too. Settings save as you change
+them, so it just closes — except while an agent's **Add** / **Edit** form
+holds something you haven't saved, when it asks **Discard changes?** first.
+
+## Dialogs
+
+Every dialog closes when you press **Escape** or click outside it. One
+that holds edits you haven't saved — a new task, a task's title or
+description while you edit it, the start-task options, board settings,
+a typed-but-not-added epic, an agent form in Settings — asks **Discard
+changes?** (**Discard** / **Keep editing**) first; with nothing unsaved it
+just closes. Its own **Cancel** and close (×) buttons close it straight
+away. The shared piece is `useDiscardGuard` (`src/hooks/useDiscardGuard.tsx`):
+the dialog keeps Astryx's default `purpose`, passes the hook's
+`onOpenChange` to its `Dialog` and renders the hook's `AlertDialog` next
+to it. Confirmations (Astryx `AlertDialog`: remove project, delete task,
+finish task, discard changes) are the exception: Astryx fixes them to
+close only from their buttons or Escape, not from a click outside.
+
 ## Preferences
 
 The Preferences panels hold the app's personal settings. Changes apply

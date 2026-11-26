@@ -17,6 +17,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { Token } from "@astryxdesign/core/Token";
 import { Archive, ArchiveRestore, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { api, type Epic } from "../../lib/tauriApi";
 import { EPIC_COLORS, hexTokenColor } from "./TaskMeta";
 
@@ -115,6 +116,11 @@ export default function EpicsDialog({
   epics: Epic[];
 }) {
   const [title, setTitle] = useState("");
+  // A typed-but-not-added epic is the one edit a dismissal could lose.
+  const guard = useDiscardGuard(open, title.trim() !== "", () => {
+    setTitle("");
+    onOpenChange(false);
+  });
 
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -124,56 +130,59 @@ export default function EpicsDialog({
   }
 
   return (
-    <Dialog isOpen={open} onOpenChange={onOpenChange} width={576}>
-      <Layout
-        header={
-          <DialogHeader
-            title="Epics"
-            subtitle="Group related tasks. Deleting an epic keeps its tasks."
-            onOpenChange={onOpenChange}
-          />
-        }
-        content={
-          <LayoutContent>
-            {epics.length === 0 ? (
-              <EmptyState
-                isCompact
-                title="No epics yet"
-                description="Add one below, then pick it on a task."
-              />
-            ) : (
-              <VStack gap={2}>
-                {epics.map((epic) => (
-                  <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
-                ))}
-              </VStack>
-            )}
-          </LayoutContent>
-        }
-        footer={
-          <LayoutFooter>
-            <HStack as="form" gap={2} vAlign="center" onSubmit={add}>
-              <StackItem size="fill">
-                <TextInput
-                  label="New epic"
-                  isLabelHidden
-                  width="100%"
-                  value={title}
-                  onChange={setTitle}
-                  placeholder="New epic"
+    <>
+      <Dialog isOpen={open} onOpenChange={guard.onOpenChange} width={576}>
+        <Layout
+          header={
+            <DialogHeader
+              title="Epics"
+              subtitle="Group related tasks. Deleting an epic keeps its tasks."
+              onOpenChange={onOpenChange}
+            />
+          }
+          content={
+            <LayoutContent>
+              {epics.length === 0 ? (
+                <EmptyState
+                  isCompact
+                  title="No epics yet"
+                  description="Add one below, then pick it on a task."
                 />
-              </StackItem>
-              <Button
-                type="submit"
-                variant="primary"
-                label="Add epic"
-                icon={<Icon icon={Plus} size="sm" />}
-                isDisabled={!title.trim()}
-              />
-            </HStack>
-          </LayoutFooter>
-        }
-      />
-    </Dialog>
+              ) : (
+                <VStack gap={2}>
+                  {epics.map((epic) => (
+                    <EpicRow key={`${epic.id}:${epic.title}`} epic={epic} />
+                  ))}
+                </VStack>
+              )}
+            </LayoutContent>
+          }
+          footer={
+            <LayoutFooter>
+              <HStack as="form" gap={2} vAlign="center" onSubmit={add}>
+                <StackItem size="fill">
+                  <TextInput
+                    label="New epic"
+                    isLabelHidden
+                    width="100%"
+                    value={title}
+                    onChange={setTitle}
+                    placeholder="New epic"
+                  />
+                </StackItem>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  label="Add epic"
+                  icon={<Icon icon={Plus} size="sm" />}
+                  isDisabled={!title.trim()}
+                />
+              </HStack>
+            </LayoutFooter>
+          }
+        />
+      </Dialog>
+      {guard.confirm}
+    </>
   );
 }

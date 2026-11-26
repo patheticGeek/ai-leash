@@ -215,16 +215,30 @@ const styles = stylex.create({
   },
 });
 
+// Tells the dialog whether a field holds an edit not yet saved, so a
+// backdrop click asks before dropping it; clears it when the field goes.
+function useReportDirty(dirty: boolean, report: (dirty: boolean) => void) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: report is stable
+  useEffect(() => {
+    report(dirty);
+  }, [dirty]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: on unmount only
+  useEffect(() => () => report(false), []);
+}
+
 // The title: a Heading with an edit button, or a TextInput while editing
 // (Enter or blur saves, Escape cancels).
 function TitleField({
   title,
   onSave,
+  onDirtyChange,
 }: {
   title: string;
   onSave: (title: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  useReportDirty(editing !== null && editing !== title, onDirtyChange);
   if (editing === null) {
     return (
       <HStack gap={2} vAlign="start" hAlign="between">
@@ -280,11 +294,14 @@ function TitleField({
 function DescriptionField({
   description,
   onSave,
+  onDirtyChange,
 }: {
   description: string;
   onSave: (description: string) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  useReportDirty(editing !== null && editing !== description, onDirtyChange);
   return (
     <ModalSection
       title="Description"
@@ -372,6 +389,9 @@ export default function TaskDetailsDialog({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [starting, setStarting] = useState(false);
+  // A title or description edit not yet saved — a backdrop click asks first.
+  const [titleDirty, setTitleDirty] = useState(false);
+  const [descriptionDirty, setDescriptionDirty] = useState(false);
   const taskId = task?.id;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset per task
@@ -436,6 +456,7 @@ export default function TaskDetailsDialog({
       <TaskModalFrame
         isOpen
         onOpenChange={(open) => !open && onClose()}
+        isDirty={titleDirty || descriptionDirty}
         title={`Task #${task.number}`}
         subtitle={`${projectName(projectRoot)} board`}
         endContent={
@@ -470,6 +491,7 @@ export default function TaskDetailsDialog({
                 key={task.id}
                 title={task.title}
                 onSave={(title) => save({ title })}
+                onDirtyChange={setTitleDirty}
               />
               <TaskFieldRow
                 value={task}
@@ -491,6 +513,7 @@ export default function TaskDetailsDialog({
               key={task.id}
               description={task.description}
               onSave={(description) => save({ description })}
+              onDirtyChange={setDescriptionDirty}
             />
             <ModalSection title="Its chat">
               <ChatState
