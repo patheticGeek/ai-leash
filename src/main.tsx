@@ -23,8 +23,15 @@ installCrashReporting();
 await Promise.all([bootPreferences(), bootBackends()]);
 installFontPreferences();
 
+// StrictMode is opt-in (`VITE_STRICT_MODE=1 npm run tauri dev`): its double
+// render and double effects doubled every `listen()` and effect-driven IPC
+// call in dev (67 -> 133 listeners on startup) and made switching chats ~35%
+// slower (#86). Turn it on when hunting effect-cleanup bugs.
+const Strict =
+  import.meta.env.VITE_STRICT_MODE === "1" ? React.StrictMode : React.Fragment;
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+  <Strict>
     <ErrorBoundary>
       {/* Renders a `display: contents` wrapper, so layout is untouched. */}
       <Theme
@@ -43,5 +50,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         </QueryClientProvider>
       </Theme>
     </ErrorBoundary>
-  </React.StrictMode>,
+  </Strict>,
 );

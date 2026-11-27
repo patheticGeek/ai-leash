@@ -1,6 +1,8 @@
 mod acp;
 mod actions;
 mod backend;
+#[cfg(test)]
+mod bench;
 mod board;
 mod chat;
 mod chat_context;
