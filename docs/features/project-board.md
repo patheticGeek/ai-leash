@@ -13,8 +13,8 @@ an ordinary conversation for the whole project: use it to plan, break work
 into tasks, or ask about the board. It always works in the project's main
 checkout, so it has no worktree or branch picker.
 
-The title bar's **Open** and Actions buttons are hidden here. Switch
-between **Board**, **Both** and **Chat** in the title bar to see
+The top bar's **Open** and Actions buttons are hidden here. Switch
+between **Board**, **Both** and **Chat** in the top bar to see
 just the board, the board with the chat docked on its right (380px wide
 by default; drag the divider to resize it, between 300 and 560px), or
 just the chat. The choice and the chat's width are remembered. With the
@@ -34,13 +34,19 @@ Tasks move left to right through five columns:
 - **Done**: finished work.
 
 Each column's header has a status dot, the column's name, an ⓘ that says
-what the column is for, how many tasks it holds, and a **+** that adds a
-task straight into it. An empty column says so.
+what the column is for, how many tasks it holds, and — on Backlog, Todo
+and In progress — a **+** that adds a task straight into it. Review and
+Done have no **+**: tasks get there from their chat or by dragging. An
+empty column says so.
 
-**Done** is hidden by default, since it keeps growing. Turn on **Show
-done** (the ✓ toggle in the toolbar; its tooltip says how many tasks are
-done) to see it. It shows tasks finished in the last 30 days, with a
-**Load N older** button at the bottom of the column for the rest.
+**Done** is always the last column, collapsed by default since it keeps
+growing: a narrow strip showing only "Done" and how many tasks are done.
+Click the strip (**Show done**) to expand it into a normal column; the
+board scrolls to its end so the column is in view. The fold icon in its
+header (**Collapse Done column**) folds it back to the strip. Expanded, it
+shows tasks finished in the last 30 days, with a **Load N older** button
+at the bottom of the column for the rest. Dropping a card on the
+collapsed strip finishes it, just like dropping it into the open column.
 
 Drag a card to reorder it within a column or to move it to another one.
 While you drag, the card follows the pointer and a dashed placeholder
@@ -50,8 +56,8 @@ card shows a pointer cursor, since clicking it opens it.
 
 ## Tasks
 
-Click **New task** in the toolbar, or the **+** on a column's header, to
-add a task. A task has:
+Click **New task** in the toolbar, or the **+** on a Backlog, Todo or In
+progress column's header, to add a task. A task has:
 
 - a **title** and a **description** (Markdown),
 - a **status** (its column),
@@ -269,11 +275,15 @@ The name stays pinned on the left while you scroll the board sideways.
 Click the chevron next to it to collapse or expand that lane; this is
 remembered per epic. Cards in a lane don't repeat the epic's name.
 Dragging a card into another epic's lane moves it to that epic.
-A lane with no cards to show (after the epic filter and Show done) is
+With Done collapsed, the header row's Done cell is the strip and each
+lane's Done cell is a narrow empty track (still a drop target: it
+finishes the card and moves it to that lane's epic). A lane with no
+cards to show (after the epic filter; collapsed Done shows none) is
 hidden; a Done cell that only offers **Load older** doesn't count. If
 that hides every lane, the board shows its plain columns instead.
 
-The epic filter, Group by epic and Show done are remembered per project
+The epic filter, Group by epic and whether Done is expanded are
+remembered per project
 (`useBoardViewPrefs`, under the `boardViewPrefs` localStorage key), so
 each board comes back as you left it after switching boards or
 restarting. If the remembered epic has since been deleted or archived,
@@ -284,12 +294,18 @@ only for the session; a restart loads recent done tasks again.
 
 The board is the Astryx `kanban-board` template (`BoardView.tsx`): a
 `LayoutHeader` + `Toolbar` (title and count `Badge`, epic `Selector`,
-`ToggleButton`s for Group by epic and Show done, Epics, board settings,
-New task), then muted column `Card`s in a row that scrolls sideways.
-Each is at least `COLUMN_MIN_WIDTH` (300px) and grows to share spare
-width; the swimlane grid uses the same `minmax(300px, 1fr)` tracks, with
-a `min-width` of the columns plus gaps so it scrolls rather than
-squeezing them. Cards (`TaskCard.tsx`) are `Card`s with a priority
+a `ToggleButton` for Group by epic, Epics, board settings, New task),
+then muted column `Card`s in a row that scrolls sideways. Each is at
+least `COLUMN_MIN_WIDTH` (300px) and grows to share spare width; the
+swimlane grid uses the same `minmax(300px, 1fr)` tracks, with a
+`min-width` of the columns plus gaps so it scrolls rather than
+squeezing them. Collapsed, Done is `DoneStrip`: a muted `Card`
+`spacing-12` wide holding one ghost `Button` (`aria-expanded`, count
+over a `writing-mode: vertical-rl` label) that's also a dnd-kit
+droppable; in the swimlane grid its track is `spacing-12` too, counted
+in the grid's `min-width`. Expanded or not is the per-project `showDone`
+pref (the stored name predates the column; it means "Done column
+expanded"). Cards (`TaskCard.tsx`) are `Card`s with a priority
 `Badge`, a `Heading` title, an epic `Token` (`TaskMeta.tsx` maps the
 epic's stored hex colour onto a Token colour) and a `MoreMenu`. Swimlanes
 are one CSS grid with one column per status. Its first row, the column

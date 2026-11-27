@@ -46,11 +46,11 @@ function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
   return actions.find((a) => a.lastRun) ?? actions[0] ?? null;
 }
 
-// Title-bar shortcut for the Actions tab (`ActionsTab.tsx`): a split button
+// Top-bar shortcut for the Actions tab (`ActionsTab.tsx`): a split button
 // showing the last-ran action (or the first one, if none has run yet) that
 // starts/stops it on click, plus a dropdown for jumping to any other
 // action without having to open the side panel.
-export default function TitleBarActions() {
+export default function TopBarActions() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const { actions, checkoutPath } = useActions();
 

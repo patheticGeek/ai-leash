@@ -4,6 +4,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { WindowControls } from "../../app/TopBar";
 import { type PanelTabKind, useAppStore } from "../../store";
 import { TabBody } from "../tabs/TabContent";
 import { useTabDropArea } from "../tabs/TabDnd";
@@ -12,7 +13,6 @@ import TabPicker from "./TabPicker";
 
 const styles = stylex.create({
   fill: { height: "100%" },
-  header: { flexShrink: 0 },
   // Takes what the tab row leaves; the positioning context for tab content.
   body: { position: "relative", flex: 1, minHeight: 0 },
 });
@@ -50,16 +50,19 @@ export default function SidePanel() {
           activateTab(id);
           setPickerOpen(false);
         }}
-        xstyle={styles.header}
         endContent={
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label="Open tab"
-            tooltip="Open tab"
-            icon={<Icon icon={Plus} size="sm" />}
-            onClick={() => setPickerOpen(true)}
-          />
+          <>
+            <IconButton
+              variant="ghost"
+              size="sm"
+              label="Open tab"
+              tooltip="Open tab"
+              icon={<Icon icon={Plus} size="sm" />}
+              onClick={() => setPickerOpen(true)}
+            />
+            {/* The side panel's band is the window's rightmost. */}
+            <WindowControls />
+          </>
         }
       />
       <VStack xstyle={styles.body}>

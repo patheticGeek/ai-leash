@@ -188,6 +188,14 @@ const persistedTabState = loadPersistedTabState();
 export interface PanelSlice {
   settingsModalOpen: boolean;
   setSettingsModalOpen: (open: boolean) => void;
+  // The Ctrl+K command palette (`app/AppCommandPalette.tsx`).
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
+  // Whether the right-hand side panel is shown — app-wide, not per
+  // conversation, and remembered across restarts. Opening or activating a
+  // tab in the side area (`openPanelTab`, `activateTab`) opens it again.
+  sidePanelOpen: boolean;
+  setSidePanelOpen: (open: boolean) => void;
   panelTabs: WorkspaceTab[];
   activePanelTabId: string | null;
   panelStateByConversation: Record<string, ConversationPanelState>;
@@ -263,6 +271,14 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
 ) => ({
   settingsModalOpen: false,
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
+  commandPaletteOpen: false,
+  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  sidePanelOpen: localStorageJson.read<boolean>(LS_KEYS.sidePanelOpen, true),
+  setSidePanelOpen: (open) => {
+    if (get().sidePanelOpen === open) return;
+    localStorageJson.write(LS_KEYS.sidePanelOpen, open);
+    set({ sidePanelOpen: open });
+  },
   // Always starts empty/primary-only, even if a previous run persisted tab
   // state: `initializeStartupSession` (`conversationSlice.ts`) always opens
   // a fresh new thread on boot rather than reselecting the last real
@@ -329,6 +345,7 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
         activePath: activePathFor(next, "side"),
       };
     });
+    get().setSidePanelOpen(true);
     get().persistActiveSessionTabState();
   },
 
@@ -375,6 +392,8 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
   },
 
   activateTab: (id) => {
+    // A tool tab brought forward in a closed side panel opens the panel.
+    if (tabAreaOf(get(), id) === "side") get().setSidePanelOpen(true);
     set((s) => {
       const area = tabAreaOf(s, id);
       if (!area) return s;

@@ -14,33 +14,51 @@ AI Leash is arranged as a conversation workspace with three main areas:
 
 The sidebar runs the full height of the window. A development or
 pull-request build shows a **DEV** or **PR** tag at the top of the sidebar,
-beside the collapse button, so it's never mistaken for a release. The title bar sits above the
-chat and the right-hand panel and shows where you are as a breadcrumb:
-**project / chat title** (a task's chat shows as **#12 · task title**),
-**project / Board** on a project's board, or **project / New thread** for a
-thread that has no messages yet. Click the
-project name to open that project's [board](./project-board.md). Drag the
-title bar to move the window. Its right end has an **Open in external
-editor** button (see [Open in external editor](#open-in-external-editor)), the quick-run control for
-[Actions](./actions.md), and the window controls; on a board those two
-buttons give way to the **Board / Both / Chat** layout switch. The center of
+beside the collapse button, so it's never mistaken for a release. The window
+has no title bar of its own. The chat area and the right-hand panel each open with their own
+top band, the same height and with one line under both, so together they
+read as a single bar along the top of the window, the **top bar**:
+
+```text
++----------+----------------------------------------+---------------------------+
+| sidebar  | Agent  sub-agent   Actions  Open  panel | Files  Terminal  +  _ [] x |
++----------+----------------------------------------+---------------------------+
+```
+
+The chat area's band holds its tabs (see [The chat area](#the-chat-area)),
+then, at its right end: the quick-run control for [Actions](./actions.md); an **Open in external editor** button (see
+[Open in external editor](#open-in-external-editor)); and the side-panel
+toggle (see [Opening and closing the panel](#opening-and-closing-the-panel)).
+The right-hand panel's band holds its tabs, its **+** button and the window
+controls. With the panel closed, the window controls move to the end of the
+chat area's band. Drag either band's empty space to move the window. The
+[command palette](#command-palette) has no button here; it opens from the
+sidebar's **Search** button or **Ctrl+K**.
+
+A project's board has no tabs, so its band shows where you are instead,
+**project / Board** (click the project name to open the board again), and
+the editor and Actions buttons give way to the **Board / Both / Chat**
+layout switch; the side-panel toggle is hidden, since a board has no side
+panel, and the window controls end the band. The center of
 the window is where you chat with the agent. The panel on the right contains
 project tools such as files and terminals.
 
 ### Collapsing the sidebar
 
 The arrow button beside the logo at the top of the sidebar collapses it to a
-narrow strip of icons: New thread, Add project, a folder for each project,
+narrow strip of icons: Search, New thread, Add project, a folder for each project,
 Done and Settings. Point at (or click) a project's folder to open a menu with
 its board and chats; Done works the same way. While it's collapsed, the same
-button sits at the start of the title bar; click it to expand the sidebar
-again. The sidebar's width and whether it's collapsed are remembered,
+button sits at the start of the chat area's band, before its tabs; click it
+to expand the sidebar again. The sidebar's width and whether it's collapsed are remembered,
 including after a restart. Drag the sidebar's edge to resize it.
 
 ## Choosing a project and conversation
 
-The top of the sidebar has **New thread** (**Ctrl+N**, or **Command+N** on
-macOS), which starts a new thread in the current project, and **Add
+The top of the sidebar has **Search** (**Ctrl+K**, or **Command+K** on
+macOS), a frosted button the sidebar's width that opens the
+[command palette](#command-palette) (an icon in the collapsed strip), then **New
+thread** (**Ctrl+N**, or **Command+N** on macOS), which starts a new thread in the current project, and **Add
 project**, which asks for a folder to add. Below them, **Projects** lists one
 group per project. Each group holds:
 
@@ -76,6 +94,12 @@ The filter button beside **Projects** chooses how chats are listed:
   first, whatever its project; point at a chat to see its project.
   **Projects** then lists one **Board** row per project, named after the
   project, with its in-progress and review counts and its **⋯** menu.
+  However many chats there are, **Projects** keeps room for about three
+  rows (or all of them, if there are fewer; **More projects** counts as a
+  row) and scrolls inside it; **Chats** takes the rest of the height. In
+  code: `projectsMin1`–`projectsMin3` in `LeftBar.tsx`, a grid row minimum
+  of that many `--size-element-md` rows plus the list's `--spacing-0-5`
+  gaps.
 - **Task chats**: mixed in with the rest, grouped at the top (of each
   project, or of the flat list), or hidden.
 
@@ -122,12 +146,20 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 
 ### Closing tabs
 
-A tab you can close shows a **×** at its end: always on the selected tab,
-and on other tabs when you point at them. To close a tab, click its **×**,
-middle-click anywhere on the tab, or press **Ctrl+W** (**Command+W** on
-macOS) while the tab has keyboard focus. Every tab except **Agent** can be
-closed; reopen **Files** (or any other tool) from the right-hand panel's
-**+** button.
+Every tab shows an icon before its title for its kind: a folder tree for
+**Files**, a code or text page for an open file, a terminal for
+**Terminal**, a play button for an Action's output, a lightning bolt for
+**Actions**, a robot for **Sub agents** and for a sub-agent's conversation,
+an eye for a preview, and a speech bubble for **Agent**. Status markers
+(the unsaved-file dot, the running sub-agent count) sit after the title.
+
+When you point at a tab you can close, or move keyboard focus onto it, its
+icon turns into a **×** in the same spot, so the tab doesn't shift. To close
+a tab, click that **×** (hover it for a "Close …" tooltip), middle-click
+anywhere on the tab, or press **Ctrl+W** (**Command+W** on macOS) while the
+tab has keyboard focus. Pressing the **×** never starts a drag. Every tab
+except **Agent** can be closed; its icon never turns into a **×**. Reopen
+**Files** (or any other tool) from the right-hand panel's **+** button.
 
 ### Moving tabs between the chat area and the tool panel
 
@@ -191,6 +223,25 @@ here, but you can drag them into the chat area; see
 [Moving tabs](#moving-tabs-between-the-chat-area-and-the-tool-panel).
 Opening something that is already open, such as a file, takes you to its
 tab in whichever area it is in.
+
+### Opening and closing the panel
+
+The button at the right end of the chat area's band, just before the
+right-hand panel, closes the right-hand panel (**Ctrl+J**, or **Command+J** on
+macOS, does the same). With it closed, the chat takes the full width of the
+window; the same button, or **Ctrl+J** again, brings it back with the tabs
+it had. Whether the panel is open is one app-wide setting, not one per
+conversation, and it's remembered after a restart.
+
+Anything that opens a tool tab opens the panel again if it's closed:
+opening a file from the tree, a file chip in the chat or the review drawer,
+**Open in a new terminal** on a code block, running an Action, the
+**Sub agents** banner, **Ctrl+1** to **Ctrl+4** and the command palette.
+Tabs dragged into the chat area stay where they are. In code the flag is
+`sidePanelOpen` in `store/panelSlice.ts` (`setSidePanelOpen`), saved under
+`LS_KEYS.sidePanelOpen`; `openPanelTab` and `activateTab` set it whenever
+a tab opens or comes forward in the side area, and `App.tsx` leaves the
+panel and its resize handle out while it's false.
 
 ### Tabs are remembered per conversation
 
@@ -273,14 +324,87 @@ Drag the dividers between the conversation sidebar, chat area, and right-hand
 panel to change their widths. AI Leash remembers those widths for the next
 time you use the app.
 
+## Keyboard shortcuts
+
+On macOS, use **Command** wherever this table says **Ctrl**.
+
+| Shortcut | What it does |
+|---|---|
+| **Ctrl+K** | Open or close the [command palette](#command-palette) |
+| **Ctrl+N** | New thread in the current project |
+| **Ctrl+B** | Collapse or expand the sidebar |
+| **Ctrl+J** | [Open or close the right-hand panel](#opening-and-closing-the-panel) |
+| **Ctrl+,** | Open Settings |
+| **Ctrl+1** | Open the panel's **Files** tab |
+| **Ctrl+2** | Open a new **Terminal** tab |
+| **Ctrl+3** | Open the panel's **Sub agents** tab |
+| **Ctrl+4** | Open the panel's **Actions** tab |
+
+While you're typing in a terminal or the file editor, only **Ctrl+K**
+works; every other key goes to the terminal or editor (a shell needs
+**Ctrl+B**, **Ctrl+J** and the rest). On a board, **Ctrl+J** and **Ctrl+1**
+to **Ctrl+4** do nothing, as there is no side panel. **Ctrl+W** (close the
+focused tab), **Ctrl+S** (save the file) and undo/redo work as before; see
+[Closing tabs](#closing-tabs).
+
+The shortcuts live in one place, `src/lib/shortcuts.ts`: each has an id, a
+label and its keys in the format Astryx's `Kbd` takes (`mod+k`, where `mod`
+is Command on macOS and Ctrl elsewhere). The same string draws the key
+badges in the palette and the sidebar, the text in tooltips
+(`formatShortcut`, `withShortcut`) and the matching. `useShortcuts`
+(`src/hooks/useShortcuts.ts`), mounted once in `App.tsx`, is the single
+document listener that runs them. It ignores a key another handler has
+already claimed (`defaultPrevented`), held-down repeats and IME
+composition. The terminals hand **Ctrl+K** back to the app through xterm's
+`attachCustomKeyEventHandler` (`terminalKeyFilter`). To add a shortcut, add
+it to `SHORTCUTS` and give it a handler in `App.tsx`'s `useShortcuts` call.
+
+## Command palette
+
+Press **Ctrl+K** (**Command+K** on macOS), or click **Search** at the top of
+the sidebar, to open the command palette. Type to filter, use the arrow
+keys to move and **Enter** to choose, or click a row. **Escape** or a click
+outside closes it. It lists, in three groups, in this order:
+
+- **Boards**: the board of each project in use, the ones the sidebar
+  doesn't tuck behind **More projects** (an open chat, tasks on its board or
+  a project chat), most recent activity first.
+- **Chats**: every open (not done) chat in every project, most recent first,
+  with its project's name at the end of the row. Choose one to switch to it.
+  Typing a project's name finds its chats too.
+- **Commands**: New thread, Toggle sidebar, Toggle side panel, Open Files,
+  Open Terminal, Open Sub agents, Open Actions and Settings, each with its
+  shortcut. On a board, the side-panel commands are left out.
+
+Matching is fuzzy and forgiving. Case doesn't matter, and `-`, `_`, `/`,
+`.`, `#` and spaces all count as the same separator, so `ai leash` finds
+every chat in `ai-leash`. Every word you type has to match somewhere in the
+row's title, project name, `#task` number or group name (each word may hit
+a different one); a word that matches nothing hides the row. Within a word
+the letters may be skipped over, so `alsh` finds `ai-leash`. Within each
+group the best matches come first: the whole query matching a field exactly
+or as its start, then every word starting a word, then a word found inside
+a word, then subsequence matches; ties keep the group's own order.
+
+The palette is Astryx's `CommandPalette` (`src/app/AppCommandPalette.tsx`),
+which handles the keys; the list and its filtering are ours, through its
+`searchSource` (`search(query)` runs `fuzzyFilter` from
+`src/lib/fuzzyMatch.ts` per group). Its open state is
+`commandPaletteOpen` in `store/panelSlice.ts`.
+
 ## Appearance
 
 AI Leash uses a dark appearance throughout the app, including the window
 controls, chat, editors, and terminals. There is currently no light theme or
-appearance switch. The interface is built on the stock Astryx `neutral` look
-(monochrome, no accent colour); the only change from stock is that app
-chrome — tabs, sidebar rows and small buttons, pickers and inputs — uses
-12px text around 14px content. The theme lives in `themes/ai-leash/` and is
+appearance switch. The interface is built on the Astryx `neutral` look
+(monochrome, no accent colour), made near-black with pure neutral greys (no
+blue tint): the chat and board, the darkest, are `#0f0f10`; the sidebar
+and the right-hand panel either side are a step up at `#161617`; cards,
+menus and popovers are `#1c1c1e`; with `#ededef` primary
+and `#a1a1a8` secondary text. Corners are smaller than stock: 6px on
+buttons and inputs, 10px on cards, menus and dialogs. App chrome (tabs,
+sidebar rows and small buttons, pickers and inputs) uses 12px text around
+14px content. The theme lives in `themes/ai-leash/` and is
 changed only through `npx astryx experimental theme editor`. Icons are
 `lucide-react` throughout. You can change the fonts and text sizes under
 [Settings](#settings), and adjust the panel widths as described above.
@@ -344,7 +468,7 @@ survive a restart and are not tied to the window.
   mixed in, at the top or hidden).
 - **Fonts**: choose a font family and size for **Interface text** and for
   **Code text**. See [Fonts](#fonts).
-- **External editor**: the command behind the title bar's Open button; see
+- **External editor**: the command behind the top bar's Open button; see
   [Open in external editor](#open-in-external-editor).
 - **Debug**: see [Debug mode](./debug-mode.md).
 
@@ -371,7 +495,7 @@ falls back to the built-in one.
 
 ## Open in external editor
 
-The title bar has an **Open in external editor** button (code icon) that opens the active
+The top bar has an **Open in external editor** button (code icon) that opens the active
 conversation's checkout (the project root, or its worktree) in an external
 editor. **Settings > External editor** sets the command it runs — `code` by default; any
 launcher on your shell's `PATH` works (`zed`, `cursor`, `idea`, `code -n`).
@@ -383,4 +507,4 @@ button's tooltip shows the error.
 
 **Settings > Debug** has the settings for inspecting the app's own behavior; see
 [Debug mode](./debug-mode.md) for the ACP Events devtools panel and the
-title bar's id display.
+top bar's id display.

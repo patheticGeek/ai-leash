@@ -1,26 +1,31 @@
 import { Badge } from "@astryxdesign/core/Badge";
-import { Divider } from "@astryxdesign/core/Divider";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { StackItem } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { defineTheme, Theme, useTheme } from "@astryxdesign/core/theme";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
-import { VStack } from "@astryxdesign/core/VStack";
+import {
+  borderVars,
+  colorVars,
+  sizeVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import {
   horizontalListSortingStrategy,
   SortableContext,
 } from "@dnd-kit/sortable";
-import type { StyleXStyles } from "@stylexjs/stylex";
 import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
-import { type ReactNode, useState, type WheelEvent } from "react";
+import { type ReactNode, useRef, useState, type WheelEvent } from "react";
 import { useSubAgents } from "@/data/subAgents";
 import { defaultThemeSlug, themes } from "../../astryx-themes";
 import { useGenerating } from "../../lib/generatingQuery";
 import { useAppStore, type WorkspaceTab } from "../../store";
 import { useSortableTab } from "./TabDnd";
+import TopBand from "./TopBand";
+import { tabIcon } from "./tabKinds";
 
 // The highlight sits mid-image and the image is 3x the text's width, so at
 // both ends of the sweep the text only sees flat dim text — the loop restarts
@@ -37,8 +42,16 @@ const BRIGHT = colorVars["--color-text-primary"];
 const styles = stylex.create({
   // Lets the strip shrink below its tabs' width and scroll instead.
   strip: { minWidth: 0 },
-  // Keeps the ×'s box while it's hidden, so tabs don't shift when it shows.
-  hidden: { visibility: "hidden" },
+  // The selected underline sits on the band's divider, not 1px under the
+  // tab: the tabs (size sm) are centred in the taller band (`TopBand`), so
+  // drop the indicator through the gap below them plus the divider's
+  // border — the same `--_tab-indicator-bottom` TabList's own `hasDivider`
+  // sets to land it on its rail (the strip already bleeds by that much, so
+  // it isn't clipped).
+  tabList: {
+    minWidth: 0,
+    "--_tab-indicator-bottom": `calc(-1 * ((${spacingVars["--spacing-11"]} - ${sizeVars["--size-element-sm"]}) / 2 + ${borderVars["--border-width"]}))`,
+  },
   dragging: { opacity: 0.4 },
   // A running tab's label until it's opened: a light sweeping across it.
   shining: {
@@ -93,66 +106,88 @@ function scrollStripSideways(e: WheelEvent<HTMLElement>) {
   }
 }
 
-// One tab of the strip. A Tab is a <button>, so a close IconButton can't go
-// in its endContent (a button inside a button is invalid), and putting one
-// beside the tab breaks the hover pill and the selected underline. So the ×
-// is part of the tab, like a browser tab: a plain icon in endContent, shown
-// on the selected tab and on hover / keyboard focus. Clicking the × closes
-// the tab (the Tab's onClick sees the click landed on it, and stops the
-// selection); so does middle-click anywhere on the tab, and Ctrl+W on a
-// focused tab — the keyboard path, announced through aria-keyshortcuts.
+// One tab of the strip: its kind's icon, then its title, then any status.
+// A Tab is a <button>, so a close IconButton can't go inside it (a button in
+// a button is invalid) and one beside it breaks the hover pill and the
+// selected underline. So, like a browser tab, the close control lives in
+// the Tab's own icon slot: while the pointer is over the tab or it has
+// keyboard focus, the kind icon gives way to an × in the same box, so
+// nothing shifts. The × is a button-role element with its own name and
+// tooltip; it takes no tab stop (TabList's roving stop stays the one),
+// since Ctrl+W on the focused tab is the keyboard path, announced through
+// aria-keyshortcuts. Pressing it doesn't start a drag; middle-click anywhere
+// on the tab closes it too. The Agent tab has no onClose, so it keeps its
+// icon.
 function StripTab({
   tab,
-  isSelected,
   isShining,
   status,
   onClose,
 }: {
   tab: WorkspaceTab;
-  isSelected: boolean;
   isShining: boolean;
-  /** Passive status before the ×: a running count or an unsaved marker. */
+  /** Passive status after the title: a running count or an unsaved marker. */
   status?: ReactNode;
   onClose?: () => void;
 }) {
-  const [isHot, setIsHot] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const closeRef = useRef<HTMLElement>(null);
   const { isDragging, ...sortable } = useSortableTab(tab.id);
-  const close = onClose && (
-    <HStack
-      as="span"
-      data-tab-close=""
-      aria-hidden
-      xstyle={isSelected || isHot ? undefined : styles.hidden}
-    >
-      <Icon icon={X} size="sm" color="secondary" />
-    </HStack>
-  );
+  const closeLabel = `Close ${tab.label}`;
+  const icon =
+    onClose && (isHovered || isFocused) ? (
+      <>
+        <HStack
+          as="span"
+          ref={closeRef}
+          role="button"
+          tabIndex={-1}
+          aria-label={closeLabel}
+          align="center"
+          // No drag, no press feedback, no focus move off the tab.
+          onPointerDown={(e: React.PointerEvent) => {
+            if (e.button === 0) e.stopPropagation();
+          }}
+          onMouseDown={(e: React.MouseEvent) => {
+            if (e.button === 0) e.preventDefault();
+          }}
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }
+          }}
+        >
+          <Icon icon={X} size="sm" color="secondary" />
+        </HStack>
+        <Tooltip anchorRef={closeRef} content={closeLabel} />
+      </>
+    ) : (
+      <Icon icon={tabIcon(tab)} size="sm" color="secondary" />
+    );
   return (
     <Tab
       {...sortable}
       value={tab.id}
       label={clip(tab.label)}
+      icon={icon}
       xstyle={[isShining && styles.shining, isDragging && styles.dragging]}
-      endContent={
-        status || close ? (
-          <HStack as="span" align="center" gap={1}>
-            {status}
-            {close}
-          </HStack>
-        ) : undefined
-      }
+      endContent={status}
       {...(onClose && {
         "aria-keyshortcuts": "Control+W",
-        onPointerEnter: () => setIsHot(true),
-        onPointerLeave: () => setIsHot(false),
-        onFocus: () => setIsHot(true),
-        onBlur: () => setIsHot(false),
-        onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
-          if ((e.target as HTMLElement).closest("[data-tab-close]")) {
-            e.preventDefault();
-            onClose();
-          }
-        },
+        onPointerEnter: () => setIsHovered(true),
+        onPointerLeave: () => setIsHovered(false),
+        // Keyboard focus only: a click also focuses the tab, and that
+        // shouldn't leave its × showing once the pointer moves off.
+        onFocus: (e: React.FocusEvent<HTMLButtonElement>) =>
+          setIsFocused(e.currentTarget.matches(":focus-visible")),
+        onBlur: () => setIsFocused(false),
         // No autoscroll cursor on a middle press; the release closes.
         onMouseDown: (e: React.MouseEvent<HTMLButtonElement>) => {
           if (e.button === 1) e.preventDefault();
@@ -174,21 +209,22 @@ function StripTab({
   );
 }
 
-// The tab row of either area — the ide template's drawer tabs, an underline
-// `TabList` at size sm, the same component in both panes so their strips
-// share a height and line. Every tab kind can sit in either one, so each
-// tab's decorations (running shine, sub-agent count, unsaved marker) follow
+// The tab row of either area: an underline `TabList` at size sm inside the
+// pane's top band (`TopBand`), the same in both panes so the two bands read
+// as one bar. Every tab kind can sit in either one, so each tab's
+// decorations (icon, running shine, sub-agent count, unsaved marker) follow
 // its kind, not the strip it's in. Tabs drag to reorder and between areas
-// (`TabDnd.tsx`). The frame is the drawer's: spacing-2 above, the strip's
-// own divider below, and an end slot (the side panel's + picker).
+// (`TabDnd.tsx`). `startContent` leads the tabs (the sidebar's expand
+// toggle); `endContent` follows them at the band's end (the centre's
+// actions and panel toggle, the side panel's + and the window controls).
 export default function TabStrip({
   tabs,
   value,
   onSelect,
   label,
+  startContent,
   endContent,
   hasScrollArrows = true,
-  xstyle,
 }: {
   tabs: WorkspaceTab[];
   /** The selected tab id ("" for none). */
@@ -196,11 +232,12 @@ export default function TabStrip({
   onSelect: (id: string) => void;
   /** Names the strip for assistive technology. */
   label: string;
-  /** After the tabs, on the same line. */
+  /** Before the tabs, on the same line. */
+  startContent?: ReactNode;
+  /** At the band's end, after the tabs. */
   endContent?: ReactNode;
   /** false: overflowing tabs show only the edge fade, no arrow buttons. */
   hasScrollArrows?: boolean;
-  xstyle?: StyleXStyles;
 }) {
   const { mode } = useTheme();
   const closeTab = useAppStore((s) => s.closeTab);
@@ -225,7 +262,7 @@ export default function TabStrip({
       value={value}
       onChange={onSelect}
       size="sm"
-      xstyle={styles.strip}
+      xstyle={styles.tabList}
     >
       <SortableContext
         items={tabs.map((t) => t.id)}
@@ -245,7 +282,6 @@ export default function TabStrip({
             <StripTab
               key={tab.id}
               tab={tab}
-              isSelected={tab.id === value}
               // Only shine while this tab isn't the one you're already
               // looking at — the active tab's own content already shows its
               // running state (the "Working for…"/"Waiting" indicator).
@@ -266,24 +302,26 @@ export default function TabStrip({
   );
 
   return (
-    <VStack gap={0} xstyle={xstyle}>
-      <HStack align="center" gap={1} paddingInline={3} paddingBlockStart={2}>
-        <StackItem
-          size="fill"
-          xstyle={styles.strip}
-          onWheel={scrollStripSideways}
-        >
-          {hasScrollArrows ? (
-            strip
-          ) : (
-            <Theme theme={arrowlessTheme} mode={mode}>
-              {strip}
-            </Theme>
-          )}
-        </StackItem>
-        {endContent}
-      </HStack>
-      <Divider />
-    </VStack>
+    <TopBand
+      start={
+        <>
+          {startContent}
+          <StackItem
+            size="fill"
+            xstyle={styles.strip}
+            onWheel={scrollStripSideways}
+          >
+            {hasScrollArrows ? (
+              strip
+            ) : (
+              <Theme theme={arrowlessTheme} mode={mode}>
+                {strip}
+              </Theme>
+            )}
+          </StackItem>
+        </>
+      }
+      end={endContent}
+    />
   );
 }

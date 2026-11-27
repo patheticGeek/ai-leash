@@ -6,7 +6,7 @@ import { qk } from "./keys";
 
 export type { ConversationSummary };
 
-// How a conversation is named in the sidebar and the title-bar breadcrumb: a
+// How a conversation is named in the sidebar and the command palette: a
 // board task's chat leads with its task number, `#42 · Fix app colours`.
 export function conversationLabel(
   conversation: Pick<ConversationSummary, "title" | "taskNumber">,

@@ -12,7 +12,7 @@ open that project.
 Actions belong to the checkout the conversation is working in. If a
 conversation uses a [worktree](./ui-shell.md#worktree-and-branch), its
 Actions are the ones in that worktree, and running or stopping an Action, from
-the sidebar or the title bar, affects that worktree rather than the main
+the sidebar or the top bar, affects that worktree rather than the main
 project folder. This stays true when you reopen the conversation later.
 
 ## Create an Action
@@ -44,10 +44,10 @@ a development server start, check a build, or follow test results.
 
 You can also select an Action's row, or **Show output** in its **⋯** menu,
 to open its terminal view. For quick
-access, the most recently used Action appears in the title bar when Actions
+access, the most recently used Action appears in the top bar when Actions
 are available. Use the dropdown there to choose another Action.
 
-The title-bar button uses the same colours as the Actions tab, on its icon
+The top-bar button uses the same colours as the Actions tab, on its icon
 and label rather than a dot. The icon always sits in the same place. While
 its Action is starting or stopping it shows a spinner. While the Action is
 running, the play icon becomes an amber stop icon, the label turns amber, and

@@ -29,12 +29,15 @@ export const LS_KEYS = {
   // Collapsed epic swimlanes on the board, as `${projectRoot}\n${epic id
   // or "none"}` entries — see `features/board/BoardView.tsx`.
   boardCollapsedLanes: "ai-leash:boardCollapsedLanes",
-  // Each project's board epic filter, Group by epic and Show done, keyed
-  // by project root — see `features/board/useBoardViewPrefs.ts`.
+  // Each project's board epic filter, Group by epic and whether the Done
+  // column is expanded (stored as `showDone`), keyed by project root — see `features/board/useBoardViewPrefs.ts`.
   boardViewPrefs: "ai-leash:boardViewPrefs",
   // The project chat's width when docked beside the board ("both").
   projectChatWidth: "ai-leash:projectChatWidth",
   rightPanelWidth: "ai-leash:rightPanelWidth",
+  // Whether the right-hand side panel is open — one app-wide flag, not per
+  // conversation; see `panelSlice.ts`'s `sidePanelOpen`.
+  sidePanelOpen: "ai-leash:sidePanelOpen",
   // Per-session draft text — not a standalone key, see `chatDraftKey` in
   // `chatDraft.ts` for how a session id is appended to this.
   chatDraftPrefix: "ai-leash:chatDraft:",

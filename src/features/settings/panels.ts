@@ -66,7 +66,7 @@ export const PANEL_GROUPS: { label: string; panels: PanelConfig[] }[] = [
         id: "editor",
         label: "External editor",
         icon: SquareCode,
-        description: "What the title bar's Open button runs.",
+        description: "What the top bar's Open button runs.",
       },
       {
         id: "debug",
@@ -177,7 +177,7 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     keywords: "acp events log",
   },
   {
-    title: "Show IDs in the title bar",
+    title: "Show IDs in the top bar",
     description: "Project, conversation and session ids",
     panel: "debug",
     icon: Fingerprint,

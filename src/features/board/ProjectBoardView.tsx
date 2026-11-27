@@ -8,7 +8,7 @@ import BoardView from "./BoardView";
 import { useBoardLayout } from "./boardLayout";
 
 // What a project's board chat (`role: "project"`) shows in place of a plain
-// chat: the board, its chat, or both (`BoardLayoutSwitch` in the title bar).
+// chat: the board, its chat, or both (`BoardLayoutSwitch` in the top bar).
 // In Both the chat docks in the ide template's end panel behind a
 // ResizeHandle, and the board keeps its column widths and scrolls sideways
 // in what's left. The chat never has a checkout bar: it always works in the

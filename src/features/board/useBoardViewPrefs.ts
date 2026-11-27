@@ -7,6 +7,8 @@ import { localStorageJson } from "../../store/localStorageJson";
 export interface BoardViewPrefs {
   epicFilter: string;
   groupByEpic: boolean;
+  // Whether the Done column is expanded (collapsed to a strip otherwise).
+  // Named `showDone` for the stored prefs written before it was a column.
   showDone: boolean;
   // Whether done tasks older than 30 days are loaded. Kept per project for
   // this session only: it costs a bigger fetch, so a restart starts lean.
@@ -64,8 +66,8 @@ function update(root: string, patch: Partial<BoardViewPrefs>): void {
   for (const listener of listeners) listener();
 }
 
-// The board's epic filter, Group by epic and Show done, remembered per
-// project across board switches and restarts (localStorage, like the
+// The board's epic filter, Group by epic and whether the Done column is
+// expanded, remembered per project across board switches and restarts (localStorage, like the
 // board's layout and collapsed lanes).
 export function useBoardViewPrefs(
   projectRoot: string,

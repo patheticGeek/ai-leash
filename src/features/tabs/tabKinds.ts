@@ -1,5 +1,16 @@
-import { Bot, FolderTree, SquareTerminal, Zap } from "lucide-react";
-import type { ComponentType, ReactNode } from "react";
+import {
+  Bot,
+  Eye,
+  FileCode,
+  FileText,
+  FolderTree,
+  type LucideIcon,
+  MessageSquare,
+  Play,
+  SquareTerminal,
+  Zap,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { createElement } from "react";
 import { useConversation } from "../../data/conversations";
 import {
@@ -63,7 +74,8 @@ export interface TabKindDef {
   /** Picker tile copy — only meaningful when openableFromPicker is true. */
   label?: string;
   hint?: string;
-  icon?: ComponentType<{ size?: number; className?: string }>;
+  /** Shown before the tab's title in the strip (and on its picker tile). */
+  icon: LucideIcon;
 }
 
 export const TAB_KINDS: Record<TabKind, TabKindDef> = {
@@ -72,6 +84,7 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
     render: () => createElement(PrimaryChatTab),
     mountMode: "keep-mounted-per-tab",
     openableFromPicker: false,
+    icon: MessageSquare,
   },
   subagent: {
     kind: "subagent",
@@ -81,6 +94,7 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
         : null,
     mountMode: "keep-mounted-per-tab",
     openableFromPicker: false,
+    icon: Bot,
   },
   filetree: {
     kind: "filetree",
@@ -125,6 +139,8 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
       tab.path ? createElement(FileEditorTab, { path: tab.path }) : null,
     mountMode: "active-only",
     openableFromPicker: false,
+    // A code file swaps this for FileCode — see `tabIcon`.
+    icon: FileText,
   },
   // Active-only: moving an iframe in the DOM reloads it anyway, and its
   // HTML (or file path) lives on the tab.
@@ -133,6 +149,7 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
     render: (tab) => createElement(HtmlPreviewTab, { tab }),
     mountMode: "active-only",
     openableFromPicker: false,
+    icon: Eye,
   },
   action: {
     kind: "action",
@@ -142,8 +159,59 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
         : null,
     mountMode: "keep-mounted-per-tab",
     openableFromPicker: false,
+    icon: Play,
   },
 };
+
+// Extensions a file tab shows as code (FileCode) rather than text.
+const CODE_EXTENSIONS = new Set([
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "py",
+  "rs",
+  "go",
+  "java",
+  "kt",
+  "c",
+  "h",
+  "cc",
+  "cpp",
+  "hpp",
+  "cs",
+  "rb",
+  "php",
+  "swift",
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "lua",
+  "html",
+  "css",
+  "scss",
+  "vue",
+  "svelte",
+  "json",
+  "toml",
+  "yaml",
+  "yml",
+  "xml",
+  "sql",
+]);
+
+/** The icon before a tab's title: its kind's, or FileCode for a code file. */
+export function tabIcon(tab: WorkspaceTab): LucideIcon {
+  if (tab.kind === "file" && tab.path) {
+    const name = tab.path.split(/[\\/]/).pop() ?? "";
+    const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() : "";
+    if (ext && CODE_EXTENSIONS.has(ext)) return FileCode;
+  }
+  return TAB_KINDS[tab.kind].icon;
+}
 
 /** Kinds shown as tiles in TabPicker, in registry-declaration order. */
 export const PICKER_TAB_KINDS = Object.values(TAB_KINDS).filter(

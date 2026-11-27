@@ -10,6 +10,7 @@ import {
   fontStack,
   watchTerminalFonts,
 } from "../../../lib/fontPreferences";
+import { terminalKeyFilter } from "../../../lib/shortcuts";
 import { api } from "../../../lib/tauriApi";
 import { terminalStyles, terminalTheme } from "../../../lib/terminalTheme";
 import { useAppStore } from "../../../store";
@@ -56,6 +57,8 @@ export default function TerminalPanel({
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
+    // Ctrl+K (the command palette) goes to the app, not the shell.
+    term.attachCustomKeyEventHandler(terminalKeyFilter);
     fit.fit();
 
     let ptyId: string | null = null;

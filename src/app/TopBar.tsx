@@ -1,11 +1,9 @@
 import { BreadcrumbItem, Breadcrumbs } from "@astryxdesign/core/Breadcrumbs";
 import { Divider } from "@astryxdesign/core/Divider";
-import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { SideNavCollapseButton } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
-import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -13,18 +11,19 @@ import * as stylex from "@stylexjs/stylex";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Bug, Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { conversationLabel, useConversations } from "@/data/conversations";
 import { usePreference } from "@/data/preferences";
 import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
+import { useIsBoardView } from "../features/board/useIsBoardView";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
+import { withShortcut } from "../lib/shortcuts";
 import { useAppStore } from "../store";
 import OpenInIdeButton from "./OpenInIdeButton";
 import type { SidebarCollapse } from "./sidebarCollapse";
-import TitleBarActions from "./TitleBarActions";
+import TopBarActions from "./TopBarActions";
 
-// The Toolbar's `md` height: where the floating debug panel stops when
-// dragged up, so it never covers the window controls.
-export const TITLEBAR_HEIGHT = 44;
+// The top bar's height (`TopBand`'s row, `--spacing-11`): where the floating
+// debug panel stops when dragged up, so it never covers the window controls.
+export const TOP_BAR_HEIGHT = 44;
 
 const styles = stylex.create({
   // The divider between control groups, copied from the kanban-board
@@ -34,8 +33,6 @@ const styles = stylex.create({
     marginBlock: spacingVars["--spacing-1"],
     alignSelf: "stretch",
   },
-  // The breadcrumb takes what the controls leave and truncates.
-  start: { minWidth: 0 },
 });
 
 // `getCurrentWindow()` reads `window.__TAURI_INTERNALS__` synchronously and
@@ -52,7 +49,10 @@ function tauriWindow() {
   return isTauri() ? getCurrentWindow() : null;
 }
 
-function WindowControls() {
+// Minimize / maximize / close: the app has no native title bar. They end
+// whichever band is rightmost: the side panel's, or the centre's when the
+// side panel isn't showing.
+export function WindowControls() {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -99,8 +99,8 @@ function WindowControls() {
   );
 }
 
-// The project id / conversation id / ACP session id line debug mode shows in
-// place of the breadcrumb.
+// The project id / conversation id / ACP session id line debug mode shows at
+// the start of the centre band's end controls.
 function DebugIds() {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const projectId = useAppStore((s) => s.projectId);
@@ -132,111 +132,115 @@ function DebugIds() {
   );
 }
 
-// The window's title bar: the main region's pinned header (a Toolbar, since
-// it carries controls), not a TopNav — the sidebar runs the full window
-// height as in the shell-side-nav template, and this bar spans only the
-// centre and the side panel. Start: a one-line breadcrumb, `project / chat
-// title`, `project / Board` or `project / New thread`, led by the sidebar's
-// expand toggle while it's collapsed. End: Open in external editor and the
-// Actions split button (on a board, its layout switch instead), then the
-// window controls.
-export default function TitleBar({
+// Is the side panel on screen? Closed by its toggle, or a board (which has
+// none). Decides which band ends in the window controls.
+function useSidePanelShown() {
+  const sidePanelOpen = useAppStore((s) => s.sidePanelOpen);
+  const boardView = useIsBoardView();
+  return sidePanelOpen && !boardView;
+}
+
+// Where you are, for the board's band, which has no tabs to say it:
+// `project / Board`.
+export function LocationCrumbs() {
+  const projectRoot = useAppStore((s) => s.projectRoot);
+  const recentProjects = useAppStore((s) => s.recentProjects);
+  const openProjectBoard = useAppStore((s) => s.openProjectBoard);
+  const project = recentProjects.find((p) => p.path === projectRoot);
+  if (!project) return null;
+  return (
+    <Breadcrumbs label="Location">
+      {/* The project crumb opens the project's board. */}
+      <BreadcrumbItem onClick={() => void openProjectBoard(project.path)}>
+        {project.name}
+      </BreadcrumbItem>
+      <BreadcrumbItem isCurrent>Board</BreadcrumbItem>
+    </Breadcrumbs>
+  );
+}
+
+// The start of the centre's band, before its tabs: the sidebar's expand
+// toggle while it's collapsed.
+export function CentreBandStart({
   sidebarCollapse,
 }: {
   sidebarCollapse: SidebarCollapse;
 }) {
-  const projectRoot = useAppStore((s) => s.projectRoot);
-  const recentProjects = useAppStore((s) => s.recentProjects);
-  const activeSessionId = useAppStore((s) => s.activeSessionId);
-  const conversations = useConversations();
-  const chatTabs = useAppStore((s) => s.chatTabs);
-  const activeChatTabId = useAppStore((s) => s.activeChatTabId);
-  const openProjectBoard = useAppStore((s) => s.openProjectBoard);
+  if (!sidebarCollapse.isCollapsed) return null;
+  return (
+    <SideNavCollapseButton
+      collapsible={sidebarCollapse}
+      size="sm"
+      label={withShortcut("Expand sidebar", "toggleSidebar")}
+    />
+  );
+}
+
+// The end of the centre's band: debug mode's id line, the Actions split
+// button and Open in external editor (on a board, its layout switch
+// instead), the ACP Events toggle, the side-panel toggle (not on a board,
+// which has no side panel) and — when the side panel isn't showing, so its
+// band isn't there to hold them — the window controls. The
+// command palette opens from the sidebar's Search row (or Ctrl+K), not here.
+export function CentreBandEnd() {
   const debugShowIds = usePreference("debugShowIds");
   const debugModeEnabled = usePreference("debugModeEnabled");
   const debugPanelOpen = useAppStore((s) => s.debugPanelOpen);
   const setDebugPanelOpen = useAppStore((s) => s.setDebugPanelOpen);
-
-  const project = recentProjects.find((p) => p.path === projectRoot);
-  const activeConversation = conversations.find(
-    (c) => c.id === activeSessionId,
-  );
-  const boardView = activeConversation?.role === "project";
-  // A new thread (no id until its first message) — see `ChatPanel.tsx`'s
-  // `isNewThread`.
-  const isNewThread = useAppStore((s) => s.draft !== null);
-  const activeChatTab = chatTabs.find((t) => t.id === activeChatTabId);
-  const pageTitle = isNewThread
-    ? "New thread"
-    : boardView
-      ? "Board"
-      : activeChatTab?.kind === "subagent"
-        ? activeChatTab.label
-        : activeConversation && conversationLabel(activeConversation);
+  const sidePanelOpen = useAppStore((s) => s.sidePanelOpen);
+  const setSidePanelOpen = useAppStore((s) => s.setSidePanelOpen);
+  const boardView = useIsBoardView();
+  const sidePanelShown = useSidePanelShown();
 
   const debugLabel = debugPanelOpen ? "Close ACP Events" : "Open ACP Events";
+  const sidePanelLabel = withShortcut(
+    sidePanelOpen ? "Close side panel" : "Open side panel",
+    "toggleSidePanel",
+  );
 
   return (
-    <Toolbar
-      label="Title bar"
-      dividers={["bottom"]}
-      // `deep`: a press anywhere in the bar drags the window, except on its
-      // buttons and other controls (Tauri's drag script skips those).
-      data-tauri-drag-region="deep"
-      startContent={
-        <HStack align="center" gap={2} xstyle={styles.start}>
-          {sidebarCollapse.isCollapsed && (
-            <SideNavCollapseButton
-              collapsible={sidebarCollapse}
-              size="sm"
-              label="Expand sidebar"
-            />
-          )}
-          {debugShowIds ? (
-            <DebugIds />
-          ) : (
-            project && (
-              <Breadcrumbs label="Location">
-                {/* The project crumb opens the project's board. */}
-                <BreadcrumbItem
-                  isCurrent={!pageTitle}
-                  onClick={() => void openProjectBoard(project.path)}
-                >
-                  {project.name}
-                </BreadcrumbItem>
-                {pageTitle && (
-                  <BreadcrumbItem isCurrent>{pageTitle}</BreadcrumbItem>
-                )}
-              </Breadcrumbs>
-            )
-          )}
-        </HStack>
-      }
-      endContent={
+    <>
+      {debugShowIds && <DebugIds />}
+      {/* A project's board has no checkout of its own to open or run
+          Actions in — just its layout switch. */}
+      {boardView ? (
+        <BoardLayoutSwitch />
+      ) : (
         <>
-          {/* A project's board has no checkout of its own to open or run
-              Actions in — just its layout switch. */}
-          {boardView ? (
-            <BoardLayoutSwitch />
-          ) : (
-            <>
-              <OpenInIdeButton />
-              <TitleBarActions />
-            </>
-          )}
-          {debugModeEnabled && (
-            <IconButton
-              variant="ghost"
-              size="sm"
-              label={debugLabel}
-              tooltip={debugLabel}
-              icon={<Icon icon={Bug} size="sm" color="warning" />}
-              onClick={() => setDebugPanelOpen(!debugPanelOpen)}
-            />
-          )}
-          <WindowControls />
+          <TopBarActions />
+          <OpenInIdeButton />
         </>
-      }
-    />
+      )}
+      {debugModeEnabled && (
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label={debugLabel}
+          tooltip={debugLabel}
+          icon={<Icon icon={Bug} size="sm" color="warning" />}
+          onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+        />
+      )}
+      {!boardView && (
+        <IconButton
+          variant="ghost"
+          size="sm"
+          label={sidePanelLabel}
+          tooltip={sidePanelLabel}
+          // The sidebar's collapse chevron (SideNavCollapseButton's
+          // registry `chevronLeft`), mirrored for the other edge: it points
+          // at the edge the panel folds into while open, and back out once
+          // it's closed.
+          icon={
+            <Icon
+              icon={sidePanelOpen ? "chevronRight" : "chevronLeft"}
+              size="sm"
+            />
+          }
+          onClick={() => setSidePanelOpen(!sidePanelOpen)}
+        />
+      )}
+      {!sidePanelShown && <WindowControls />}
+    </>
   );
 }

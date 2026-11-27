@@ -3,7 +3,7 @@ import { Layout, LayoutContent, LayoutPanel } from "@astryxdesign/core/Layout";
 import { ResizeHandle } from "@astryxdesign/core/Resizable";
 import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useAcpSessionOptionsListener } from "../data/acpSessionOptions";
 import { useBackendModels, useBackendsListener } from "../data/backends";
 import { useBoardListener } from "../data/board";
@@ -18,6 +18,7 @@ import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { TabContentHost } from "../features/tabs/TabContent";
 import { TabDndProvider } from "../features/tabs/TabDnd";
 import { useResizableWidth } from "../hooks/useResizableWidth";
+import { useShortcuts } from "../hooks/useShortcuts";
 import {
   useAcpAgentCatalog,
   useAcpCatalogInvalidator,
@@ -27,13 +28,19 @@ import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
+import AppCommandPalette, {
+  PANEL_TOOL_SHORTCUTS,
+  type PaletteCommands,
+} from "./AppCommandPalette";
 import CenterPanel from "./CenterPanel";
 import LeftBar from "./LeftBar";
 import { startNewThread } from "./projectActions";
 import { useSidebarCollapse } from "./sidebarCollapse";
-import TitleBar from "./TitleBar";
 
 const styles = stylex.create({
+  // The side panel on the sidebar's colour, a step up from the centre's,
+  // so the chat is the darkest (most focused) surface between two rails.
+  sidePanel: { backgroundColor: colorVars["--color-background-body"] },
   // Dev/preview builds get a thin warning-coloured frame round the whole
   // window, so they can't be mistaken for the release app.
   buildFrame: {
@@ -109,19 +116,44 @@ function App() {
     initializeStartupSession();
   }, [initializeStartupSession]);
 
-  // Ctrl+N (Command+N on macOS) starts a new thread, the shortcut the
-  // sidebar's New thread item shows.
-  useEffect(() => {
-    function handleNewThread(e: KeyboardEvent) {
-      if (e.defaultPrevented || e.repeat) return;
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-      if (e.key.toLowerCase() !== "n") return;
-      e.preventDefault();
-      void startNewThread();
-    }
-    document.addEventListener("keydown", handleNewThread);
-    return () => document.removeEventListener("keydown", handleNewThread);
-  }, []);
+  const sidePanelOpen = useAppStore((s) => s.sidePanelOpen);
+  const setSidePanelOpen = useAppStore((s) => s.setSidePanelOpen);
+  const openPanelTab = useAppStore((s) => s.openPanelTab);
+  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+
+  // What the palette's commands and the shortcuts below both run.
+  const commands = useMemo<PaletteCommands>(
+    () => ({
+      newThread: () => void startNewThread(),
+      toggleSidebar: () =>
+        sidebarCollapse.onCollapsedChange(!sidebarCollapse.isCollapsed),
+      toggleSidePanel: () =>
+        setSidePanelOpen(!useAppStore.getState().sidePanelOpen),
+      settings: () => setSettingsModalOpen(true),
+      openTool: (kind) => openPanelTab(kind),
+    }),
+    [sidebarCollapse, setSidePanelOpen, setSettingsModalOpen, openPanelTab],
+  );
+
+  // Every global shortcut (see `lib/shortcuts.ts`). The side-panel ones do
+  // nothing on a board, which has no side panel.
+  useShortcuts({
+    palette: () =>
+      setCommandPaletteOpen(!useAppStore.getState().commandPaletteOpen),
+    newThread: commands.newThread,
+    toggleSidebar: commands.toggleSidebar,
+    settings: commands.settings,
+    ...(!boardView && {
+      toggleSidePanel: commands.toggleSidePanel,
+      ...Object.fromEntries(
+        PANEL_TOOL_SHORTCUTS.map(([id, kind]) => [
+          id,
+          () => commands.openTool(kind),
+        ]),
+      ),
+    }),
+  });
 
   // webkit2gtk (the Linux webview) only wires Ctrl+Z/Y into its editing
   // engine via a native app menu's Undo/Redo accelerators — this app has no
@@ -154,10 +186,10 @@ function App() {
 
   return (
     <>
-      {/* The default `elevated` variant: the sidebar
-          sits on the body colour and the main region on the surface colour.
-          `wash` paints the main region body-coloured too, so the centre,
-          side panel, cards and board columns all lose their contrast. */}
+      {/* The default `elevated` variant: the sidebar sits on the body
+          colour and the main region on the surface colour. The theme makes
+          surface the darkest (#0f0f10) and body a step up (#161617), so the
+          chat is darker than the rails either side of it. */}
       <AppShell
         contentPadding={0}
         // A desktop window, not a responsive page: the sidebar stays inline
@@ -166,57 +198,62 @@ function App() {
         xstyle={BUILD_LABEL ? styles.buildFrame : undefined}
         sideNav={<LeftBar resizable={leftBar} collapse={sidebarCollapse} />}
       >
-        {/* The shell-side-nav template's frame: the sidebar runs the full
-            window height and the title bar is the main region's pinned
-            header, spanning the centre and the side panel. Below it, the ide
-            template's split: the centre fills, the side panel sits in the
-            end slot behind a ResizeHandle that owns the divider. */}
-        <Layout
-          height="fill"
-          header={<TitleBar sidebarCollapse={sidebarCollapse} />}
-          content={
-            <LayoutContent padding={0} isScrollable={false}>
-              <TabDndProvider>
-                <Layout
-                  height="fill"
-                  content={
-                    <LayoutContent padding={0} isScrollable={false}>
-                      {/* Per switch, not per id: a new thread getting its id
-                          on its first message must not remount the panel —
-                          see `viewEpoch`. */}
-                      <CenterPanel key={viewEpoch} />
-                    </LayoutContent>
-                  }
-                  end={
-                    !boardView && (
-                      <>
-                        <ResizeHandle
-                          direction="horizontal"
-                          hasDivider
-                          isReversed
-                          isAlwaysVisible={false}
-                          resizable={rightPanel}
-                          label="Resize side panel"
-                        />
-                        <LayoutPanel
-                          resizable={rightPanel}
-                          hasDivider={false}
-                          padding={0}
-                          isScrollable={false}
-                          label="Side panel"
-                        >
-                          <SidePanel />
-                        </LayoutPanel>
-                      </>
-                    )
-                  }
+        {/* The shell-side-nav template's frame, without its pinned header:
+            the sidebar runs the full window height, and so do the centre and
+            the side panel (the ide template's split: the centre fills, the
+            side panel sits in the end slot behind a ResizeHandle that owns
+            the divider). Each pane opens with its own top band — its tabs,
+            then its controls — and the two bands line up as one bar; the
+            window controls end the rightmost (see `TopBand`). */}
+        <TabDndProvider>
+          <Layout
+            height="fill"
+            content={
+              <LayoutContent padding={0} isScrollable={false}>
+                {/* Per switch, not per id: a new thread getting its id on its
+                    first message must not remount the panel — see
+                    `viewEpoch`. */}
+                <CenterPanel
+                  key={viewEpoch}
+                  sidebarCollapse={sidebarCollapse}
                 />
-              </TabDndProvider>
-            </LayoutContent>
-          }
-        />
+              </LayoutContent>
+            }
+            // Closed (Ctrl+J or the centre band's toggle), the chat takes
+            // the full width.
+            end={
+              !boardView &&
+              sidePanelOpen && (
+                <>
+                  <ResizeHandle
+                    direction="horizontal"
+                    hasDivider
+                    isReversed
+                    isAlwaysVisible={false}
+                    resizable={rightPanel}
+                    label="Resize side panel"
+                  />
+                  <LayoutPanel
+                    resizable={rightPanel}
+                    hasDivider={false}
+                    padding={0}
+                    isScrollable={false}
+                    label="Side panel"
+                    xstyle={styles.sidePanel}
+                  >
+                    <SidePanel />
+                  </LayoutPanel>
+                </>
+              )
+            }
+          />
+        </TabDndProvider>
       </AppShell>
       <SettingsModal />
+      <AppCommandPalette
+        commands={commands}
+        isSidebarCollapsed={sidebarCollapse.isCollapsed}
+      />
       <DebugDevtoolsOverlay />
       <TabContentHost />
     </>

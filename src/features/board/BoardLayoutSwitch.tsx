@@ -15,8 +15,8 @@ const styles = stylex.create({
   root: { flexShrink: 0 },
 });
 
-// Board / Both / Chat, in the title bar's end slot while a project's board
-// is open, in place of Open in external editor and the Actions button.
+// Board / Both / Chat, at the end of the centre's top band while a project's
+// board is open, in place of Open in external editor and the Actions button.
 export default function BoardLayoutSwitch() {
   const layout = useBoardLayout();
   return (

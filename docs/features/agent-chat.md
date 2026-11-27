@@ -120,7 +120,9 @@ Every message has a timestamp and a copy button, lined up with the
 message's text: under an agent reply they start where the reply's text
 starts, under your bubble they end where its text ends. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
-there is no **Worked for** row above it already showing that. While the agent
+there is no **Worked for** row above it already showing that. The line's
+items are joined by dots, *10:42 · Worked for 2m 10s · copy*, and the copy
+(and retry) buttons are small, sized to the line's text. While the agent
 works, the end of its reply shows a spinner with **Working for** and the
 elapsed time (**Waiting** until it produces anything). The timing stays
 accurate if you switch to another conversation while the agent works.
@@ -129,7 +131,11 @@ Messages from other chats — a task chat's message to the project chat or
 the other way round, and notes another chat left — appear collapsed, as a
 centred one-line system message: **Message from #42 · *title*** (or **from
 Project chat**; **Note from …** for a note), where the sender is a link that
-opens that chat. Click **Show** to read the whole message; whether you left
+opens that chat. The line never wraps: as it narrows, the sender's title
+truncates with an ellipsis, and once there's no room for any of it the
+title and `·` drop, leaving just **#42** (a chat that isn't a task
+truncates its name instead); the link's tooltip has the full name. Click
+**Show** to read the whole message; whether you left
 it open is remembered for the rest of the session. Local notices such as
 **Conversation compacted** are one-line system messages too. An empty conversation (for example after
 `/clear`) says so; while a saved conversation loads, the transcript shows

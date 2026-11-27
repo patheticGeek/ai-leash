@@ -10,6 +10,7 @@ import {
   watchTerminalFonts,
 } from "../../../lib/fontPreferences";
 import { attachRunOutput } from "../../../lib/runOutput";
+import { terminalKeyFilter } from "../../../lib/shortcuts";
 import { type ActionSummary, api } from "../../../lib/tauriApi";
 import { terminalStyles, terminalTheme } from "../../../lib/terminalTheme";
 import { useActiveCheckoutPath } from "../../../lib/useActiveCheckoutPath";
@@ -59,6 +60,8 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
+    // Ctrl+K (the command palette) goes to the app, not the shell.
+    term.attachCustomKeyEventHandler(terminalKeyFilter);
     fit.fit();
     termRef.current = term;
     fitRef.current = fit;
