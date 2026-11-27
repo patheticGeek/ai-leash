@@ -8,12 +8,12 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { InfoTip } from "@astryxdesign/core/InfoTip";
 import { Layout, LayoutContent, LayoutHeader } from "@astryxdesign/core/Layout";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { Selector } from "@astryxdesign/core/Selector";
 import { HStack, StackItem, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { ToggleButton } from "@astryxdesign/core/ToggleButton";
-import { Toolbar } from "@astryxdesign/core/Toolbar";
 import {
   borderVars,
   colorVars,
@@ -21,6 +21,7 @@ import {
   sizeVars,
   spacingVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
+import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import {
   closestCorners,
   DndContext,
@@ -39,6 +40,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import {
   Archive,
+  Check,
   ChevronDown,
   ChevronRight,
   CircleCheck,
@@ -71,6 +73,7 @@ import { LS_KEYS } from "../../lib/localStorageKeys";
 import { api, type Epic, type Task, type TaskStatus } from "../../lib/tauriApi";
 import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { useAppStore } from "../../store";
+import { BoardBandPortal, useBandFit } from "./BoardBand";
 import BoardSettingsDialog from "./BoardSettingsDialog";
 import EpicsDialog from "./EpicsDialog";
 import NewTaskDialog from "./NewTaskDialog";
@@ -660,86 +663,138 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
     onMove: (task, status) => move(task, status, null),
   };
 
-  const toolbar = (
-    <LayoutHeader hasDivider padding={4}>
-      <Toolbar
-        label="Board actions"
-        gap={2}
-        startContent={
+  const newTask = () =>
+    setEditing({ kind: "new", status: "todo", epicId: filterEpicId });
+  // The board's controls, in the window's top band (`BoardBand`): the count
+  // and epic filter after the `project / Board` crumbs; the tools and New
+  // task before the layout switch. Short of room, the tools fold into one ⋯
+  // menu and New task keeps only its icon.
+  const fit = useBandFit();
+  const bandStart = (
+    <>
+      <Badge
+        variant="neutral"
+        label={
           <>
-            <Heading level={3} weight="normal" accessibilityLevel={1}>
-              Tasks
-            </Heading>
-            <Badge label={shownCount} variant="neutral" />
+            {shownCount}
+            <VisuallyHidden>
+              {" "}
+              {shownCount === 1 ? "task" : "tasks"}
+            </VisuallyHidden>
           </>
         }
-        endContent={
-          <HStack gap={2} wrap="wrap" vAlign="center">
-            <Selector
-              label="Filter by epic"
-              isLabelHidden
-              width={200}
-              value={epicFilter}
-              onChange={(epicFilter) => {
-                setPickedEpic(epicFilter);
-                setPrefs({ epicFilter });
-              }}
-              options={[
-                { value: ALL_EPICS, label: "All epics" },
-                { value: NO_EPIC, label: "No epic" },
-                ...(epics.length > 0 ? [{ type: "divider" as const }] : []),
-                ...epics.map((e) => ({ value: e.id, label: e.title })),
-              ]}
-              renderOption={(o) => {
-                const epic = epicsById.get(o.value);
-                return epic ? <EpicToken epic={epic} /> : o.label;
-              }}
-            />
-            <Divider
-              variant="strong"
-              orientation="vertical"
-              xstyle={styles.toolbarDivider}
-            />
-            <HStack gap={1} vAlign="center">
-              <ToggleButton
-                label="Group by epic"
-                tooltip="Group the board into one row per epic"
-                isIconOnly
-                isPressed={groupByEpic}
-                onPressedChange={(groupByEpic) => setPrefs({ groupByEpic })}
-                icon={<Icon icon={Rows3} size="sm" />}
-              />
-              <IconButton
-                variant="ghost"
-                label="Epics"
-                tooltip="Epics"
-                icon={<Icon icon={Layers} size="sm" />}
-                onClick={() => setEpicsOpen(true)}
-              />
-              <IconButton
-                variant="ghost"
-                label="Board settings"
-                tooltip="Board settings"
-                icon={<Icon icon={Settings2} size="sm" />}
-                onClick={() => setSettingsOpen(true)}
-              />
-            </HStack>
-            <Button
-              variant="primary"
-              label="New task"
-              icon={<Icon icon={Plus} size="sm" />}
-              onClick={() =>
-                setEditing({
-                  kind: "new",
-                  status: "todo",
-                  epicId: filterEpicId,
-                })
-              }
-            />
-          </HStack>
-        }
       />
-    </LayoutHeader>
+      <Divider
+        variant="strong"
+        orientation="vertical"
+        xstyle={styles.toolbarDivider}
+      />
+      <Selector
+        label="Filter by epic"
+        isLabelHidden
+        size="sm"
+        variant="secondary"
+        width={fit === "tight" ? 144 : 200}
+        value={epicFilter}
+        onChange={(epicFilter) => {
+          setPickedEpic(epicFilter);
+          setPrefs({ epicFilter });
+        }}
+        options={[
+          { value: ALL_EPICS, label: "All epics" },
+          { value: NO_EPIC, label: "No epic" },
+          ...(epics.length > 0 ? [{ type: "divider" as const }] : []),
+          ...epics.map((e) => ({ value: e.id, label: e.title })),
+        ]}
+        renderOption={(o) => {
+          const epic = epicsById.get(o.value);
+          return epic ? <EpicToken epic={epic} /> : o.label;
+        }}
+      />
+    </>
+  );
+  const bandEnd = (
+    <>
+      {fit === "wide" ? (
+        <>
+          <ToggleButton
+            label="Group by epic"
+            tooltip="Group the board into one row per epic"
+            size="sm"
+            isIconOnly
+            isPressed={groupByEpic}
+            onPressedChange={(groupByEpic) => setPrefs({ groupByEpic })}
+            icon={<Icon icon={Rows3} size="sm" />}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Epics"
+            tooltip="Epics"
+            icon={<Icon icon={Layers} size="sm" />}
+            onClick={() => setEpicsOpen(true)}
+          />
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Board settings"
+            tooltip="Board settings"
+            icon={<Icon icon={Settings2} size="sm" />}
+            onClick={() => setSettingsOpen(true)}
+          />
+        </>
+      ) : (
+        <MoreMenu
+          label="Board options"
+          size="sm"
+          alignment="end"
+          items={[
+            {
+              label: "Group by epic",
+              icon: <Icon icon={Rows3} size="sm" />,
+              endContent: groupByEpic ? (
+                <Icon icon={Check} size="sm" />
+              ) : undefined,
+              onClick: () => setPrefs({ groupByEpic: !groupByEpic }),
+            },
+            { type: "divider" },
+            {
+              label: "Epics",
+              icon: <Icon icon={Layers} size="sm" />,
+              onClick: () => setEpicsOpen(true),
+            },
+            {
+              label: "Board settings",
+              icon: <Icon icon={Settings2} size="sm" />,
+              onClick: () => setSettingsOpen(true),
+            },
+          ]}
+        />
+      )}
+      {fit === "tight" ? (
+        <IconButton
+          variant="primary"
+          size="sm"
+          label="New task"
+          tooltip="New task"
+          icon={<Icon icon={Plus} size="sm" />}
+          onClick={newTask}
+        />
+      ) : (
+        <Button
+          variant="primary"
+          size="sm"
+          label="New task"
+          icon={<Icon icon={Plus} size="sm" />}
+          onClick={newTask}
+        />
+      )}
+      <Divider
+        variant="strong"
+        orientation="vertical"
+        xstyle={styles.toolbarDivider}
+      />
+    </>
   );
 
   const columns = (
@@ -900,12 +955,16 @@ export default function BoardView({ projectRoot }: { projectRoot: string }) {
 
   return (
     <>
+      <BoardBandPortal slot="start">{bandStart}</BoardBandPortal>
+      <BoardBandPortal slot="end">{bandEnd}</BoardBandPortal>
       <Layout
         height="fill"
-        header={toolbar}
         content={
           <LayoutContent padding={0} isScrollable={false}>
             <VStack height="100%">
+              {/* The band's crumbs say where you are; this names the
+                  region for screen readers. */}
+              <VisuallyHidden as="h1">Tasks</VisuallyHidden>
               {boardError && (
                 <Banner
                   status="error"

@@ -181,6 +181,24 @@
       "value": "#161617",
       "source": "token",
       "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-background-popover)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "box-shadow",
+      "value": "var(--shadow-low)",
+      "source": "property",
+      "on": "tooltip"
     }
   ],
   "lifted": [

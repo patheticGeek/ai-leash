@@ -13,11 +13,19 @@ an ordinary conversation for the whole project: use it to plan, break work
 into tasks, or ask about the board. It always works in the project's main
 checkout, so it has no worktree or branch picker.
 
-The top bar's **Open** and Actions buttons are hidden here. Switch
+The board has no toolbar row of its own: its controls sit in the
+window's top bar, in place of the **Open** and Actions buttons. After
+**project / Board** come how many tasks are showing and the epic filter;
+at the end, **Group by epic**, **Epics**, board settings, **New task**
+and then the layout switch. When the window is too narrow for all of
+them, Group by epic, Epics and board settings fold into one **⋯** menu
+and the layout switch shows only its icons; narrower still, **New task**
+shows only its **+**. Switch
 between **Board**, **Both** and **Chat** in the top bar to see
 just the board, the board with the chat docked on its right (380px wide
 by default; drag the divider to resize it, between 300 and 560px), or
-just the chat. The choice and the chat's width are remembered. With the
+just the chat (which hides the board's controls, leaving the crumbs and
+the switch). The choice and the chat's width are remembered. With the
 chat docked, the columns keep their width and the board scrolls sideways.
 Columns are at least 300px wide (the kanban template's column width) and
 share any extra width when the board is wider than they need, grouped by
@@ -56,7 +64,7 @@ card shows a pointer cursor, since clicking it opens it.
 
 ## Tasks
 
-Click **New task** in the toolbar, or the **+** on a Backlog, Todo or In
+Click **New task** in the top bar, or the **+** on a Backlog, Todo or In
 progress column's header, to add a task. A task has:
 
 - a **title** and a **description** (Markdown),
@@ -235,7 +243,7 @@ gets further ones as notes instead. Writing in that chat resumes it.
 Without git there are no worktrees, so a task's chat runs in the project's
 one checkout. To keep tasks from changing the same files under each other,
 only one task can be in progress at a time there. If you'd rather run
-several anyway, open the board settings (the gear in the toolbar) and
+several anyway, open the board settings (the gear in the top bar) and
 turn on **Allow several tasks in progress at once**.
 
 ## Finishing a task
@@ -253,19 +261,19 @@ was.
 
 ## Board settings
 
-The settings button in the board's toolbar opens its settings. Set the agent, model,
+The settings button in the top bar opens its settings. Set the agent, model,
 thinking level and permission the board's tasks start with when they
 don't pick their own. Anything left at **Default** uses the app's default
 agent (Settings > Agents) with the model last used on it.
 
 ## Epics
 
-Epics group related tasks. Click **Epics** in the toolbar to add, rename,
+Epics group related tasks. Click **Epics** in the top bar to add, rename,
 recolour (pick one of eight colours from the menu at the start of its
 row), archive or delete them. Deleting an epic keeps its tasks; they
 just have no epic afterwards. Archived epics can't be picked for new tasks.
 
-Use the epic menu in the toolbar to show one epic's tasks, or only tasks
+Use the epic menu in the top bar to show one epic's tasks, or only tasks
 with no epic. **Group by epic** (the toggle next to it) splits the board
 into one lane per epic, with **No epic** last, under one shared row of
 column headers that stays pinned while you scroll down. Each lane starts
@@ -292,10 +300,28 @@ only for the session; a restart loads recent done tasks again.
 
 ## How it's built
 
-The board is the Astryx `kanban-board` template (`BoardView.tsx`): a
-`LayoutHeader` + `Toolbar` (title and count `Badge`, epic `Selector`,
-a `ToggleButton` for Group by epic, Epics, board settings, New task),
-then muted column `Card`s in a row that scrolls sideways. Each is at
+The board is the Astryx `kanban-board` template (`BoardView.tsx`)
+without its header row: the template's toolbar is merged into the
+window's top band, so the board has one bar of chrome, not two.
+`BoardBand.tsx` holds two empty slots the band renders — `start` after
+`LocationCrumbs` (in `CenterPanel`), `end` before `BoardLayoutSwitch`
+(in `CentreBandEnd`), each `display: contents` so its controls take the
+band's own gap — and `BoardView`, which keeps the state and dialogs,
+`createPortal`s its controls into them: the count `Badge` and a
+`secondary` sm epic `Selector`; a sm `ToggleButton` for Group by epic,
+ghost sm Epics and board settings `IconButton`s, the `primary` sm New
+task, then a divider before the switch. The Chat layout has no
+`BoardView`, so the slots stay empty. How much fits follows the band's
+width: `ProjectBoardView`'s root is exactly as wide as the band, so
+`useTrackBandFit` watches it with a `ResizeObserver` and `fitForWidth`
+picks `wide` (≥1040px, everything), `narrow` (≥820px: the three tools
+become one `MoreMenu`, Group by epic a ✓ item; the switch hides its
+labels) or `tight` (New task an icon-only `IconButton`, the filter
+narrower). Measuring the pane rather than the band's free space means
+compacting the controls never changes the width it's judged by, so it
+can't flip back and forth. A `VisuallyHidden` `h1` "Tasks" names the
+board for screen readers, since the visible title is now the crumbs.
+Then muted column `Card`s in a row that scrolls sideways. Each is at
 least `COLUMN_MIN_WIDTH` (300px) and grows to share spare width; the
 swimlane grid uses the same `minmax(300px, 1fr)` tracks, with a
 `min-width` of the columns plus gaps so it scrolls rather than

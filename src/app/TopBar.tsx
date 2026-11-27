@@ -12,6 +12,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Bug, Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePreference } from "@/data/preferences";
+import { BoardBandSlot } from "../features/board/BoardBand";
 import BoardLayoutSwitch from "../features/board/BoardLayoutSwitch";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { latestAcpSessionId } from "../features/debug/acpSessionId";
@@ -168,11 +169,16 @@ export function CentreBandStart({
 }) {
   if (!sidebarCollapse.isCollapsed) return null;
   return (
-    <SideNavCollapseButton
-      collapsible={sidebarCollapse}
-      size="sm"
-      label={withShortcut("Expand sidebar", "toggleSidebar")}
-    />
+    <Tooltip
+      content={withShortcut("Expand sidebar", "toggleSidebar")}
+      hasHoverIndication={false}
+    >
+      <SideNavCollapseButton
+        collapsible={sidebarCollapse}
+        size="sm"
+        label="Expand sidebar"
+      />
+    </Tooltip>
   );
 }
 
@@ -202,9 +208,13 @@ export function CentreBandEnd() {
     <>
       {debugShowIds && <DebugIds />}
       {/* A project's board has no checkout of its own to open or run
-          Actions in — just its layout switch. */}
+          Actions in: the board's own tools and New task (portalled in by
+          BoardView, see `BoardBand`), then its layout switch. */}
       {boardView ? (
-        <BoardLayoutSwitch />
+        <>
+          <BoardBandSlot slot="end" />
+          <BoardLayoutSwitch />
+        </>
       ) : (
         <>
           <TopBarActions />

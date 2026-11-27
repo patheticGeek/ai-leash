@@ -584,6 +584,13 @@ export const aiLeashTheme = {
       "base": {
         "--text-supporting-size": "0.875rem"
       }
+    },
+    "tooltip": {
+      "base": {
+        "backgroundColor": "var(--color-background-popover)",
+        "color": "var(--color-text-primary)",
+        "boxShadow": "var(--shadow-low)"
+      }
     }
   },
   __onDark: {

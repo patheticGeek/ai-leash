@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { LS_KEYS } from "../../lib/localStorageKeys";
 import ChatPanel from "../chat/ChatPanel";
+import { useTrackBandFit } from "./BoardBand";
 import BoardView from "./BoardView";
 import { useBoardLayout } from "./boardLayout";
 
@@ -34,6 +35,9 @@ export default function ProjectBoardView({
     false,
     containerRef,
   );
+  // This view is as wide as the window's top band above it, which holds
+  // the board's controls: how many of them fit follows its width.
+  useTrackBandFit(containerRef, layout);
 
   if (layout === "chat") {
     // On its own, a normal centered chat.

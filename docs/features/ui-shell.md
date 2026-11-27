@@ -36,10 +36,15 @@ chat area's band. Drag either band's empty space to move the window. The
 sidebar's **Search** button or **Ctrl+K**.
 
 A project's board has no tabs, so its band shows where you are instead,
-**project / Board** (click the project name to open the board again), and
-the editor and Actions buttons give way to the **Board / Both / Chat**
-layout switch; the side-panel toggle is hidden, since a board has no side
-panel, and the window controls end the band. The center of
+**project / Board** (click the project name to open the board again). The
+band is also the board's toolbar, so there is one bar above the board, not
+two: after the crumbs come the task count and the epic filter, and the
+editor and Actions buttons give way to the board's tools (Group by epic,
+Epics, board settings), **New task** and the **Board / Both / Chat**
+layout switch. On a narrow window the tools fold into a **⋯** menu and the
+switch shows only icons (see [Project boards](./project-board.md)). The
+side-panel toggle is hidden, since a board has no side panel, and the
+window controls end the band. The center of
 the window is where you chat with the agent. The panel on the right contains
 project tools such as files and terminals.
 
@@ -50,7 +55,8 @@ narrow strip of icons: Search, New thread, Add project, a folder for each projec
 Done and Settings. Point at (or click) a project's folder to open a menu with
 its board and chats; Done works the same way. While it's collapsed, the same
 button sits at the start of the chat area's band, before its tabs; click it
-to expand the sidebar again. The sidebar's width and whether it's collapsed are remembered,
+to expand the sidebar again. Point at either button for a tooltip naming it
+and its shortcut ("Collapse sidebar (Ctrl+B)" / "Expand sidebar (Ctrl+B)"). The sidebar's width and whether it's collapsed are remembered,
 including after a restart. Drag the sidebar's edge to resize it.
 
 ## Choosing a project and conversation
@@ -148,7 +154,9 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 
 Every tab shows an icon before its title for its kind: a folder tree for
 **Files**, a code or text page for an open file, a terminal for
-**Terminal**, a play button for an Action's output, a lightning bolt for
+**Terminal**, a play button for an Action's output (an amber stop button
+while it runs, red after a failed run, the same tones as the top bar's
+Actions button), a lightning bolt for
 **Actions**, a robot for **Sub agents** and for a sub-agent's conversation,
 an eye for a preview, and a speech bubble for **Agent**. Status markers
 (the unsaved-file dot, the running sub-agent count) sit after the title.
@@ -403,7 +411,10 @@ blue tint): the chat and board, the darkest, are `#0f0f10`; the sidebar
 and the right-hand panel either side are a step up at `#161617`; cards,
 menus and popovers are `#1c1c1e`; with `#ededef` primary
 and `#a1a1a8` secondary text. Corners are smaller than stock: 6px on
-buttons and inputs, 10px on cards, menus and dialogs. App chrome (tabs,
+buttons and inputs, 10px on cards, menus and dialogs. Tooltips are dark
+too, drawn like a popover: the `#1c1c1e` popover background, `#ededef`
+primary text and the popover's low shadow (which in dark mode carries a
+faint 1px light edge), rather than Astryx's stock inverted (light) tooltip. App chrome (tabs,
 sidebar rows and small buttons, pickers and inputs) uses 12px text around
 14px content. The theme lives in `themes/ai-leash/` and is
 changed only through `npx astryx experimental theme editor`. Icons are

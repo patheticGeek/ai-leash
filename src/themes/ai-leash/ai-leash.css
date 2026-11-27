@@ -681,6 +681,12 @@
     --text-supporting-size: 0.875rem;
   }
 
+  .astryx-tooltip {
+    background-color: var(--color-background-popover);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-low);
+  }
+
   .astryx-text[data-color="primary"] { color: var(--color-text-primary); }
 
   .astryx-heading[data-color="primary"] { color: var(--color-text-primary); }

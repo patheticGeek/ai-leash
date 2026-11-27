@@ -17,12 +17,14 @@ import {
   SortableContext,
 } from "@dnd-kit/sortable";
 import * as stylex from "@stylexjs/stylex";
-import { X } from "lucide-react";
+import { Play, X } from "lucide-react";
 import { type ReactNode, useRef, useState, type WheelEvent } from "react";
 import { useSubAgents } from "@/data/subAgents";
 import { defaultThemeSlug, themes } from "../../astryx-themes";
 import { useGenerating } from "../../lib/generatingQuery";
 import { useAppStore, type WorkspaceTab } from "../../store";
+import { RunIcon } from "../actions/RunIcon";
+import { useActions } from "../actions/useActions";
 import { useSortableTab } from "./TabDnd";
 import TopBand from "./TopBand";
 import { tabIcon } from "./tabKinds";
@@ -106,6 +108,17 @@ function scrollStripSideways(e: WheelEvent<HTMLElement>) {
   }
 }
 
+// An Action output tab's icon carries its run state, from the same list the
+// Actions tab and the top bar's split button read: amber Stop while running,
+// red Play after a non-zero exit, plain Play otherwise (`RunIcon`). An id
+// that's no longer defined keeps the kind's plain icon.
+function ActionTabIcon({ actionId }: { actionId: string }) {
+  const { actions } = useActions();
+  const action = actions.find((a) => a.id === actionId);
+  if (!action) return <Icon icon={Play} size="sm" color="secondary" />;
+  return <RunIcon action={action} neutralColor="secondary" />;
+}
+
 // One tab of the strip: its kind's icon, then its title, then any status.
 // A Tab is a <button>, so a close IconButton can't go inside it (a button in
 // a button is invalid) and one beside it breaks the hover pill and the
@@ -168,6 +181,8 @@ function StripTab({
         </HStack>
         <Tooltip anchorRef={closeRef} content={closeLabel} />
       </>
+    ) : tab.kind === "action" && tab.path ? (
+      <ActionTabIcon actionId={tab.path} />
     ) : (
       <Icon icon={tabIcon(tab)} size="sm" color="secondary" />
     );

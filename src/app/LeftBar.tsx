@@ -33,6 +33,7 @@ import { HStack, Stack, StackItem, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
@@ -1183,11 +1184,16 @@ export default function LeftBar({
               {BUILD_LABEL && (
                 <Token size="sm" color="orange" label={BUILD_LABEL} />
               )}
-              <SideNavCollapseButton
-                size="sm"
-                label={withShortcut("Collapse sidebar", "toggleSidebar")}
-                xstyle={styles.collapseButton}
-              />
+              <Tooltip
+                content={withShortcut("Collapse sidebar", "toggleSidebar")}
+                hasHoverIndication={false}
+              >
+                <SideNavCollapseButton
+                  size="sm"
+                  label="Collapse sidebar"
+                  xstyle={styles.collapseButton}
+                />
+              </Tooltip>
             </HStack>
           }
         />

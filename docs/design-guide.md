@@ -58,6 +58,12 @@ Ordered: when two conflict, the earlier one wins.
   rightmost band (the panel's, or the chat's when the panel is closed).
   Empty band space drags the window.
 - New controls for a pane go in its band's end slot, not in a new row.
+- A view with its own toolbar (the board) merges it into the band rather
+  than stacking a second bar: view state and filters after the location
+  crumbs, tools and the primary action at the end, before the layout
+  switch and window controls (`features/board/BoardBand.tsx` portals
+  them in). When the band runs short, fold the icon tools into one ⋯
+  `MoreMenu`, then drop labels; never wrap onto a second line.
 
 ### Colour
 
@@ -68,6 +74,14 @@ Ordered: when two conflict, the earlier one wins.
   cards, Activity): **blue** = an agent is running, **amber** = waiting on
   the user (approval, question), **red** = failed, **green** = done.
   Nothing else gets those colours.
+- Tooltips are popover-coloured (`popover` background, `primary` text,
+  `--shadow-low`), set on the `tooltip` part in the theme, never the stock
+  inverted light chip, which glares on the near-black app. Don't restyle a
+  tooltip per call site.
+- Tab icons carry run status: an Action's output tab tints its icon with
+  `runState`'s tones through the shared `RunIcon` (amber Stop while
+  running, red after a failed run), matching the Actions tab and the top
+  bar's Actions button.
 - One brand gradient, in the logo only. No other gradients or accent
   colours in the app UI.
 

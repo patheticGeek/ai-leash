@@ -12,6 +12,7 @@ import {
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { FolderOpen } from "lucide-react";
+import { BoardBandSlot } from "../features/board/BoardBand";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TabBody } from "../features/tabs/TabContent";
 import { useTabDropArea } from "../features/tabs/TabDnd";
@@ -118,6 +119,8 @@ export default function CenterPanel({
             <>
               {bandStart}
               <LocationCrumbs />
+              {/* The board's task count and epic filter (BoardBand). */}
+              <BoardBandSlot slot="start" />
             </>
           }
           end={<CentreBandEnd />}

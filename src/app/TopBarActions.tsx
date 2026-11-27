@@ -8,7 +8,8 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { ChevronDown, Play, Square } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { RunIcon } from "../features/actions/RunIcon";
 import { runState } from "../features/actions/runState";
 import { useActions } from "../features/actions/useActions";
 import { type ActionSummary, api } from "../lib/tauriApi";
@@ -27,20 +28,6 @@ const styles = stylex.create({
   running: { color: colorVars["--color-text-warning"] },
   failed: { color: colorVars["--color-text-error"] },
 });
-
-// Play, or Stop while running, tinted by the run's state — the same tones
-// the Actions tab's dots use. Always in the leading icon slot, so the icon
-// never moves between states.
-function RunIcon({ action }: { action: ActionSummary }) {
-  const { tone } = runState(action);
-  return (
-    <Icon
-      icon={action.running ? Square : Play}
-      size="sm"
-      color={tone === "neutral" ? "inherit" : tone}
-    />
-  );
-}
 
 function pickCurrent(actions: ActionSummary[]): ActionSummary | null {
   return actions.find((a) => a.lastRun) ?? actions[0] ?? null;
