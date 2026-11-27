@@ -14,6 +14,7 @@ import { useIsBoardView } from "../features/board/useIsBoardView";
 import DebugDevtoolsOverlay from "../features/debug/DebugDevtoolsOverlay";
 import SettingsModal from "../features/settings/SettingsModal";
 import SidePanel from "../features/sidebar/SidePanel";
+import { useAgentOpenFile } from "../features/sidebar/tabs/useAgentOpenFile";
 import { useFsChangeInvalidator } from "../features/sidebar/tabs/useFsDir";
 import { TabContentHost } from "../features/tabs/TabContent";
 import { TabDndProvider } from "../features/tabs/TabDnd";
@@ -68,6 +69,9 @@ function App() {
   // Always on regardless of which sidebar tab is open — see its comment for
   // why this can't just live inside `FileTree`.
   useFsChangeInvalidator();
+  // Always on — the agent's `open_file` tool, for whichever conversation
+  // made the call (see its comment).
+  useAgentOpenFile();
   // Always on regardless of which conversation is open — see its comment
   // for why a single top-level listener replaces what used to be a
   // per-session one.

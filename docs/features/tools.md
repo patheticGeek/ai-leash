@@ -96,6 +96,25 @@ connection as the board tools (`mcp_bridge::server`), since the context it
 was started with (`AI_LEASH_CHAT_CONTEXT`) is a snapshot from connect
 time. It needs no approval.
 
+### Show you a file
+
+The agent can open a file for you in the file viewer of its chat's side
+panel with `open_file` (a path, and optionally a line). It's told to do this
+after writing or reworking a document you should review, such as a spec or a
+plan, so you can read it right there: Markdown opens in its rendered
+Preview (see [Preview Markdown](./editor.md#preview-markdown)); with a line,
+the file opens in Source with that line selected. A sub-agent's call opens
+the file in the panel of the chat that spawned it, and a call from a chat
+you aren't looking at adds the tab to that chat for when you go back to it.
+
+The path must be a file inside the chat's own checkout (its worktree, for a
+task chat); anything outside it is refused. It only shows the file, so it
+needs no approval. The built-in agent and external agents both have it: the
+tool resolves the path against the chat's checkout and emits an
+`agent://open_file` event that the app opens the tab from
+(`tools/open_file.rs`, `useAgentOpenFile`); an external agent's MCP bridge
+relays the call to the app like the board tools.
+
 ### Use project skills
 
 Projects may provide optional skills with specialized instructions. The
@@ -116,7 +135,8 @@ reach for each one: look through the
 project before answering, run long-lived commands such as a development
 server as an Action instead of a one-off command, save lasting preferences to
 memory when you state them, split independent parts of a request across
-sub-agents, and put planned work on the board as tasks. The longer how-tos —
+sub-agents, put planned work on the board as tasks, and open a document it
+wrote for you to review with `open_file`. The longer how-tos —
 [rich replies](./agent-chat.md#rich-replies), [HTML
 previews](./agent-chat.md#html-previews), the board and Actions — are
 [built-in guides](./context-and-memory.md#built-in-guides) the agent reads
@@ -129,7 +149,7 @@ instructions are added after this guidance, so they can refine or override it.
 
 External agents connected over ACP get the same guidance, from the same
 builder, for the AI Leash tools they can reach (Actions, memory, sub-agents,
-the board, `read_guide` and `chat_info`), with the same "This chat" section and guide
+the board, `read_guide`, `chat_info` and `open_file`), with the same "This chat" section and guide
 pointers, when they connect, including a preference for those over their own
 built-in equivalents so the work shows up in the app. Instead of the lists,
 they're told how many Actions and skills exist and which tool lists them
