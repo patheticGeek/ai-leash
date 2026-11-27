@@ -16,7 +16,8 @@ export interface TextEntry {
   // Files/folders the message `@`-mentioned (user messages only) — shown as
   // chips under it. See `lib/mentions.ts`.
   mentions?: string[];
-  // Files attached to it (user messages only) — see `AttachmentChips`.
+  // Files the user attached to it, or images an ACP agent sent in its reply
+  // — see `AttachmentChips`.
   attachments?: Attachment[];
 }
 
@@ -89,6 +90,32 @@ export function appendChunk(prev: Entry[], payload: string): Entry[] {
   return [
     ...withFinishedThinking,
     { kind: "text", role: "assistant", content: payload, time: Date.now() },
+  ];
+}
+
+// An image the agent sent mid-reply (`chat://{id}/attachment`): added to the
+// assistant message being streamed, or one started for it.
+export function appendAttachment(
+  prev: Entry[],
+  attachment: Attachment,
+): Entry[] {
+  const withFinishedThinking = finishThinking(prev);
+  const last = withFinishedThinking[withFinishedThinking.length - 1];
+  if (last && last.kind === "text" && last.role === "assistant") {
+    return [
+      ...withFinishedThinking.slice(0, -1),
+      { ...last, attachments: [...(last.attachments ?? []), attachment] },
+    ];
+  }
+  return [
+    ...withFinishedThinking,
+    {
+      kind: "text",
+      role: "assistant",
+      content: "",
+      time: Date.now(),
+      attachments: [attachment],
+    },
   ];
 }
 
@@ -193,13 +220,16 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
         });
       }
     } else if (message.role === "assistant") {
-      if (message.content) {
+      if (message.content || message.attachments?.length) {
         entries.push({
           kind: "text",
           role: "assistant",
           content: message.content,
           time: message.createdAt * 1000,
           durationSeconds: message.durationSeconds ?? undefined,
+          ...(message.attachments?.length
+            ? { attachments: message.attachments }
+            : {}),
         });
       }
       for (const call of message.toolCalls ?? []) {

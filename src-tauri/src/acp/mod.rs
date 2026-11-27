@@ -1,3 +1,4 @@
+mod attachments;
 mod backend;
 mod discovery;
 pub mod elicitation;

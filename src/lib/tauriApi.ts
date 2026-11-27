@@ -181,6 +181,9 @@ export interface AcpSessionOptions {
   effort: AcpEffortOptions | null;
   mode: AcpModeOptions | null;
   commands: AcpCommandInfo[] | null;
+  // It takes `image` blocks in a prompt (`promptCapabilities.image`);
+  // meaningful once `ready`.
+  images: boolean;
 }
 
 // Payload of the global `permission://request` event — one listener for the

@@ -22,7 +22,9 @@
 //!   when it's at most `BINARY_COPY_CAP`, so it can still be opened.
 //!
 //! Getting attachments to the model is the backends' job: native providers
-//! (#74) and ACP agents (#75) read `ChatMessage::attachments`.
+//! (#74) and ACP agents (`crate::acp::attachments`) read
+//! `ChatMessage::attachments`. An ACP agent's own images come back the
+//! same way, staged onto its assistant message.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -520,8 +522,8 @@ pub fn sweep(db: &crate::db::Db) {
 }
 
 /// Percent-decodes a header value the frontend wrote with
-/// `encodeURIComponent` (headers are ASCII only).
-fn percent_decode(s: &str) -> String {
+/// `encodeURIComponent` (headers are ASCII only), or a `file://` URI path.
+pub fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

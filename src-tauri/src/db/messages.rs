@@ -47,7 +47,8 @@ pub struct PersistedMessage {
     /// The conversation that sent this, when it came from another agent's
     /// chat rather than the user — see `board::messaging`.
     pub from_conversation_id: Option<String>,
-    /// Files attached to a user message — see `crate::attachments`.
+    /// Files attached to a user message, or images an ACP agent sent in an
+    /// assistant one — see `crate::attachments`.
     pub attachments: Vec<Attachment>,
 }
 
@@ -129,6 +130,18 @@ pub fn update_streaming_message(db: &Db, message_id: i64, content: &str) {
     let _ = conn.execute(
         "UPDATE messages SET content = ?1 WHERE id = ?2",
         params![content, message_id],
+    );
+}
+
+/// Sets a streaming message's attachments — the images an ACP agent sent
+/// in its reply (`acp::events`).
+pub fn set_message_attachments(db: &Db, message_id: i64, attachments: &[Attachment]) {
+    let json =
+        (!attachments.is_empty()).then(|| serde_json::to_string(attachments).unwrap_or_default());
+    let conn = db.0.lock().unwrap();
+    let _ = conn.execute(
+        "UPDATE messages SET attachments = ?1 WHERE id = ?2",
+        params![json, message_id],
     );
 }
 

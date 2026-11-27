@@ -1,3 +1,4 @@
+use super::attachments::PromptCaps;
 use super::discovery::{apply_config_options, format_acp_error, mcp_servers_for, ConfigKind};
 use super::elicitation::{bridge_acp_elicitation, cancel_pending_elicitations};
 use super::events::{
@@ -40,12 +41,14 @@ pub(crate) enum AcpCommand {
     /// top-level conversation does. `None` for every ordinary
     /// `AcpBackend::send` call, which has no one to notify beyond those
     /// events.
-    /// The `Vec` is files attached as context (`crate::file_context` —
-    /// `@path` mentions, say), sent as content blocks after the text;
-    /// empty for most prompts.
+    /// The first `Vec` is files attached as context (`crate::file_context`
+    /// — `@path` mentions, say), the second the files the user attached to
+    /// the message (`crate::attachments`); both go as content blocks after
+    /// the text, and are empty for most prompts.
     Prompt(
         String,
         Vec<crate::file_context::FileContext>,
+        Vec<crate::attachments::Attachment>,
         Option<oneshot::Sender<Result<(), String>>>,
     ),
     Cancel,
@@ -63,20 +66,30 @@ pub(crate) enum AcpCommand {
 }
 
 /// A prompt's content blocks: the chat's context block if this is the
-/// connection's first prompt (`FirstPromptContext`), the message text, then
-/// its attached files (`crate::file_context::acp_blocks`).
+/// connection's first prompt (`FirstPromptContext`), the message text, its
+/// `@path` files (`crate::file_context::acp_blocks`), then the files the
+/// user attached (`super::attachments::prompt_blocks`) — each in the
+/// richest form `caps` allows. The text block is left out when it's empty
+/// and there are files to send instead.
 fn prompt_blocks(
     context: Option<String>,
     text: String,
     files: &[crate::file_context::FileContext],
-    embedded_context: bool,
+    attachments: &[crate::attachments::Attachment],
+    caps: PromptCaps,
 ) -> Vec<ContentBlock> {
     let mut blocks: Vec<ContentBlock> = context
         .map(|c| ContentBlock::Text(TextContent::new(c)))
         .into_iter()
         .collect();
-    blocks.push(ContentBlock::Text(TextContent::new(text)));
-    blocks.extend(crate::file_context::acp_blocks(files, embedded_context));
+    let mut file_blocks = crate::file_context::acp_blocks(files, caps.embedded_context);
+    file_blocks.extend(super::attachments::prompt_blocks(attachments, caps));
+    // A message that's only attachments goes as just those, not with an
+    // empty text block in front — unless there's nothing else to send.
+    if !text.trim().is_empty() || file_blocks.is_empty() {
+        blocks.push(ContentBlock::Text(TextContent::new(text)));
+    }
+    blocks.extend(file_blocks);
     blocks
 }
 
@@ -178,6 +191,7 @@ pub(super) fn ensure_acp_session(
             effort_options: None,
             mode_options: None,
             available_commands: None,
+            images: false,
             current_prompt_cancel: Arc::new(StdMutex::new(None)),
         },
     );
@@ -227,6 +241,8 @@ pub struct AcpSessionOptions {
     pub effort: Option<serde_json::Value>,
     pub mode: Option<serde_json::Value>,
     pub commands: Option<serde_json::Value>,
+    /// The agent takes `image` blocks in a prompt (meaningful once `ready`).
+    pub images: bool,
 }
 
 pub(super) fn session_options(state: &AppState, session_id: &str) -> AcpSessionOptions {
@@ -246,6 +262,7 @@ pub(super) fn session_options(state: &AppState, session_id: &str) -> AcpSessionO
         effort: s.effort_options.clone(),
         mode: s.mode_options.clone(),
         commands: s.available_commands.clone(),
+        images: s.images,
     }
 }
 
@@ -544,13 +561,16 @@ async fn drive_acp_connection(
                 AgentBackend::Acp,
             );
             let mcp_servers = mcp_servers_for(&app, &session_id, &cwd, &chat);
-            // Whether `@path` mentions can go as embedded resources (with
-            // their contents) or only as `resource_link`s — see
-            // `prompt_blocks`.
-            let embedded_context = init_response
-                .agent_capabilities
-                .prompt_capabilities
-                .embedded_context;
+            // Whether `@path` mentions and attached files can go as
+            // embedded resources (with their contents) or only as
+            // `resource_link`s, and attached images as `image` blocks — see
+            // `prompt_blocks`. Images are also published (`images` in
+            // `AcpSessionOptions`) so the composer can refuse them.
+            let prompt_capabilities = &init_response.agent_capabilities.prompt_capabilities;
+            let caps = PromptCaps {
+                image: prompt_capabilities.image,
+                embedded_context: prompt_capabilities.embedded_context,
+            };
 
             // Only worth a lookup at all if the agent can actually resume
             // from it — an agent that never advertises `loadSession` would
@@ -703,6 +723,7 @@ async fn drive_acp_connection(
                 s.effort_options = None;
                 s.mode_options = None;
                 apply_config_options(s, &config_options);
+                s.images = caps.image;
                 s.ready = true;
             });
 
@@ -711,7 +732,7 @@ async fn drive_acp_connection(
                 // commands fall through to one shared loop below as
                 // `(kind, value, report_missing)`.
                 let configs: Vec<(ConfigKind, String, bool)> = match cmd {
-                    AcpCommand::Prompt(text, files, done_tx) => {
+                    AcpCommand::Prompt(text, files, attachments, done_tx) => {
                         let context = first_prompt_context.take();
                         emit_acp_debug(
                             &app,
@@ -745,7 +766,7 @@ async fn drive_acp_connection(
                         let prompt_fut = connection
                             .send_request(PromptRequest::new(
                                 acp_session_id.clone(),
-                                prompt_blocks(context, text, &files, embedded_context),
+                                prompt_blocks(context, text, &files, &attachments, caps),
                             ))
                             .block_task();
                         tokio::pin!(prompt_fut);
@@ -919,7 +940,18 @@ mod tests {
         let mut first = FirstPromptContext::new(chat);
         prompts
             .iter()
-            .map(|p| texts(&prompt_blocks(first.take(), p.to_string(), &[], true)))
+            .map(|p| {
+                texts(&prompt_blocks(
+                    first.take(),
+                    p.to_string(),
+                    &[],
+                    &[],
+                    PromptCaps {
+                        image: true,
+                        embedded_context: true,
+                    },
+                ))
+            })
             .collect()
     }
 
@@ -948,5 +980,23 @@ mod tests {
         let after = connection(&chat, &["hi"]);
         assert!(before[0][0].contains("*Add dark mode*"));
         assert!(after[0][0].contains("*Add a dark theme*"));
+    }
+
+    #[test]
+    fn an_attachments_only_message_sends_no_empty_text_block() {
+        let root = std::env::temp_dir().join(format!("al-pb-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let a = crate::attachments::stage_bytes(&root, "notes.md", b"# hi".to_vec()).unwrap();
+        let caps = PromptCaps {
+            image: true,
+            embedded_context: true,
+        };
+        let blocks = prompt_blocks(None, String::new(), &[], &[a], caps);
+        assert_eq!(blocks.len(), 1);
+        assert!(matches!(blocks[0], ContentBlock::Resource(_)));
+        // Nothing to send but the (empty) text: it still goes.
+        let blocks = prompt_blocks(None, String::new(), &[], &[], caps);
+        assert!(matches!(blocks[..], [ContentBlock::Text(_)]));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

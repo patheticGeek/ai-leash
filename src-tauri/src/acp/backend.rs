@@ -127,7 +127,12 @@ impl Backend for AcpBackend {
             // wiped by this.
             rate_limit::clear(app, session_id);
             sender
-                .send(AcpCommand::Prompt(prompt, mentions, None))
+                .send(AcpCommand::Prompt(
+                    prompt,
+                    mentions,
+                    attachments.clone(),
+                    None,
+                ))
                 .map_err(|_| {
                     "ACP agent process is no longer running; send another message to restart it."
                         .to_string()
@@ -143,8 +148,8 @@ impl Backend for AcpBackend {
                     role: "user".into(),
                     content: stored,
                     tool_calls: None,
-                    // Stored with the message for the transcript; sending
-                    // them to the agent as content blocks is #75.
+                    // Sent to the agent as content blocks too (see
+                    // `acp::attachments`).
                     attachments,
                 },
             );
@@ -167,7 +172,7 @@ impl Backend for AcpBackend {
             // A woken turn ends the pending limit (and its live banner).
             rate_limit::clear(app, session_id);
             self.connect_with_picks(app, session_id)
-                .send(AcpCommand::Prompt(prompt, vec![], None))
+                .send(AcpCommand::Prompt(prompt, vec![], vec![], None))
                 .map_err(|_| "ACP agent process is no longer running.".to_string())
         })
     }
@@ -212,6 +217,7 @@ impl Backend for AcpBackend {
             sender
                 .send(AcpCommand::Prompt(
                     prompt.to_string(),
+                    vec![],
                     vec![],
                     Some(done_tx),
                 ))
@@ -303,6 +309,7 @@ impl Backend for AcpBackend {
                     "[Sub-agent \"{}\" finished]\n\n{}",
                     result.description, result.result
                 ),
+                vec![],
                 vec![],
                 None,
             ));

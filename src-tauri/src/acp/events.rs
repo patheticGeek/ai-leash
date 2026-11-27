@@ -109,6 +109,9 @@ pub(super) struct TurnSegment {
     role: SegmentRole,
     message_id: Option<i64>,
     buffer: String,
+    /// Images the agent sent in this run (`ContentBlock::Image`), staged
+    /// and stored as the message's attachments.
+    attachments: Vec<crate::attachments::Attachment>,
     /// Throttles the run's live writes to its DB row (see `StreamingWrite`).
     write: db::StreamingWrite,
     /// Only for `Drop`'s final flush.
@@ -146,14 +149,14 @@ fn close_segment_locked(app: &AppHandle, session_id: &str, slot: &mut Option<Tur
     let Some(mut seg) = slot.take() else { return };
     let state = app.state::<AppState>();
     seg.write.flush(&state.db, &seg.buffer);
-    if seg.buffer.is_empty() || seg.role != SegmentRole::Assistant {
+    if (seg.buffer.is_empty() && seg.attachments.is_empty()) || seg.role != SegmentRole::Assistant {
         return;
     }
     let message = ChatMessage {
         role: "assistant".into(),
         content: std::mem::take(&mut seg.buffer),
         tool_calls: None,
-        attachments: Vec::new(),
+        attachments: std::mem::take(&mut seg.attachments),
     };
     match seg.message_id {
         Some(_) => chat::remember_in_memory(&state, session_id, message),
@@ -188,6 +191,7 @@ fn push_segment_chunk(
             role,
             message_id,
             buffer: String::new(),
+            attachments: Vec::new(),
             write: db::StreamingWrite::new(message_id),
             app: app.clone(),
         });
@@ -196,6 +200,31 @@ fn push_segment_chunk(
     seg.buffer.push_str(text);
     let state = app.state::<AppState>();
     seg.write.update(&state.db, &seg.buffer);
+}
+
+/// Adds an image the agent sent to the open assistant run (starting one if
+/// need be), staged as an attachment (`super::attachments::stage_agent_image`)
+/// and saved on the run's row; the frontend gets it on
+/// `chat://{session_id}/attachment` and shows it under the message.
+fn push_segment_image(
+    app: &AppHandle,
+    session_id: &str,
+    current: &CurrentSegment,
+    image: &agent_client_protocol::schema::v1::ImageContent,
+) {
+    let Some(attachment) = super::attachments::stage_agent_image(image) else {
+        return;
+    };
+    push_segment_chunk(app, session_id, current, SegmentRole::Assistant, "");
+    let mut slot = current.lock().unwrap();
+    let Some(seg) = slot.as_mut() else { return };
+    seg.attachments.push(attachment.clone());
+    if let Some(id) = seg.message_id {
+        let state = app.state::<AppState>();
+        db::set_message_attachments(&state.db, id, &seg.attachments);
+    }
+    drop(slot);
+    let _ = app.emit(&format!("chat://{session_id}/attachment"), &attachment);
 }
 
 /// Set for the duration of a `session/load` call — the agent replays a
@@ -235,6 +264,10 @@ pub(super) fn handle_session_notification(
     }
     match update {
         SessionUpdate::AgentMessageChunk(chunk) => {
+            if let ContentBlock::Image(image) = &chunk.content {
+                push_segment_image(app, session_id, current_segment, image);
+                return;
+            }
             if let ContentBlock::Text(text) = chunk.content {
                 // A usage-limit notice gets a message of its own; the
                 // banner itself comes from the prompt's error.
@@ -492,6 +525,7 @@ pub(super) fn summarize_tool_call_content(content: &[ToolCallContent]) -> String
         .map(|item| match item {
             ToolCallContent::Content(c) => match &c.content {
                 ContentBlock::Text(t) => t.text.clone(),
+                ContentBlock::Image(i) => format!("[image: {}]", i.mime_type),
                 _ => "[non-text content]".to_string(),
             },
             ToolCallContent::Diff(d) => format!("Modified {}", d.path.display()),

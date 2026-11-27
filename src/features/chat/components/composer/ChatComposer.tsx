@@ -224,7 +224,11 @@ export default function ChatComposer({
   );
   // Files attached in the box — pasted, dropped anywhere on the dock, or
   // picked with the attach button.
-  const attach = useAttachments(dockRef, onError);
+  const attach = useAttachments(
+    dockRef,
+    onError,
+    session.imagesUnsupportedReason,
+  );
   // `sending` as of now, for after an await.
   const sendingRef = useRef(sending);
   useEffect(() => {
@@ -591,7 +595,11 @@ export default function ChatComposer({
                   onClick={() =>
                     void attach.pickFiles().catch((e) => onError(String(e)))
                   }
-                  tooltip="Attach images or files from anywhere (or paste or drop them here)"
+                  tooltip={
+                    session.imagesUnsupportedReason
+                      ? `Attach files from anywhere (or paste or drop them here). No images: ${session.imagesUnsupportedReason}`
+                      : "Attach images or files from anywhere (or paste or drop them here)"
+                  }
                 />
                 <ChatToolbar
                   backendOptions={session.backendOptions}
