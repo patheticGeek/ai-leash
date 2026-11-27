@@ -25,7 +25,6 @@ import {
 } from "@astryxdesign/core/SideNav";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
-import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
@@ -40,8 +39,8 @@ import * as stylex from "@stylexjs/stylex";
 import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
-  BellDot,
   Check,
+  CircleQuestionMark,
   Folder,
   FolderMinus,
   FolderPlus,
@@ -84,12 +83,6 @@ import DeleteConversationDialog from "./DeleteConversationDialog";
 import { pickAndAddProject, startNewThread } from "./projectActions";
 import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
-
-const pulse = stylex.keyframes({
-  "0%": { opacity: 1 },
-  "50%": { opacity: 0.4 },
-  "100%": { opacity: 1 },
-});
 
 const styles = stylex.create({
   // The hairline between the sidebar and the rest of the window, full
@@ -215,21 +208,17 @@ const styles = stylex.create({
   // row's label colour (the ⋯ is outside the Item, so the Item can't).
   revealRow: { position: "relative" },
   revealEnd: { position: "absolute", insetInlineEnd: 0 },
-  // The working spinner and timer, in the theme's blue (its accent is
-  // neutral, so `color="accent"` would be white); the Spinner and Text take
-  // it through `shade="inherit"` / `color="inherit"`. Never shrinks, so the
-  // timer stays on one line and only the title gives way.
+  // The working timer, in the theme's blue (its accent is neutral, so
+  // `color="accent"` would be white). Never shrinks, so it stays on one line
+  // and only the title gives way.
   working: { color: colorVars["--color-text-blue"], flexShrink: 0 },
   attention: { flexShrink: 0, display: "inline-flex" },
-  // The pending-approval icon's pulse, like StatusDot's `isPulsing`.
-  attentionPulse: {
-    animationName: {
-      default: pulse,
-      "@media (prefers-reduced-motion: reduce)": "none",
-    },
-    animationDuration: "2s",
-    animationIterationCount: "infinite",
-    animationTimingFunction: "ease-in-out",
+  // A nested side-nav row is indented one `--spacing-6` step, the width of
+  // the parent's icon plus the row's gap (16px + `--spacing-2`); pulling the
+  // icon back by that puts it in the indent, under the folder icon, and
+  // leaves the title where it was.
+  attentionInIndent: {
+    marginInlineStart: `calc(-1 * ${spacingVars["--spacing-6"]})`,
   },
 });
 
@@ -258,116 +247,66 @@ function RevealedActions({
   );
 }
 
-// How long the row's turn has been running, next to its spinner. Ticks its
-// own clock (like `WorkingForIndicator`) so only this label re-renders each
-// second, and reads the same cross-remount `startedAtMs` the chat's "Working
-// for" footer does, so the two agree.
-function ElapsedTime({ startedAtMs }: { startedAtMs: number }) {
+// How long the row's turn has been running, in blue at the row's end (the
+// row's only working indicator). Ticks its own clock (like
+// `WorkingForIndicator`) so only this label re-renders each second, and
+// reads the same cross-remount `startedAtMs` the chat's "Working for" footer
+// does, so the two agree.
+function ElapsedTime({ conversationId }: { conversationId: string }) {
+  const { active, startedAtMs } = useGenerating(conversationId);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [active]);
 
+  if (!active || startedAtMs == null) return null;
   return (
-    <Text type="supporting" color="inherit" textWrap="nowrap" hasTabularNumbers>
+    <Text
+      type="supporting"
+      textWrap="nowrap"
+      hasTabularNumbers
+      xstyle={styles.working}
+    >
       {formatDuration((now - startedAtMs) / 1000)}
     </Text>
   );
 }
 
-// A warning icon saying what the chat needs from the user, right after the
-// flat row's title (where a dot alone would be easy to miss).
-function AttentionIcon({
-  icon,
-  label,
-  tooltip,
-  isPulsing = false,
-}: {
-  icon: typeof ShieldAlert;
-  label: string;
-  tooltip: string;
-  isPulsing?: boolean;
-}) {
-  return (
-    <Tooltip content={tooltip} hasHoverIndication={false}>
-      <HStack
-        as="span"
-        xstyle={[styles.attention, isPulsing && styles.attentionPulse]}
-      >
-        <Icon icon={icon} size="sm" color="warning" label={label} />
-      </HStack>
-    </Tooltip>
-  );
-}
-
-// A chat row's status: while the agent waits on the user, a warning marker
-// (pulsing for an approval) — an icon after the title in the flat layout
-// (`hasIcon`), the side nav's dot in the end slot in the grouped one; else
-// the elapsed time and a spinner, in blue, while it works. It stays whole
-// while the row's ⋯ shows; only the title gives way.
-function ChatStatus({
+// A warning icon at the start of a chat row saying what the chat needs from
+// the user: a shield for an approval, a question mark for a question. In
+// the grouped layout it sits in the row's nesting indent (`inIndent`), under
+// the project's folder icon, so the title doesn't move.
+function ChatAttention({
   conversationId,
-  hasIcon = false,
+  inIndent = false,
 }: {
   conversationId: string;
-  hasIcon?: boolean;
+  inIndent?: boolean;
 }) {
-  const { active: generating, startedAtMs } = useGenerating(conversationId);
   const awaitingApproval = useAppStore(
     (s) => !!permissionForSession(s.pendingPermissions, conversationId),
   );
   const awaitingAnswer = useAppStore(
     (s) => !!elicitationForSession(s.pendingElicitations, conversationId),
   );
-  if (awaitingApproval) {
-    if (hasIcon) {
-      return (
-        <AttentionIcon
-          icon={ShieldAlert}
-          isPulsing
-          label="Needs approval"
-          tooltip="Waiting for you to approve an action"
-        />
-      );
-    }
-    return (
-      <StatusDot
-        variant="warning"
-        isPulsing
-        label="Needs approval"
-        tooltip="Waiting for you to approve an action"
-      />
-    );
-  }
-  if (awaitingAnswer) {
-    if (hasIcon) {
-      return (
-        <AttentionIcon
-          icon={BellDot}
-          label="Has a question"
-          tooltip="Waiting for your answer"
-        />
-      );
-    }
-    return (
-      <StatusDot
-        variant="warning"
-        label="Has a question"
-        tooltip="Waiting for your answer"
-      />
-    );
-  }
-  if (generating) {
-    return (
-      <HStack gap={1.5} vAlign="center" xstyle={styles.working}>
-        {startedAtMs != null && <ElapsedTime startedAtMs={startedAtMs} />}
-        <Spinner size="sm" shade="inherit" aria-label="Working" />
+  if (!awaitingApproval && !awaitingAnswer) return null;
+  const [icon, label, tooltip] = awaitingApproval
+    ? [ShieldAlert, "Needs approval", "Waiting for you to approve an action"]
+    : [CircleQuestionMark, "Has a question", "Waiting for your answer"];
+  return (
+    <Tooltip content={tooltip} hasHoverIndication={false}>
+      <HStack
+        as="span"
+        xstyle={[styles.attention, inIndent && styles.attentionInIndent]}
+      >
+        <Icon icon={icon} size="sm" color="warning" label={label} />
       </HStack>
-    );
-  }
-  return null;
+    </Tooltip>
+  );
 }
 
 // A sidebar row with its options in a `MoreMenu` revealed on hover/focus
@@ -489,12 +428,7 @@ function ConversationRow({
       ]}
     >
       {({ actions, isRevealed }) => {
-        const status = (
-          <ChatStatus
-            conversationId={conversation.id}
-            hasIcon={hasProjectLine}
-          />
-        );
+        const status = <ElapsedTime conversationId={conversation.id} />;
         return hasProjectLine ? (
           <>
             <Item
@@ -507,6 +441,7 @@ function ConversationRow({
               // truncates for them and the second line keeps the full width.
               label={
                 <HStack gap={1.5} vAlign="center">
+                  <ChatAttention conversationId={conversation.id} />
                   <Text
                     weight="medium"
                     maxLines={1}
@@ -562,6 +497,7 @@ function ConversationRow({
         ) : (
           <SideNavItem
             label={conversationLabel(conversation)}
+            icon={<ChatAttention conversationId={conversation.id} inIndent />}
             isSelected={isSelected}
             onClick={onClick}
             endContent={status}
