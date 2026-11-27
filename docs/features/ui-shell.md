@@ -87,16 +87,20 @@ Click it to open it and see the most recent ones (**Show all** lists the rest), 
 conversation's menu to mark it as not done. Each conversation has a **⋯**
 menu that appears when you point at it (or right-click it), with **Mark as
 done** and **Delete conversation**. Titles use the whole row; while you
-point at a chat, its **⋯** takes the place of its status. **Settings** sits at the bottom of the
+point at a chat, its **⋯** appears after its timer, which stays whole and
+clear of the button; only the title gets shorter. **Settings** sits at the bottom of the
 sidebar, with **Done** pinned just above it. The **Projects** and **Chats**
 titles stay in place; only the lists under them scroll, with a fade at an edge
 while there's more out of view that way.
 
 The sidebar can show activity while you are viewing another conversation. A
-spinner means the agent is still processing that conversation; the time next
-to it is how long the current turn has been running. An amber dot means that
-conversation is waiting for you: pulsing to approve a requested action, or
-steady when the agent has asked you a question. Switch to it to answer; see
+blue timer at the end of a chat's row means the agent is still processing it;
+it shows how long the current turn has been running and stays on one line. An
+amber icon at the start of the row means that conversation is waiting for
+you: a shield to approve a requested action, or a question mark when the
+agent has asked you a question. When chats are grouped by project it sits in the
+row's indent, under the project's folder icon, so the title doesn't move.
+Point at it to see what's needed. Switch to it to answer; see
 [Permissions](./tools.md#why-permission-prompts-appear) for more about approvals.
 
 ## The chat area
