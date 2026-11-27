@@ -1,9 +1,5 @@
-import {
-  SegmentedControl,
-  SegmentedControlItem,
-} from "@astryxdesign/core/SegmentedControl";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { VStack } from "@astryxdesign/core/Stack";
-import { Toolbar } from "@astryxdesign/core/Toolbar";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
@@ -42,7 +38,20 @@ import {
 } from "../../review/reviewEditor";
 
 const styles = stylex.create({
-  host: { height: "100%", minHeight: 0, overflow: "hidden" },
+  host: {
+    position: "relative",
+    height: "100%",
+    minHeight: 0,
+    overflow: "hidden",
+  },
+  // The Preview/Source switch floats over the content's top-right corner,
+  // clear of its scrollbar, rather than taking a toolbar row.
+  toggle: {
+    position: "absolute",
+    top: spacingVars["--spacing-2"],
+    right: spacingVars["--spacing-4"],
+    zIndex: 1,
+  },
   pane: { flexGrow: 1, flexBasis: 0, minHeight: 0, overflow: "hidden" },
   // Kept mounted while the Preview shows, so its cursor, undo history and
   // review threads survive the switch.
@@ -371,32 +380,6 @@ export default function FileEditorTab({ path }: { path: string }) {
 
   return (
     <VStack onKeyDown={onKeyDown} xstyle={styles.host}>
-      {isMarkdown && (
-        <Toolbar
-          label="Markdown view"
-          size="sm"
-          dividers={["bottom"]}
-          endContent={
-            <SegmentedControl
-              label="Show"
-              size="sm"
-              value={mode}
-              onChange={switchView}
-            >
-              <SegmentedControlItem
-                value="preview"
-                label="Preview"
-                icon={<Eye size={13} />}
-              />
-              <SegmentedControlItem
-                value="source"
-                label="Source"
-                icon={<Code size={13} />}
-              />
-            </SegmentedControl>
-          }
-        />
-      )}
       <VStack
         ref={containerRef}
         xstyle={[styles.pane, mode === "preview" && styles.hidden]}
@@ -412,6 +395,20 @@ export default function FileEditorTab({ path }: { path: string }) {
           xstyle={styles.preview}
         >
           <Markdown content={activeFile.content} isDocument />
+        </VStack>
+      )}
+      {isMarkdown && (
+        <VStack xstyle={styles.toggle}>
+          <IconButton
+            size="sm"
+            elevation="low"
+            label={mode === "preview" ? "Show source" : "Show preview"}
+            tooltip={mode === "preview" ? "Show source" : "Show preview"}
+            icon={mode === "preview" ? <Code size={13} /> : <Eye size={13} />}
+            onClick={() =>
+              switchView(mode === "preview" ? "source" : "preview")
+            }
+          />
         </VStack>
       )}
     </VStack>
