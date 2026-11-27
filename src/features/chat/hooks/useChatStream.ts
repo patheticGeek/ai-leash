@@ -103,7 +103,6 @@ export function useChatStream(
   sessionId: string | null,
   setError: (message: string) => void,
 ) {
-  const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSubAgentEntries = useAppStore((s) => s.setSubAgentEntries);
 
   // The transcript `openConversation` already fetched while switching here,
@@ -404,10 +403,6 @@ export function useChatStream(
           ]),
         );
         setSubAgentEntries(subSessionId, () => [promptEntry]);
-        // Surface the running sub-agent immediately rather than leaving the
-        // user to notice it under a collapsed tool-call entry.
-        openPanelTab("subagents");
-
         // Its status (running → done/error) isn't tracked here: the Sub
         // Agents list is a query (`useSubAgents`) refreshed by the global
         // `agent://lifecycle` event, which can't be missed the way a
@@ -455,7 +450,7 @@ export function useChatStream(
         u.then((f) => f());
       });
     };
-  }, [sessionId, openPanelTab, setSubAgentEntries, setError]);
+  }, [sessionId, setSubAgentEntries, setError]);
 
   // Resolves once `id`'s listeners are registered — awaited by a new
   // thread's first send, made in the same tick its id is minted, before

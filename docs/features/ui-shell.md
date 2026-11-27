@@ -95,7 +95,9 @@ while there's more out of view that way.
 
 The sidebar can show activity while you are viewing another conversation. A
 blue timer at the end of a chat's row means the agent is still processing it;
-it shows how long the current turn has been running and stays on one line. An
+it shows how long the current turn has been running, stays on one line, and
+is one type-scale step (12px) smaller than the chat's 14px title, in both the
+flat and the grouped layout. An
 amber icon at the start of the row means that conversation is waiting for
 you: a shield to approve a requested action, or a question mark when the
 agent has asked you a question. When chats are grouped by project it sits in the
