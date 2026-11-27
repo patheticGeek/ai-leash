@@ -236,7 +236,8 @@ conversation, and it's remembered after a restart.
 Anything that opens a tool tab opens the panel again if it's closed:
 opening a file from the tree, a file chip in the chat or the review drawer,
 **Open in a new terminal** on a code block, running an Action, the
-**Sub agents** banner, **Ctrl+1** to **Ctrl+4** and the command palette.
+**Sub agents** banner, **Ctrl+1** to **Ctrl+4**, the command palette, and
+an agent's `open_file` tool showing you a file in the chat you're viewing.
 Tabs dragged into the chat area stay where they are. In code the flag is
 `sidePanelOpen` in `store/panelSlice.ts` (`setSidePanelOpen`), saved under
 `LS_KEYS.sidePanelOpen`; `openPanelTab` and `activateTab` set it whenever
