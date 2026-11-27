@@ -9,7 +9,8 @@ use tauri::{AppHandle, State};
 /// `model`/`effort`/`agent_mode` are the conversation's choice — an ACP
 /// agent applies them itself if this send is what starts its connection
 /// (see `AcpBackend::send`); a native backend also remembers `model` as the
-/// one to start with next time. `take_over`: the user chose to take this
+/// one to start with next time. `attachments`: ids of files staged in the
+/// composer (see `crate::attachments`), sent with the message. `take_over`: the user chose to take this
 /// chat over from the project chat, if it's a task it follows (see
 /// `board::messaging::on_user_message`); otherwise it stays followed.
 #[tauri::command]
@@ -23,8 +24,13 @@ pub async fn send_prompt(
     effort: Option<String>,
     agent_mode: Option<String>,
     message: String,
+    attachments: Option<Vec<String>>,
     take_over: bool,
 ) -> Result<(), String> {
+    let attachments = crate::attachments::load_all(
+        &crate::attachments::root(),
+        &attachments.unwrap_or_default(),
+    )?;
     let backend = registry::resolve(
         &state,
         &backend_id,
@@ -36,7 +42,7 @@ pub async fn send_prompt(
     if take_over {
         crate::board::messaging::on_user_message(&app, &session_id);
     }
-    backend.send(&app, &session_id, message).await
+    backend.send(&app, &session_id, message, attachments).await
 }
 
 /// Answers the last user message again from scratch — see

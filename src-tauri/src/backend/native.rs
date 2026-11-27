@@ -3,6 +3,7 @@
 //! turn and runs the tools itself.
 
 use super::{Backend, BoxFuture, Capabilities, TaskResult};
+use crate::attachments::Attachment;
 use crate::chat;
 use crate::provider::ProviderConfig;
 use crate::state::AppState;
@@ -31,6 +32,7 @@ impl Backend for NativeBackend {
         app: &'a AppHandle,
         session_id: &'a str,
         message: String,
+        attachments: Vec<Attachment>,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let state = app.state::<AppState>();
@@ -49,6 +51,9 @@ impl Backend for NativeBackend {
                     role: "user".into(),
                     content,
                     tool_calls: None,
+                    // Stored with the message (and kept in history); each
+                    // provider turns them into its own content parts (#74).
+                    attachments,
                 },
             );
             chat::run_turn(app, &state, session_id, self, false).await

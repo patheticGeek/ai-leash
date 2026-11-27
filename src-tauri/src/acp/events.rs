@@ -153,6 +153,7 @@ fn close_segment_locked(app: &AppHandle, session_id: &str, slot: &mut Option<Tur
         role: "assistant".into(),
         content: std::mem::take(&mut seg.buffer),
         tool_calls: None,
+        attachments: Vec::new(),
     };
     match seg.message_id {
         Some(_) => chat::remember_in_memory(&state, session_id, message),
@@ -465,6 +466,7 @@ fn persist_tool_call(
                     arguments: raw_input.clone().unwrap_or(serde_json::Value::Null),
                 },
             }]),
+            attachments: Vec::new(),
         },
     );
 }
@@ -479,6 +481,7 @@ fn persist_tool_result(app: &AppHandle, session_id: &str, result: &str) {
             role: "tool".into(),
             content: result.to_string(),
             tool_calls: None,
+            attachments: Vec::new(),
         },
     );
 }

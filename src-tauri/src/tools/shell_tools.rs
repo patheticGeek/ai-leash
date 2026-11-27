@@ -97,6 +97,7 @@ pub async fn run_shell_command(
                     arguments: arguments.clone(),
                 },
             }]),
+            attachments: Vec::new(),
         },
     );
     let _ = app.emit(
@@ -111,6 +112,7 @@ pub async fn run_shell_command(
             role: "tool".into(),
             content: result.clone(),
             tool_calls: None,
+            attachments: Vec::new(),
         },
     );
     let _ = app.emit(

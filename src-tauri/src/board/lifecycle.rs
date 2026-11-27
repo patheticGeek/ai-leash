@@ -277,7 +277,7 @@ pub(crate) fn start(
     tauri::async_runtime::spawn(async move {
         let _ = app.emit(&format!("chat://{id}/user_message"), &prompt);
         // A failure shows on the conversation's own error event.
-        let _ = backend.send(&app, &id, prompt).await;
+        let _ = backend.send(&app, &id, prompt, Vec::new()).await;
     });
     Ok(conversation_id)
 }

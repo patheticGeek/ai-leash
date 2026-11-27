@@ -928,6 +928,7 @@ mod tests {
                 role: "user".into(),
                 content: "hi".into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
         set_task_conversation(&db, &a.id, Some("chat"), true);

@@ -46,23 +46,15 @@ export function useStickToEnd<
     let intentUntil = 0;
     let pointerHeld = false;
     let catchUp = 0;
+    let intentFrame = 0;
     // While the user is mid-gesture, don't yank the view back to the end
     // before their scroll-up has had a chance to register as one.
     const userScrolling = () => pointerHeld || performance.now() < intentUntil;
-    const follow = () => {
-      if (stuck.current && !userScrolling()) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    };
-    // A resize skipped mid-gesture is caught up on once the gesture ends,
-    // in case it was the last one (the reply finished meanwhile).
-    const markIntent = () => {
-      intentUntil = performance.now() + INTENT_MS;
-      window.clearTimeout(catchUp);
-      catchUp = window.setTimeout(follow, INTENT_MS + 16);
-    };
-
-    const onScroll = () => {
+    // Where the viewport is now, as `onScroll` sees it. Also run before
+    // following: a scroll's event is only dispatched at the next rendering
+    // step, so a timer or ResizeObserver callback can run between the user's
+    // scroll-up and its event, and must not pin the view back over it.
+    const noteScroll = () => {
       const top = viewport.scrollTop;
       const distance = viewport.scrollHeight - viewport.clientHeight - top;
       setAtEnd(distance <= END_THRESHOLD);
@@ -72,6 +64,31 @@ export function useStickToEnd<
       else if (top < lastTop && userScrolling()) stuck.current = false;
       lastTop = top;
     };
+    const follow = () => {
+      noteScroll();
+      if (stuck.current && !userScrolling()) {
+        viewport.scrollTop = viewport.scrollHeight;
+        lastTop = viewport.scrollTop;
+      }
+    };
+    // A resize skipped mid-gesture is caught up on once the gesture ends,
+    // in case it was the last one (the reply finished meanwhile). The
+    // window is counted from the next frame, not from the input: a long
+    // main-thread task in between (a transcript re-rendering as images
+    // load, measured at ~250ms per pass in a long chat) used to use up the
+    // whole window before the scroll-up's event was even dispatched, so it
+    // didn't count as the user's and the view was pinned back to the end.
+    const markIntent = () => {
+      intentUntil = Number.POSITIVE_INFINITY;
+      window.clearTimeout(catchUp);
+      cancelAnimationFrame(intentFrame);
+      intentFrame = requestAnimationFrame(() => {
+        intentUntil = performance.now() + INTENT_MS;
+        catchUp = window.setTimeout(follow, INTENT_MS + 16);
+      });
+    };
+
+    const onScroll = noteScroll;
     const onWheel = (e: WheelEvent) => {
       if (e.deltaY < 0) markIntent();
     };
@@ -101,6 +118,7 @@ export function useStickToEnd<
     return () => {
       observer.disconnect();
       window.clearTimeout(catchUp);
+      cancelAnimationFrame(intentFrame);
       viewport.removeEventListener("scroll", onScroll);
       viewport.removeEventListener("wheel", onWheel);
       viewport.removeEventListener("touchmove", markIntent);

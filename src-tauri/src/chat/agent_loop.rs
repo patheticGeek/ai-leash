@@ -197,6 +197,7 @@ pub(super) async fn run_agent_loop(
             role: "assistant".into(),
             content: turn.content,
             tool_calls: turn.tool_calls.clone(),
+            attachments: Vec::new(),
         };
         match assistant_message_id {
             Some(id) => {
@@ -273,6 +274,7 @@ pub(super) async fn run_agent_loop(
                     role: "tool".into(),
                     content: result,
                     tool_calls: None,
+                    attachments: Vec::new(),
                 },
             );
         }
@@ -318,6 +320,7 @@ fn refresh_system_prompt(
                 role: "system".into(),
                 content,
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         ),
         (false, None) => {}

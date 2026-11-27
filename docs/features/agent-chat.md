@@ -520,6 +520,78 @@ built-in agent, `acp_blocks` for ACP), which any feature that attaches files
 to a prompt should use. The frontend side (`src/lib/mentions.ts`,
 `useMentionPicker`, `MentionMenu`) mirrors the slash-command menu.
 
+## Attach images and files
+
+`@` mentions only reach files inside the working directory. To add anything
+else, such as a screenshot, a log from elsewhere on disk or a file from your
+Downloads folder, attach it:
+
+- **Paste** into the message box: an image on the clipboard, or files copied
+  in your file manager.
+- **Drop** files from the OS anywhere on the message box's dock.
+- Select the **paperclip** button in the box's footer to choose files in the
+  system file dialog.
+
+Attached files show in the drawer at the top of the box before you send:
+images as thumbnails, other files as a chip with their name and size. Each
+has a remove button. You can send a message that has attachments and no
+text. The same chips show under the sent message. Select an image to view it
+in a lightbox with zoom that steps through the message's images. The window
+dims, and the image shows at up to its natural size, within a box of
+`max(70vw, min(92vw, 720px))` by `max(90vh, min(96vh, 560px))` including
+its caption. The viewer opens at once; an image whose bytes haven't loaded
+yet says so in its caption, and one that can't be read (its stored copy is
+gone, say) shows the error there instead. Select a file to **Open** it with the system's default app, or **Show in
+folder** to reveal it in the file manager. A file's tooltip shows its
+original path and size.
+
+Each attachment is one of three kinds, decided from its bytes:
+
+- **Image** (PNG, JPEG, WebP, GIF): an image over 2048 px on its long edge or
+  over 5 MB is downscaled and re-encoded until it fits 5 MB. A GIF is never
+  re-encoded, so one over 5 MB is refused.
+- **Text**: anything that decodes as UTF-8, such as source, logs, Markdown,
+  JSON or CSV. Only the first 1 MB is kept, and the chip turns yellow with a
+  warning when the file was longer.
+- **Binary**: anything else is kept as a reference (path, mime type and size)
+  without its contents. It's copied when it's 50 MB or smaller, so you can
+  still open it later.
+
+Each file is copied into the app's own `attachments` folder (next to the
+database, under `~/.config/ai-leash`) the moment you add it, so the transcript
+keeps working after the original moves or is deleted. A pasted image has no
+path, so that copy is all there is.
+
+How the agent receives attachments depends on its backend. Native providers
+are covered by #74 and ACP agents by #75. Until those land, attachments are
+stored and shown with the message but not sent to the model.
+
+Under the hood, `src-tauri/src/attachments.rs` stages each file as
+`<attachments>/<id>/` (the copy plus a `meta.json` holding its `Attachment`).
+It does this through `stage_attachment_path` or `stage_attachment_bytes`; the
+latter takes the raw file as the request body, with the name in an
+`x-attachment-name` header. `send_prompt` takes the staged ids, loads them
+and passes them to `Backend::send`. They're stored with the user message as
+`ChatMessage::attachments`, in the `messages.attachments` JSON column, and
+returned on `PersistedMessage`. That field isn't serialized into a provider
+request: each provider builds its own content parts from it. At startup,
+`attachments::sweep` removes staged attachments that no message references
+and that are more than a day old (removed chips, deleted conversations).
+Thumbnails and the viewer load an image's stored copy over Tauri's asset
+protocol (`convertFileSrc(storedPath)`), so the webview loads, decodes and
+caches it natively and both share one URL. The protocol is on in
+`tauri.conf.json` with an empty scope; `lib.rs`'s setup allows only
+`attachments::root()`, so nothing else on disk is reachable through it. The
+URL is in the `<img>` from the first render, and the thumbnail's 64×64 box is
+fixed from the start, so nothing in the transcript changes height as images
+load. A background `decode()` turns a failed read into an error in the
+chip's tooltip and the viewer's caption.
+`open_attachment` opens or reveals the file (the original when revealing, if
+it still exists, else the copy). On the frontend, `useAttachments` owns the
+composer's list along with paste, drop (Tauri's `onDragDropEvent`, hit-tested
+against the dock) and the dialog. `AttachmentChips` renders the chips in both
+places. Queued messages carry their attachments too.
+
 ## Send a code review
 
 You can review the agent's work like a pull request. In a file tab, hover the

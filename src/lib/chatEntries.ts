@@ -1,5 +1,5 @@
 import { splitMentions } from "./mentions";
-import type { PersistedMessage } from "./tauriApi";
+import type { Attachment, PersistedMessage } from "./tauriApi";
 
 export interface TextEntry {
   kind: "text";
@@ -16,6 +16,8 @@ export interface TextEntry {
   // Files/folders the message `@`-mentioned (user messages only) — shown as
   // chips under it. See `lib/mentions.ts`.
   mentions?: string[];
+  // Files attached to it (user messages only) — see `AttachmentChips`.
+  attachments?: Attachment[];
 }
 
 // A note another conversation left without waking this one — a task's
@@ -167,6 +169,9 @@ export function messagesToEntries(messages: PersistedMessage[]): Entry[] {
         role: "user",
         content: text,
         ...(mentions.length > 0 ? { mentions } : {}),
+        ...(message.attachments?.length
+          ? { attachments: message.attachments }
+          : {}),
         time: message.createdAt * 1000,
         ...(message.fromConversationId
           ? { from: message.fromConversationId }

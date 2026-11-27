@@ -3,7 +3,7 @@ import {
   type BackendCapabilities,
   type BackendKind,
 } from "../../data/backends";
-import { api, type BackendConfig } from "../../lib/tauriApi";
+import { type Attachment, api, type BackendConfig } from "../../lib/tauriApi";
 
 // Whoever answers this conversation, as one object: what it can do (`caps`)
 // and how to talk to it. Built by `useChatSession`; the chat panel, composer
@@ -20,7 +20,12 @@ export interface ChatBackend {
   // switched on.
   ready: boolean;
   // `takeOver`: see `api.sendPrompt`.
-  send(sessionId: string, message: string, takeOver: boolean): Promise<void>;
+  send(
+    sessionId: string,
+    message: string,
+    attachments: Attachment[],
+    takeOver: boolean,
+  ): Promise<void>;
   // Only when `caps.retry`.
   retry(sessionId: string): Promise<void>;
   // Only when `caps.compaction`; resolves to the summary.
@@ -55,7 +60,7 @@ export function createChatBackend(
       config.enabled &&
       modelOffered &&
       (caps.ownsAgentLoop || !!model),
-    send: (sessionId, message, takeOver) =>
+    send: (sessionId, message, attachments, takeOver) =>
       api.sendPrompt(
         sessionId,
         id,
@@ -63,6 +68,7 @@ export function createChatBackend(
         effort,
         agentMode,
         message,
+        attachments.map((a) => a.id),
         takeOver,
       ),
     retry: caps.retry

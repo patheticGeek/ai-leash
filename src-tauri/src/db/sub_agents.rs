@@ -245,6 +245,7 @@ mod tests {
                 role: role.into(),
                 content: content.into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
     }

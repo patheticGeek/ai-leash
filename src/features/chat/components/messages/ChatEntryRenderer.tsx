@@ -9,6 +9,7 @@ import {
 import Markdown, { MentionBadgeContext } from "../../../../ui/Markdown";
 import { isSubAgentResult } from "../../entryGrouping";
 import type { PanelEntry } from "../../hooks/useChatStream";
+import AttachmentChips from "./AttachmentChips";
 import { InterChatMessage } from "./FromChat";
 import MentionChips, { MentionToken } from "./MentionChips";
 import MessageFooter from "./MessageFooter";
@@ -147,6 +148,9 @@ function ChatEntryRenderer({
             <Markdown content={entry.content} mentions={entry.mentions} />
           </MentionBadgeContext.Provider>
           {chips.length > 0 && <MentionChips mentions={chips} />}
+          {entry.attachments && entry.attachments.length > 0 && (
+            <AttachmentChips attachments={entry.attachments} />
+          )}
         </ChatMessageBubble>
       );
     }

@@ -2,7 +2,8 @@ import { ChatComposerDrawer } from "@astryxdesign/core/Chat";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
-import { ListOrdered } from "lucide-react";
+import { ListOrdered, Paperclip } from "lucide-react";
+import type { QueuedMessage } from "../../hooks/useMessageQueue";
 
 // A queued message's token shows its first line, cut to this many
 // characters. The drawer's content row doesn't bound a token's width, so
@@ -10,6 +11,14 @@ import { ListOrdered } from "lucide-react";
 // drawer past the composer and cover what's around it. The whole message is
 // in the token's tooltip.
 const MAX_LABEL_CHARS = 80;
+
+// The text's first line, else (a message that's only attachments) their
+// names.
+function labelOf({ text, attachments }: QueuedMessage): string {
+  return text.trim()
+    ? shortLabel(text)
+    : shortLabel(attachments.map((a) => a.name).join(", "));
+}
 
 function shortLabel(text: string): string {
   const firstLine = text.trim().split("\n", 1)[0] ?? "";
@@ -28,21 +37,33 @@ export default function QueuedDrawer({
   messages,
   onCancel,
 }: {
-  messages: string[];
+  messages: QueuedMessage[];
   onCancel: (index: number) => void;
 }) {
   return (
     <ChatComposerDrawer label="Queued" aria-label="Queued messages">
-      {messages.map((text, i) => (
+      {messages.map((message, i) => (
         <Tooltip
           // biome-ignore lint/suspicious/noArrayIndexKey: purely a FIFO display list, position is the identity that matters (first = next out)
           key={i}
-          content={<Text maxLines={8}>{text}</Text>}
+          content={
+            <Text maxLines={8}>
+              {message.text}
+              {message.attachments.length > 0 &&
+                `${message.text ? "\n" : ""}+ ${message.attachments.length} attached`}
+            </Text>
+          }
           delay={600}
         >
           <Token
-            label={shortLabel(text)}
-            icon={<ListOrdered size={14} />}
+            label={labelOf(message)}
+            icon={
+              message.attachments.length > 0 ? (
+                <Paperclip size={14} />
+              ) : (
+                <ListOrdered size={14} />
+              )
+            }
             onRemove={() => onCancel(i)}
           />
         </Tooltip>

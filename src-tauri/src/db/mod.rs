@@ -37,9 +37,9 @@ pub use epics::{
     create_epic, delete_epic, find_epic, list_epics, update_epic, Epic, EpicPatch, NewEpic,
 };
 pub use messages::{
-    consecutive_agent_messages, finish_streaming_message, load_messages, save_message,
-    save_message_from, set_message_duration, start_streaming_message, update_streaming_message,
-    update_tool_call_args, PersistedMessage, StreamingWrite,
+    consecutive_agent_messages, finish_streaming_message, load_messages, referenced_attachment_ids,
+    save_message, save_message_from, set_message_duration, start_streaming_message,
+    update_streaming_message, update_tool_call_args, PersistedMessage, StreamingWrite,
 };
 pub use projects::{
     ensure_project, list_projects, project_root_for_id, touch_project, ProjectSummary,

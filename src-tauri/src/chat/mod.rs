@@ -26,6 +26,12 @@ pub struct ChatMessage {
     pub content: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
+    /// Files the user attached to this (user) message — see
+    /// `crate::attachments`. Never serialized: this struct doubles as the
+    /// literal message a native provider gets, and each provider turns
+    /// these into its own content parts (#74).
+    #[serde(default, skip_serializing)]
+    pub attachments: Vec<crate::attachments::Attachment>,
 }
 
 pub struct TurnResult {
@@ -174,6 +180,7 @@ pub(crate) async fn compact(
             role: m.role,
             content: m.content,
             tool_calls: m.tool_calls,
+            attachments: Vec::new(),
         })
         .collect();
     prompt_history.push(ChatMessage {
@@ -184,6 +191,7 @@ pub(crate) async fn compact(
                   preamble or heading."
             .into(),
         tool_calls: None,
+        attachments: Vec::new(),
     });
 
     let summary = native
@@ -203,6 +211,7 @@ pub(crate) async fn compact(
             role: "user".into(),
             content: format!("[Earlier conversation compacted to save context]\n\n{summary}"),
             tool_calls: None,
+            attachments: Vec::new(),
         },
     );
 

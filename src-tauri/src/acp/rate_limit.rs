@@ -353,6 +353,7 @@ pub(crate) fn try_fire(app: &AppHandle, session_id: &str) {
             role: "user".into(),
             content: prompt.into(),
             tool_calls: None,
+            attachments: Vec::new(),
         },
     );
     let _ = app.emit(&format!("chat://{session_id}/user_message"), prompt);
@@ -641,6 +642,7 @@ mod tests {
                 role: role.into(),
                 content: content.into(),
                 tool_calls: None,
+                attachments: Vec::new(),
             },
         );
     }

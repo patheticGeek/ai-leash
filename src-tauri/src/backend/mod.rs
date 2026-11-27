@@ -18,6 +18,7 @@ pub mod session;
 
 pub use native::NativeBackend;
 
+use crate::attachments::Attachment;
 use crate::state::AppState;
 use std::future::Future;
 use std::pin::Pin;
@@ -64,14 +65,16 @@ pub trait Backend: Send + Sync {
     /// Nothing to do for a backend that keeps no connection.
     fn warm(&self, _app: &AppHandle, _session_id: &str) {}
 
-    /// Runs the user's `message` on `session_id`. Resolves once the turn has
-    /// finished (native) or been handed to the agent (ACP) — either way its
-    /// output streams on `chat://{session_id}/...`.
+    /// Runs the user's `message` on `session_id`, with the files the user
+    /// attached to it (`crate::attachments`, stored on the message). Resolves
+    /// once the turn has finished (native) or been handed to the agent
+    /// (ACP) — either way its output streams on `chat://{session_id}/...`.
     fn send<'a>(
         &'a self,
         app: &'a AppHandle,
         session_id: &'a str,
         message: String,
+        attachments: Vec<Attachment>,
     ) -> BoxFuture<'a, Result<(), String>>;
 
     /// Takes a turn on what's already been added to `session_id`'s history —

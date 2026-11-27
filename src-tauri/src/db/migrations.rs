@@ -26,6 +26,7 @@ const MIGRATIONS: &[Migration] = &[
     v7_agent_defaults,
     v8_drop_empty_project_chats,
     v9_rate_limits,
+    v10_message_attachments,
 ];
 
 /// The version `v3_drop_sub_agents` leaves a database at — `Db::open`'s
@@ -373,6 +374,13 @@ fn v9_rate_limits(conn: &Connection) {
         ",
     )
     .expect("failed to create rate_limits");
+}
+
+/// The files a user message carries (#73), as a JSON `Attachment` list —
+/// see `crate::attachments`.
+fn v10_message_attachments(conn: &Connection) {
+    conn.execute("ALTER TABLE messages ADD COLUMN attachments TEXT", [])
+        .expect("failed to add messages.attachments");
 }
 
 fn has_table(conn: &Connection, table: &str) -> bool {
