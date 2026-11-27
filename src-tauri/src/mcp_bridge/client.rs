@@ -3,7 +3,8 @@ use crate::actions;
 use crate::chat_context::{AgentBackend, ChatContext, ChatKind};
 use crate::context;
 use crate::tools::{
-    action_tools, board_tools, chat_info, guidance, guides, memory_tools, sub_agent_tools,
+    action_tools, board_tools, chat_info, guidance, guides, memory_tools, open_file,
+    sub_agent_tools,
 };
 use serde_json::{json, Value};
 use std::io::{self, BufRead, BufReader, Write};
@@ -175,6 +176,7 @@ fn tools_list_result(root: &Path, chat: &ChatContext) -> Value {
     );
     tools.push(mcp_tool(guides::read_guide_def()));
     tools.push(mcp_tool(chat_info::chat_info_def()));
+    tools.push(mcp_tool(open_file::open_file_def()));
 
     // Gated like the native list: only worth a tool slot if there's a skill
     // to load. A snapshot from connect time, same as the instructions' count.
@@ -281,7 +283,9 @@ fn tools_call_result(
         "spawn_sub_agent" | "list_sub_agents" | "read_sub_agent" | "list_agent_options"
         | "create_action" | "run_action" | "stop_action" | "list_actions" | "read_action"
         // Live from the app: the env-var context is a connect-time snapshot.
-        | "chat_info" => {
+        | "chat_info"
+        // Needs the app's window to open the file in.
+        | "open_file" => {
             relay_over_tcp(port, token, session_id, name, arguments)
         }
         board if board_tools::BOARD_TOOLS.contains(&board) => {

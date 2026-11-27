@@ -61,3 +61,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+// A Markdown file in the file viewer's Preview: soft-wrapped lines join up.
+export const Document: Story = {
+  args: {
+    isDocument: true,
+    content: `# Spec
+
+This paragraph is soft-wrapped at eighty columns, the way a doc in a repo
+usually is, and renders as one paragraph rather than one line per line.
+
+- A list item that also wraps onto
+  a second line.
+`,
+  },
+};

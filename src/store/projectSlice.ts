@@ -82,6 +82,11 @@ export interface ProjectSlice {
   ) => Promise<void>;
   revealLines: { path: string; startLine: number; endLine: number } | null;
   clearRevealLines: () => void;
+  // A Markdown file's Preview/Source switch in its editor tab, by path —
+  // here rather than in the tab, which unmounts whenever another tab is
+  // picked. No entry: Preview. Revealing lines switches to Source.
+  fileViewModes: Record<string, FileViewMode>;
+  setFileViewMode: (path: string, mode: FileViewMode) => void;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveFile: (path: string) => Promise<void>;
@@ -91,6 +96,8 @@ export interface ProjectSlice {
   // it re-anchor. A file with unsaved edits keeps them.
   reloadChangedFiles: (changedDirs: string[]) => Promise<void>;
 }
+
+export type FileViewMode = "preview" | "source";
 
 export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   set,
@@ -143,6 +150,10 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
 
   revealLines: null,
   clearRevealLines: () => set({ revealLines: null }),
+
+  fileViewModes: {},
+  setFileViewMode: (path, mode) =>
+    set((s) => ({ fileViewModes: { ...s.fileViewModes, [path]: mode } })),
 
   openFile: async (path, name, lines) => {
     // No session in a new thread — Rust then reads from the checkout it's

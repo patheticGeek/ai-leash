@@ -224,6 +224,12 @@ export interface PanelSlice {
   // Same, for an HTML preview (a ```html block or an `.html` file), opening
   // in the centre area.
   openPreviewTab: (source: PreviewSource) => void;
+  // The agent's `open_file` tool (`agent://open_file`, see
+  // `useAgentOpenFile`): opens `path` in `sessionId`'s side panel — the
+  // file's own tab, landing in Preview for Markdown, or in Source at
+  // `line`. For a conversation that isn't on screen, it's added to that
+  // conversation's saved tabs, so it's there when it's next opened.
+  openAgentFile: (sessionId: string, path: string, line?: number) => void;
   // Both take a tab in either area.
   activateTab: (id: string) => void;
   closeTab: (id: string) => void;
@@ -330,6 +336,61 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
       };
     });
     get().persistActiveSessionTabState();
+  },
+
+  openAgentFile: (sessionId, path, line) => {
+    const name = path.split(/[\\/]/).pop() ?? path;
+    set((s) => ({
+      fileViewModes: {
+        ...s.fileViewModes,
+        [path]: line ? "source" : "preview",
+      },
+    }));
+    if (get().activeSessionId === sessionId) {
+      void get().openFile(
+        path,
+        name,
+        line ? { startLine: line, endLine: line } : undefined,
+      );
+      return;
+    }
+    const id = panelTabIdFor("file", path);
+    set((s) => {
+      const panel = s.panelStateByConversation[sessionId] ?? {
+        panelTabs: [],
+        activePanelTabId: null,
+      };
+      const chat = s.chatStateByConversation[sessionId] ?? {
+        chatTabs: [PRIMARY_CHAT_TAB],
+        activeChatTabId: PRIMARY_TAB_ID,
+      };
+      const next = chat.chatTabs.some((t) => t.id === id)
+        ? { panel, chat: { ...chat, activeChatTabId: id } }
+        : {
+            panel: {
+              panelTabs: panel.panelTabs.some((t) => t.id === id)
+                ? panel.panelTabs
+                : [...panel.panelTabs, { id, kind: "file", path, label: name }],
+              activePanelTabId: id,
+            } satisfies ConversationPanelState,
+            chat,
+          };
+      if (getConversations().some((c) => c.id === sessionId)) {
+        const map = loadPersistedTabState();
+        map[sessionId] = { ...next.panel, ...next.chat };
+        savePersistedTabState(map);
+      }
+      return {
+        panelStateByConversation: {
+          ...s.panelStateByConversation,
+          [sessionId]: next.panel,
+        },
+        chatStateByConversation: {
+          ...s.chatStateByConversation,
+          [sessionId]: next.chat,
+        },
+      };
+    });
   },
 
   openChatTab: (subSessionId, label) => {

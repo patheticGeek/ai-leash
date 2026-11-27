@@ -144,6 +144,7 @@ fn tool_rules(ctx: &ChatContext) -> Vec<&'static str> {
             "- **Parallel work.** Hand two or more independent parts of a request to `spawn_sub_agent` in one call so they run concurrently (`list_agent_options` to pick an agent, model or effort). Results arrive on their own as later turns; don't poll `list_sub_agents`.",
         );
     }
+    rules.push("- **Show documents.** After writing or reworking a doc the user should review (a spec, plan, README), `open_file` it: it opens in their side panel, Markdown rendered.");
     rules.push("- **Live facts.** `chat_info` re-checks this chat's task status and follow state.");
     rules
 }
@@ -319,6 +320,13 @@ mod tests {
     }
 
     #[test]
+    fn every_agent_is_told_to_open_docs_for_review() {
+        for c in every_context() {
+            assert!(guidance(&c).contains("`open_file` it"), "{:?}", c.kind);
+        }
+    }
+
+    #[test]
     fn every_agent_is_pointed_at_every_guide() {
         for c in every_context() {
             let text = guidance(&c);
@@ -367,6 +375,7 @@ mod tests {
             }
             allowed.push("read_guide");
             allowed.push("chat_info");
+            allowed.push("open_file");
             let text = guidance(&c);
             for name in text.split('`').skip(1).step_by(2) {
                 if name.contains('_') && !name.contains(' ') && !name.starts_with("--") {

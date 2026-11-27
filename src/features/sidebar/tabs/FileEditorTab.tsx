@@ -1,4 +1,10 @@
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
 import { VStack } from "@astryxdesign/core/Stack";
+import { Toolbar } from "@astryxdesign/core/Toolbar";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
@@ -9,15 +15,19 @@ import { Annotation, EditorState, type Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import * as stylex from "@stylexjs/stylex";
 import { basicSetup, EditorView } from "codemirror";
+import { Code, Eye } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { reviewCommentsFor, useAppStore } from "../../../store";
+import type { FileViewMode } from "../../../store/projectSlice";
+import Markdown from "../../../ui/Markdown";
 import ReviewThread from "../../review/ReviewThread";
 import {
   anchorComment,
@@ -33,7 +43,33 @@ import {
 
 const styles = stylex.create({
   host: { height: "100%", minHeight: 0, overflow: "hidden" },
+  pane: { flexGrow: 1, flexBasis: 0, minHeight: 0, overflow: "hidden" },
+  // Kept mounted while the Preview shows, so its cursor, undo history and
+  // review threads survive the switch.
+  hidden: { display: "none" },
+  // A plain scrolling box, not `ScrollableArea`, which ignores a `scrollTop`
+  // written before it has measured (see `ChatEntryList`'s viewport).
+  preview: {
+    flexGrow: 1,
+    flexBasis: 0,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: spacingVars["--spacing-4"],
+    // The app's chrome is unselectable (`index.css`); a document is
+    // something you copy from.
+    userSelect: "text",
+  },
 });
+
+export function isMarkdownPath(path: string): boolean {
+  return /\.(md|markdown)$/i.test(path);
+}
+
+// How far down `el` is scrolled, 0–1.
+function scrollFraction(el: HTMLElement): number {
+  const max = el.scrollHeight - el.clientHeight;
+  return max > 0 ? el.scrollTop / max : 0;
+}
 
 function languageFor(name: string): Extension {
   const ext = name.split(".").pop() ?? "";
@@ -96,6 +132,16 @@ export default function FileEditorTab({ path }: { path: string }) {
         return next;
       }),
   }).current;
+
+  // Markdown gets a rendered Preview beside its Source (the editor).
+  const isMarkdown = isMarkdownPath(path);
+  const mode: FileViewMode = useAppStore((s) =>
+    isMarkdown ? (s.fileViewModes[path] ?? "preview") : "source",
+  );
+  const setFileViewMode = useAppStore((s) => s.setFileViewMode);
+  const previewRef = useRef<HTMLDivElement>(null);
+  // Where the view being left was scrolled to, to carry over on a switch.
+  const carriedScroll = useRef<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -193,6 +239,11 @@ export default function FileEditorTab({ path }: { path: string }) {
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !revealLines) return;
+    // Lines are the source's: show it first, and come back once it's shown.
+    if (mode !== "source") {
+      setFileViewMode(path, "source");
+      return;
+    }
     const { doc } = view.state;
     const clamp = (n: number) => Math.min(Math.max(1, n), doc.lines);
     const from = doc.line(clamp(revealLines.startLine)).from;
@@ -203,7 +254,48 @@ export default function FileEditorTab({ path }: { path: string }) {
     });
     view.focus();
     clearRevealLines();
-  }, [revealLines, loaded]);
+  }, [revealLines, loaded, mode]);
+
+  // Switching between Preview and Source keeps the place: the same share of
+  // the way down. Source scrolls by line, which CodeMirror can do before it
+  // has re-measured after being hidden.
+  useLayoutEffect(() => {
+    const fraction = carriedScroll.current;
+    carriedScroll.current = null;
+    if (fraction === null) return;
+    if (mode === "preview") {
+      const el = previewRef.current;
+      if (el) el.scrollTop = fraction * (el.scrollHeight - el.clientHeight);
+      return;
+    }
+    const view = viewRef.current;
+    if (!view) return;
+    const { doc } = view.state;
+    const line = doc.line(1 + Math.round(fraction * (doc.lines - 1)));
+    view.dispatch({
+      effects: EditorView.scrollIntoView(line.from, { y: "start" }),
+    });
+  }, [mode]);
+
+  function switchView(next: string) {
+    if (next === mode || (next !== "preview" && next !== "source")) return;
+    const view = viewRef.current;
+    if (mode === "preview") {
+      if (previewRef.current) {
+        carriedScroll.current = scrollFraction(previewRef.current);
+      }
+    } else if (view) {
+      // The top visible line's share of the file, not the pixel share,
+      // which review threads and wrapped lines skew.
+      const top = view.lineBlockAtHeight(
+        view.scrollDOM.getBoundingClientRect().top - view.documentTop,
+      );
+      const { doc } = view.state;
+      carriedScroll.current =
+        doc.lines > 1 ? (doc.lineAt(top.from).number - 1) / (doc.lines - 1) : 0;
+    }
+    setFileViewMode(path, next);
+  }
 
   // A newer copy from disk (an agent's edit — see `reloadChangedFiles`):
   // swap it into the view. Typing round-trips through the store unchanged,
@@ -225,8 +317,8 @@ export default function FileEditorTab({ path }: { path: string }) {
 
   if (!activeFile) return null;
 
-  // Scoped to this editor rather than the window, so with a file tab open
-  // in each area Ctrl+S saves the one being typed in.
+  // Scoped to this tab rather than the window, so with a file tab open in
+  // each area Ctrl+S saves the one being typed in.
   function onKeyDown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "s") {
       e.preventDefault();
@@ -278,8 +370,50 @@ export default function FileEditorTab({ path }: { path: string }) {
   }
 
   return (
-    <VStack ref={containerRef} onKeyDown={onKeyDown} xstyle={styles.host}>
-      {[...hosts].map(([id, el]) => createPortal(threadFor(id), el, id))}
+    <VStack onKeyDown={onKeyDown} xstyle={styles.host}>
+      {isMarkdown && (
+        <Toolbar
+          label="Markdown view"
+          size="sm"
+          dividers={["bottom"]}
+          endContent={
+            <SegmentedControl
+              label="Show"
+              size="sm"
+              value={mode}
+              onChange={switchView}
+            >
+              <SegmentedControlItem
+                value="preview"
+                label="Preview"
+                icon={<Eye size={13} />}
+              />
+              <SegmentedControlItem
+                value="source"
+                label="Source"
+                icon={<Code size={13} />}
+              />
+            </SegmentedControl>
+          }
+        />
+      )}
+      <VStack
+        ref={containerRef}
+        xstyle={[styles.pane, mode === "preview" && styles.hidden]}
+      >
+        {[...hosts].map(([id, el]) => createPortal(threadFor(id), el, id))}
+      </VStack>
+      {mode === "preview" && (
+        <VStack
+          ref={previewRef}
+          role="group"
+          aria-label="Preview"
+          tabIndex={0}
+          xstyle={styles.preview}
+        >
+          <Markdown content={activeFile.content} isDocument />
+        </VStack>
+      )}
     </VStack>
   );
 }

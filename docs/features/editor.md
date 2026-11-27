@@ -34,6 +34,25 @@ including JavaScript and TypeScript, Python, Rust, JSON, HTML, and CSS.
 Other file types open as plain text. The editor uses the code font and size
 from **Settings > Fonts**; see [Fonts](./ui-shell.md#fonts).
 
+## Preview Markdown
+
+A Markdown file (`.md` or `.markdown`) opens as a rendered preview, with a
+**Preview** / **Source** switch at the top of its tab. Preview shows the
+document the way it reads, rendered like the agent's chat replies but with
+the file's soft-wrapped lines joined into paragraphs. Source is the editor.
+The tab remembers which one you picked while the file stays open.
+
+The preview follows the file as it changes: your edits in Source, and
+changes on disk such as an agent's edit (see [Working alongside an
+agent](#working-alongside-an-agent)). Switching between the two keeps your
+place, roughly: you land the same share of the way down the file. Line
+comments are made and shown in Source; opening a file at particular lines,
+for instance from an `@path:12-18` mention, switches to Source to show them.
+
+The agent can open a file here for you, too, typically a spec or plan it
+has just written for you to review; Markdown lands in Preview. See [Show you
+a file](./tools.md#show-you-a-file).
+
 ## Save your changes
 
 Edits are held in the open file until you save them. Use **Ctrl+S** on
