@@ -53,3 +53,15 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# `npm run tauri dev` builds this profile. At the default opt-level 0 every
+# DB/JSON command ran 10-16x slower than release (opening a 2,111-message
+# chat: 113 ms vs 7 ms, see `src/bench.rs`), and sync commands run on the
+# main thread. Dependencies are built once at opt-level 3; our own crate at
+# 1, since serde/rusqlite generics are instantiated in it. Costs ~6 s more
+# per incremental rebuild (about 10 s vs 4.5 s), and a one-off full rebuild.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
