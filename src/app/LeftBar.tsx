@@ -40,12 +40,12 @@ import { listen } from "@tauri-apps/api/event";
 import {
   Archive,
   Check,
-  CircleQuestionMark,
   Folder,
   FolderMinus,
   FolderPlus,
   ListFilter,
   MessagesSquare,
+  QuestionMark,
   SettingsIcon,
   ShieldAlert,
   SquareKanban,
@@ -296,7 +296,7 @@ function ChatAttention({
   if (!awaitingApproval && !awaitingAnswer) return null;
   const [icon, label, tooltip] = awaitingApproval
     ? [ShieldAlert, "Needs approval", "Waiting for you to approve an action"]
-    : [CircleQuestionMark, "Has a question", "Waiting for your answer"];
+    : [QuestionMark, "Has a question", "Waiting for your answer"];
   return (
     <Tooltip content={tooltip} hasHoverIndication={false}>
       <HStack
