@@ -10,10 +10,15 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@astryxdesign/core/DropdownMenu";
+import { HoverCard } from "@astryxdesign/core/HoverCard";
 import { useContainerReveal } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
 import { Item } from "@astryxdesign/core/Item";
 import { Kbd } from "@astryxdesign/core/Kbd";
+import {
+  MetadataList,
+  MetadataListItem,
+} from "@astryxdesign/core/MetadataList";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import type { ResizableRegion } from "@astryxdesign/core/Resizable";
 import {
@@ -25,9 +30,9 @@ import {
 } from "@astryxdesign/core/SideNav";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
+import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
-import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
@@ -61,9 +66,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { type BoardSummary, useBoardSummaries } from "../data/board";
+import {
+  type BoardSummary,
+  STATUS_LABELS,
+  useBoard,
+  useBoardSummaries,
+} from "../data/board";
 import { conversationLabel, useConversations } from "../data/conversations";
 import { usePreference, useSetPreferences } from "../data/preferences";
+import { PriorityBadge, STATUS_DOT } from "../features/board/TaskMeta";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
@@ -101,11 +112,6 @@ const styles = stylex.create({
   nested: { contain: "inline-size" },
   // The filter button stays lit while a task-chat filter is on.
   filterOn: { color: colorVars["--color-text-accent"] },
-  // "More projects" / "Show all": muted like an at-rest sidebar row, primary
-  // on hover, at the sidebar's text size. The theme can't single out buttons
-  // in the side nav (`editor how "muted ghost buttons in the side nav"`), so
-  // this is the one row that sets it; `--text-supporting-size` is the
-  // side-nav-section's (the theme sets it to 14px there).
   // A flat-layout chat row's label (an `Item`, not a `SideNavItem`); the
   // size is the side-nav-section's 14px, the colours follow side-nav-item.
   rowLabel: {
@@ -187,13 +193,18 @@ const styles = stylex.create({
     backgroundImage: `linear-gradient(to top, ${colorVars["--color-background-body"]}, transparent)`,
   },
   scrollFadeShown: { opacity: 1 },
+  // "More projects" / "Show all" / "Show less": muted like an at-rest
+  // sidebar row, primary on hover, one type-scale step (12px) below the rows
+  // so they don't read as another project or chat. The theme can't single
+  // out buttons in the side nav (`editor how "muted ghost buttons in the side
+  // nav"`), so this is the one row that sets it.
   showMore: {
     alignSelf: "flex-start",
     color: {
       default: colorVars["--color-text-secondary"],
       ":hover": colorVars["--color-text-primary"],
     },
-    fontSize: typeScaleVars["--text-supporting-size"],
+    fontSize: textSizeVars["--font-size-sm"],
   },
   // The ⋯ never takes its full width from the title: it's out of the flow,
   // anchored at the slot's end edge (which also keeps it inside the rail
@@ -220,6 +231,10 @@ const styles = stylex.create({
     fontSize: textSizeVars["--font-size-sm"],
   },
   attention: { flexShrink: 0, display: "inline-flex" },
+  // The row's hover card: wide enough for a long title or path to wrap
+  // over a few lines rather than one per word.
+  hoverCard: { maxWidth: "44ch" },
+  hoverCardText: { overflowWrap: "anywhere" },
   // A nested side-nav row is indented one `--spacing-6` step, the width of
   // the parent's icon plus the row's gap (16px + `--spacing-2`); pulling the
   // icon back by that puts it in the indent, under the folder icon, and
@@ -301,18 +316,117 @@ function ChatAttention({
     (s) => !!elicitationForSession(s.pendingElicitations, conversationId),
   );
   if (!awaitingApproval && !awaitingAnswer) return null;
-  const [icon, label, tooltip] = awaitingApproval
-    ? [ShieldAlert, "Needs approval", "Waiting for you to approve an action"]
-    : [QuestionMark, "Has a question", "Waiting for your answer"];
+  // No tooltip of its own: the row's hover card says what it's waiting for.
+  const [icon, label] = awaitingApproval
+    ? [ShieldAlert, "Needs approval"]
+    : [QuestionMark, "Has a question"];
   return (
-    <Tooltip content={tooltip} hasHoverIndication={false}>
-      <HStack
-        as="span"
-        xstyle={[styles.attention, inIndent && styles.attentionInIndent]}
-      >
-        <Icon icon={icon} size="sm" color="warning" label={label} />
+    <HStack
+      as="span"
+      xstyle={[styles.attention, inIndent && styles.attentionInIndent]}
+    >
+      <Icon icon={icon} size="sm" color="warning" label={label} />
+    </HStack>
+  );
+}
+
+// The board task a chat was started for, from its project's board (cached
+// with the board view's query). Only mounted while the hover card is open.
+function HoverCardTask({
+  projectRoot,
+  taskId,
+}: {
+  projectRoot: string;
+  taskId: string;
+}) {
+  const task = useBoard(projectRoot, false)?.tasks.find((t) => t.id === taskId);
+  if (!task) return null;
+  return (
+    <>
+      <Divider />
+      {/* Status, effort and priority as separate items with room between
+          them, rather than one run-on line. */}
+      <HStack gap={4} vAlign="center" wrap="wrap">
+        <HStack gap={1.5} vAlign="center">
+          <StatusDot
+            variant={STATUS_DOT[task.status]}
+            label={STATUS_LABELS[task.status]}
+          />
+          <Text type="supporting" color="secondary">
+            {STATUS_LABELS[task.status]}
+          </Text>
+        </HStack>
+        {task.effort && (
+          <Text type="supporting" color="secondary">
+            Effort {task.effort.toUpperCase()}
+          </Text>
+        )}
+        <PriorityBadge priority={task.priority} />
       </HStack>
-    </Tooltip>
+    </>
+  );
+}
+
+// What hovering a chat row shows: its whole title, where it runs, what it's
+// waiting for, and its task's status, effort and priority when it's a task's
+// chat. One card
+// instead of a tooltip per part of the row.
+function ConversationHoverCard({
+  conversation,
+  projectName,
+  workspace,
+  branchName,
+}: {
+  conversation: ConversationSummary;
+  projectName: string;
+  workspace: string;
+  branchName: string | null;
+}) {
+  const awaitingApproval = useAppStore(
+    (s) => !!permissionForSession(s.pendingPermissions, conversation.id),
+  );
+  const awaitingAnswer = useAppStore(
+    (s) => !!elicitationForSession(s.pendingElicitations, conversation.id),
+  );
+  return (
+    <VStack gap={3}>
+      <Text weight="medium" xstyle={styles.hoverCardText}>
+        {conversationLabel(conversation)}
+      </Text>
+      {(awaitingApproval || awaitingAnswer) && (
+        <HStack gap={1.5} vAlign="center">
+          <Icon
+            icon={awaitingApproval ? ShieldAlert : QuestionMark}
+            size="sm"
+            color="warning"
+          />
+          <Text type="supporting">
+            {awaitingApproval
+              ? "Waiting for you to approve an action"
+              : "Waiting for your answer"}
+          </Text>
+        </HStack>
+      )}
+      <MetadataList>
+        <MetadataListItem label="Project">
+          <Text xstyle={styles.hoverCardText}>{projectName}</Text>
+        </MetadataListItem>
+        <MetadataListItem label="Worktree">
+          <Text xstyle={styles.hoverCardText}>{workspace}</Text>
+        </MetadataListItem>
+        {branchName && (
+          <MetadataListItem label="Branch">
+            <Text xstyle={styles.hoverCardText}>{branchName}</Text>
+          </MetadataListItem>
+        )}
+      </MetadataList>
+      {conversation.taskId && (
+        <HoverCardTask
+          projectRoot={conversation.projectRoot}
+          taskId={conversation.taskId}
+        />
+      )}
+    </VStack>
   );
 }
 
@@ -329,12 +443,12 @@ function ChatAttention({
 function RevealRow({
   menuLabel,
   items,
-  tooltip,
+  hoverCard,
   children,
 }: {
   menuLabel: string;
   items: DropdownMenuOption[];
-  tooltip?: string;
+  hoverCard?: ReactNode;
   children: (slots: { actions: ReactNode; isRevealed: boolean }) => ReactNode;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -373,16 +487,21 @@ function RevealRow({
       </Stack>
     </ContextMenu>
   );
-  if (!tooltip) return row;
+  if (!hoverCard) return row;
+  // Not while its menu is open, so the card doesn't sit over the menu.
   return (
-    <Tooltip
-      content={tooltip}
+    <HoverCard
+      content={hoverCard}
       placement="end"
+      alignment="start"
       delay={600}
+      focusTrigger="never"
+      isEnabled={!isMenuOpen}
       hasHoverIndication={false}
+      xstyle={styles.hoverCard}
     >
       {row}
-    </Tooltip>
+    </HoverCard>
   );
 }
 
@@ -414,11 +533,18 @@ function ConversationRow({
   const workspace = conversation.worktreePath
     ? (conversation.worktreePath.split(/[\\/]/).filter(Boolean).pop() ??
       conversation.worktreePath)
-    : "primary";
+    : "Project checkout";
   return (
     <RevealRow
       menuLabel="Conversation options"
-      tooltip={[projectName, workspace, branchName].filter(Boolean).join(" · ")}
+      hoverCard={
+        <ConversationHoverCard
+          conversation={conversation}
+          projectName={projectName}
+          workspace={workspace}
+          branchName={branchName}
+        />
+      }
       items={[
         {
           label: "Mark as done",
@@ -452,6 +578,7 @@ function ConversationRow({
                   <Text
                     weight="medium"
                     maxLines={1}
+                    hasTruncateTooltip={false}
                     xstyle={[
                       styles.rowLabel,
                       styles.flatTitle,
@@ -475,6 +602,7 @@ function ConversationRow({
                     size="sm"
                     color="secondary"
                     maxLines={1}
+                    hasTruncateTooltip={false}
                     xstyle={styles.projectName}
                   >
                     {projectName}
@@ -485,6 +613,7 @@ function ConversationRow({
                       size="sm"
                       color="secondary"
                       maxLines={1}
+                      hasTruncateTooltip={false}
                       xstyle={styles.branchName}
                     >
                       {branchName}
@@ -1108,7 +1237,20 @@ export default function LeftBar({
                   <RevealRow
                     key={p.path}
                     menuLabel="Project options"
-                    tooltip={p.path}
+                    hoverCard={
+                      <VStack gap={1}>
+                        <Text weight="medium" xstyle={styles.hoverCardText}>
+                          {p.name}
+                        </Text>
+                        <Text
+                          type="supporting"
+                          color="secondary"
+                          xstyle={styles.hoverCardText}
+                        >
+                          {p.path}
+                        </Text>
+                      </VStack>
+                    }
                     items={[
                       {
                         label: "Remove project",

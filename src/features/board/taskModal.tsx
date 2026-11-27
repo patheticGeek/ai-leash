@@ -7,6 +7,8 @@
 // Escape closes it, asking "Discard changes?" first while `isDirty`
 // (`useDiscardGuard`); the header's close button closes it outright.
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import {
   Layout,
   LayoutContent,
@@ -22,7 +24,7 @@ import { HStack, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import * as stylex from "@stylexjs/stylex";
-import { Flag, Layers, Scale } from "lucide-react";
+import { Check, Copy, Flag, Layers, Scale } from "lucide-react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import {
   PRIORITY_LABELS,
@@ -39,6 +41,7 @@ import type {
   TaskPriority,
   TaskStatus,
 } from "../../lib/tauriApi";
+import { useCopyToClipboard } from "../../lib/useCopyToClipboard";
 import { useCurrentGitBranch } from "../../lib/useCurrentGitBranch";
 import { EpicToken, PriorityBadge, STATUS_DOT } from "./TaskMeta";
 
@@ -274,10 +277,32 @@ export function TaskFieldRow({
   );
 }
 
+// A value with a small copy button after it (`text` is what's copied, when
+// it's more than what's shown, like a worktree's full path).
+function Copyable({ text, children }: { text: string; children: ReactNode }) {
+  const { copy, copied } = useCopyToClipboard();
+  return (
+    <HStack gap={1} vAlign="center">
+      {children}
+      <IconButton
+        variant="ghost"
+        size="sm"
+        label={copied ? "Copied" : `Copy ${text}`}
+        tooltip={copied ? "Copied" : "Copy"}
+        icon={<Icon icon={copied ? Check : Copy} size="sm" />}
+        onClick={() => void copy(text)}
+      />
+    </HStack>
+  );
+}
+
 function LiveBranch({ path }: { path: string }) {
   const branch = useCurrentGitBranch(path);
+  if (!branch) return <Text color="secondary">Detached</Text>;
   return (
-    <Text color={branch ? "primary" : "secondary"}>{branch ?? "Detached"}</Text>
+    <Copyable text={branch}>
+      <Text>{branch}</Text>
+    </Copyable>
   );
 }
 
@@ -301,7 +326,11 @@ export function CheckoutSection({
       <MetadataList>
         <MetadataListItem label="Worktree">
           {isStarted ? (
-            <Text>{worktree ? projectName(worktree) : "Project checkout"}</Text>
+            <Copyable text={worktree ?? projectRoot}>
+              <Text>
+                {worktree ? projectName(worktree) : "Project checkout"}
+              </Text>
+            </Copyable>
           ) : (
             <Text color="secondary">
               {sharedCheckout

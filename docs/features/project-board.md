@@ -44,8 +44,9 @@ done) to see it. It shows tasks finished in the last 30 days, with a
 
 Drag a card to reorder it within a column or to move it to another one.
 While you drag, the card follows the pointer and a dashed placeholder
-marks where it came from. A card's **⋯** menu can also move it to any
-other column.
+marks where it came from. A card's **⋯** menu can also move it one
+column either way (**Move to** the column before or after its own). The
+card shows a pointer cursor, since clicking it opens it.
 
 ## Tasks
 
@@ -97,7 +98,8 @@ description; on the right, the agent settings and where its chat runs.
 - The **Agent** settings can be changed until the task starts. After
   that they show what its chat actually runs with — change those in the
   chat itself. **Checkout** says "Created on start" until then, and
-  afterwards names the worktree and its current branch.
+  afterwards names the worktree and its current branch, each with a copy
+  button (the worktree's copies its full path).
 - **Delete task** (bottom left, or the **⋯** menu) asks first. Deleting a
   task keeps its chat, worktree and branch.
 
@@ -152,7 +154,8 @@ medium, L and XL high.
 Starting a task:
 
 - gives it a chat of its own, listed under **Chats** with the task's
-  number;
+  number and titled with the task's title — the agent's own name for the
+  chat (an ACP `session_info_update` title) doesn't replace it;
 - in a git repository, creates a worktree on a new `task/<number>-<title>`
   branch, off whatever the project's main checkout has checked out, and
   runs the chat there — so several tasks can be worked on at once without
