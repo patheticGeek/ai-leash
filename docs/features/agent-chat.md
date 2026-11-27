@@ -536,8 +536,12 @@ Attached files show in the drawer at the top of the box before you send:
 images as thumbnails, other files as a chip with their name and size. Each
 has a remove button. You can send a message that has attachments and no
 text. The same chips show under the sent message. Select an image to view it
-full size (a lightbox with zoom that steps through the message's images).
-Select a file to **Open** it with the system's default app, or **Show in
+in a lightbox with zoom that steps through the message's images. The window
+dims, and the image shows at up to its natural size, within a box of
+`max(70vw, min(92vw, 720px))` by `max(90vh, min(96vh, 560px))` including
+its caption. The viewer opens at once; an image whose bytes haven't loaded
+yet says so in its caption, and one that can't be read (its stored copy is
+gone, say) shows the error there instead. Select a file to **Open** it with the system's default app, or **Show in
 folder** to reveal it in the file manager. A file's tooltip shows its
 original path and size.
 
@@ -573,7 +577,15 @@ returned on `PersistedMessage`. That field isn't serialized into a provider
 request: each provider builds its own content parts from it. At startup,
 `attachments::sweep` removes staged attachments that no message references
 and that are more than a day old (removed chips, deleted conversations).
-`read_attachment` serves an image's bytes for thumbnails, and
+Thumbnails and the viewer load an image's stored copy over Tauri's asset
+protocol (`convertFileSrc(storedPath)`), so the webview loads, decodes and
+caches it natively and both share one URL. The protocol is on in
+`tauri.conf.json` with an empty scope; `lib.rs`'s setup allows only
+`attachments::root()`, so nothing else on disk is reachable through it. The
+URL is in the `<img>` from the first render, and the thumbnail's 64×64 box is
+fixed from the start, so nothing in the transcript changes height as images
+load. A background `decode()` turns a failed read into an error in the
+chip's tooltip and the viewer's caption.
 `open_attachment` opens or reveals the file (the original when revealing, if
 it still exists, else the copy). On the frontend, `useAttachments` owns the
 composer's list along with paste, drop (Tauri's `onDragDropEvent`, hit-tested

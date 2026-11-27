@@ -713,8 +713,6 @@ export const api = {
       { headers: { "x-attachment-name": encodeURIComponent(file.name) } },
     ),
   discardAttachment: (id: string) => invoke<void>("discard_attachment", { id }),
-  readAttachment: (id: string) =>
-    invoke<ArrayBuffer>("read_attachment", { id }),
   // Opens it with the OS's default app, or shows it in the file manager.
   openAttachment: (id: string, reveal: boolean) =>
     invoke<void>("open_attachment", { id, reveal }),

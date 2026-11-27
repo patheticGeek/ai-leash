@@ -29,7 +29,7 @@ use std::collections::HashSet;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
-use tauri::ipc::{InvokeBody, Request, Response};
+use tauri::ipc::{InvokeBody, Request};
 use tauri::AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
@@ -571,17 +571,6 @@ pub async fn stage_attachment_bytes(request: Request<'_>) -> Result<Attachment, 
 #[tauri::command]
 pub fn discard_attachment(id: String) {
     discard(&root(), &id);
-}
-
-/// The stored copy's bytes, for showing an image.
-#[tauri::command]
-pub async fn read_attachment(id: String) -> Result<Response, String> {
-    let attachment = load(&root(), &id).ok_or("No such attachment.")?;
-    let path = attachment
-        .stored_path
-        .ok_or("This attachment has no stored copy.")?;
-    let bytes = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
-    Ok(Response::new(bytes))
 }
 
 /// Opens an attachment with the OS's default app, or (`reveal`) shows it in

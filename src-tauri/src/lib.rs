@@ -115,6 +115,11 @@ pub fn run() {
             tauri::async_runtime::spawn_blocking(move || {
                 backend::registry::move_file_keys_to_keychain(&handle);
             });
+            // Stored attachment copies are served to the webview over the
+            // asset protocol (thumbnails, the image viewer); only their own
+            // directory is in its scope (`tauri.conf.json` allows nothing).
+            app.asset_protocol_scope()
+                .allow_directory(attachments::root(), true)?;
             // Staged attachments no message references (removed before
             // sending, or their conversation deleted).
             let handle = app.handle().clone();
@@ -136,7 +141,6 @@ pub fn run() {
             attachments::stage_attachment_path,
             attachments::stage_attachment_bytes,
             attachments::discard_attachment,
-            attachments::read_attachment,
             attachments::open_attachment,
             commands::read_file_text,
             commands::write_file_text,

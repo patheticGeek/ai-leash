@@ -4,7 +4,6 @@ import {
   ChatComposerDrawer,
   ChatSendButton,
 } from "@astryxdesign/core/Chat";
-import { Thumbnail } from "@astryxdesign/core/Thumbnail";
 import { Token } from "@astryxdesign/core/Token";
 import { colorVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -45,7 +44,7 @@ import { useSlashCommands } from "../../hooks/useSlashCommands";
 import ChatBanners from "../banners/ChatBanners";
 import type { ClaudeRateLimit } from "../banners/ClaudeRateLimitBanner";
 import type { TranscriptNoticesProps } from "../banners/TranscriptNotices";
-import AttachmentChips from "../messages/AttachmentChips";
+import AttachmentChips, { PendingThumbnail } from "../messages/AttachmentChips";
 import ElicitationPrompt from "../popovers/ElicitationPrompt";
 import MentionMenu from "../popovers/MentionMenu";
 import PermissionPrompt from "../popovers/PermissionPrompt";
@@ -538,7 +537,7 @@ export default function ChatComposer({
                         isInDrawer
                       />
                       {attach.pending.map((p) => (
-                        <Thumbnail key={p.key} label={p.name} isLoading />
+                        <PendingThumbnail key={p.key} label={p.name} />
                       ))}
                       {attach.isDragOver && (
                         <Token

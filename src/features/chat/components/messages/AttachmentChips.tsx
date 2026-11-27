@@ -7,6 +7,7 @@ import { Token } from "@astryxdesign/core/Token";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   ExternalLink,
   File,
@@ -14,47 +15,126 @@ import {
   FileWarning,
   FolderOpen,
 } from "lucide-react";
-import { type MouseEvent, useEffect, useState } from "react";
+import {
+  type MouseEvent,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { formatBytes } from "../../../../lib/format";
 import { type Attachment, api } from "../../../../lib/tauriApi";
 
 const styles = stylex.create({
   row: { marginBlockStart: spacingVars["--spacing-2"] },
+  // A definite height on the thumbnail's root, the same as its fixed 64px
+  // width (4rem; Astryx has no size token for it). Without one, its square
+  // image box (`aspect-ratio: 1` around a `height: 100%` <img>) makes
+  // WebKitGTK spend ~700ms on every full-document style/layout pass in a
+  // long transcript (measured: a root custom-property change, or the
+  // Lightbox's `showModal()`, 970ms with the thumbnail vs 240ms with this) —
+  // which is what made opening the image viewer take seconds.
+  thumbnail: { height: `calc(2 * ${spacingVars["--spacing-8"]})` },
+  // The viewer's media box: the dialog stays full-window (so its `::backdrop`
+  // dims everything and a click beside the image closes it) and is padded in
+  // to at most max(70vw, min(92vw, 720px)) by max(90vh, min(96vh, 560px)),
+  // the caption band included. The image already fits inside without
+  // upscaling (`max-width/height: 100%`, `object-fit: contain`). The 720/560
+  // floors have no Astryx size token.
+  viewer: {
+    paddingInline: "max(0px, calc((100vw - max(70vw, min(92vw, 720px))) / 2))",
+    paddingBlock:
+      "max(0px, calc((100dvh - max(90dvh, min(96dvh, 560px))) / 2))",
+  },
 });
 
-// Blob URLs of stored images, one per attachment for the app's lifetime —
-// a transcript re-rendering (or the composer's chip becoming the sent
-// message's) doesn't fetch the bytes again.
-const imageUrls = new Map<string, Promise<string>>();
+// A thumbnail still being copied in (the composer's drawer).
+export function PendingThumbnail({ label }: { label: string }) {
+  return <Thumbnail label={label} isLoading xstyle={styles.thumbnail} />;
+}
 
-function imageUrl(attachment: Attachment): Promise<string> {
-  let url = imageUrls.get(attachment.id);
-  if (!url) {
-    url = api
-      .readAttachment(attachment.id)
-      .then((bytes) =>
-        URL.createObjectURL(new Blob([bytes], { type: attachment.mime })),
-      );
-    url.catch(() => imageUrls.delete(attachment.id));
-    imageUrls.set(attachment.id, url);
+// Stored images, by attachment: an image's URL is its stored copy over
+// Tauri's asset protocol (`convertFileSrc`; only the attachments folder is
+// in the protocol's scope, see `lib.rs`), so the webview loads, decodes and
+// caches it natively and the thumbnail and the viewer share one URL. It's
+// used from the first render (the image paints as soon as a frame does,
+// instead of after a JS round trip queued behind the transcript rendering);
+// a decode in the background (`img.decode()`) is how a failed read is
+// noticed, since `Thumbnail` has no error callback. A store
+// (`useSyncExternalStore`) so a failure reaches every chip and the viewer.
+type ImageState =
+  // `url` is shown already; the decode check hasn't come back yet.
+  | { status: "loading"; url: string }
+  | { status: "ready"; url: string }
+  | { status: "error"; error: string };
+
+const images = new Map<string, ImageState>();
+const checked = new Set<string>();
+const listeners = new Set<() => void>();
+let version = 0;
+
+function notify() {
+  version += 1;
+  for (const l of listeners) l();
+}
+
+// The image's state, created on first ask without notifying anyone (it's
+// what every reader would compute anyway), so it can back a snapshot.
+function imageState(attachment: Attachment): ImageState {
+  let state = images.get(attachment.id);
+  if (!state) {
+    state = attachment.storedPath
+      ? { status: "loading", url: convertFileSrc(attachment.storedPath) }
+      : { status: "error", error: "No stored copy of this image." };
+    images.set(attachment.id, state);
   }
-  return url;
+  return state;
 }
 
-function useImageUrl(attachment: Attachment): string | undefined {
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    let live = true;
-    imageUrl(attachment).then(
-      (u) => live && setUrl(u),
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [attachment]);
-  return url;
+function checkImage(attachment: Attachment) {
+  const state = imageState(attachment);
+  if (state.status !== "loading" || checked.has(attachment.id)) return;
+  checked.add(attachment.id);
+  const { url } = state;
+  const probe = new Image();
+  probe.src = url;
+  probe.decode().then(
+    () => {
+      images.set(attachment.id, { status: "ready", url });
+      notify();
+    },
+    () => {
+      images.set(attachment.id, {
+        status: "error",
+        error: "Its stored copy couldn't be read.",
+      });
+      notify();
+    },
+  );
 }
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function useImage(attachment: Attachment): ImageState {
+  useEffect(() => checkImage(attachment), [attachment]);
+  return useSyncExternalStore(subscribe, () => imageState(attachment));
+}
+
+// Every image's state, for the viewer: re-read whenever any image's
+// changes (`version` is the store's snapshot, a stable number).
+function useImages(list: Attachment[]): ImageState[] {
+  useSyncExternalStore(subscribe, () => version);
+  return list.map(imageState);
+}
+
+// A blank image for the viewer to show for one that failed; its caption
+// says why.
+const BLANK_IMAGE =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 // What a chip's tooltip says beyond its name: the original path, size, and
 // anything changed on the way in.
@@ -93,16 +173,29 @@ function ImageChip({
   onOpen: () => void;
   onRemove?: () => void;
 }) {
-  const src = useImageUrl(attachment);
+  const image = useImage(attachment);
   return (
-    <Tooltip content={details(attachment)} delay={400}>
+    <Tooltip
+      content={
+        image.status === "error" ? (
+          <VStack gap={0}>
+            {details(attachment)}
+            <Text>Couldn't load it: {image.error}</Text>
+          </VStack>
+        ) : (
+          details(attachment)
+        )
+      }
+      delay={400}
+    >
       <Thumbnail
-        src={src}
+        src={image.status === "error" ? undefined : image.url}
+        isLoading={image.status === "loading"}
         alt={attachment.name}
         label={attachment.name}
-        isLoading={!src}
         onClick={onOpen}
         onRemove={onRemove}
+        xstyle={styles.thumbnail}
       />
     </Tooltip>
   );
@@ -176,15 +269,14 @@ export default function AttachmentChips({
   // In the composer's drawer, which lays its content out itself.
   isInDrawer?: boolean;
 }) {
-  const images = attachments.filter((a) => a.kind === "image");
+  const imageAttachments = attachments.filter((a) => a.kind === "image");
   const [viewing, setViewing] = useState<number | null>(null);
-  const urls = useImageUrls(viewing === null ? [] : images);
   const chips = attachments.map((a) =>
     a.kind === "image" ? (
       <ImageChip
         key={a.id}
         attachment={a}
-        onOpen={() => setViewing(images.indexOf(a))}
+        onOpen={() => setViewing(imageAttachments.indexOf(a))}
         onRemove={onRemove && (() => onRemove(a.id))}
       />
     ) : (
@@ -195,18 +287,12 @@ export default function AttachmentChips({
       />
     ),
   );
-  const lightbox = viewing !== null && urls && (
-    <Lightbox
-      isOpen
-      onOpenChange={(open) => !open && setViewing(null)}
-      media={images.map((a, i) => ({
-        src: urls[i],
-        alt: a.name,
-        caption: a.name,
-      }))}
+  const lightbox = viewing !== null && (
+    <ImageViewer
+      images={imageAttachments}
       index={viewing}
       onIndexChange={setViewing}
-      hasZoom
+      onClose={() => setViewing(null)}
     />
   );
   if (isInDrawer) {
@@ -225,25 +311,43 @@ export default function AttachmentChips({
   );
 }
 
-// Every image's URL once all have loaded (they're cached by the time a
-// thumbnail was clicked).
-function useImageUrls(images: Attachment[]): string[] | null {
-  const [urls, setUrls] = useState<string[] | null>(null);
-  const key = images.map((a) => a.id).join(",");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands for `images`, which is a fresh array every render
-  useEffect(() => {
-    let live = true;
-    if (images.length === 0) {
-      setUrls(null);
-      return;
-    }
-    Promise.all(images.map(imageUrl)).then(
-      (u) => live && setUrls(u),
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [key]);
-  return urls;
+// The message's images in a lightbox, open on `index` straight away: each
+// shows as soon as the webview has it (usually already, from its
+// thumbnail), with "Loading…" in its caption until it's decoded, or why it
+// couldn't be read.
+function ImageViewer({
+  images: list,
+  index,
+  onIndexChange,
+  onClose,
+}: {
+  images: Attachment[];
+  index: number;
+  onIndexChange: (index: number) => void;
+  onClose: () => void;
+}) {
+  const states = useImages(list);
+  return (
+    <Lightbox
+      isOpen
+      onOpenChange={(open) => !open && onClose()}
+      media={list.map((a, i) => {
+        const state = states[i];
+        return {
+          src: state.status === "error" ? BLANK_IMAGE : state.url,
+          alt: a.name,
+          caption:
+            state.status === "ready"
+              ? a.name
+              : state.status === "loading"
+                ? `Loading ${a.name}…`
+                : `Couldn't load ${a.name}: ${state.error}`,
+        };
+      })}
+      index={index}
+      onIndexChange={onIndexChange}
+      hasZoom
+      xstyle={styles.viewer}
+    />
+  );
 }
