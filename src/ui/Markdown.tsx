@@ -334,6 +334,9 @@ const components: Components = {
 // re-renders the transcript around it, and without this every message's
 // Markdown would be re-parsed on every chunk, not just the one growing.
 const remarkPlugins = [remarkGfm, remarkBreaks];
+// A Markdown file, not a chat message: its soft-wrapped lines join up, as
+// CommonMark has them, instead of each becoming a line break.
+const documentPlugins = [remarkGfm];
 
 interface MdNode {
   type: string;
@@ -383,14 +386,18 @@ const mentionComponents = {
 // unclosed ```ui block shows a placeholder instead of its partial JSON.
 // `mentions`: a sent user message's attached paths, drawn inline as
 // badges (via `MentionBadgeContext`) where the text tags them.
+// `isDocument`: a Markdown file's contents (the file viewer's Preview),
+// where a single newline is a soft wrap, not a line break.
 function Markdown({
   content,
   isStreaming = false,
   mentions,
+  isDocument = false,
 }: {
   content: string;
   isStreaming?: boolean;
   mentions?: readonly string[];
+  isDocument?: boolean;
 }) {
   const source = useMemo(
     () => ({ content, isStreaming }),
@@ -398,8 +405,9 @@ function Markdown({
   );
   // Memoized on `mentions` by the React Compiler (a sent message's list is
   // stable while it's on screen).
-  const plugins =
-    mentions && mentions.length > 0
+  const plugins = isDocument
+    ? documentPlugins
+    : mentions && mentions.length > 0
       ? [...remarkPlugins, remarkMentions(mentions)]
       : remarkPlugins;
   return (
@@ -409,7 +417,9 @@ function Markdown({
           <ReactMarkdown
             remarkPlugins={plugins}
             components={
-              plugins === remarkPlugins ? components : mentionComponents
+              plugins === remarkPlugins || plugins === documentPlugins
+                ? components
+                : mentionComponents
             }
           >
             {content}

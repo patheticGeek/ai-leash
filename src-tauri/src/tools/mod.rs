@@ -5,6 +5,7 @@ mod fs_tools;
 pub(crate) mod guidance;
 pub(crate) mod guides;
 pub(crate) mod memory_tools;
+pub(crate) mod open_file;
 // `pub(crate)` (not private): `lib.rs`'s `tauri::generate_handler!` list needs
 // to name `respond_permission`/`set_permission_mode`/`run_shell_command` by
 // their defining module path — the command macro's hidden per-command
@@ -137,6 +138,7 @@ pub async fn execute_tool(
         "list_agent_options" => sub_agent_tools::list_agent_options(state, backend.native()).await,
         "load_skill" => memory_tools::load_skill(state, session_id, &root, args),
         "read_guide" => guides::read_guide(args),
+        "open_file" => open_file::open_file(app, state.inner(), session_id, &root, args),
         "chat_info" => Ok(chat_info::chat_info(
             &state.db,
             session_id,

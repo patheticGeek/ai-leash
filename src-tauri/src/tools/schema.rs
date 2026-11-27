@@ -1,6 +1,8 @@
 use crate::chat_context::ChatContext;
 use crate::context;
-use crate::tools::{action_tools, board_tools, chat_info, guides, memory_tools, sub_agent_tools};
+use crate::tools::{
+    action_tools, board_tools, chat_info, guides, memory_tools, open_file, sub_agent_tools,
+};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -122,6 +124,7 @@ pub fn tool_definitions(
     if let Value::Array(arr) = &mut tools {
         arr.push(json!({ "type": "function", "function": guides::read_guide_def() }));
         arr.push(json!({ "type": "function", "function": chat_info::chat_info_def() }));
+        arr.push(json!({ "type": "function", "function": open_file::open_file_def() }));
     }
 
     let has_skills = root.is_some_and(|r| !context::list_skills(r, touched_dirs).is_empty());

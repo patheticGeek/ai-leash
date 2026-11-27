@@ -96,6 +96,7 @@ const RELAYED_TOOLS: &[&str] = &[
     "list_actions",
     "read_action",
     "chat_info",
+    "open_file",
 ];
 
 async fn dispatch(app: &AppHandle, req: &BridgeRequest) -> BridgeResponse {
