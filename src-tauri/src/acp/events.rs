@@ -360,6 +360,11 @@ pub(super) fn handle_session_notification(
         SessionUpdate::SessionInfoUpdate(update) if !update.title.is_undefined() => {
             let title = update.title.value().cloned();
             let state = app.state::<AppState>();
+            // A task's chat keeps the task's title (set by `start_task`);
+            // the sidebar already prefixes it with the task's `#N`.
+            if db::get_conversation(&state.db, session_id).is_some_and(|c| c.task_id.is_some()) {
+                return;
+            }
             db::set_conversation_title(&state.db, session_id, title.as_deref());
             let _ = app.emit(&format!("chat://{session_id}/title"), title);
         }

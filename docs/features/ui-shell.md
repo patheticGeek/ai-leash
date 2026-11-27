@@ -49,8 +49,11 @@ group per project. Each group holds:
   review (amber).
 - Then the project's conversations, most recent first. Each is one line with
   its title; a chat started for a board task starts with the task's number,
-  such as **#12 · Fix app colours**. Point at a chat to see its project, workspace (worktree
-  or primary checkout) and branch.
+  such as **#12 · Fix app colours**. Point at a chat to see a card with its
+  full title, project, worktree (or project checkout) and branch, what it's
+  waiting for if anything, and — for a task's chat — the task's status,
+  effort and priority. Pointing at a project (in the flat
+  list) shows its full path the same way.
 
 To remove a project, point at its name and open its **⋯** menu, or
 right-click its name, and choose **Remove project**. After you confirm, the
@@ -59,7 +62,9 @@ deleted. The project's files on disk aren't touched; add the folder again
 with **Add project** to start afresh.
 
 Projects with no conversations, tasks or project chat yet are tucked behind
-**More projects** at the end of the list. Click a project's name (or press
+**More projects** at the end of the list (it, and the Done group's **Show
+all** / **Show less**, are a size smaller than the rows so they don't read as
+another project). Click a project's name (or press
 Enter or Space on it) to fold or unfold its group; there's no separate
 arrow. The app remembers which groups you folded, including after a
 restart. The active entry is highlighted.

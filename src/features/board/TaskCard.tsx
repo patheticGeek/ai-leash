@@ -23,9 +23,10 @@ import type { Epic, Task, TaskStatus } from "../../lib/tauriApi";
 import { EpicToken, PriorityBadge } from "./TaskMeta";
 
 const styles = stylex.create({
-  // The kanban-board template's card: grab cursor, lifts on hover.
+  // The kanban-board template's card, lifts on hover. A pointer rather than
+  // the template's grab cursor: clicking opens it (dragging still works).
   card: {
-    cursor: "grab",
+    cursor: "pointer",
     userSelect: "none",
     touchAction: "none",
     transition: "box-shadow 120ms ease",
@@ -164,7 +165,10 @@ export function TaskCardBody({
                 ]
               : []),
             { type: "divider" as const },
-            ...TASK_STATUSES.filter((s) => s !== task.status).map((s) => ({
+            // Only the columns either side of its own.
+            ...TASK_STATUSES.filter(
+              (_, i) => Math.abs(i - TASK_STATUSES.indexOf(task.status)) === 1,
+            ).map((s) => ({
               label: `Move to ${STATUS_LABELS[s]}`,
               onClick: () => handlers?.onMove(task, s),
             })),
