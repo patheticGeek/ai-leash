@@ -29,7 +29,7 @@ pub struct ChatMessage {
     /// Files the user attached to this (user) message — see
     /// `crate::attachments`. Never serialized: this struct doubles as the
     /// literal message a native provider gets, and each provider turns
-    /// these into its own content parts (#74).
+    /// these into its own content parts (`provider::wire`).
     #[serde(default, skip_serializing)]
     pub attachments: Vec<crate::attachments::Attachment>,
 }
@@ -180,7 +180,7 @@ pub(crate) async fn compact(
             role: m.role,
             content: m.content,
             tool_calls: m.tool_calls,
-            attachments: Vec::new(),
+            attachments: m.attachments,
         })
         .collect();
     prompt_history.push(ChatMessage {

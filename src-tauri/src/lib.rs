@@ -167,6 +167,7 @@ pub fn run() {
             backend::registry::delete_backend,
             backend::registry::set_default_backend,
             backend::registry::list_backend_models,
+            backend::registry::model_supports_vision,
             backend::registry::check_backend_connection,
             backend::session::send_prompt,
             backend::session::retry_last,

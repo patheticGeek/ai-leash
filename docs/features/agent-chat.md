@@ -562,9 +562,33 @@ database, under `~/.config/ai-leash`) the moment you add it, so the transcript
 keeps working after the original moves or is deleted. A pasted image has no
 path, so that copy is all there is.
 
-How the agent receives attachments depends on its backend. Native providers
-are covered by #74 and ACP agents by #75. Until those land, attachments are
-stored and shown with the message but not sent to the model.
+How the agent receives attachments depends on its backend. ACP agents are
+covered by #75; until it lands, they're stored and shown with the message but
+not sent to an ACP agent. A native provider (Ollama or OpenAI-compatible)
+gets them with the message they were attached to:
+
+- **Images** go as images: an `image_url` content part holding a `data:` URL
+  for an OpenAI-compatible host, an entry in the message's `images` for
+  Ollama.
+- **Text files** are added to the message as a fenced code block labelled
+  with the file's path (its name, for pasted text). When the file was cut to
+  1 MB, a note after the block says so.
+- **Binary files** become a line naming the file's path, mime type and size,
+  so the agent can use its own file tools on it.
+
+When the picked model can't see images, a warning above the message box says
+so while images are attached. Those images are then sent as a line naming
+their path, like a binary file, instead of being dropped. Ollama reports
+vision through `/api/show`. An OpenAI-compatible host can't be asked, so the
+first image goes through as an image. If the host turns it down (a 4xx that
+mentions images), the turn is sent again with path lines, and the model is
+remembered as non-vision for the rest of the run, which also shows the
+warning. `/compact`'s summary call always gets the path line for an image.
+
+Attachments are read from their stored copies each time a request is built,
+and they're stored on their message, so a resumed chat replays them in its
+history like the first turn did. A copy that has gone missing is sent as a
+line saying the file is no longer available.
 
 Under the hood, `src-tauri/src/attachments.rs` stages each file as
 `<attachments>/<id>/` (the copy plus a `meta.json` holding its `Attachment`).
@@ -574,7 +598,11 @@ latter takes the raw file as the request body, with the name in an
 and passes them to `Backend::send`. They're stored with the user message as
 `ChatMessage::attachments`, in the `messages.attachments` JSON column, and
 returned on `PersistedMessage`. That field isn't serialized into a provider
-request: each provider builds its own content parts from it. At startup,
+request: `provider/wire.rs` builds each provider's message list from it,
+and also holds the per-model vision cache. `ModelClient::supports_vision`
+answers from that cache (asking Ollama when it has no answer yet), and the
+`model_supports_vision` command passes it to the composer
+(`useModelVision`, `NoVisionBanner`). At startup,
 `attachments::sweep` removes staged attachments that no message references
 and that are more than a day old (removed chips, deleted conversations).
 Thumbnails and the viewer load an image's stored copy over Tauri's asset

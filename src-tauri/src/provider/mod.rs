@@ -1,6 +1,7 @@
 mod client;
 mod ollama;
 mod openai_compat;
+mod wire;
 
 pub use client::{BackendError, ModelClient, TurnRequest};
 
