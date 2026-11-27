@@ -367,7 +367,9 @@ While any sub-agent of the conversation is running, a compact banner sits
 just above the message box, as the last row of the banner stack: a spinner,
 "3 sub-agents running" and how long the longest has been going, with a
 "View" button that reveals the Sub Agents view in the side panel. It's gone
-as soon as none is running. It reads the same live list as the Sub Agents
+as soon as none is running. Starting a sub-agent doesn't switch the side
+panel to the Sub Agents view on its own: the banner is the cue, and its
+"View" button the way there. It reads the same live list as the Sub Agents
 view (updated by each sub-agent's start/finish event, no polling), so it
 works the same for local and ACP conversations. It's
 `banners/SubAgentsBanner.tsx`.

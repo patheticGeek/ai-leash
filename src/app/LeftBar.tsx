@@ -33,6 +33,7 @@ import {
   colorVars,
   sizeVars,
   spacingVars,
+  textSizeVars,
   typeScaleVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
 import * as stylex from "@stylexjs/stylex";
@@ -210,8 +211,14 @@ const styles = stylex.create({
   revealEnd: { position: "absolute", insetInlineEnd: 0 },
   // The working timer, in the theme's blue (its accent is neutral, so
   // `color="accent"` would be white). Never shrinks, so it stays on one line
-  // and only the title gives way.
-  working: { color: colorVars["--color-text-blue"], flexShrink: 0 },
+  // and only the title gives way. One type-scale step (12px) below the
+  // title: it's `supporting` text, but the side-nav-section raises
+  // `--text-supporting-size` to the title's 14px, so it sets the step itself.
+  working: {
+    color: colorVars["--color-text-blue"],
+    flexShrink: 0,
+    fontSize: textSizeVars["--font-size-sm"],
+  },
   attention: { flexShrink: 0, display: "inline-flex" },
   // A nested side-nav row is indented one `--spacing-6` step, the width of
   // the parent's icon plus the row's gap (16px + `--spacing-2`); pulling the
