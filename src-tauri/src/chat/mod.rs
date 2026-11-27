@@ -26,8 +26,8 @@ pub struct ChatMessage {
     pub content: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCall>>,
-    /// Files the user attached to this (user) message, or images an ACP
-    /// agent sent in this (assistant) one — see `crate::attachments`. Never serialized: this struct doubles as the
+    /// Files the user attached to this (user) message — see
+    /// `crate::attachments`. Never serialized: this struct doubles as the
     /// literal message a native provider gets, and each provider turns
     /// these into its own content parts (`provider::wire`).
     #[serde(default, skip_serializing)]

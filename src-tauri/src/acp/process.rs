@@ -69,7 +69,8 @@ pub(crate) enum AcpCommand {
 /// connection's first prompt (`FirstPromptContext`), the message text, its
 /// `@path` files (`crate::file_context::acp_blocks`), then the files the
 /// user attached (`super::attachments::prompt_blocks`) — each in the
-/// richest form `caps` allows.
+/// richest form `caps` allows. The text block is left out when it's empty
+/// and there are files to send instead.
 fn prompt_blocks(
     context: Option<String>,
     text: String,
@@ -81,12 +82,14 @@ fn prompt_blocks(
         .map(|c| ContentBlock::Text(TextContent::new(c)))
         .into_iter()
         .collect();
-    blocks.push(ContentBlock::Text(TextContent::new(text)));
-    blocks.extend(crate::file_context::acp_blocks(
-        files,
-        caps.embedded_context,
-    ));
-    blocks.extend(super::attachments::prompt_blocks(attachments, caps));
+    let mut file_blocks = crate::file_context::acp_blocks(files, caps.embedded_context);
+    file_blocks.extend(super::attachments::prompt_blocks(attachments, caps));
+    // A message that's only attachments goes as just those, not with an
+    // empty text block in front — unless there's nothing else to send.
+    if !text.trim().is_empty() || file_blocks.is_empty() {
+        blocks.push(ContentBlock::Text(TextContent::new(text)));
+    }
+    blocks.extend(file_blocks);
     blocks
 }
 
@@ -977,5 +980,23 @@ mod tests {
         let after = connection(&chat, &["hi"]);
         assert!(before[0][0].contains("*Add dark mode*"));
         assert!(after[0][0].contains("*Add a dark theme*"));
+    }
+
+    #[test]
+    fn an_attachments_only_message_sends_no_empty_text_block() {
+        let root = std::env::temp_dir().join(format!("al-pb-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let a = crate::attachments::stage_bytes(&root, "notes.md", b"# hi".to_vec()).unwrap();
+        let caps = PromptCaps {
+            image: true,
+            embedded_context: true,
+        };
+        let blocks = prompt_blocks(None, String::new(), &[], &[a], caps);
+        assert_eq!(blocks.len(), 1);
+        assert!(matches!(blocks[0], ContentBlock::Resource(_)));
+        // Nothing to send but the (empty) text: it still goes.
+        let blocks = prompt_blocks(None, String::new(), &[], &[], caps);
+        assert!(matches!(blocks[..], [ContentBlock::Text(_)]));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
