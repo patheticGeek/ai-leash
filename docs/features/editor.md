@@ -37,8 +37,7 @@ from **Settings > Fonts**; see [Fonts](./ui-shell.md#fonts).
 ## Preview Markdown
 
 A Markdown file (`.md` or `.markdown`) opens as a rendered preview. A small
-button floating in the tab's top-right corner switches between **Preview**
-and **Source** (it shows the code icon in Preview, the eye in Source), so
+**Preview** / **Source** switch floats in the tab's top-right corner, so
 neither view loses any room to a toolbar. Preview shows the
 document the way it reads, rendered like the agent's chat replies but with
 the file's soft-wrapped lines joined into paragraphs. Source is the editor.

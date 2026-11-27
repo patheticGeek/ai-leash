@@ -1,6 +1,14 @@
-import { IconButton } from "@astryxdesign/core/IconButton";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
 import { VStack } from "@astryxdesign/core/Stack";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import {
+  colorVars,
+  radiusVars,
+  shadowVars,
+  spacingVars,
+} from "@astryxdesign/core/theme/tokens.stylex";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
@@ -45,12 +53,16 @@ const styles = stylex.create({
     overflow: "hidden",
   },
   // The Preview/Source switch floats over the content's top-right corner,
-  // clear of its scrollbar, rather than taking a toolbar row.
+  // clear of its scrollbar, rather than taking a toolbar row. Its track is
+  // translucent, so it gets a solid backing to stay legible over text.
   toggle: {
     position: "absolute",
     top: spacingVars["--spacing-2"],
     right: spacingVars["--spacing-4"],
     zIndex: 1,
+    backgroundColor: colorVars["--color-background-popover"],
+    borderRadius: radiusVars["--radius-element"],
+    boxShadow: shadowVars["--shadow-low"],
   },
   pane: { flexGrow: 1, flexBasis: 0, minHeight: 0, overflow: "hidden" },
   // Kept mounted while the Preview shows, so its cursor, undo history and
@@ -399,16 +411,23 @@ export default function FileEditorTab({ path }: { path: string }) {
       )}
       {isMarkdown && (
         <VStack xstyle={styles.toggle}>
-          <IconButton
+          <SegmentedControl
+            label="Show"
             size="sm"
-            elevation="low"
-            label={mode === "preview" ? "Show source" : "Show preview"}
-            tooltip={mode === "preview" ? "Show source" : "Show preview"}
-            icon={mode === "preview" ? <Code size={13} /> : <Eye size={13} />}
-            onClick={() =>
-              switchView(mode === "preview" ? "source" : "preview")
-            }
-          />
+            value={mode}
+            onChange={switchView}
+          >
+            <SegmentedControlItem
+              value="preview"
+              label="Preview"
+              icon={<Eye size={13} />}
+            />
+            <SegmentedControlItem
+              value="source"
+              label="Source"
+              icon={<Code size={13} />}
+            />
+          </SegmentedControl>
         </VStack>
       )}
     </VStack>
