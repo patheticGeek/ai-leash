@@ -199,6 +199,9 @@ export interface PermissionRequestPayload {
   kind: "shell" | "edit" | "acp";
   title: string;
   detail: string;
+  // Why the agent wants it, when it said: an ACP `execute` tool call's own
+  // text (its description of the command). Absent otherwise.
+  reason?: string;
 }
 
 // One selectable value of an enum-like property (`oneOf`/`anyOf` entry).

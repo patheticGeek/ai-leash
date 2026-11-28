@@ -291,8 +291,8 @@ shows a "couldn't restore its previous session" error.
 
 Agents can use project tools to inspect and modify files or run shell
 commands. In **Ask** permission mode, the chat input is replaced temporarily
-by a permission request when approval is needed: one compact card with a
-thin amber edge. A single small header line says what the agent wants
+by a permission request when approval is needed: one compact card,
+marked by an amber icon and label. A single small header line says what the agent wants
 ("Wants to run a command", "Wants to edit a file") and how long it has been
 waiting; under it are the target in monospace and the command or diff (a
 long one is cut to its first lines, with **Show all**), then one row of
@@ -324,16 +324,17 @@ An external agent can stop mid-turn to ask you for structured input, such as a
 choice between approaches or a value it needs. When it does, the chat input is
 replaced by a short form in the same compact card, one question at a time:
 a header line ("Asked you a question", with the form's title, which
-question you're on and how long it has waited), the agent's message, the
-question's options as small rows each led by its number key, then one row
-of buttons (**Submit** or **Next** first). The conversation's row in the sidebar highlights so you can find it
+question you're on and how long it has waited), the agent's question in
+larger text, its options as compact rows each led by its number key (the
+one you pick is highlighted; there are no radio buttons, though questions
+where you can pick several keep their checkboxes), then one row of buttons (**Submit** or **Next** first). The conversation's row in the sidebar highlights so you can find it
 if you're in another conversation.
 
 - Pick an option, enter a value, or select several, depending on the question.
   Use **Skip** on optional questions, and **Previous**/**Next** to move around.
 - When a question comes with a free-text box (an "Other" answer, or a note on
   your pick), it sits under that question's options rather than on a page of
-  its own.
+  its own, as a plain input whose placeholder says what to type.
 - **Submit** sends your answers to the agent.
 - **Decline** tells the agent you don't want to answer. The close button
   dismisses the form without answering, and so does stopping the turn.

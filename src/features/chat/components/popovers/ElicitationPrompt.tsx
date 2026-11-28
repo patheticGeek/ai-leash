@@ -11,10 +11,11 @@ import {
 } from "@astryxdesign/core/DateTimeInput";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Kbd } from "@astryxdesign/core/Kbd";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
-import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { QuestionMark, X } from "lucide-react";
@@ -44,6 +45,9 @@ import PromptCard, {
 } from "./PromptCard";
 
 const styles = stylex.create({
+  // A one-of choice's validation message (the field status a RadioList
+  // would have drawn).
+  errorText: { color: colorVars["--color-text-error"] },
   // A long form scrolls inside the card rather than pushing the dock up
   // past the top of the panel.
   body: {
@@ -109,11 +113,14 @@ function FieldControl({
   values,
   error,
   onChange,
+  isBare = false,
 }: {
   field: ElicitationField;
   values: Values;
   error: string | undefined;
   onChange: (name: string, value: string[]) => void;
+  /** A choice's "Other" box: just the input, its hint in the placeholder. */
+  isBare?: boolean;
 }) {
   const current = values[field.name] ?? [];
   const status = error ? { type: "error" as const, message: error } : undefined;
@@ -124,7 +131,7 @@ function FieldControl({
     status,
     width: "100%",
   };
-  // Inputs come in the prompt's compact size (`RadioList` too; Astryx's
+  // Inputs come in the prompt's compact size (Astryx's
   // `CheckboxList` has one size).
   const size = "sm" as const;
   if (field.kind === "choice") {
@@ -145,22 +152,35 @@ function FieldControl({
         ))}
       </CheckboxList>
     ) : (
-      <RadioList
-        {...common}
-        size={size}
-        value={current[0] ?? ""}
-        onChange={(v) => onChange(field.name, [v])}
-      >
-        {field.choices.map((c, i) => (
-          <RadioListItem
-            key={c.value}
-            value={c.value}
-            label={c.title}
-            description={c.description}
-            startContent={<ChoiceKey index={i} />}
-          />
-        ))}
-      </RadioList>
+      // A one-of choice is a list of rows, not radio buttons: the number
+      // key leads each row and the picked one takes the selected fill.
+      <VStack gap={1}>
+        <List
+          density="compact"
+          edge="flush"
+          header={
+            <Text size="sm" color="secondary">
+              {field.title}
+            </Text>
+          }
+        >
+          {field.choices.map((c, i) => (
+            <ListItem
+              key={c.value}
+              label={c.title}
+              description={c.description}
+              startContent={<ChoiceKey index={i} />}
+              isSelected={current[0] === c.value}
+              onClick={() => onChange(field.name, [c.value])}
+            />
+          ))}
+        </List>
+        {error && (
+          <Text size="sm" xstyle={styles.errorText}>
+            {error}
+          </Text>
+        )}
+      </VStack>
     );
   }
   const set = (v: string | undefined) =>
@@ -205,6 +225,11 @@ function FieldControl({
           type={field.inputType}
           value={current[0] ?? ""}
           onChange={(v) => set(v)}
+          {...(isBare && {
+            isLabelHidden: true,
+            description: undefined,
+            placeholder: field.description ?? field.title,
+          })}
         />
       );
   }
@@ -293,7 +318,7 @@ function ElicitationForm({
       body.contains(active);
     if (!isOurs) return;
     body
-      .querySelector<HTMLElement>("input, textarea, [role='radio']")
+      .querySelector<HTMLElement>("input, textarea, ul button")
       ?.focus({ preventScroll: true });
   }, [stepIndex]);
 
@@ -485,7 +510,7 @@ function ElicitationForm({
     >
       <VStack ref={bodyRef} gap={2} isScrollable xstyle={styles.body}>
         <VStack gap={0.5}>
-          <Text size="sm" xstyle={styles.message}>
+          <Text size="lg" xstyle={styles.message}>
             {request.message}
           </Text>
           {request.schema.description && (
@@ -508,6 +533,7 @@ function ElicitationForm({
                 values={values}
                 error={errors[step.other.name]}
                 onChange={setValue}
+                isBare
               />
             )}
           </VStack>

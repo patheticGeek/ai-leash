@@ -154,9 +154,9 @@ the chat area. Sub-agent tabs can be closed when you no longer need them.
 
 Every tab shows an icon before its title for its kind: a folder tree for
 **Files**, a code or text page for an open file, a terminal for
-**Terminal**, a play button for an Action's output (an amber stop button
-while it runs, red after a failed run, the same tones as the top bar's
-Actions button), a lightning bolt for
+**Terminal**, a play button for an Action's output (amber while it runs,
+red after a failed run, the same tones as the top bar's Actions button; it
+stays a play icon, since the tab isn't a stop control), a lightning bolt for
 **Actions**, a robot for **Sub agents** and for a sub-agent's conversation,
 an eye for a preview, and a speech bubble for **Agent**. Status markers
 (the unsaved-file dot, the running sub-agent count) sit after the title.
@@ -442,7 +442,7 @@ appearance switch. The interface is built on the Astryx `neutral` look
 blue tint): the chat and board, the darkest, are `#0f0f10`; the sidebar
 and the right-hand panel either side are a step up at `#161617`; cards,
 menus and popovers are `#1c1c1e`; with `#ededef` primary
-and `#a1a1a8` secondary text. Corners are smaller than stock: 6px on
+and `#a1a1a8` secondary text. Key badges are ghost keycaps — transparent with a thin border and muted text. Corners are smaller than stock: 6px on
 buttons and inputs, 10px on cards, menus and dialogs. Tooltips are dark
 too, drawn like a popover: the `#1c1c1e` popover background, `#ededef`
 primary text and the popover's low shadow (which in dark mode carries a

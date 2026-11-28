@@ -687,6 +687,16 @@
     box-shadow: var(--shadow-low);
   }
 
+  .astryx-kbd-key {
+    background-color: transparent;
+    border-style: solid;
+    border-width: var(--border-width);
+    border-color: var(--color-border-emphasized);
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
   .astryx-text[data-color="primary"] { color: var(--color-text-primary); }
 
   .astryx-heading[data-color="primary"] { color: var(--color-text-primary); }

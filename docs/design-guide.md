@@ -79,9 +79,11 @@ Ordered: when two conflict, the earlier one wins.
   inverted light chip, which glares on the near-black app. Don't restyle a
   tooltip per call site.
 - Tab icons carry run status: an Action's output tab tints its icon with
-  `runState`'s tones through the shared `RunIcon` (amber Stop while
-  running, red after a failed run), matching the Actions tab and the top
-  bar's Actions button.
+  `runState`'s tones through the shared `RunIcon` (amber while running,
+  red after a failed run), matching the Actions tab and the top bar's
+  Actions button. Only a control changes glyph (the top bar's Stop); a
+  status icon keeps its glyph and shows state by colour alone
+  (`RunIcon isStatusOnly`).
 - One brand gradient, in the logo only. No other gradients or accent
   colours in the app UI.
 
@@ -138,6 +140,11 @@ Use the stock variants only, by role:
 - Show the key wherever the action appears: a `Kbd` badge at the end of
   the row or button, `withShortcut(label, id)` in tooltips, the palette
   row. ⌃ on Linux/Windows, ⌘ on macOS — the registry handles it.
+- Key badges are ghost keycaps: transparent, a thin
+  `--color-border-emphasized` border all round, `--color-text-secondary`
+  text, at a fixed 12px (not the supporting size, which the sidebar raises
+  to 14px), so a badge stays a step smaller than the label beside it.
+  That's the theme's `kbd-key` part — don't restyle a `Kbd` locally.
 - Show modifier keys as symbols (⌃ ⌘ ⇧ ⌥) via `kbdKeys`: pass
   `kbdKeys(keys)` to every `Kbd`, and `formatShortcut(keys)` for a key in a
   string. Never write "Ctrl" in UI text.
@@ -161,9 +168,8 @@ A permission ask, an agent's question, or any new "the agent is waiting on
 you" surface follows `PromptCard` (`features/chat/components/popovers/`):
 
 - It takes the composer's place as one compact card (`Card elevation=low
-  padding={3}`, gap 2 inside) with a thin amber **leading edge** only
-  (`borderInlineStart*` at twice `--border-width` in
-  `--color-border-warning`), not an amber border all round.
+  padding={3}`, gap 2 inside) with the card's normal border — no amber
+  edge or border; the amber icon and label mark it as waiting on you.
 - No heading. One small header line: the amber status icon (`ShieldAlert`
   for approval, `QuestionMark` for a question, `xsm`, the same marks the
   sidebar row shows), a short amber label in `sm` ("Wants to run a
@@ -173,15 +179,19 @@ you" surface follows `PromptCard` (`features/chat/components/popovers/`):
 - Content in `sm`: what the agent wants — the command, path or tool and its
   arguments — in monospace (`Text type="code" size="sm"`, `CodeBlock
   size="sm"`), cut to a few lines with a **Show all**, never hidden; one
-  muted line of why or context. A question's choices are `sm` rows led by
-  their number `Kbd`; form inputs are `size="sm"`.
+  muted line of why or context. A question itself (the agent's message)
+  is `lg`, the one big line in the card. A one-of choice is a compact
+  `List` of selectable rows led by their number `Kbd` — no radio circles;
+  the picked row takes the selected fill (several-of keeps checkboxes).
+  A choice's "Other" answer is just the input, its hint in the
+  placeholder, no label. Form inputs are `size="sm"`.
 - Buttons: one row of `size="sm"`, start-aligned, primary first — one
   `primary` (allow once, or the recommended choice), `secondary` for the
   alternatives and the refusal, `ghost` only for navigation (Previous) and
   dismiss. Weight 500 at most.
 - A key hint inside a button is `ButtonKbd` (`PromptCard.tsx`), never a bare
-  `Kbd`: Kbd paints light text on a light-tinted key, which disappears on a
-  `primary` button; `ButtonKbd` points Kbd's tokens at the button's own
+  `Kbd`: the key's secondary text and dark border vanish on a `primary`
+  button's light fill; `ButtonKbd` points Kbd's tokens at the button's own
   foreground, dimmed, so it reads on every variant. Keys go through
   `kbdKeys`.
 - Keys, one scheme for every prompt (`lib/promptKeys.ts`): `Enter` = the

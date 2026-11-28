@@ -150,6 +150,11 @@ export default function PermissionPrompt({
             onClick={() => setExpandedId(shown.id)}
           />
         )}
+        {shown.reason && (
+          <Text size="sm" color="secondary">
+            {shown.reason}
+          </Text>
+        )}
       </VStack>
     </PromptCard>
   );

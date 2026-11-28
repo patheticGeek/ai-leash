@@ -5,7 +5,7 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Kbd } from "@astryxdesign/core/Kbd";
 import { Text } from "@astryxdesign/core/Text";
-import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
@@ -33,13 +33,9 @@ import { useAppStore } from "../../../../store";
 const ARM_DELAY_MS = 400;
 
 const styles = stylex.create({
-  // Amber = waiting on the user (see the design guide's status colours): a
-  // thin accent on the leading edge only, the rest the composer's own card.
   card: {
-    borderInlineStartWidth: `calc(${borderVars["--border-width"]} * 2)`,
-    borderInlineStartColor: colorVars["--color-border-warning"],
     // Only ever focused from code (tabIndex -1), to take the prompt's keys;
-    // the amber edge already marks it.
+    // the amber icon and label already mark it as waiting on you.
     outlineStyle: "none",
   },
   heading: { color: colorVars["--color-text-warning"] },
@@ -48,7 +44,11 @@ const styles = stylex.create({
   // fill; this re-points its tokens at the button's own foreground, dimmed,
   // so the key reads on every variant.
   buttonKbd: {
+    // The theme draws keys as ghost boxes (transparent, thin
+    // `--color-border-emphasized` border, `--color-text-secondary` text);
+    // inside a button both follow the button's own foreground instead.
     "--color-text-primary": "currentColor",
+    "--color-text-secondary": "currentColor",
     "--color-neutral": "color-mix(in srgb, currentColor 14%, transparent)",
     "--color-border-emphasized":
       "color-mix(in srgb, currentColor 35%, transparent)",

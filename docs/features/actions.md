@@ -55,8 +55,9 @@ the tooltip says, for example, "dev is running — click to stop". If the last
 run exited with an error, the play icon and label are red, and the tooltip
 gives the exit code. Otherwise the button shows a plain play icon. Actions in
 the dropdown tint their icon the same way, and so does an Action's output
-tab: an amber stop icon while it runs, a red play icon after a failed run,
-and a plain play icon otherwise. Point at the tab, or move keyboard focus
+tab: its play icon turns amber while the Action runs (it stays a play icon,
+not a stop, since the tab isn't a control), red after a failed run, and
+plain otherwise. Point at the tab, or move keyboard focus
 onto it, and the icon still turns into its **×**. All three read the same
 Actions list and share one icon component (`features/actions/RunIcon.tsx`,
 tones from `runState`).

@@ -591,6 +591,17 @@ export const aiLeashTheme = {
         "color": "var(--color-text-primary)",
         "boxShadow": "var(--shadow-low)"
       }
+    },
+    "kbd-key": {
+      "base": {
+        "backgroundColor": "transparent",
+        "borderStyle": "solid",
+        "borderWidth": "var(--border-width)",
+        "borderColor": "var(--color-border-emphasized)",
+        "color": "var(--color-text-secondary)",
+        "fontSize": "0.75rem",
+        "lineHeight": "1rem"
+      }
     }
   },
   __onDark: {

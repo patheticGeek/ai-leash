@@ -24,6 +24,10 @@ struct PermissionRequest {
     kind: String,
     title: String,
     detail: String,
+    /// Why the agent wants this, when it said (an ACP tool call's own text
+    /// next to its command); shown as a muted line under the detail.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
 }
 
 pub(crate) async fn request_permission(
@@ -33,6 +37,19 @@ pub(crate) async fn request_permission(
     kind: &str,
     title: String,
     detail: String,
+) -> bool {
+    request_permission_with_reason(app, state, session_id, kind, title, detail, None).await
+}
+
+/// `request_permission`, plus the agent's own reason for the request.
+pub(crate) async fn request_permission_with_reason(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    session_id: &str,
+    kind: &str,
+    title: String,
+    detail: String,
+    reason: Option<String>,
 ) -> bool {
     if state.permission_bypass.lock().unwrap().contains(session_id) {
         return true;
@@ -59,6 +76,7 @@ pub(crate) async fn request_permission(
             kind: kind.into(),
             title,
             detail,
+            reason,
         },
     );
     rx.await.unwrap_or(false)

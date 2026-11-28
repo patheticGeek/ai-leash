@@ -8,17 +8,22 @@ import { runState } from "./runState";
 // button and its dropdown, and an Action's output tab in the tab strip, so
 // they always agree. `neutralColor` is the idle tint: `inherit` to take a
 // button's label colour, `secondary` beside the strip's other tab icons.
+// `isStatusOnly`: always Play, only the colour shows the state — for a
+// place where the icon isn't a control (an output tab), so Stop would
+// promise an action clicking it doesn't take.
 export function RunIcon({
   action,
   neutralColor = "inherit",
+  isStatusOnly = false,
 }: {
   action: ActionSummary;
   neutralColor?: "inherit" | "secondary";
+  isStatusOnly?: boolean;
 }) {
   const { tone } = runState(action);
   return (
     <Icon
-      icon={action.running ? Square : Play}
+      icon={action.running && !isStatusOnly ? Square : Play}
       size="sm"
       color={tone === "neutral" ? neutralColor : tone}
     />

@@ -199,6 +199,48 @@
       "value": "var(--shadow-low)",
       "source": "property",
       "on": "tooltip"
+    },
+    {
+      "thing": "background-color",
+      "value": "transparent",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-style",
+      "value": "solid",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-width",
+      "value": "var(--border-width)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-color",
+      "value": "var(--color-border-emphasized)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-secondary)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "font-size",
+      "value": "0.75rem",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "line-height",
+      "value": "1rem",
+      "source": "property",
+      "on": "kbd-key"
     }
   ],
   "lifted": [

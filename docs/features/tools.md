@@ -184,10 +184,15 @@ When a prompt appears, choose:
 - **Deny** to block it. The agent is told that you denied the request and can
   adjust its approach or ask what you would prefer.
 
-The prompt is a compact card in the message box's place, with a thin amber
-edge: a one-line header (what the agent wants, whether a sub-agent is
-asking, and how long it has been waiting), the request itself, and one row
-of small buttons, **Allow once** first. It is keyboard-first, and each
+The prompt is a compact card in the message box's place, marked by an amber
+icon and label: a one-line header (what the agent wants, whether a sub-agent
+is asking, and how long it has been waiting), the request itself, the
+agent's reason when it gave one, and one row of small buttons, **Allow
+once** first. For an external agent's command (an ACP tool call of kind
+`execute`), the command is shown as the code — taken from the call's
+`rawInput.command`, or its title with any backticks removed — and the
+call's own text, usually the agent's description of the command, as the
+reason underneath. It is keyboard-first, and each
 button shows its key:
 
 | Key | Does |

@@ -116,7 +116,8 @@ function ActionTabIcon({ actionId }: { actionId: string }) {
   const { actions } = useActions();
   const action = actions.find((a) => a.id === actionId);
   if (!action) return <Icon icon={Play} size="sm" color="secondary" />;
-  return <RunIcon action={action} neutralColor="secondary" />;
+  // Status, not a control: Play in the run's colour, never Stop.
+  return <RunIcon action={action} neutralColor="secondary" isStatusOnly />;
 }
 
 // One tab of the strip: its kind's icon, then its title, then any status.

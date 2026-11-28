@@ -25,7 +25,7 @@ use similar::{ChangeTag, TextDiff};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
-pub(crate) use permissions::request_permission;
+pub(crate) use permissions::{request_permission, request_permission_with_reason};
 pub use schema::tool_definitions;
 
 #[derive(Clone, Serialize, Deserialize)]
