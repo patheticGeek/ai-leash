@@ -152,7 +152,7 @@ export function Chart({
   const labelW = Math.max(...labels.map((l) => l.length)) * CHAR_WIDTH + 8;
   const every = band > 0 ? Math.max(1, Math.ceil(labelW / band)) : 1;
   const maxChars = Math.max(3, Math.floor((band * every - 4) / CHAR_WIDTH));
-  const fit = (l: string) =>
+  const fitLabel = (l: string) =>
     l.length > maxChars ? `${l.slice(0, maxChars - 1)}…` : l;
   const withUnit = (v: number) =>
     `${v.toLocaleString()}${unit ? ` ${unit}` : ""}`;
@@ -203,7 +203,7 @@ export function Chart({
                   {...stylex.props(styles.axisText)}
                 >
                   <title>{l}</title>
-                  {fit(l)}
+                  {fitLabel(l)}
                 </text>
               ) : null,
             )}

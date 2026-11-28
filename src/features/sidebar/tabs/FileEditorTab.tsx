@@ -88,7 +88,7 @@ const styles = stylex.create({
   },
 });
 
-export function isMarkdownPath(path: string): boolean {
+function isMarkdownPath(path: string): boolean {
   return /\.(md|markdown)$/i.test(path);
 }
 
@@ -111,22 +111,18 @@ function languageFor(name: string): Extension {
   return codeLanguageFor(ext) ?? [];
 }
 
-// A file extension (or its language name) the editor highlights.
+// A file extension the editor highlights.
 function codeLanguageFor(name: string): LanguageSupport | null {
   switch (name) {
     case "ts":
     case "tsx":
-    case "typescript":
       return javascript({ jsx: true, typescript: true });
     case "js":
     case "jsx":
-    case "javascript":
       return javascript({ jsx: true });
     case "py":
-    case "python":
       return python();
     case "rs":
-    case "rust":
       return rust();
     case "json":
       return json();
