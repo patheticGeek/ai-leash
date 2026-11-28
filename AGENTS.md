@@ -107,7 +107,9 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   main region: chat, board) is the darkest, `#0f0f10`; body and muted (the
   sidebar, the side panel via `App.tsx`) are `#161617`; card/popover
   `#1c1c1e`. Corners use the `6px` dial with
-  `--radius-container` at 10px. Don't recolour or
+  `--radius-container` at 10px. Code uses the theme's `--color-syntax-*`
+  palette everywhere (code blocks, editor via `lib/codeTheme.ts`, terminal
+  via `lib/terminalTheme.ts`); no stock editor themes. Don't recolour or
   respace it further; build each surface from its Astryx template and keep the
   template's frame, gaps and padding. The other theme edits are chrome text on
   the 12px scale step (tabs, small buttons/inputs/selectors), sidebar

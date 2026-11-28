@@ -84,9 +84,19 @@ export interface ProjectSlice {
   clearRevealLines: () => void;
   // A Markdown file's Preview/Source switch in its editor tab, by path —
   // here rather than in the tab, which unmounts whenever another tab is
-  // picked. No entry: Preview. Revealing lines switches to Source.
+  // picked. No entry: `defaultFileViewMode`. Revealing lines switches to
+  // Source.
   fileViewModes: Record<string, FileViewMode>;
-  setFileViewMode: (path: string, mode: FileViewMode) => void;
+  // The switch the user last picked, kept across runs: how a Markdown file
+  // opens when it has no entry yet (Preview until they pick).
+  defaultFileViewMode: FileViewMode;
+  // `isUserChoice`: the user flipped the switch — also becomes the default.
+  // Code switching it (revealing lines) doesn't.
+  setFileViewMode: (
+    path: string,
+    mode: FileViewMode,
+    isUserChoice?: boolean,
+  ) => void;
   setActive: (path: string) => void;
   updateContent: (path: string, content: string) => void;
   saveFile: (path: string) => Promise<void>;
@@ -152,8 +162,18 @@ export const projectSlice: StateCreator<AppStore, [], [], ProjectSlice> = (
   clearRevealLines: () => set({ revealLines: null }),
 
   fileViewModes: {},
-  setFileViewMode: (path, mode) =>
-    set((s) => ({ fileViewModes: { ...s.fileViewModes, [path]: mode } })),
+  defaultFileViewMode:
+    localStorageJson.read<FileViewMode>(LS_KEYS.fileViewMode, "preview") ===
+    "source"
+      ? "source"
+      : "preview",
+  setFileViewMode: (path, mode, isUserChoice) => {
+    if (isUserChoice) localStorageJson.write(LS_KEYS.fileViewMode, mode);
+    set((s) => ({
+      fileViewModes: { ...s.fileViewModes, [path]: mode },
+      ...(isUserChoice ? { defaultFileViewMode: mode } : {}),
+    }));
+  },
 
   openFile: async (path, name, lines) => {
     // No session in a new thread — Rust then reads from the checkout it's

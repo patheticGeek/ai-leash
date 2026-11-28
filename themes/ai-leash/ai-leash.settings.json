@@ -165,12 +165,6 @@
       "mode": "dark"
     },
     {
-      "thing": "--color-syntax-background",
-      "value": "#0e0e0f",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
       "thing": "--color-background-surface",
       "value": "#0f0f10",
       "source": "token",
@@ -241,6 +235,36 @@
       "value": "1rem",
       "source": "property",
       "on": "kbd-key"
+    },
+    {
+      "thing": "--color-syntax-background",
+      "value": "#161617",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-syntax-variable",
+      "value": "#dcdce0",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-syntax-comment",
+      "value": "#83838b",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-syntax-punctuation",
+      "value": "#9d9da4",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-syntax-operator",
+      "value": "#9d9da4",
+      "source": "token",
+      "mode": "dark"
     }
   ],
   "lifted": [

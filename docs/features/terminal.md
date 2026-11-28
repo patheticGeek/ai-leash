@@ -30,7 +30,10 @@ again.
 
 Terminal text uses the code font from **Settings > Fonts**; see
 [Fonts](./ui-shell.md#fonts). The terminal has the same background and text
-colour as the app's code blocks, so it matches the rest of the interface.
+colour as the app's code blocks, and its 16 ANSI colours come from the same
+code palette (red from tags, green from strings, blue from functions and so
+on, in `lib/terminalTheme.ts`), so coloured output matches the code around
+it.
 
 A terminal is an ordinary tab. It opens in the side panel, and you can drag
 it into the chat area and back without losing its shell or scrollback; see

@@ -1,3 +1,4 @@
+import { CodeBlock as AstryxCodeBlock } from "@astryxdesign/core/CodeBlock";
 import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import {
@@ -10,6 +11,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import { Check, Copy, Play } from "lucide-react";
 import {
+  type ComponentProps,
   createContext,
   isValidElement,
   memo,
@@ -70,9 +72,11 @@ export const MentionBadgeContext = createContext<
 
 const SHELL_LANGUAGES = new Set(["bash", "sh", "shell", "zsh"]);
 
-// Block spacing: a step below each block, none after the last one.
+// Block spacing: a gap below each block (paragraphs, lists, code, quotes,
+// tables), none after the last one. Headings add more room above them, so a
+// section break reads as one; see `heading`.
 const blockGap = {
-  default: spacingVars["--spacing-2"],
+  default: spacingVars["--spacing-3"],
   ":last-child": 0,
 };
 
@@ -86,11 +90,18 @@ const styles = stylex.create({
     lineHeight: 1.625,
     overflowWrap: "break-word",
   },
+  // The code palette's own background (`--color-syntax-background`, from
+  // the theme), the one the editor and terminal use too — see
+  // `lib/codeTheme.ts`.
   codeBlock: {
-    marginBlock: spacingVars["--spacing-2"],
+    marginBlock: 0,
+    marginBlockEnd: blockGap,
     overflow: "hidden",
     borderRadius: radiusVars["--radius-element"],
-    backgroundColor: colorVars["--color-background-muted"],
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colorVars["--color-border"],
+    backgroundColor: "var(--color-syntax-background)",
   },
   codeHeader: {
     paddingBlock: spacingVars["--spacing-0-5"],
@@ -102,12 +113,12 @@ const styles = stylex.create({
     color: colorVars["--color-text-secondary"],
     fontSize: "0.857em",
   },
-  pre: {
-    margin: 0,
-    overflowX: "auto",
-    padding: spacingVars["--spacing-2"],
-    fontFamily: typographyVars["--font-family-code"],
-    fontSize: CODE_SIZE,
+  // The highlighted body: Astryx `CodeBlock` bare (no header or copy of its
+  // own, `container="section"` takes no frame), at the user's code size —
+  // its `sm` text reads `--text-supporting-size`.
+  code: {
+    "--text-supporting-size": CODE_SIZE,
+    paddingBlock: spacingVars["--spacing-1"],
   },
   inlineCode: {
     paddingInline: spacingVars["--spacing-1"],
@@ -133,28 +144,66 @@ const styles = stylex.create({
   },
   ul: { listStyleType: "disc" },
   ol: { listStyleType: "decimal" },
+  // Items a small step apart, so a list doesn't read as one paragraph; a
+  // nested list or a loose item's paragraphs sit tight inside it.
+  li: {
+    marginBlockEnd: {
+      default: spacingVars["--spacing-1"],
+      ":last-child": 0,
+    },
+    paddingInlineStart: spacingVars["--spacing-0-5"],
+    "::marker": { color: colorVars["--color-text-secondary"] },
+  },
   blockquote: {
     marginBlock: 0,
     marginInline: 0,
     marginBlockEnd: blockGap,
-    paddingInlineStart: spacingVars["--spacing-2"],
+    paddingBlock: spacingVars["--spacing-0-5"],
+    paddingInlineStart: spacingVars["--spacing-3"],
     borderInlineStartWidth: 2,
     borderInlineStartStyle: "solid",
-    borderInlineStartColor: colorVars["--color-accent"],
+    borderInlineStartColor: colorVars["--color-border-emphasized"],
     color: colorVars["--color-text-secondary"],
   },
+  // Headings: primary text, stepped down in size by level, weight 500 (the
+  // design guide's ceiling), with room above so each starts a section and a
+  // tighter gap below so it belongs to what follows.
   heading: {
     marginBlockStart: {
-      default: spacingVars["--spacing-2"],
+      default: spacingVars["--spacing-5"],
       ":first-child": 0,
     },
-    marginBlockEnd: spacingVars["--spacing-1-5"],
-    fontWeight: fontWeightVars["--font-weight-semibold"],
+    marginBlockEnd: spacingVars["--spacing-2"],
+    fontWeight: fontWeightVars["--font-weight-medium"],
+    lineHeight: 1.3,
+    color: colorVars["--color-text-primary"],
     fontSize: "1em",
   },
-  h1: { fontSize: "1.143em" },
+  h1: { fontSize: "1.5em" },
+  h2: { fontSize: "1.3em" },
+  h3: { fontSize: "1.15em" },
+  // h4–h6: body size, set apart by colour and weight only.
+  hMinor: {
+    marginBlockStart: {
+      default: spacingVars["--spacing-4"],
+      ":first-child": 0,
+    },
+  },
+  // A Markdown file (Preview) reads as a document: more air before the top
+  // two levels, which also get a rule under them.
+  hDocument: {
+    marginBlockStart: {
+      default: spacingVars["--spacing-8"],
+      ":first-child": 0,
+    },
+    marginBlockEnd: spacingVars["--spacing-3"],
+    paddingBlockEnd: spacingVars["--spacing-2"],
+    borderBlockEndWidth: 1,
+    borderBlockEndStyle: "solid",
+    borderBlockEndColor: colorVars["--color-border"],
+  },
   hr: {
-    marginBlock: spacingVars["--spacing-2"],
+    marginBlock: spacingVars["--spacing-5"],
     height: 0,
     borderWidth: 0,
     borderBlockStartWidth: 1,
@@ -221,7 +270,18 @@ function CodeBlock({
           />
         </HStack>
       </HStack>
-      {html?.body ?? <pre {...stylex.props(styles.pre)}>{children}</pre>}
+      {html?.body ?? (
+        <AstryxCodeBlock
+          code={text}
+          language={language ?? "plaintext"}
+          hasLanguageLabel={false}
+          hasCopyButton={false}
+          container="section"
+          size="sm"
+          width="100%"
+          xstyle={styles.code}
+        />
+      )}
     </div>
   );
 }
@@ -244,6 +304,31 @@ function UiFence({
     <UiBlock
       source={nodeText(children).replace(/\n$/, "")}
       isPending={isStreaming && !closed}
+    />
+  );
+}
+
+// Whether this is a Markdown file's Preview (`isDocument`), where the top
+// two heading levels get document spacing and a rule.
+const DocumentContext = createContext(false);
+
+function Heading({
+  level,
+  ...props
+}: { level: 1 | 2 | 3 | 4 | 5 | 6 } & ComponentProps<"h1">) {
+  const isDocument = useContext(DocumentContext);
+  const Tag = `h${level}` as const;
+  return (
+    <Tag
+      {...props}
+      {...stylex.props(
+        styles.heading,
+        level === 1 && styles.h1,
+        level === 2 && styles.h2,
+        level === 3 && styles.h3,
+        level >= 4 && styles.hMinor,
+        isDocument && level <= 2 && styles.hDocument,
+      )}
     />
   );
 }
@@ -299,15 +384,13 @@ const components: Components = {
   blockquote: ({ node: _, ...props }) => (
     <blockquote {...props} {...stylex.props(styles.blockquote)} />
   ),
-  h1: ({ node: _, ...props }) => (
-    <h1 {...props} {...stylex.props(styles.heading, styles.h1)} />
-  ),
-  h2: ({ node: _, ...props }) => (
-    <h2 {...props} {...stylex.props(styles.heading)} />
-  ),
-  h3: ({ node: _, ...props }) => (
-    <h3 {...props} {...stylex.props(styles.heading)} />
-  ),
+  h1: ({ node: _, ...props }) => <Heading level={1} {...props} />,
+  h2: ({ node: _, ...props }) => <Heading level={2} {...props} />,
+  h3: ({ node: _, ...props }) => <Heading level={3} {...props} />,
+  h4: ({ node: _, ...props }) => <Heading level={4} {...props} />,
+  h5: ({ node: _, ...props }) => <Heading level={5} {...props} />,
+  h6: ({ node: _, ...props }) => <Heading level={6} {...props} />,
+  li: ({ node: _, ...props }) => <li {...props} {...stylex.props(styles.li)} />,
   hr: ({ node: _, ...props }) => <hr {...props} {...stylex.props(styles.hr)} />,
   table: ({ node: _, ...props }) => (
     <div {...stylex.props(styles.tableWrap)}>
@@ -412,20 +495,22 @@ function Markdown({
       : remarkPlugins;
   return (
     <div {...stylex.props(styles.root)}>
-      <SourceContext.Provider value={source}>
-        <MarkdownSourceContext.Provider value={content}>
-          <ReactMarkdown
-            remarkPlugins={plugins}
-            components={
-              plugins === remarkPlugins || plugins === documentPlugins
-                ? components
-                : mentionComponents
-            }
-          >
-            {content}
-          </ReactMarkdown>
-        </MarkdownSourceContext.Provider>
-      </SourceContext.Provider>
+      <DocumentContext.Provider value={isDocument}>
+        <SourceContext.Provider value={source}>
+          <MarkdownSourceContext.Provider value={content}>
+            <ReactMarkdown
+              remarkPlugins={plugins}
+              components={
+                plugins === remarkPlugins || plugins === documentPlugins
+                  ? components
+                  : mentionComponents
+              }
+            >
+              {content}
+            </ReactMarkdown>
+          </MarkdownSourceContext.Provider>
+        </SourceContext.Provider>
+      </DocumentContext.Provider>
     </div>
   );
 }

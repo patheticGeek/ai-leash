@@ -19,6 +19,7 @@ describe("openAgentFile", () => {
       panelStateByConversation: {},
       chatStateByConversation: {},
       fileViewModes: {},
+      defaultFileViewMode: "preview",
     });
   });
 
@@ -35,6 +36,12 @@ describe("openAgentFile", () => {
     expect(s.fileViewModes[PATH]).toBe("preview");
     // Not the conversation on screen.
     expect(s.panelTabs).toEqual([]);
+  });
+
+  it("opens in Source when that's the switch the user last picked", () => {
+    useAppStore.setState({ defaultFileViewMode: "source" });
+    useAppStore.getState().openAgentFile("other", PATH);
+    expect(useAppStore.getState().fileViewModes[PATH]).toBe("source");
   });
 
   it("doesn't add a second tab, and lands in Source for a line", () => {
