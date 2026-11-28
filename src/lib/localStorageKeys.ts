@@ -35,6 +35,9 @@ export const LS_KEYS = {
   // The project chat's width when docked beside the board ("both").
   projectChatWidth: "ai-leash:projectChatWidth",
   rightPanelWidth: "ai-leash:rightPanelWidth",
+  // The Preview/Source switch last picked on a Markdown file: how the next
+  // one opens — see `projectSlice.ts`'s `defaultFileViewMode`.
+  fileViewMode: "ai-leash:fileViewMode",
   // Whether the right-hand side panel is open — one app-wide flag, not per
   // conversation; see `panelSlice.ts`'s `sidePanelOpen`.
   sidePanelOpen: "ai-leash:sidePanelOpen",

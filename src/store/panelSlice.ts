@@ -368,7 +368,7 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
     set((s) => ({
       fileViewModes: {
         ...s.fileViewModes,
-        [path]: line ? "source" : "preview",
+        [path]: line ? "source" : s.defaultFileViewMode,
       },
     }));
     if (get().activeSessionId === sessionId) {

@@ -62,7 +62,12 @@ show:
   lists, tables, links, and headings. A single line break in the text is
   shown as a line break.
 
-Each code block has a header showing its language and a copy button. Blocks
+Each code block has a header showing its language and a copy button, above
+the syntax-highlighted code. Replies are spaced so their structure reads:
+headings are bright, step down in size by level and have room above them;
+paragraphs, lists, quotes and code blocks have a gap between them; and list
+items sit a little apart. Code blocks, tool calls, the file editor and the
+terminal all use the same code colours, from the app's theme. Blocks
 in a shell language (such as `bash` or `sh`) also have an **Open in a new
 terminal** button, which opens a terminal tab with the command typed at the
 prompt but not run, so you can review or edit it first.

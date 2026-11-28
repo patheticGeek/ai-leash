@@ -13,10 +13,12 @@ import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
+import type { LanguageSupport } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
 import { Annotation, EditorState, type Extension } from "@codemirror/state";
-import { oneDark } from "@codemirror/theme-one-dark";
 import * as stylex from "@stylexjs/stylex";
 import { basicSetup, EditorView } from "codemirror";
 import { Code, Eye } from "lucide-react";
@@ -29,6 +31,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { codeTheme, markdownTheme } from "../../../lib/codeTheme";
 import { reviewCommentsFor, useAppStore } from "../../../store";
 import type { FileViewMode } from "../../../store/projectSlice";
 import Markdown from "../../../ui/Markdown";
@@ -75,7 +78,10 @@ const styles = stylex.create({
     flexBasis: 0,
     minHeight: 0,
     overflowY: "auto",
-    padding: spacingVars["--spacing-4"],
+    // A document's margins: roomy, and in a wide pane (the centre) the text
+    // keeps a readable line length, centred.
+    paddingBlock: spacingVars["--spacing-6"],
+    paddingInline: `max(${spacingVars["--spacing-6"]}, calc((100% - 80ch) / 2))`,
     // The app's chrome is unselectable (`index.css`); a document is
     // something you copy from.
     userSelect: "text",
@@ -94,15 +100,33 @@ function scrollFraction(el: HTMLElement): number {
 
 function languageFor(name: string): Extension {
   const ext = name.split(".").pop() ?? "";
-  switch (ext) {
+  if (ext === "md" || ext === "markdown") {
+    return [
+      // Fenced blocks are highlighted in their own language — any one
+      // CodeMirror knows, loaded when a block first needs it.
+      markdown({ codeLanguages: languages }),
+      markdownTheme,
+    ];
+  }
+  return codeLanguageFor(ext) ?? [];
+}
+
+// A file extension (or its language name) the editor highlights.
+function codeLanguageFor(name: string): LanguageSupport | null {
+  switch (name) {
     case "ts":
     case "tsx":
+    case "typescript":
+      return javascript({ jsx: true, typescript: true });
     case "js":
     case "jsx":
-      return javascript({ jsx: true, typescript: ext.startsWith("ts") });
+    case "javascript":
+      return javascript({ jsx: true });
     case "py":
+    case "python":
       return python();
     case "rs":
+    case "rust":
       return rust();
     case "json":
       return json();
@@ -111,7 +135,7 @@ function languageFor(name: string): Extension {
     case "css":
       return css();
     default:
-      return [];
+      return null;
   }
 }
 
@@ -157,7 +181,7 @@ export default function FileEditorTab({ path }: { path: string }) {
   // Markdown gets a rendered Preview beside its Source (the editor).
   const isMarkdown = isMarkdownPath(path);
   const mode: FileViewMode = useAppStore((s) =>
-    isMarkdown ? (s.fileViewModes[path] ?? "preview") : "source",
+    isMarkdown ? (s.fileViewModes[path] ?? s.defaultFileViewMode) : "source",
   );
   const setFileViewMode = useAppStore((s) => s.setFileViewMode);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -210,7 +234,7 @@ export default function FileEditorTab({ path }: { path: string }) {
         doc: activeFile.content,
         extensions: [
           basicSetup,
-          oneDark,
+          codeTheme,
           languageFor(activeFile.name),
           canComment
             ? reviewExtension({
@@ -225,23 +249,6 @@ export default function FileEditorTab({ path }: { path: string }) {
             ) {
               updateContent(activeFile.path, update.state.doc.toString());
             }
-          }),
-          EditorView.theme({
-            // The Astryx code block's background, like the terminal (see
-            // `terminalTheme.ts`), over oneDark's own.
-            "&": {
-              height: "100%",
-              backgroundColor: "var(--color-syntax-background)",
-            },
-            ".cm-gutters": {
-              backgroundColor: "var(--color-syntax-background)",
-              borderRight: "none",
-            },
-            ".cm-content, .cm-gutters": {
-              fontFamily: "var(--al-font-mono)",
-              fontSize: "var(--al-code-size)",
-            },
-            ".cm-scroller": { overflow: "auto" },
           }),
         ],
       }),
@@ -315,7 +322,7 @@ export default function FileEditorTab({ path }: { path: string }) {
       carriedScroll.current =
         doc.lines > 1 ? (doc.lineAt(top.from).number - 1) / (doc.lines - 1) : 0;
     }
-    setFileViewMode(path, next);
+    setFileViewMode(path, next, true);
   }
 
   // A newer copy from disk (an agent's edit — see `reloadChangedFiles`):

@@ -47,8 +47,9 @@ const styles = stylex.create({
     flexShrink: 0,
     color: colorVars["--color-text-disabled"],
   },
-  key: { color: colorVars["--color-text-secondary"] },
-  punctuation: { color: colorVars["--color-text-disabled"] },
+  // Values in the code palette (`lib/codeTheme.ts`), as in code blocks.
+  key: { color: "var(--color-syntax-property)" },
+  punctuation: { color: "var(--color-syntax-punctuation)" },
   count: {
     marginInlineStart: spacingVars["--spacing-1"],
     color: colorVars["--color-text-disabled"],
@@ -64,10 +65,10 @@ const styles = stylex.create({
     paddingInlineStart: spacingVars["--spacing-4"],
     color: colorVars["--color-text-disabled"],
   },
-  nullish: { color: colorVars["--color-text-disabled"] },
-  string: { color: colorVars["--color-text-green"] },
-  number: { color: colorVars["--color-text-blue"] },
-  boolean: { color: colorVars["--color-text-yellow"] },
+  nullish: { color: "var(--color-syntax-constant)" },
+  string: { color: "var(--color-syntax-string)" },
+  number: { color: "var(--color-syntax-number)" },
+  boolean: { color: "var(--color-syntax-constant)" },
   other: { color: colorVars["--color-text-secondary"] },
 });
 

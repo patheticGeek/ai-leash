@@ -30,8 +30,17 @@ When you select a file, it opens in a tab in the side panel. You can:
 - Close a file with the **×** on its tab.
 
 Common programming and data files receive helpful syntax highlighting,
-including JavaScript and TypeScript, Python, Rust, JSON, HTML, and CSS.
-Other file types open as plain text. The editor uses the code font and size
+including JavaScript and TypeScript, Python, Rust, JSON, HTML, CSS and
+Markdown. In Markdown source the prose is muted and the structure stands
+out: headings are bright and step down in size by level, bold is bright,
+the marks themselves (`#`, `*`, `>`, list bullets, fences) are dimmed, and
+fenced code sits on a raised background and is highlighted in its own
+language (any language CodeMirror knows, loaded the first time a block needs
+it), in the same colours as code everywhere else.
+Other file types open as plain text. The colours are the app's own code
+colours, the same as code blocks in the conversation and the terminal
+(`lib/codeTheme.ts` maps the theme's syntax tokens onto CodeMirror). The
+editor uses the code font and size
 from **Settings > Fonts**; see [Fonts](./ui-shell.md#fonts).
 
 ## Preview Markdown
@@ -40,8 +49,13 @@ A Markdown file (`.md` or `.markdown`) opens as a rendered preview. A small
 **Preview** / **Source** switch floats in the tab's top-right corner, so
 neither view loses any room to a toolbar. Preview shows the
 document the way it reads, rendered like the agent's chat replies but with
-the file's soft-wrapped lines joined into paragraphs. Source is the editor.
-The tab remembers which one you picked while the file stays open.
+the file's soft-wrapped lines joined into paragraphs, and laid out as a
+document: wider margins, a readable line length in a wide pane, and more
+space before the top two heading levels, which get a rule under them.
+Source is the editor. The tab remembers which one you picked, and the last
+one you picked is how the next Markdown file opens (Preview until you
+choose), including files an agent opens for you and after a restart.
+Jumping to lines always shows Source.
 
 The preview follows the file as it changes: your edits in Source, and
 changes on disk such as an agent's edit (see [Working alongside an

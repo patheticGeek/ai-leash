@@ -84,6 +84,20 @@ Ordered: when two conflict, the earlier one wins.
   Actions button. Only a control changes glyph (the top bar's Stop); a
   status icon keeps its glyph and shows state by colour alone
   (`RunIcon isStatusOnly`).
+- Code has one palette, the theme's `--color-syntax-*` tokens (set in the
+  theme editor, dark mode: raised `#161617` background, dimmed comments and
+  punctuation). Every code surface reads it: chat code blocks and tool
+  calls (Astryx `CodeBlock`), the file editor (CodeMirror, through
+  `lib/codeTheme.ts`), the terminal's background, text and 16 ANSI colours
+  (`lib/terminalTheme.ts`) and the JSON viewer. Don't add a stock editor
+  theme (One Dark etc.) or hard-code token colours; change the palette in
+  the theme and every surface follows. Markdown source in the editor shows
+  hierarchy the same way the app does: prose in `secondary`, headings and
+  bold in `primary` (headings stepped by size, weight 500), marks dimmed.
+  Rendered Markdown (`ui/Markdown.tsx`, chat and file Preview) does the
+  same: headings `primary`, 1.5/1.3/1.15em, weight 500, more space above
+  than below; a `--spacing-3` gap between blocks; list items a step apart.
+  A file's Preview adds document margins and a rule under h1/h2.
 - One brand gradient, in the logo only. No other gradients or accent
   colours in the app UI.
 
