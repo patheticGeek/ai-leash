@@ -24,7 +24,7 @@ import { conversationLabel, useConversations } from "../data/conversations";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TAB_KINDS } from "../features/tabs/tabKinds";
 import { fuzzyFilter } from "../lib/fuzzyMatch";
-import { SHORTCUTS, type ShortcutId } from "../lib/shortcuts";
+import { kbdKeys, SHORTCUTS, type ShortcutId } from "../lib/shortcuts";
 import { type PanelTabKind, useAppStore } from "../store";
 
 const styles = stylex.create({
@@ -42,7 +42,7 @@ interface PaletteData {
   hint?: string;
   // A task chat's `#number`, for search.
   taskNumber?: number;
-  // A command's shortcut, in `Kbd` format.
+  // A command's shortcut, as the registry spells it (`kbdKeys` draws it).
   keys?: string;
   run: () => void;
 }
@@ -260,7 +260,9 @@ export default function AppCommandPalette({
                 {data.hint}
               </Text>
             )}
-            {data?.keys && <Kbd keys={data.keys} xstyle={styles.end} />}
+            {data?.keys && (
+              <Kbd keys={kbdKeys(data.keys)} xstyle={styles.end} />
+            )}
           </HStack>
         );
       }}

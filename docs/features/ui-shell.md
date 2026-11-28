@@ -366,13 +366,21 @@ layout) without typing a `/`, so it doesn't open the
 [slash-command menu](./agent-chat.md#slash-commands); type `/` again in the
 box for that. With no message box in front (no project open, a board in
 **Board** layout, a sub-agent transcript or a file tab in the centre) it
-does nothing.
+does nothing. While the message box is empty and not focused, a small dimmed
+**/** key sits at the end of its first line as a reminder; it goes away once
+the box has focus or any text. The palette's **Focus message box** row shows
+the same key.
 
 The shortcuts live in one place, `src/lib/shortcuts.ts`: each has an id, a
 label and its keys in the format Astryx's `Kbd` takes (`mod+k`, where `mod`
 is Command on macOS and Ctrl elsewhere). The same string draws the key
-badges in the palette and the sidebar, the text in tooltips
-(`formatShortcut`, `withShortcut`) and the matching. `useShortcuts`
+badges in the palette, the sidebar and the message box (through `kbdKeys`),
+the text in tooltips (`formatShortcut`, `withShortcut`) and the matching.
+Keys are shown as symbols on every platform: ⌘ on macOS and ⌃ for Ctrl on
+Linux and Windows, ⇧ for Shift, ⌥ for Option on macOS (Alt stays a word
+elsewhere), ↵ for Enter. `kbdKeys` turns a registry string into what Astryx's
+`Kbd` takes, swapping in a literal ⌃ or ⇧ where `Kbd` would write "Ctrl" or
+"Shift", so a tooltip reads "Toggle side panel (⌃J)" and the badge shows ⌃ J. `useShortcuts`
 (`src/hooks/useShortcuts.ts`), mounted once in `App.tsx`, is the single
 document listener that runs them. It ignores a key another handler has
 already claimed (`defaultPrevented`), held-down repeats and IME

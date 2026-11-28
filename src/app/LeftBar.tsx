@@ -80,7 +80,7 @@ import { PriorityBadge, STATUS_DOT } from "../features/board/TaskMeta";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
-import { SHORTCUTS, withShortcut } from "../lib/shortcuts";
+import { kbdKeys, SHORTCUTS, withShortcut } from "../lib/shortcuts";
 import type {
   ElicitationRequestPayload,
   PermissionRequestPayload,
@@ -1292,14 +1292,14 @@ export default function LeftBar({
                 <Icon icon={Search} size="sm" />
                 <Text>Search</Text>
                 <StackItem size="fill" />
-                <Kbd keys={SHORTCUTS.palette.keys} />
+                <Kbd keys={kbdKeys(SHORTCUTS.palette.keys)} />
               </HStack>
             </Button>
           )}
           <SideNavItem
             label="New thread"
             icon={SquarePen}
-            endContent={<Kbd keys={SHORTCUTS.newThread.keys} />}
+            endContent={<Kbd keys={kbdKeys(SHORTCUTS.newThread.keys)} />}
             onClick={() => void startNewThread()}
           />
           <SideNavItem

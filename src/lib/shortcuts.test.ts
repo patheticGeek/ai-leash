@@ -7,6 +7,7 @@ import {
   isOverlayOpen,
   isTypingTarget,
   type KeyLike,
+  kbdKeys,
   matchesShortcut,
   SHORTCUTS,
   shortcutForEvent,
@@ -267,9 +268,10 @@ describe("isInTerminalOrEditor", () => {
 });
 
 describe("formatShortcut", () => {
-  it("spells out Ctrl on Linux/Windows", () => {
-    expect(formatShortcut("mod+k", false)).toBe("Ctrl+K");
-    expect(formatShortcut("mod+,", false)).toBe("Ctrl+,");
+  it("uses ⌃ for Ctrl on Linux/Windows", () => {
+    expect(formatShortcut("mod+k", false)).toBe("⌃K");
+    expect(formatShortcut("mod+,", false)).toBe("⌃,");
+    expect(formatShortcut("mod+shift+p", false)).toBe("⌃⇧P");
   });
 
   it("shows a bare key as itself", () => {
@@ -280,5 +282,44 @@ describe("formatShortcut", () => {
   it("uses symbols on macOS", () => {
     expect(formatShortcut("mod+k", true)).toBe("⌘K");
     expect(formatShortcut("mod+shift+p", true)).toBe("⌘⇧P");
+    expect(formatShortcut("mod+alt+k", true)).toBe("⌘⌥K");
+  });
+
+  it("draws Enter, Tab and the arrows as symbols", () => {
+    expect(formatShortcut("mod+enter", false)).toBe("⌃↵");
+    expect(formatShortcut("mod+return", true)).toBe("⌘↵");
+    expect(formatShortcut("shift+tab", false)).toBe("⇧⇥");
+    expect(formatShortcut("up", false)).toBe("↑");
+  });
+
+  it("joins a word-length key with +", () => {
+    expect(formatShortcut("mod+alt+k", false)).toBe("⌃+Alt+K");
+    expect(formatShortcut("esc", false)).toBe("Esc");
+  });
+});
+
+describe("kbdKeys", () => {
+  it("turns Kbd's worded modifiers into symbols on Linux/Windows", () => {
+    expect(kbdKeys("mod+k", false)).toBe("⌃+k");
+    expect(kbdKeys("ctrl+shift+p", false)).toBe("⌃+⇧+p");
+    expect(kbdKeys("mod+,", false)).toBe("⌃+,");
+  });
+
+  it("keeps Kbd's names where it draws a symbol itself", () => {
+    expect(kbdKeys("mod+shift+k", true)).toBe("mod+shift+k");
+    expect(kbdKeys("alt+k", true)).toBe("alt+k");
+    expect(kbdKeys("mod+enter", false)).toBe("⌃+enter");
+    expect(kbdKeys("Esc", false)).toBe("escape");
+  });
+
+  it("leaves Alt and bare keys to Kbd", () => {
+    expect(kbdKeys("alt+k", false)).toBe("alt+k");
+    expect(kbdKeys("/", false)).toBe("/");
+  });
+
+  it("covers every registered shortcut", () => {
+    for (const s of Object.values(SHORTCUTS)) {
+      expect(kbdKeys(s.keys, false)).not.toMatch(/mod|ctrl|shift/);
+    }
   });
 });

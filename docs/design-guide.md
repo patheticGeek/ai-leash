@@ -137,7 +137,13 @@ Use the stock variants only, by role:
   for a key.
 - Show the key wherever the action appears: a `Kbd` badge at the end of
   the row or button, `withShortcut(label, id)` in tooltips, the palette
-  row. Ctrl on Linux/Windows, ⌘ on macOS — the registry handles it.
+  row. ⌃ on Linux/Windows, ⌘ on macOS — the registry handles it.
+- Show modifier keys as symbols (⌃ ⌘ ⇧ ⌥) via `kbdKeys`: pass
+  `kbdKeys(keys)` to every `Kbd`, and `formatShortcut(keys)` for a key in a
+  string. Never write "Ctrl" in UI text.
+- A field a bare key focuses shows that key as a dimmed `Kbd` at its end
+  while it's empty and unfocused (the message box's `/`), laid over the
+  field so it doesn't move anything.
 - Don't steal keys from the terminal or editor while they have focus
   (only Ctrl+K passes through).
 - Anything you can navigate to belongs in the command palette
@@ -154,20 +160,34 @@ Use the stock variants only, by role:
 A permission ask, an agent's question, or any new "the agent is waiting on
 you" surface follows `PromptCard` (`features/chat/components/popovers/`):
 
-- It takes the composer's place, on the composer's card surface, with an
-  amber edge and an amber status icon (`ShieldAlert` for approval,
-  `QuestionMark` for a question), the same marks the sidebar row shows.
-- Heading 4 asks the question in plain words ("Run this command?"); a
-  supporting line says who is asking. What the agent wants — the command,
-  path or tool and its arguments — is in monospace (`Text type="code"`,
-  `CodeBlock`), cut to a few lines with a **Show all**, never hidden.
-- Buttons: one `primary` (allow once, or the recommended choice), `secondary`
-  for the alternatives and the refusal; `ghost` only for navigation
-  (Previous) and dismiss. Weight 500 at most.
+- It takes the composer's place as one compact card (`Card elevation=low
+  padding={3}`, gap 2 inside) with a thin amber **leading edge** only
+  (`borderInlineStart*` at twice `--border-width` in
+  `--color-border-warning`), not an amber border all round.
+- No heading. One small header line: the amber status icon (`ShieldAlert`
+  for approval, `QuestionMark` for a question, `xsm`, the same marks the
+  sidebar row shows), a short amber label in `sm` ("Wants to run a
+  command", "Asked you a question"), a muted detail (who asks, "question 2
+  of 3"), then at the end "1 of N" stepping, the muted `xsm` waiting time
+  and any dismiss button.
+- Content in `sm`: what the agent wants — the command, path or tool and its
+  arguments — in monospace (`Text type="code" size="sm"`, `CodeBlock
+  size="sm"`), cut to a few lines with a **Show all**, never hidden; one
+  muted line of why or context. A question's choices are `sm` rows led by
+  their number `Kbd`; form inputs are `size="sm"`.
+- Buttons: one row of `size="sm"`, start-aligned, primary first — one
+  `primary` (allow once, or the recommended choice), `secondary` for the
+  alternatives and the refusal, `ghost` only for navigation (Previous) and
+  dismiss. Weight 500 at most.
+- A key hint inside a button is `ButtonKbd` (`PromptCard.tsx`), never a bare
+  `Kbd`: Kbd paints light text on a light-tinted key, which disappears on a
+  `primary` button; `ButtonKbd` points Kbd's tokens at the button's own
+  foreground, dimmed, so it reads on every variant. Keys go through
+  `kbdKeys`.
 - Keys, one scheme for every prompt (`lib/promptKeys.ts`): `Enter` = the
   primary option, `Esc` = refuse (deny, decline), `1`–`9` = the options or
   choices in the order shown, `[`/`]` = step through several pending
-  prompts. Each option shows its key as a `Kbd`. No letter keys, so a text
+  prompts. Each option shows its key. No letter keys, so a text
   field inside a prompt types normally; there only `Enter`/`Esc`/`Tab` act.
 - Keys are handled by the card's own `onKeyDown`, so they act only while
   focus is inside it — not a document listener. The card focuses itself

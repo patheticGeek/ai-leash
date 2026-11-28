@@ -14,6 +14,7 @@ import { useModelVision } from "@/data/backends";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { rememberMention } from "@/lib/mentions";
+import { formatShortcut } from "@/lib/shortcuts";
 import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
 import {
   type AcpCommandInfo,
@@ -664,7 +665,7 @@ export default function ChatComposer({
                       label="Queue"
                       icon={<Clock size={14} />}
                       onClick={() => void queueMessage()}
-                      tooltip="Send after the current turn finishes (Ctrl+Enter)"
+                      tooltip={`Send after the current turn finishes (${formatShortcut("mod+enter")})`}
                     />
                   )}
                 </>

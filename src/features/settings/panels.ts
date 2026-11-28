@@ -2,6 +2,7 @@
 // subtitle under the panel heading) and the search catalog. Add a panel or a
 // searchable setting here; the side nav, the panel heading and the search
 // results all read from these lists.
+
 import type { IconType } from "@astryxdesign/core/Icon";
 import {
   Bot,
@@ -17,6 +18,7 @@ import {
   SquareCode,
   Type,
 } from "lucide-react";
+import { formatShortcut } from "@/lib/shortcuts";
 
 export type PanelId =
   | "agents"
@@ -130,7 +132,7 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
   },
   {
     title: "Compose mode",
-    description: "Enter adds a new line, Ctrl+Enter sends",
+    description: `${formatShortcut("enter")} adds a new line, ${formatShortcut("mod+enter")} sends`,
     panel: "chat",
     icon: Keyboard,
     keywords: "send enter shortcut",

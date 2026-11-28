@@ -291,11 +291,13 @@ shows a "couldn't restore its previous session" error.
 
 Agents can use project tools to inspect and modify files or run shell
 commands. In **Ask** permission mode, the chat input is replaced temporarily
-by a permission request when approval is needed. It is marked in amber,
-asks what the agent wants ("Run this command?", "Make this edit?"), names the
-target in monospace and shows the command or diff (a long one is cut to its
-first lines, with **Show all**). Choose **Allow once** or **Deny**; see
-[Tools and permissions](./tools.md#your-choices) for the keys.
+by a permission request when approval is needed: one compact card with a
+thin amber edge. A single small header line says what the agent wants
+("Wants to run a command", "Wants to edit a file") and how long it has been
+waiting; under it are the target in monospace and the command or diff (a
+long one is cut to its first lines, with **Show all**), then one row of
+small buttons, **Allow once** first, then **Deny**, each showing its key.
+See [Tools and permissions](./tools.md#your-choices) for the keys.
 
 The permission mode picker in the chat bar offers the external agent's own
 modes when it has any (see above). Otherwise it has two choices:
@@ -320,8 +322,11 @@ turn.
 
 An external agent can stop mid-turn to ask you for structured input, such as a
 choice between approaches or a value it needs. When it does, the chat input is
-replaced by a short form in the same place, one question at a time, with the
-agent's message above it. The conversation's row in the sidebar highlights so you can find it
+replaced by a short form in the same compact card, one question at a time:
+a header line ("Asked you a question", with the form's title, which
+question you're on and how long it has waited), the agent's message, the
+question's options as small rows each led by its number key, then one row
+of buttons (**Submit** or **Next** first). The conversation's row in the sidebar highlights so you can find it
 if you're in another conversation.
 
 - Pick an option, enter a value, or select several, depending on the question.
@@ -485,7 +490,8 @@ chart component; both have Storybook stories.
 
 Press **/** from anywhere in the app, when you aren't typing in a field, to
 jump to the message box (also **Focus message box** in the command palette).
-It doesn't type the `/`; see
+While the box is empty and not focused, a dimmed **/** key at the end of its
+first line shows the shortcut. It doesn't type the `/`; see
 [Keyboard shortcuts](./ui-shell.md#keyboard-shortcuts) for where it applies.
 
 While the agent is working, **Stop** cancels the current user-initiated turn.

@@ -1,6 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
 import { CodeBlock } from "@astryxdesign/core/CodeBlock";
-import { Kbd } from "@astryxdesign/core/Kbd";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { ShieldAlert } from "lucide-react";
@@ -12,7 +11,7 @@ import {
 } from "../../../../lib/promptKeys";
 import type { PermissionRequestPayload } from "../../../../lib/tauriApi";
 import { permissionsForSession, useAppStore } from "../../../../store";
-import PromptCard, { focusComposerAfterAnswer } from "./PromptCard";
+import PromptCard, { ButtonKbd, focusComposerAfterAnswer } from "./PromptCard";
 
 interface PermissionPromptProps {
   // The oldest request waiting on this project (`permissionForSession`).
@@ -22,11 +21,11 @@ interface PermissionPromptProps {
   onRespond: (approved: boolean, requestId: string) => void;
 }
 
-// The question the heading asks, by kind.
-const KIND_QUESTION: Record<PermissionRequestPayload["kind"], string> = {
-  shell: "Run this command?",
-  edit: "Make this edit?",
-  acp: "Allow this tool call?",
+// The header's short label, by kind.
+const KIND_HEADING: Record<PermissionRequestPayload["kind"], string> = {
+  shell: "Wants to run a command",
+  edit: "Wants to edit a file",
+  acp: "Wants to use a tool",
 };
 
 // A long command or diff shows this many lines until "Show all".
@@ -74,19 +73,17 @@ export default function PermissionPrompt({
 
   const isSubAgent = shown.parentSessionId != null;
   const who = isSubAgent ? "A sub-agent" : "The agent";
-  const question = KIND_QUESTION[shown.kind];
   // A shell request's title is just "Run shell command": the command itself
   // is the detail. Others name their target ("Edit src/app.ts").
   const target = shown.kind === "shell" ? null : shown.title;
-  const subtitle = `${who} is waiting for your answer`;
 
   return (
     <PromptCard
       promptId={shown.id}
       icon={ShieldAlert}
       label="Permission request"
-      title={question}
-      subtitle={subtitle}
+      heading={KIND_HEADING[shown.kind]}
+      detail={isSubAgent ? "from a sub-agent" : undefined}
       announcement={`${who} needs approval: ${shown.title}. Enter allows once, Escape denies.`}
       queue={{
         index,
@@ -108,27 +105,27 @@ export default function PermissionPrompt({
       actions={
         <>
           <Button
-            variant="secondary"
-            size="sm"
-            label="Deny"
-            tooltip="Deny (Esc or 2)"
-            endContent={<Kbd keys="escape" />}
-            onClick={() => respond(false)}
-          />
-          <Button
             variant="primary"
             size="sm"
             label="Allow once"
             tooltip="Allow once (Enter or 1)"
-            endContent={<Kbd keys="enter" />}
+            endContent={<ButtonKbd keys="enter" />}
             onClick={() => respond(true)}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Deny"
+            tooltip="Deny (Esc or 2)"
+            endContent={<ButtonKbd keys="escape" />}
+            onClick={() => respond(false)}
           />
         </>
       }
     >
-      <VStack gap={2}>
+      <VStack gap={1.5}>
         {target && (
-          <Text type="code" maxLines={1}>
+          <Text type="code" size="sm" maxLines={1}>
             {target}
           </Text>
         )}

@@ -38,6 +38,7 @@ import type {
 } from "../../../../lib/tauriApi";
 import { elicitationsForSession, useAppStore } from "../../../../store";
 import PromptCard, {
+  ButtonKbd,
   focusComposerAfterAnswer,
   type PromptQueue,
 } from "./PromptCard";
@@ -94,7 +95,8 @@ function toFormData(
   return data;
 }
 
-// A choice's number key, for the first nine.
+// A choice's number key, for the first nine. Plain digits: `kbdKeys` has
+// nothing to change in them.
 function ChoiceKey({ index }: { index: number }) {
   const key = optionKey(index);
   return key ? <Kbd keys={key} /> : null;
@@ -122,6 +124,9 @@ function FieldControl({
     status,
     width: "100%",
   };
+  // Inputs come in the prompt's compact size (`RadioList` too; Astryx's
+  // `CheckboxList` has one size).
+  const size = "sm" as const;
   if (field.kind === "choice") {
     return field.multiple ? (
       <CheckboxList
@@ -142,6 +147,7 @@ function FieldControl({
     ) : (
       <RadioList
         {...common}
+        size={size}
         value={current[0] ?? ""}
         onChange={(v) => onChange(field.name, [v])}
       >
@@ -151,7 +157,7 @@ function FieldControl({
             value={c.value}
             label={c.title}
             description={c.description}
-            endContent={<ChoiceKey index={i} />}
+            startContent={<ChoiceKey index={i} />}
           />
         ))}
       </RadioList>
@@ -164,6 +170,7 @@ function FieldControl({
       return (
         <NumberInput
           {...common}
+          size={size}
           value={current[0] === undefined ? null : Number(current[0])}
           onChange={(n) => set(Number.isFinite(n) ? String(n) : undefined)}
           min={field.min ?? null}
@@ -176,6 +183,7 @@ function FieldControl({
       return (
         <DateInput
           {...common}
+          size={size}
           value={current[0] as ISODateString | undefined}
           onChange={set}
         />
@@ -184,6 +192,7 @@ function FieldControl({
       return (
         <DateTimeInput
           {...common}
+          size={size}
           value={current[0] as ISODateTimeString | undefined}
           onChange={set}
         />
@@ -192,6 +201,7 @@ function FieldControl({
       return (
         <TextInput
           {...common}
+          size={size}
           type={field.inputType}
           value={current[0] ?? ""}
           onChange={(v) => set(v)}
@@ -388,10 +398,10 @@ function ElicitationForm({
     }
   }
 
-  const title = request.schema.title ?? "The agent has a question";
-  const subtitle = [
-    steps.length > 1 ? `Question ${stepIndex + 1} of ${steps.length}` : null,
-    "from the agent",
+  const title = request.schema.title;
+  const detail = [
+    title,
+    steps.length > 1 ? `question ${stepIndex + 1} of ${steps.length}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -400,10 +410,12 @@ function ElicitationForm({
     <PromptCard
       promptId={request.id}
       icon={QuestionMark}
-      label={`Question from the agent: ${title}`}
-      title={title}
-      subtitle={subtitle}
-      announcement={`The agent has a question: ${title}. Enter ${fields.length === 0 ? "accepts" : isLast ? "submits" : "goes to the next question"}, Escape declines.`}
+      label={
+        title ? `Question from the agent: ${title}` : "Question from the agent"
+      }
+      heading="Asked you a question"
+      detail={detail || undefined}
+      announcement={`The agent has a question: ${title ?? request.message}. Enter ${fields.length === 0 ? "accepts" : isLast ? "submits" : "goes to the next question"}, Escape declines.`}
       queue={queue}
       optionCount={optionCount}
       onKeyAction={(action) => {
@@ -425,6 +437,29 @@ function ElicitationForm({
       }
       actions={
         <>
+          {fields.length === 0 ? (
+            // Nothing to fill in — the agent just wants a yes/no.
+            <Button
+              variant="primary"
+              size="sm"
+              label="Accept"
+              tooltip="Accept (Enter or 1)"
+              endContent={<ButtonKbd keys="enter" />}
+              onClick={() => onRespond({ action: "accept", content: {} })}
+            />
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              label={isLast ? "Submit" : "Next"}
+              tooltip={isLast ? "Submit (Enter)" : "Next question (Enter)"}
+              endContent={<ButtonKbd keys="enter" />}
+              onClick={advance}
+            />
+          )}
+          {step && !step.field.required && (
+            <Button variant="secondary" size="sm" label="Skip" onClick={skip} />
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -434,59 +469,33 @@ function ElicitationForm({
                 ? "Decline to answer (Esc or 2)"
                 : "Decline to answer (Esc)"
             }
-            endContent={<Kbd keys="escape" />}
+            endContent={<ButtonKbd keys="escape" />}
             onClick={() => onRespond({ action: "decline" })}
           />
-          {fields.length === 0 ? (
-            // Nothing to fill in — the agent just wants a yes/no.
+          {stepIndex > 0 && (
             <Button
-              variant="primary"
+              variant="ghost"
               size="sm"
-              label="Accept"
-              tooltip="Accept (Enter or 1)"
-              endContent={<Kbd keys="enter" />}
-              onClick={() => onRespond({ action: "accept", content: {} })}
+              label="Previous"
+              onClick={() => setStepIndex(stepIndex - 1)}
             />
-          ) : (
-            <>
-              {stepIndex > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  label="Previous"
-                  onClick={() => setStepIndex(stepIndex - 1)}
-                />
-              )}
-              {step && !step.field.required && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  label="Skip"
-                  onClick={skip}
-                />
-              )}
-              <Button
-                variant="primary"
-                size="sm"
-                label={isLast ? "Submit" : "Next"}
-                tooltip={isLast ? "Submit (Enter)" : "Next question (Enter)"}
-                endContent={<Kbd keys="enter" />}
-                onClick={advance}
-              />
-            </>
           )}
         </>
       }
     >
-      <VStack ref={bodyRef} gap={3} isScrollable xstyle={styles.body}>
-        <Text xstyle={styles.message}>{request.message}</Text>
-        {request.schema.description && (
-          <Text type="supporting" color="secondary">
-            {request.schema.description}
+      <VStack ref={bodyRef} gap={2} isScrollable xstyle={styles.body}>
+        <VStack gap={0.5}>
+          <Text size="sm" xstyle={styles.message}>
+            {request.message}
           </Text>
-        )}
+          {request.schema.description && (
+            <Text size="sm" color="secondary">
+              {request.schema.description}
+            </Text>
+          )}
+        </VStack>
         {step && (
-          <VStack key={step.field.name} gap={3}>
+          <VStack key={step.field.name} gap={2}>
             <FieldControl
               field={step.field}
               values={values}

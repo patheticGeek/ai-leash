@@ -184,7 +184,11 @@ When a prompt appears, choose:
 - **Deny** to block it. The agent is told that you denied the request and can
   adjust its approach or ask what you would prefer.
 
-The prompt is keyboard-first. Each button shows its key:
+The prompt is a compact card in the message box's place, with a thin amber
+edge: a one-line header (what the agent wants, whether a sub-agent is
+asking, and how long it has been waiting), the request itself, and one row
+of small buttons, **Allow once** first. It is keyboard-first, and each
+button shows its key:
 
 | Key | Does |
 |---|---|

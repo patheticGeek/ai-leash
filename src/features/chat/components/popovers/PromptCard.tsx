@@ -3,8 +3,9 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { useAnnounce } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
-import { Heading, Text } from "@astryxdesign/core/Text";
-import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { Kbd } from "@astryxdesign/core/Kbd";
+import { Text } from "@astryxdesign/core/Text";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
@@ -15,12 +16,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { formatDuration } from "../../../../lib/format";
 import {
   isTextEntryTarget,
   type PromptKeyAction,
   promptKeyAction,
   promptKeyTarget,
 } from "../../../../lib/promptKeys";
+import { kbdKeys } from "../../../../lib/shortcuts";
 import { useAppStore } from "../../../../store";
 
 // How long a fresh prompt ignores Enter and the number keys. The prompt
@@ -30,14 +33,50 @@ import { useAppStore } from "../../../../store";
 const ARM_DELAY_MS = 400;
 
 const styles = stylex.create({
-  // Amber = waiting on the user (see the design guide's status colours).
+  // Amber = waiting on the user (see the design guide's status colours): a
+  // thin accent on the leading edge only, the rest the composer's own card.
   card: {
-    borderColor: colorVars["--color-border-warning"],
+    borderInlineStartWidth: `calc(${borderVars["--border-width"]} * 2)`,
+    borderInlineStartColor: colorVars["--color-border-warning"],
     // Only ever focused from code (tabIndex -1), to take the prompt's keys;
     // the amber edge already marks it.
     outlineStyle: "none",
   },
+  heading: { color: colorVars["--color-text-warning"] },
+  // A `Kbd` inside a `Button` (`endContent`). Kbd paints its own light text
+  // on a light-tinted key, which vanishes on a `primary` button's light
+  // fill; this re-points its tokens at the button's own foreground, dimmed,
+  // so the key reads on every variant.
+  buttonKbd: {
+    "--color-text-primary": "currentColor",
+    "--color-neutral": "color-mix(in srgb, currentColor 14%, transparent)",
+    "--color-border-emphasized":
+      "color-mix(in srgb, currentColor 35%, transparent)",
+    opacity: 0.75,
+  },
 });
+
+// A key hint for a prompt's button, readable on its variant. `keys` is in
+// `Kbd` form (`kbdKeys`).
+export function ButtonKbd({ keys }: { keys: string }) {
+  return <Kbd keys={kbdKeys(keys)} xstyle={styles.buttonKbd} />;
+}
+
+// When each prompt was first on screen, for the header's "waiting" time —
+// kept across re-mounts (stepping away and back, a form's next question).
+const firstSeen = new Map<string, number>();
+const FIRST_SEEN_LIMIT = 200;
+function firstSeenAt(id: string): number {
+  const known = firstSeen.get(id);
+  if (known !== undefined) return known;
+  const at = Date.now();
+  firstSeen.set(id, at);
+  if (firstSeen.size > FIRST_SEEN_LIMIT) {
+    const oldest = firstSeen.keys().next().value;
+    if (oldest !== undefined) firstSeen.delete(oldest);
+  }
+  return at;
+}
 
 export interface PromptQueue {
   // 0-based position of the prompt on screen.
@@ -65,10 +104,12 @@ function isTypingElsewhere(card: HTMLElement): boolean {
 }
 
 // What a permission ask or an agent's question looks like: it takes the
-// composer's place, on the composer's own card surface (`Card elevation=low`)
-// with an amber edge and icon for "needs you" — Heading 4 title, a
-// supporting subtitle, the content, then the actions end-aligned (secondary
-// → primary), each with its `Kbd`. `ChatComposer` swaps it in.
+// composer's place as one compact card (`Card elevation=low`) with a thin
+// amber leading edge for "needs you". One small header line — amber icon and
+// a short label ("Wants to run a command"), a muted detail, then "1 of N"
+// stepping, how long it's been waiting and `headerEnd` at the end — then the
+// content, then one row of small buttons, primary first, each with its key
+// (`ButtonKbd`). `ChatComposer` swaps it in.
 //
 // It owns the prompt keyboard (`lib/promptKeys.ts`): keys act only while
 // focus is inside the card, so nothing the user types elsewhere is taken.
@@ -78,8 +119,8 @@ function isTypingElsewhere(card: HTMLElement): boolean {
 export default function PromptCard({
   promptId,
   icon,
-  title,
-  subtitle,
+  heading,
+  detail,
   headerEnd,
   children,
   actions,
@@ -93,9 +134,11 @@ export default function PromptCard({
   // re-arm.
   promptId: string;
   icon: LucideIcon;
-  title: ReactNode;
-  subtitle?: ReactNode;
-  // Beside the title, e.g. a dismiss button.
+  // The header's short label: what the agent wants, in a few words.
+  heading: string;
+  // Muted, after the label: who's asking, "Question 2 of 3".
+  detail?: string;
+  // At the header's end, e.g. a dismiss button.
   headerEnd?: ReactNode;
   children?: ReactNode;
   actions: ReactNode;
@@ -118,6 +161,24 @@ export default function PromptCard({
     const timer = setTimeout(() => setArmedId(promptId), ARM_DELAY_MS);
     return () => clearTimeout(timer);
   }, [promptId]);
+
+  // How long this request has been waiting, ticking each second.
+  const [clock, setClock] = useState<{
+    id: string;
+    since: number;
+    now: number;
+  } | null>(null);
+  useEffect(() => {
+    const since = firstSeenAt(promptId);
+    const tick = () => setClock({ id: promptId, since, now: Date.now() });
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [promptId]);
+  const waited =
+    clock?.id === promptId
+      ? formatDuration((clock.now - clock.since) / 1000)
+      : null;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: promptId is a trigger-only dep — a new request on screen is focused and announced again
   useEffect(() => {
@@ -150,25 +211,25 @@ export default function PromptCard({
     <Card
       ref={cardRef}
       elevation="low"
-      padding={4}
+      padding={3}
       role="region"
       aria-label={label}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       xstyle={styles.card}
     >
-      <VStack gap={3}>
-        <HStack gap={2} align="start" justify="between">
-          <HStack gap={2} align="start">
-            <Icon icon={icon} size="sm" color="warning" />
-            <VStack gap={0.5}>
-              <Heading level={4}>{title}</Heading>
-              {subtitle != null && (
-                <Text type="supporting" color="secondary">
-                  {subtitle}
-                </Text>
-              )}
-            </VStack>
+      <VStack gap={2}>
+        <HStack gap={2} align="center" justify="between">
+          <HStack gap={2} align="center">
+            <Icon icon={icon} size="xsm" color="warning" />
+            <Text size="sm" maxLines={1} xstyle={styles.heading}>
+              {heading}
+            </Text>
+            {detail && (
+              <Text size="sm" color="secondary" maxLines={1}>
+                {detail}
+              </Text>
+            )}
           </HStack>
           <HStack gap={1} align="center">
             {queue && queue.count > 1 && (
@@ -181,7 +242,7 @@ export default function PromptCard({
                   icon={<ChevronLeft size={14} />}
                   onClick={() => queue.onStep(-1)}
                 />
-                <Text type="supporting" color="secondary" hasTabularNumbers>
+                <Text size="xsm" color="secondary" hasTabularNumbers>
                   {`${queue.index + 1} of ${queue.count}`}
                 </Text>
                 <IconButton
@@ -194,11 +255,16 @@ export default function PromptCard({
                 />
               </>
             )}
+            {waited && (
+              <Text size="xsm" color="secondary" hasTabularNumbers>
+                {waited}
+              </Text>
+            )}
             {headerEnd}
           </HStack>
         </HStack>
         {children}
-        <HStack gap={2} align="center" justify="end">
+        <HStack gap={2} align="center" wrap="wrap">
           {actions}
         </HStack>
       </VStack>

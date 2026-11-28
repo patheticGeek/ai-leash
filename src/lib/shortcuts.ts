@@ -1,8 +1,8 @@
 // The app's global keyboard shortcuts, in one place: what each key does,
 // how it's matched against a keydown, and how it's shown. `keys` is in the
 // format Astryx's `Kbd` takes (`mod` is Command on macOS and Ctrl elsewhere),
-// so the same string feeds the palette's key badges, the tooltips
-// (`formatShortcut`) and the matcher. `useShortcuts`
+// so the same string feeds the matcher, the key badges (through `kbdKeys`,
+// which draws the modifiers as symbols) and the tooltips (`formatShortcut`). `useShortcuts`
 // (`hooks/useShortcuts.ts`) is the one document listener that runs them.
 //
 // Most shortcuts use `mod`. A bare-key one (no modifier, like `/`) is a
@@ -228,21 +228,80 @@ export function shortcutForEvent(
   return match;
 }
 
-// A shortcut as text, for tooltips: "Ctrl+K" elsewhere, "⌘K" on macOS.
-export function formatShortcut(keys: string, isMac: boolean): string {
-  const { mod, shift, alt, key } = parseKeys(keys);
-  const name = key.length === 1 ? key.toUpperCase() : key;
-  if (isMac) {
-    return `${mod ? "⌘" : ""}${alt ? "⌥" : ""}${shift ? "⇧" : ""}${name}`;
+// Kbd's spelling of a key, aliases resolved (`esc` → `escape`).
+const KEY_ALIASES: Record<string, string> = { esc: "escape", return: "enter" };
+
+function keyParts(keys: string): string[] {
+  return keys
+    .split("+")
+    .map((k) => k.trim().toLowerCase())
+    .map((k) => KEY_ALIASES[k] ?? k);
+}
+
+// Modifiers as symbols (⌃ for Ctrl, since Linux/Windows have no Command
+// key). Alt has no common symbol off macOS, so it stays "Alt" there.
+function modifierSymbol(key: string, isMac: boolean): string | null {
+  switch (key) {
+    case "mod":
+      return isMac ? "⌘" : "⌃";
+    case "ctrl":
+      return "⌃";
+    case "shift":
+      return "⇧";
+    case "alt":
+      return isMac ? "⌥" : null;
+    default:
+      return null;
   }
-  return [mod && "Ctrl", alt && "Alt", shift && "Shift", name]
-    .filter(Boolean)
+}
+
+// A registry key string (`mod+k`) as the `keys` to pass to Astryx's `Kbd`,
+// with every modifier drawn as a symbol: `⌃+K` on Linux/Windows, where Kbd
+// would write "Ctrl", "Shift" and "Alt" as words. Where Kbd already draws a
+// symbol itself (the modifiers on macOS; Enter ↵, Tab ⇥ and the arrows
+// everywhere) the Kbd name is kept, so its spoken label ("Command + K")
+// survives. Each part is one keycap: Kbd shows a literal symbol as is.
+export function kbdKeys(
+  keys: string,
+  isMac: boolean = isMacPlatform(),
+): string {
+  return keyParts(keys)
+    .map((k) => (isMac ? k : (modifierSymbol(k, false) ?? k)))
     .join("+");
 }
 
-// "Toggle side panel (Ctrl+J)", for a button's tooltip.
+const KEY_TEXT: Record<string, string> = {
+  enter: "↵",
+  tab: "⇥",
+  backspace: "⌫",
+  escape: "Esc",
+  up: "↑",
+  down: "↓",
+  left: "←",
+  right: "→",
+  plus: "+",
+};
+
+// A shortcut as text, for tooltips and other strings, with the same symbols
+// `kbdKeys` gives the badges: "⌃K" on Linux/Windows, "⌘K" on macOS, "⌃↵"
+// for mod+enter. Single-character keys run together; a longer one ("Esc",
+// "Alt" off macOS) joins with "+".
+export function formatShortcut(
+  keys: string,
+  isMac: boolean = isMacPlatform(),
+): string {
+  const parts = keyParts(keys).map(
+    (k) =>
+      modifierSymbol(k, isMac) ??
+      KEY_TEXT[k] ??
+      (k === "alt" ? "Alt" : k.length === 1 ? k.toUpperCase() : k),
+  );
+  return parts.join(parts.every((p) => p.length === 1) ? "" : "+");
+}
+
+// "Toggle side panel (⌃J)", for a button's tooltip.
 export function withShortcut(label: string, id: ShortcutId): string {
-  return `${label} (${formatShortcut(SHORTCUTS[id].keys, isMacPlatform())})`;
+  return `${label} (${formatShortcut(SHORTCUTS[id].keys)})`;
 }
 
 // For xterm's `attachCustomKeyEventHandler`: false hands the palette

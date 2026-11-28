@@ -1,4 +1,6 @@
 import { useChatComposerContext } from "@astryxdesign/core/Chat";
+import { Kbd } from "@astryxdesign/core/Kbd";
+import { Stack } from "@astryxdesign/core/Stack";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import {
   spacingVars,
@@ -12,10 +14,26 @@ import {
   type RefObject,
   useImperativeHandle,
   useLayoutEffect,
+  useState,
 } from "react";
 import { COMPOSER_MIN_ROWS, usePreference } from "@/data/preferences";
+import { formatShortcut, kbdKeys, SHORTCUTS } from "@/lib/shortcuts";
 
 const styles = stylex.create({
+  // Anchors the `/` hint; the field fills it as it filled the slot.
+  field: { position: "relative", width: "100%" },
+  // The `/` hint (GitHub's search field style): at the end of the first
+  // line, centred in the same --spacing-8 band as the text (see
+  // `bareControl`), over the field so it never moves the layout, and
+  // dimmed so it reads as a hint rather than a control. Clicks go through
+  // to the field.
+  focusHint: {
+    position: "absolute",
+    insetBlockStart: `calc((${spacingVars["--spacing-8"]} - ${spacingVars["--spacing-5"]}) / 2)`,
+    insetInlineEnd: spacingVars["--spacing-1"],
+    opacity: 0.6,
+    pointerEvents: "none",
+  },
   // The composer body around it already paints the surface and the focus
   // ring, so the field's own control box is invisible and flush with the
   // body's padding.
@@ -39,8 +57,10 @@ const styles = stylex.create({
   },
 });
 
+// The keys to send, as symbols (⌃↵ / ⌘↵ in compose mode, ↵ otherwise). The
+// `/`-to-focus key isn't here: the `/` hint at the box's end shows it.
 const placeholderText = (composeMode: boolean) =>
-  `Ask the agent, @ for files, / for commands, ! for shell\n${composeMode ? "Ctrl+Enter" : "Enter"} to send`;
+  `Ask the agent, @ for files, / for commands, ! for shell\n${formatShortcut(composeMode ? "mod+enter" : "enter")} to send`;
 
 // Grows the textarea with its content between `minRows` and `maxRows`
 // lines, then scrolls. Re-measured whenever the text changes — typed or
@@ -75,7 +95,9 @@ function useAutoGrow(
 // than the stock token input, because the keys are ours: Enter / Ctrl+Enter
 // per compose mode, Ctrl+Enter to queue mid-turn, the slash and `@` menus'
 // arrows,
-// and "!" for shell mode (which shows a terminal icon at the start).
+// and "!" for shell mode (which shows a terminal icon at the start). While
+// it's empty and unfocused it shows the `/` key that focuses it
+// (`focusComposer`) at its end.
 export default function ComposerInput({
   value,
   onChange,
@@ -104,20 +126,34 @@ export default function ComposerInput({
     [textareaRef],
   );
 
+  const [isFocused, setIsFocused] = useState(false);
+  const showFocusHint = !isFocused && value === "";
+
   return (
-    <TextArea
-      ref={textareaRef}
-      label="Message"
-      isLabelHidden
-      width="100%"
-      value={value}
-      onChange={onChange}
-      onKeyDown={(e) => onKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
-      onPaste={onPaste}
-      placeholder={placeholderText(composeMode)}
-      rows={COMPOSER_MIN_ROWS}
-      startIcon={shellMode ? SquareTerminal : undefined}
-      controlXstyle={styles.bareControl}
-    />
+    <Stack xstyle={styles.field}>
+      <TextArea
+        ref={textareaRef}
+        label="Message"
+        isLabelHidden
+        width="100%"
+        value={value}
+        onChange={onChange}
+        onKeyDown={(e) => onKeyDown(e as KeyboardEvent<HTMLTextAreaElement>)}
+        onPaste={onPaste}
+        placeholder={placeholderText(composeMode)}
+        rows={COMPOSER_MIN_ROWS}
+        startIcon={shellMode ? SquareTerminal : undefined}
+        controlXstyle={styles.bareControl}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+      />
+      {showFocusHint && (
+        <Kbd
+          keys={kbdKeys(SHORTCUTS.focusComposer.keys)}
+          aria-hidden
+          xstyle={styles.focusHint}
+        />
+      )}
+    </Stack>
   );
 }
