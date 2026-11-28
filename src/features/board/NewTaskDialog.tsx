@@ -89,12 +89,10 @@ export default function NewTaskDialog({
     if (!draft.title.trim() || saving) return;
     setSaving(true);
     setError(null);
+    const { priority, ...rest } = draft;
+    const fields = { ...rest, priority: priority ?? undefined };
     try {
-      const { priority, ...rest } = draft;
-      const task = await api.createTask(projectRoot, {
-        ...rest,
-        priority: priority ?? undefined,
-      });
+      const task = await api.createTask(projectRoot, fields);
       onOpenChange(false);
       if (startNow) {
         startTaskWith(task, resolveAgent(task.agent, boardDefaults)).catch(
@@ -103,9 +101,8 @@ export default function NewTaskDialog({
       }
     } catch (err) {
       setError(String(err));
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   }
 
   return (

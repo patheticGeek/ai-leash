@@ -1,7 +1,6 @@
 import {
   Bot,
   Eye,
-  FileCode,
   FileText,
   FolderTree,
   type LucideIcon,
@@ -29,6 +28,7 @@ import FileEditorTab from "../sidebar/tabs/FileEditorTab";
 import FileTree from "../sidebar/tabs/FileTree";
 import SubAgentsTab from "../sidebar/tabs/SubAgentsTab";
 import TerminalPanel from "../sidebar/tabs/TerminalPanel";
+import { fileIcon } from "./fileIcon";
 
 // A project's board chat shows as its board, with the chat docked beside
 // it; every other conversation is just its chat.
@@ -139,7 +139,7 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
       tab.path ? createElement(FileEditorTab, { path: tab.path }) : null,
     mountMode: "active-only",
     openableFromPicker: false,
-    // A code file swaps this for FileCode — see `tabIcon`.
+    // A code file swaps this for FileCode — see `fileIcon`.
     icon: FileText,
   },
   // Active-only: moving an iframe in the DOM reloads it anyway, and its
@@ -163,53 +163,9 @@ export const TAB_KINDS: Record<TabKind, TabKindDef> = {
   },
 };
 
-// Extensions a file tab shows as code (FileCode) rather than text.
-const CODE_EXTENSIONS = new Set([
-  "ts",
-  "tsx",
-  "js",
-  "jsx",
-  "mjs",
-  "cjs",
-  "py",
-  "rs",
-  "go",
-  "java",
-  "kt",
-  "c",
-  "h",
-  "cc",
-  "cpp",
-  "hpp",
-  "cs",
-  "rb",
-  "php",
-  "swift",
-  "sh",
-  "bash",
-  "zsh",
-  "fish",
-  "lua",
-  "html",
-  "css",
-  "scss",
-  "vue",
-  "svelte",
-  "json",
-  "toml",
-  "yaml",
-  "yml",
-  "xml",
-  "sql",
-]);
-
-/** The icon before a tab's title: its kind's, or FileCode for a code file. */
+/** The icon before a tab's title: its kind's, or `fileIcon` for a file. */
 export function tabIcon(tab: WorkspaceTab): LucideIcon {
-  if (tab.kind === "file" && tab.path) {
-    const name = tab.path.split(/[\\/]/).pop() ?? "";
-    const ext = name.includes(".") ? name.split(".").pop()?.toLowerCase() : "";
-    if (ext && CODE_EXTENSIONS.has(ext)) return FileCode;
-  }
+  if (tab.kind === "file" && tab.path) return fileIcon(tab.path);
   return TAB_KINDS[tab.kind].icon;
 }
 

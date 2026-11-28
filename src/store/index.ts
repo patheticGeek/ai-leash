@@ -36,7 +36,10 @@ export const useAppStore = create<AppStore>()((...a) => ({
 
 export type { ConversationSummary } from "./conversationSlice";
 export type { AcpDebugEvent } from "./debugSlice";
-export { elicitationForSession } from "./elicitationSlice";
+export {
+  elicitationForSession,
+  elicitationsForSession,
+} from "./elicitationSlice";
 export type {
   PanelTabKind,
   PreviewSource,
@@ -45,7 +48,10 @@ export type {
   WorkspaceTab,
 } from "./panelSlice";
 export type { PermissionMode } from "./permissionSlice";
-export { permissionForSession } from "./permissionSlice";
+export {
+  permissionForSession,
+  permissionsForSession,
+} from "./permissionSlice";
 // Re-exported so every existing `from "../store"` (or `from "./store"`)
 // import site keeps working unchanged — this module is the same public API
 // `src/store.ts` used to export directly, just backed by slices now.

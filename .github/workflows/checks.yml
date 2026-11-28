@@ -7,7 +7,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend (lint + typecheck)
+    name: Frontend (lint + typecheck + compiler check)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,6 +27,9 @@ jobs:
 
       - name: TypeScript typecheck
         run: npm run typecheck
+
+      - name: React Compiler bailout check
+        run: npm run check:compiler
 
   rust:
     name: Tauri (fmt + clippy + test)

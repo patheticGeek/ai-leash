@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   formatShortcut,
+  isBareKey,
+  isBareKeyBlocked,
   isInTerminalOrEditor,
+  isOverlayOpen,
+  isTypingTarget,
   type KeyLike,
   matchesShortcut,
   SHORTCUTS,
@@ -91,13 +95,139 @@ describe("matchesShortcut", () => {
   });
 });
 
+// Focus on an element of the given tag, outside any terminal/editor.
+function element(tagName: string, isContentEditable = false): EventTarget {
+  return {
+    tagName,
+    isContentEditable,
+    closest: () => null,
+  } as unknown as EventTarget;
+}
+
+const noOverlay = () => false;
+
+describe("bare-key shortcuts", () => {
+  it("knows a bare key from a modified one", () => {
+    expect(isBareKey("/")).toBe(true);
+    expect(isBareKey("mod+k")).toBe(false);
+    expect(isBareKey("shift+/")).toBe(false);
+  });
+
+  it("matches the key alone", () => {
+    expect(matchesShortcut(key("/"), "/", false)).toBe(true);
+    expect(matchesShortcut(key("/"), "/", true)).toBe(true);
+    expect(matchesShortcut(key("?"), "/", false)).toBe(false);
+  });
+
+  it("rejects Ctrl, Command and Alt (Ctrl+/ isn't /)", () => {
+    for (const mod of ["ctrlKey", "metaKey", "altKey"] as const) {
+      expect(matchesShortcut(key("/", { [mod]: true }), "/", false)).toBe(
+        false,
+      );
+      expect(matchesShortcut(key("/", { [mod]: true }), "/", true)).toBe(false);
+    }
+  });
+
+  it("matches a symbol typed with Shift, by its character only", () => {
+    // `/` is Shift+7 on a German layout.
+    expect(
+      matchesShortcut(key("/", { code: "Digit7", shiftKey: true }), "/", false),
+    ).toBe(true);
+    // The US `/` key there types `-`: no match by physical key.
+    expect(matchesShortcut(key("-", { code: "Slash" }), "/", false)).toBe(
+      false,
+    );
+  });
+
+  it("keeps a bare letter apart from its Shift form", () => {
+    expect(matchesShortcut(key("g"), "g", false)).toBe(true);
+    expect(matchesShortcut(key("G", { shiftKey: true }), "g", false)).toBe(
+      false,
+    );
+  });
+
+  it("isn't stolen from a mod shortcut by the same key", () => {
+    expect(matchesShortcut(key("/"), "mod+/", false)).toBe(false);
+  });
+});
+
+describe("the bare-key typing guard", () => {
+  it("treats fields, selects and contenteditable as typing", () => {
+    for (const tag of ["input", "TEXTAREA", "select"]) {
+      expect(isTypingTarget(element(tag))).toBe(true);
+    }
+    expect(isTypingTarget(element("div", true))).toBe(true);
+    expect(isTypingTarget(targetIn(true))).toBe(true);
+  });
+
+  it("doesn't treat a button, the page or no target as typing", () => {
+    expect(isTypingTarget(element("BUTTON"))).toBe(false);
+    expect(isTypingTarget(element("BODY"))).toBe(false);
+    expect(isTypingTarget(null)).toBe(false);
+  });
+
+  it("is blocked while a dialog, menu or popover is open", () => {
+    expect(isBareKeyBlocked(element("BODY"), () => true)).toBe(true);
+    expect(isBareKeyBlocked(element("BODY"), noOverlay)).toBe(false);
+  });
+
+  it("runs `/` outside any field with nothing open", () => {
+    expect(
+      shortcutForEvent(key("/", { target: element("BODY") }), false, noOverlay)
+        ?.id,
+    ).toBe("focusComposer");
+    expect(
+      shortcutForEvent(key("/", { target: element("BUTTON") }), true, noOverlay)
+        ?.id,
+    ).toBe("focusComposer");
+  });
+
+  it("leaves `/` to type in a field, the terminal or the editor", () => {
+    for (const target of [
+      element("TEXTAREA"),
+      element("INPUT"),
+      element("DIV", true),
+      targetIn(true),
+    ]) {
+      expect(shortcutForEvent(key("/", { target }), false, noOverlay)).toBe(
+        null,
+      );
+    }
+  });
+
+  it("leaves `/` alone while an overlay is open", () => {
+    expect(
+      shortcutForEvent(
+        key("/", { target: element("BODY") }),
+        false,
+        () => true,
+      ),
+    ).toBeNull();
+  });
+
+  it("doesn't run on Ctrl+/", () => {
+    expect(
+      shortcutForEvent(
+        key("/", { ctrlKey: true, target: element("BODY") }),
+        false,
+        noOverlay,
+      ),
+    ).toBeNull();
+  });
+
+  it("finds no overlay without a document", () => {
+    expect(isOverlayOpen(null)).toBe(false);
+  });
+});
+
 describe("shortcutForEvent", () => {
   it("finds every registered shortcut by its keys", () => {
     for (const s of Object.values(SHORTCUTS)) {
       const last = s.keys.split("+").pop() ?? "";
-      expect(shortcutForEvent(key(last, { ctrlKey: true }), false)?.id).toBe(
-        s.id,
-      );
+      const ctrlKey = s.keys.includes("mod");
+      expect(
+        shortcutForEvent(key(last, { ctrlKey }), false, noOverlay)?.id,
+      ).toBe(s.id);
     }
   });
 
@@ -140,6 +270,11 @@ describe("formatShortcut", () => {
   it("spells out Ctrl on Linux/Windows", () => {
     expect(formatShortcut("mod+k", false)).toBe("Ctrl+K");
     expect(formatShortcut("mod+,", false)).toBe("Ctrl+,");
+  });
+
+  it("shows a bare key as itself", () => {
+    expect(formatShortcut("/", false)).toBe("/");
+    expect(formatShortcut("/", true)).toBe("/");
   });
 
   it("uses symbols on macOS", () => {

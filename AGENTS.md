@@ -41,6 +41,7 @@ separate `<path>`s makes the gradient repeat instead of sweep once.
 npm run tauri dev     # app, hot reload
 npm run tauri build   # installer/bundle
 npx tsc --noEmit      # frontend typecheck
+npm run check:compiler  # list components/hooks the React Compiler skips (must be none)
 cd src-tauri && cargo check && cargo test   # backend
 
 # regenerate src-tauri/icons/* from public/logo.svg after editing it

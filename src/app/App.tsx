@@ -29,6 +29,7 @@ import { useGeneratingListener } from "../lib/generatingQuery";
 import { LS_KEYS } from "../lib/localStorageKeys";
 import { useGitBranchWatchers } from "../lib/useCurrentGitBranch";
 import { useAppStore } from "../store";
+import { PRIMARY_TAB_ID } from "../store/panelSlice";
 import AppCommandPalette, {
   PANEL_TOOL_SHORTCUTS,
   type PaletteCommands,
@@ -125,6 +126,7 @@ function App() {
   const openPanelTab = useAppStore((s) => s.openPanelTab);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
+  const requestComposerFocus = useAppStore((s) => s.requestComposerFocus);
 
   // What the palette's commands and the shortcuts below both run.
   const commands = useMemo<PaletteCommands>(
@@ -136,8 +138,26 @@ function App() {
         setSidePanelOpen(!useAppStore.getState().sidePanelOpen),
       settings: () => setSettingsModalOpen(true),
       openTool: (kind) => openPanelTab(kind),
+      // Only with the main chat (or a board, which always shows its own
+      // view — `CenterPanel`) in front: a sub-agent transcript or a file in
+      // the centre has no message box.
+      focusComposer: () => {
+        if (
+          boardView ||
+          useAppStore.getState().activeChatTabId === PRIMARY_TAB_ID
+        ) {
+          requestComposerFocus();
+        }
+      },
     }),
-    [sidebarCollapse, setSidePanelOpen, setSettingsModalOpen, openPanelTab],
+    [
+      sidebarCollapse,
+      setSidePanelOpen,
+      setSettingsModalOpen,
+      openPanelTab,
+      requestComposerFocus,
+      boardView,
+    ],
   );
 
   // Every global shortcut (see `lib/shortcuts.ts`). The side-panel ones do
@@ -148,6 +168,7 @@ function App() {
     newThread: commands.newThread,
     toggleSidebar: commands.toggleSidebar,
     settings: commands.settings,
+    focusComposer: commands.focusComposer,
     ...(!boardView && {
       toggleSidePanel: commands.toggleSidePanel,
       ...Object.fromEntries(

@@ -70,9 +70,8 @@ export default function BoardSettingsDialog({
       onOpenChange(false);
     } catch (err) {
       setError(String(err));
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   }
 
   return (

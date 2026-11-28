@@ -143,6 +143,42 @@ Use the stock variants only, by role:
 - Anything you can navigate to belongs in the command palette
   (`AppCommandPalette.tsx`); its matching is fuzzy (`lib/fuzzyMatch.ts`),
   so search by any word of a title or project.
+- Composer menus (`/` commands, `@` files) and the `/help` list share the
+  palette's row style: icon, label in primary text, muted secondary text,
+  hint or `Kbd` at the end, palette group headings and footer. Build them
+  on `ComposerMenu`/`MenuRow` (`features/chat/components/popovers/`), not a
+  new list.
+
+### Prompts that need the user
+
+A permission ask, an agent's question, or any new "the agent is waiting on
+you" surface follows `PromptCard` (`features/chat/components/popovers/`):
+
+- It takes the composer's place, on the composer's card surface, with an
+  amber edge and an amber status icon (`ShieldAlert` for approval,
+  `QuestionMark` for a question), the same marks the sidebar row shows.
+- Heading 4 asks the question in plain words ("Run this command?"); a
+  supporting line says who is asking. What the agent wants — the command,
+  path or tool and its arguments — is in monospace (`Text type="code"`,
+  `CodeBlock`), cut to a few lines with a **Show all**, never hidden.
+- Buttons: one `primary` (allow once, or the recommended choice), `secondary`
+  for the alternatives and the refusal; `ghost` only for navigation
+  (Previous) and dismiss. Weight 500 at most.
+- Keys, one scheme for every prompt (`lib/promptKeys.ts`): `Enter` = the
+  primary option, `Esc` = refuse (deny, decline), `1`–`9` = the options or
+  choices in the order shown, `[`/`]` = step through several pending
+  prompts. Each option shows its key as a `Kbd`. No letter keys, so a text
+  field inside a prompt types normally; there only `Enter`/`Esc`/`Tab` act.
+- Keys are handled by the card's own `onKeyDown`, so they act only while
+  focus is inside it — not a document listener. The card focuses itself
+  when a prompt appears unless the user is typing in another field, the
+  terminal or the editor; it ignores `Enter` and numbers for a moment after
+  appearing (an `Enter` meant for the message box mustn't approve
+  anything); answering sends focus back to the message box.
+- Several pending: show "1 of 3" with previous/next in the header; answer
+  oldest first by default.
+- Announce the prompt through `useAnnounce` (what is asked, and which keys
+  answer it); the card is a labelled `region`.
 
 ### Motion
 
@@ -174,9 +210,13 @@ Use the stock variants only, by role:
 5. `npx tsc --noEmit`, `npx biome check <files>`, `npm test`, **and**
    `npx vite build` — StyleX errors (e.g. importing a non-`.stylex.ts`
    constant into `stylex.create`) only show up in a real build.
-6. Theme changes: through the theme editor only, then look at the
+6. `npm run check:compiler` prints "no compiler bailouts" — the React
+   Compiler silently skips (and leaves unmemoized) any component or hook
+   it can't compile: refs read or written during render, `try`/`finally`,
+   computed-key destructuring.
+7. Theme changes: through the theme editor only, then look at the
    `editor show --png` pictures.
-7. Update the matching `docs/features/*.md`.
+8. Update the matching `docs/features/*.md`.
 
 ## Where these ideas come from
 

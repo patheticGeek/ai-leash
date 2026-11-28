@@ -425,9 +425,8 @@ export default function TaskDetailsDialog({
       await startTaskWith(task, resolveAgent(task.agent, boardDefaults));
     } catch (err) {
       setError(String(err));
-    } finally {
-      setStarting(false);
     }
+    setStarting(false);
   }
 
   function openChat() {
@@ -446,9 +445,8 @@ export default function TaskDetailsDialog({
     } catch (err) {
       setConfirmDelete(false);
       setError(String(err));
-    } finally {
-      setDeleting(false);
     }
+    setDeleting(false);
   }
 
   return (

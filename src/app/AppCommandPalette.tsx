@@ -12,6 +12,7 @@ import type {
 } from "@astryxdesign/core/Typeahead";
 import * as stylex from "@stylexjs/stylex";
 import {
+  MessageSquareText,
   MessagesSquare,
   SettingsIcon,
   SquareKanban,
@@ -63,6 +64,7 @@ export interface PaletteCommands {
   toggleSidePanel: () => void;
   settings: () => void;
   openTool: (kind: PanelTabKind) => void;
+  focusComposer: () => void;
 }
 
 const basename = (path: string) =>
@@ -161,6 +163,7 @@ export default function AppCommandPalette({
     });
     const cmds: PaletteItem[] = [
       command("newThread", SquarePen, commands.newThread),
+      command("focusComposer", MessageSquareText, commands.focusComposer),
       // The sidebar's collapse chevron: left while open, right once
       // collapsed (mirroring the side panel's below).
       command(

@@ -4,6 +4,7 @@ import { HStack, Layout, LayoutFooter } from "@astryxdesign/core/Layout";
 import { useState } from "react";
 import type { ConversationSummary } from "../data/conversations";
 import { useGenerating } from "../lib/generatingQuery";
+import { withCleanup } from "../lib/withCleanup";
 
 // Confirms a sidebar delete before it happens — deleting drops the whole
 // transcript and every sub-agent it spawned, with no undo. A still-running
@@ -24,12 +25,14 @@ export default function DeleteConversationDialog({
   async function confirm() {
     if (!conversation) return;
     setDeleting(true);
-    try {
-      await onConfirm(conversation.id);
-    } finally {
-      setDeleting(false);
-      onCancel();
-    }
+    const id = conversation.id;
+    await withCleanup(
+      () => onConfirm(id),
+      () => {
+        setDeleting(false);
+        onCancel();
+      },
+    );
   }
 
   return (

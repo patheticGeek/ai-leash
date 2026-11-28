@@ -48,8 +48,12 @@ export default function InputAnchoredPopover({
   });
   // Open for exactly as long as this is mounted. Through a ref, so a new
   // `show`/`hide` identity never re-runs the open (and its auto-focus).
+  // Kept current by a layout effect declared before the open one, so the
+  // open (and the close on unmount) always sees this render's popover.
   const popoverRef = useRef(popover);
-  popoverRef.current = popover;
+  useLayoutEffect(() => {
+    popoverRef.current = popover;
+  });
   const autoFocusRef = useRef(hasAutoFocus);
   useLayoutEffect(() => {
     popoverRef.current.show({ skipAutoFocus: !autoFocusRef.current });

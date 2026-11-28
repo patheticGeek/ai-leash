@@ -291,8 +291,11 @@ shows a "couldn't restore its previous session" error.
 
 Agents can use project tools to inspect and modify files or run shell
 commands. In **Ask** permission mode, the chat input is replaced temporarily
-by a permission request when approval is needed. Review the title and details,
-then choose **Approve** or **Deny**.
+by a permission request when approval is needed. It is marked in amber,
+asks what the agent wants ("Run this command?", "Make this edit?"), names the
+target in monospace and shows the command or diff (a long one is cut to its
+first lines, with **Show all**). Choose **Allow once** or **Deny**; see
+[Tools and permissions](./tools.md#your-choices) for the keys.
 
 The permission mode picker in the chat bar offers the external agent's own
 modes when it has any (see above). Otherwise it has two choices:
@@ -327,8 +330,22 @@ if you're in another conversation.
   your pick), it sits under that question's options rather than on a page of
   its own.
 - **Submit** sends your answers to the agent.
-- **Decline** tells the agent you don't want to answer. The close button (or
-  `Esc`) dismisses the form without answering, and so does stopping the turn.
+- **Decline** tells the agent you don't want to answer. The close button
+  dismisses the form without answering, and so does stopping the turn.
+
+The form is keyboard-first, like the permission prompt:
+
+| Key | Does |
+|---|---|
+| `1`–`9` | pick the question's options in order (toggle them when you can pick several); with nothing to fill in, `1` accepts and `2` declines |
+| `Enter` | **Next**, or **Submit** on the last question (**Accept** with nothing to fill in) |
+| `Esc` | **Decline** |
+| `[` / `]` | step through several open questions ("1 of 3") |
+
+In a text box, numbers and letters type as usual; only `Enter`, `Esc` and
+`Tab` act there. If an agent asks several questions at once, they're answered
+one at a time, oldest first; stepping to another one drops what you typed into
+the one you left.
 
 Bypass permission mode doesn't apply here — the agent is asking you, not
 requesting approval, so a form always waits for you.
@@ -466,6 +483,11 @@ chart component; both have Storybook stories.
 
 ## Send, stop, and queue messages
 
+Press **/** from anywhere in the app, when you aren't typing in a field, to
+jump to the message box (also **Focus message box** in the command palette).
+It doesn't type the `/`; see
+[Keyboard shortcuts](./ui-shell.md#keyboard-shortcuts) for where it applies.
+
 While the agent is working, **Stop** cancels the current user-initiated turn.
 An operation already in progress, such as a shell command, may finish before
 the stop takes effect.
@@ -526,7 +548,14 @@ writes the trailer. Reading the files and handing them to an agent is the
 shared `src-tauri/src/file_context.rs` (size caps, `native_block` for the
 built-in agent, `acp_blocks` for ACP), which any feature that attaches files
 to a prompt should use. The frontend side (`src/lib/mentions.ts`,
-`useMentionPicker`, `MentionMenu`) mirrors the slash-command menu.
+`useMentionPicker`, `MentionMenu`) mirrors the slash-command menu, and
+both are built on `ComposerMenu` (`popovers/ComposerMenu.tsx`): the command
+palette's own parts (`CommandPaletteItem`, `CommandPaletteGroup`,
+`CommandPaletteEmpty`, `CommandPaletteFooter`) used standalone in the
+popover above the input, so their rows, highlight and footer match the
+palette's. A file row shows the file's tab icon (`features/tabs/fileIcon.ts`:
+code or text; a folder for a directory), its name, then its folder muted and
+truncating.
 
 ## Attach images and files
 
@@ -736,6 +765,12 @@ Type `/` in the chat input to open command suggestions. Continue typing to
 filter them. Select a suggestion with the mouse, **Tab**, or **Enter**;
 **Escape** dismisses the suggestions without removing what you typed.
 Commands can include arguments when the suggestion shows an argument hint.
+
+The suggestions are grouped like the command palette: **Built-in** (AI
+Leash's own commands) then **Agent** (the connected agent's). Each row is an
+icon, `/name`, its description muted, and its argument hint at the end, with
+the palette's ↑↓ / ↵ / Esc key hints underneath. `/help` lists the same
+groups, plus **Shell** for the `!` escape, in the same rows.
 
 ### Commands provided by AI Leash
 

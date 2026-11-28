@@ -37,6 +37,7 @@ import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
 } from "../../hooks/useChatSession";
+import { useComposerFocusRequest } from "../../hooks/useComposerFocusRequest";
 import { useMentionPicker } from "../../hooks/useMentionPicker";
 import { useMessageQueue } from "../../hooks/useMessageQueue";
 import { useSessionElicitation } from "../../hooks/useSessionElicitation";
@@ -211,6 +212,8 @@ export default function ChatComposer({
   const composerRef = useRef<HTMLDivElement>(null);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
+  // `/` from anywhere (and the palette's "Focus message box") lands here.
+  useComposerFocusRequest(textareaRef);
   const permissions = useSessionPermissions(
     sessionId,
     !!session.modeOptions,

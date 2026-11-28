@@ -20,9 +20,14 @@ export function useSessionElicitation(
 
   // Optimistic like `respondPermission`: close the form now, and let the
   // backend's own `elicitation://resolved` be a harmless second removal.
-  async function respondElicitation(answer: ElicitationAnswer) {
-    if (!pendingElicitation) return;
-    const id = pendingElicitation.id;
+  // `requestId`: which of several open forms (the one the prompt has stepped
+  // to); the oldest when left out.
+  async function respondElicitation(
+    answer: ElicitationAnswer,
+    requestId?: string,
+  ) {
+    const id = requestId ?? pendingElicitation?.id;
+    if (!id) return;
     resolvePendingElicitation(id);
     try {
       await api.respondElicitation(id, answer);

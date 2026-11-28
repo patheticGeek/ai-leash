@@ -180,9 +180,29 @@ approve it.
 
 When a prompt appears, choose:
 
-- **Approve** to allow that specific request.
+- **Allow once** to allow that specific request.
 - **Deny** to block it. The agent is told that you denied the request and can
   adjust its approach or ask what you would prefer.
+
+The prompt is keyboard-first. Each button shows its key:
+
+| Key | Does |
+|---|---|
+| `Enter` or `1` | **Allow once** |
+| `Esc` or `2` | **Deny** |
+| `[` / `]` | step through several waiting requests ("1 of 3") |
+| `Tab` | move between the buttons |
+
+The keys only act while the prompt has focus. It takes focus when it appears,
+unless you're typing somewhere else (another text field, the terminal or the
+editor) — then click it or `Tab` to it. For a moment after it appears it
+ignores `Enter` and the number keys, so an `Enter` meant for the message you
+were typing can't approve a request you haven't read; `Esc` works at once.
+After you answer, focus returns to the message box.
+
+A conversation and the sub-agents it started can each be waiting on you at
+the same time: their requests share one prompt, oldest first, and the prompt
+says when one comes from a sub-agent.
 
 There is no separate "always allow this action" choice on an individual
 prompt. In Ask mode, later file changes and commands produce their own

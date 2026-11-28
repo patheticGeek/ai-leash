@@ -12,15 +12,16 @@ export function useAsyncAction() {
   async function run(action: () => Promise<void>): Promise<boolean> {
     setPending(true);
     setError(null);
+    let ok: boolean;
     try {
       await action();
-      return true;
+      ok = true;
     } catch (e) {
       setError(String(e));
-      return false;
-    } finally {
-      setPending(false);
+      ok = false;
     }
+    setPending(false);
+    return ok;
   }
 
   return { pending, error, run, clearError: () => setError(null) };

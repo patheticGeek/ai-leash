@@ -1,7 +1,7 @@
 import { VStack } from "@astryxdesign/core/Stack";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { getPreferences } from "@/data/preferences";
 import "@xterm/xterm/css/xterm.css";
 import {
@@ -43,7 +43,10 @@ export default function ActionTerminalTab({ actionId }: { actionId: string }) {
   // Actions view reads — a run starting (new `runId`) or ending re-renders
   // this and re-runs `sync` below.
   const { actions: actionsData } = useActions();
-  actionsRef.current = actionsData;
+  // A layout effect, so it's current before the passive effects below read it.
+  useLayoutEffect(() => {
+    actionsRef.current = actionsData;
+  });
 
   useEffect(() => {
     if (!containerRef.current || !checkoutPath) return;

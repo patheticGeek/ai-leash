@@ -361,11 +361,12 @@ export function useModelVision(
 export function useBackendHealth(
   config: BackendConfig | undefined,
 ): boolean | null {
+  const id = config?.id ?? "";
   const { data } = useQuery({
-    queryKey: qk.backendHealth(config?.id ?? ""),
+    queryKey: qk.backendHealth(id),
     queryFn: async () => {
       try {
-        return await api.checkBackendConnection(config?.id ?? "");
+        return await api.checkBackendConnection(id);
       } catch {
         return false;
       }

@@ -4,6 +4,11 @@
 // so the same string feeds the palette's key badges, the tooltips
 // (`formatShortcut`) and the matcher. `useShortcuts`
 // (`hooks/useShortcuts.ts`) is the one document listener that runs them.
+//
+// Most shortcuts use `mod`. A bare-key one (no modifier, like `/`) is a
+// character too, so it only runs when the key wouldn't be typing anything:
+// never with focus in a field, the terminal or the editor, nor while a
+// dialog, menu or popover is open (`isBareKeyBlocked`).
 
 export type ShortcutId =
   | "palette"
@@ -14,7 +19,8 @@ export type ShortcutId =
   | "openFiles"
   | "openTerminal"
   | "openSubAgents"
-  | "openActions";
+  | "openActions"
+  | "focusComposer";
 
 export interface Shortcut {
   id: ShortcutId;
@@ -52,6 +58,11 @@ export const SHORTCUTS: Record<ShortcutId, Shortcut> = {
     label: "Open Sub agents",
   },
   openActions: { id: "openActions", keys: "mod+4", label: "Open Actions" },
+  focusComposer: {
+    id: "focusComposer",
+    keys: "/",
+    label: "Focus message box",
+  },
 };
 
 // The keydown fields matching reads, so tests can pass plain objects.
@@ -84,14 +95,24 @@ interface ParsedKeys {
   key: string;
 }
 
+// The last part is the key itself, so a bare "+" would still parse; the
+// modifiers come before it.
 function parseKeys(keys: string): ParsedKeys {
   const parts = keys.toLowerCase().split("+");
+  const mods = parts.slice(0, -1);
   return {
-    mod: parts.includes("mod"),
-    shift: parts.includes("shift"),
-    alt: parts.includes("alt"),
+    mod: mods.includes("mod"),
+    shift: mods.includes("shift"),
+    alt: mods.includes("alt"),
     key: parts[parts.length - 1],
   };
+}
+
+// No modifier at all: the key types a character, so it needs the typing
+// guard (`isBareKeyBlocked`).
+export function isBareKey(keys: string): boolean {
+  const { mod, shift, alt } = parseKeys(keys);
+  return !mod && !shift && !alt;
 }
 
 // The physical key, for layouts where `e.key` isn't the Latin letter.
@@ -103,13 +124,22 @@ function codeFor(key: string): string | null {
 }
 
 // `mod` is Command alone on macOS and Ctrl alone elsewhere; Shift and Alt
-// must match exactly, so Ctrl+Shift+K isn't Ctrl+K.
+// must match exactly, so Ctrl+Shift+K isn't Ctrl+K. A bare key takes no
+// Ctrl, Command or Alt (Ctrl+/ isn't `/`) and is matched on the character
+// it types, so a symbol that needs Shift on some layouts (`/` is Shift+7 on
+// a German one) still matches, and nothing matches by physical key.
 export function matchesShortcut(
   e: KeyLike,
   keys: string,
   isMac: boolean,
 ): boolean {
   const want = parseKeys(keys);
+  if (isBareKey(keys)) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    // A letter's Shift is a different shortcut (Shift+N is "N", not "n").
+    if (/^[a-z]$/.test(want.key) && e.shiftKey) return false;
+    return e.key.toLowerCase() === want.key;
+  }
   const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
   if (mod !== want.mod) return false;
   if (!want.mod && (e.ctrlKey || e.metaKey)) return false;
@@ -129,16 +159,71 @@ export function isInTerminalOrEditor(target: EventTarget | null): boolean {
   return (target as Element).closest(".xterm, .cm-editor") !== null;
 }
 
+// Focus where a key types: a text field, select, anything contenteditable,
+// the terminal or the editor. Read off the element's own fields rather than
+// `instanceof`, so it works on whichever document the target belongs to.
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!target) return false;
+  const el = target as Partial<HTMLElement>;
+  const tag = typeof el.tagName === "string" ? el.tagName.toUpperCase() : "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable === true) return true;
+  return isInTerminalOrEditor(target);
+}
+
+// Roles that make an open layer something you're working in, rather than
+// a tooltip or a toast (both also live in the top layer).
+const INTERACTIVE_LAYER =
+  '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+
+// A dialog, menu or popover is open: Astryx shows them as a native
+// `<dialog open>` or a `:popover-open` element in the top layer (the command
+// palette and Settings are dialogs).
+export function isOverlayOpen(
+  doc: Document | null = globalDocument(),
+): boolean {
+  if (!doc) return false;
+  if (doc.querySelector("dialog[open]")) return true;
+  let open: NodeListOf<Element>;
+  try {
+    open = doc.querySelectorAll(":popover-open");
+  } catch {
+    // An engine without the popover API has no popovers open either.
+    return false;
+  }
+  return Array.from(open).some(
+    (el) =>
+      el.matches(INTERACTIVE_LAYER) || el.querySelector(INTERACTIVE_LAYER),
+  );
+}
+
+function globalDocument(): Document | null {
+  return typeof document === "undefined" ? null : document;
+}
+
+// Why a bare-key shortcut stays out of the way: the key would type into the
+// focused field, or a layer that owns the keyboard is open.
+export function isBareKeyBlocked(
+  target: EventTarget | null,
+  overlayOpen: () => boolean = isOverlayOpen,
+): boolean {
+  return isTypingTarget(target) || overlayOpen();
+}
+
 // The shortcut a keydown triggers, or null — none matched, or the focus
-// guard skipped it.
+// guard skipped it. `overlayOpen` is there for tests (no DOM).
 export function shortcutForEvent(
   e: KeyLike & { target: EventTarget | null },
   isMac: boolean,
+  overlayOpen: () => boolean = isOverlayOpen,
 ): Shortcut | null {
   const match = Object.values(SHORTCUTS).find((s) =>
     matchesShortcut(e, s.keys, isMac),
   );
   if (!match) return null;
+  if (isBareKey(match.keys)) {
+    return isBareKeyBlocked(e.target, overlayOpen) ? null : match;
+  }
   if (!match.isAllowedInEditor && isInTerminalOrEditor(e.target)) return null;
   return match;
 }

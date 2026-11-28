@@ -14,6 +14,15 @@ export function elicitationForSession(
   return Object.values(pending).find((p) => p.sessionId === sessionId) ?? null;
 }
 
+// Every form still open for `sessionId`, oldest first — what
+// `ElicitationPrompt` steps through when there's more than one.
+export function elicitationsForSession(
+  pending: Record<string, ElicitationRequestPayload>,
+  sessionId: string,
+): ElicitationRequestPayload[] {
+  return Object.values(pending).filter((p) => p.sessionId === sessionId);
+}
+
 export interface ElicitationSlice {
   // Keyed by request id; insertion order is arrival order. One global
   // `elicitation://request`/`elicitation://resolved` listener pair maintains

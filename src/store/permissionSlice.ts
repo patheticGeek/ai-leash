@@ -40,6 +40,20 @@ export function permissionForSession(
   );
 }
 
+// Every request waiting on this project, in the order `PermissionPrompt`
+// steps through them: its own first (the one `permissionForSession` returns),
+// then its sub-agents' in arrival order.
+export function permissionsForSession(
+  pending: Record<string, PermissionRequestPayload>,
+  sessionId: string,
+): PermissionRequestPayload[] {
+  const own = pending[sessionId];
+  const subAgents = Object.values(pending).filter(
+    (p) => p !== own && p.parentSessionId === sessionId,
+  );
+  return own ? [own, ...subAgents] : subAgents;
+}
+
 export interface PermissionSlice {
   // Per-conversation Ask/Bypass permission choice — see the module doc
   // comment above. Missing entry means "ask" (the default).

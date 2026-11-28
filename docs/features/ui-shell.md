@@ -348,6 +348,7 @@ On macOS, use **Command** wherever this table says **Ctrl**.
 | **Ctrl+2** | Open a new **Terminal** tab |
 | **Ctrl+3** | Open the panel's **Sub agents** tab |
 | **Ctrl+4** | Open the panel's **Actions** tab |
+| **/** | Focus the message box |
 
 While you're typing in a terminal or the file editor, only **Ctrl+K**
 works; every other key goes to the terminal or editor (a shell needs
@@ -355,6 +356,17 @@ works; every other key goes to the terminal or editor (a shell needs
 to **Ctrl+4** do nothing, as there is no side panel. **Ctrl+W** (close the
 focused tab), **Ctrl+S** (save the file) and undo/redo work as before; see
 [Closing tabs](#closing-tabs).
+
+**/** is a plain key, so it only moves focus when it wouldn't be typing:
+not while you're in a text field, a select, the terminal or the file editor,
+and not while a dialog, menu or popover (the command palette, Settings, a
+picker) is open. There it types a `/` as usual. It focuses the message box
+of the chat in front (the board's docked chat in **Both** or **Chat**
+layout) without typing a `/`, so it doesn't open the
+[slash-command menu](./agent-chat.md#slash-commands); type `/` again in the
+box for that. With no message box in front (no project open, a board in
+**Board** layout, a sub-agent transcript or a file tab in the centre) it
+does nothing.
 
 The shortcuts live in one place, `src/lib/shortcuts.ts`: each has an id, a
 label and its keys in the format Astryx's `Kbd` takes (`mod+k`, where `mod`
@@ -367,6 +379,18 @@ already claimed (`defaultPrevented`), held-down repeats and IME
 composition. The terminals hand **Ctrl+K** back to the app through xterm's
 `attachCustomKeyEventHandler` (`terminalKeyFilter`). To add a shortcut, add
 it to `SHORTCUTS` and give it a handler in `App.tsx`'s `useShortcuts` call.
+
+A shortcut with no modifier in its keys (`/`) is a bare-key one. It matches
+only with no Ctrl, Command or Alt held (Ctrl+/ isn't `/`), by the character
+typed rather than the physical key, so it follows the keyboard layout.
+`shortcutForEvent` skips it while focus is somewhere that types
+(`isTypingTarget`: input, textarea, select, contenteditable, `.xterm`,
+`.cm-editor`) or a layer is open (`isOverlayOpen`: a `<dialog open>`, or a
+`:popover-open` element that is or holds a dialog, menu or listbox, which
+leaves tooltips and toasts out). **/** runs `requestComposerFocus`, a counter
+in the store (`panelSlice.ts`) that the mounted `ChatComposer` subscribes to
+(`useComposerFocusRequest`); `App.tsx` only bumps it when the primary chat
+tab, or a board, is in front.
 
 ## Command palette
 
@@ -381,7 +405,7 @@ outside closes it. It lists, in three groups, in this order:
 - **Chats**: every open (not done) chat in every project, most recent first,
   with its project's name at the end of the row. Choose one to switch to it.
   Typing a project's name finds its chats too.
-- **Commands**: New thread, Toggle sidebar, Toggle side panel, Open Files,
+- **Commands**: New thread, Focus message box, Toggle sidebar, Toggle side panel, Open Files,
   Open Terminal, Open Sub agents, Open Actions and Settings, each with its
   shortcut. On a board, the side-panel commands are left out.
 

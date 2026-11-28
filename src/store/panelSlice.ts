@@ -191,6 +191,11 @@ export interface PanelSlice {
   // The Ctrl+K command palette (`app/AppCommandPalette.tsx`).
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
+  // Bumped to ask the main chat's message box for focus (the `/` shortcut
+  // and the palette's "Focus message box"). `ChatComposer` subscribes;
+  // where none is mounted (no project, a Board-only board) nothing does.
+  composerFocusRequest: number;
+  requestComposerFocus: () => void;
   // Whether the right-hand side panel is shown — app-wide, not per
   // conversation, and remembered across restarts. Opening or activating a
   // tab in the side area (`openPanelTab`, `activateTab`) opens it again.
@@ -279,6 +284,9 @@ export const panelSlice: StateCreator<AppStore, [], [], PanelSlice> = (
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  composerFocusRequest: 0,
+  requestComposerFocus: () =>
+    set((s) => ({ composerFocusRequest: s.composerFocusRequest + 1 })),
   sidePanelOpen: localStorageJson.read<boolean>(LS_KEYS.sidePanelOpen, true),
   setSidePanelOpen: (open) => {
     if (get().sidePanelOpen === open) return;
