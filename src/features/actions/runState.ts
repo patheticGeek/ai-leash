@@ -1,7 +1,7 @@
 import type { ActionSummary } from "../../lib/tauriApi";
 
 // How an action's current or last run stands, shared by every surface that
-// shows it (the Actions tab's rows, the title bar's split button and its
+// shows it (the Actions tab's rows, the top bar's split button and its
 // dropdown) so they agree on colour and wording. Running is the attention
 // state (warning, pulsing dot); a run that exited on its own with a non-zero
 // code is the one failure worth flagging (error).

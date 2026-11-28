@@ -49,7 +49,7 @@ export interface ProjectSlice {
   // Stable project UUID for `projectRoot` (`db::ensure_project`'s id, from
   // `api.setProjectRoot`'s return value) — set alongside `projectRoot` by
   // `conversationSlice.ts`'s `openConversation`/`startNewConversation`.
-  // Distinct from the path itself so debug tooling (title bar id display)
+  // Distinct from the path itself so debug tooling (the top bar's id display)
   // can show a real identity that survives the project folder being moved
   // or renamed on disk.
   projectId: string | null;

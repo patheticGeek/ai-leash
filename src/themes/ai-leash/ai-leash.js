@@ -108,29 +108,29 @@ export const aiLeashTheme = {
     "--color-syntax-attribute": "light-dark(#584400, #eec448)",
     "--color-syntax-property": "light-dark(#005348, #90d7c8)",
     "--color-syntax-punctuation": "light-dark(#525252, #b9b9b9)",
-    "--color-syntax-background": "light-dark(#ffffff, #0b0c10)",
+    "--color-syntax-background": "light-dark(#ffffff, #0e0e0f)",
     "--color-syntax-added": "color-mix(in srgb, var(--color-success-muted) 25%, transparent)",
     "--color-syntax-removed": "color-mix(in srgb, var(--color-error-muted) 25%, transparent)",
     "--color-syntax-diff-header": "transparent",
     "--color-syntax-added-marker": "var(--color-syntax-punctuation)",
     "--color-syntax-removed-marker": "var(--color-syntax-punctuation)",
-    "--color-background-surface": "light-dark(#ffffff, #1f2025)",
-    "--color-background-body": "light-dark(#f0f0f2, #101114)",
-    "--color-background-card": "light-dark(#ffffff, #17181c)",
-    "--color-background-popover": "light-dark(#ffffff, #17181c)",
-    "--color-background-muted": "light-dark(#f0f0f2, #141518)",
+    "--color-background-surface": "light-dark(#ffffff, #0f0f10)",
+    "--color-background-body": "light-dark(#f0f0f1, #161617)",
+    "--color-background-card": "light-dark(#ffffff, #1c1c1e)",
+    "--color-background-popover": "light-dark(#ffffff, #1c1c1e)",
+    "--color-background-muted": "light-dark(#f0f0f1, #161617)",
     "--color-accent": "light-dark(#1b1b1b, #f1f1f1)",
     "--color-accent-muted": "light-dark(#d4d4d4, #474747)",
     "--color-neutral": "light-dark(#0000000F, #ffffff1A)",
     "--color-overlay": "light-dark(#00000080, #000000CC)",
     "--color-overlay-hover": "light-dark(#0000000d, #ffffff0d)",
     "--color-overlay-pressed": "light-dark(#0000001a, #ffffff1a)",
-    "--color-text-primary": "light-dark(#000000, #e4e4e7)",
-    "--color-text-secondary": "light-dark(#45464f, #999aa5)",
-    "--color-text-disabled": "light-dark(#8b8d98, #50525a)",
+    "--color-text-primary": "light-dark(#000000, #ededef)",
+    "--color-text-secondary": "light-dark(#46464b, #a1a1a8)",
+    "--color-text-disabled": "light-dark(#8b8b91, #525256)",
     "--color-text-accent": "light-dark(#1b1b1b, #f1f1f1)",
     "--color-on-dark": "light-dark(#ffffff, #ffffff)",
-    "--color-on-light": "light-dark(#101115, #101114)",
+    "--color-on-light": "light-dark(#111113, #111112)",
     "--color-on-accent": "light-dark(#ffffff, #111111)",
     "--color-on-success": "light-dark(#ffffff, #111111)",
     "--color-on-error": "light-dark(#ffffff, #111111)",
@@ -147,9 +147,9 @@ export const aiLeashTheme = {
     "--color-on-warning-muted": "light-dark(#4b3900, #eec448)",
     "--color-on-error-muted": "light-dark(#76000c, #ffaea7)",
     "--color-icon-accent": "light-dark(#1b1b1b, #f1f1f1)",
-    "--color-icon-primary": "light-dark(#000000, #e4e4e7)",
-    "--color-icon-secondary": "light-dark(#676973, #999aa5)",
-    "--color-icon-disabled": "light-dark(#8b8d98, #50525a)",
+    "--color-icon-primary": "light-dark(#000000, #ededef)",
+    "--color-icon-secondary": "light-dark(#68686e, #a1a1a8)",
+    "--color-icon-disabled": "light-dark(#8b8b91, #525256)",
     "--color-success": "light-dark(#198100, #64af4c)",
     "--color-warning": "#ffce2f",
     "--color-error": "light-dark(#c9303a, #ff705d)",
@@ -157,8 +157,8 @@ export const aiLeashTheme = {
     "--color-error-muted": "light-dark(#ffc4be, #ff98903D)",
     "--color-warning-muted": "light-dark(#fae19e, #e2b6233D)",
     "--color-border": "light-dark(#00000014, #ffffff1a)",
-    "--color-border-emphasized": "light-dark(#d3d4d9, #50525a)",
-    "--color-skeleton": "light-dark(#d3d4d9, #4a4b51)",
+    "--color-border-emphasized": "light-dark(#d4d4d6, #34343a)",
+    "--color-skeleton": "light-dark(#d4d4d6, #373739)",
     "--color-shadow": "light-dark(#0000001A, #0000004D)",
     "--color-tint-hover": "light-dark(#000000, #ffffff)",
     "--color-background-red": "light-dark(#ffc4be, #5b2b28)",
@@ -202,11 +202,11 @@ export const aiLeashTheme = {
     "--color-icon-gray": "light-dark(#474747, #9e9e9e)",
     "--color-text-gray": "light-dark(#1b1b1b, #d4d4d4)",
     "--radius-none": "0px",
-    "--radius-inner": "0.375rem",
-    "--radius-element": "0.625rem",
-    "--radius-container": "0.75rem",
-    "--radius-page": "1.75rem",
-    "--radius-chat": "28px",
+    "--radius-inner": "4px",
+    "--radius-element": "6px",
+    "--radius-container": "10px",
+    "--radius-page": "17px",
+    "--radius-chat": "var(--radius-container)",
     "--radius-full": "9999px",
     "--shadow-low": "0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 25%)), 0 4px 8px light-dark(oklch(0 0 0 / 10%), oklch(0 0 0 / 40%)), inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 8%))",
     "--shadow-med": "0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 35%)), 0 4px 12px light-dark(oklch(0 0 0 / 10%), oklch(0 0 0 / 50%)), inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 12%))",
@@ -216,7 +216,7 @@ export const aiLeashTheme = {
     "--shadow-inset-success": "inset 0px 0px 0px 2px #2f7d334D",
     "--shadow-inset-warning": "inset 0px 0px 0px 2px #f8d36a4D",
     "--shadow-inset-error": "inset 0px 0px 0px 2px #de47454D",
-    "--color-background-inverted": "light-dark(#1a1b21, #f0f1f2)"
+    "--color-background-inverted": "light-dark(#1b1b1e, #f1f1f1)"
   },
   localTokens: {
     "--astryx-theme-neutral-color-status-fill-accent": "light-dark(#0074e2, #6d9cfe)"
@@ -323,22 +323,22 @@ export const aiLeashTheme = {
     },
     "item": {
       "selected": {
-        "--color-text-secondary": "light-dark(#45464f, #c5c6cb)"
+        "--color-text-secondary": "light-dark(#46464b, #c5c5c9)"
       }
     },
     "tree-list-item": {
       "selected": {
-        "--color-text-secondary": "light-dark(#45464f, #c5c6cb)"
+        "--color-text-secondary": "light-dark(#46464b, #c5c5c9)"
       }
     },
     "file-input": {
       "mode:dropzone": {
-        "--color-text-secondary": "light-dark(#45464f, #c5c6cb)"
+        "--color-text-secondary": "light-dark(#46464b, #c5c5c9)"
       }
     },
     "citation": {
       "variant:number": {
-        "--color-text-secondary": "light-dark(#45464f, #c5c6cb)"
+        "--color-text-secondary": "light-dark(#46464b, #c5c5c9)"
       }
     },
     "button": {
@@ -409,7 +409,7 @@ export const aiLeashTheme = {
     },
     "segmented-control-item": {
       "base": {
-        "--color-text-secondary": "light-dark(#45464f, #c5c6cb)"
+        "--color-text-secondary": "light-dark(#46464b, #a8a8ac)"
       },
       "size:sm": {
         "height": "calc(var(--size-element-sm) - 8px)"
@@ -447,31 +447,31 @@ export const aiLeashTheme = {
         "padding": "var(--spacing-3)"
       },
       "variant:blue": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:cyan": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:green": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:orange": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:pink": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:purple": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:red": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:teal": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       },
       "variant:yellow": {
-        "--color-text-secondary": "light-dark(#45464f, #b6b7bf)"
+        "--color-text-secondary": "light-dark(#46464b, #b6b6bb)"
       }
     },
     "section": {
@@ -583,6 +583,24 @@ export const aiLeashTheme = {
     "side-nav-section": {
       "base": {
         "--text-supporting-size": "0.875rem"
+      }
+    },
+    "tooltip": {
+      "base": {
+        "backgroundColor": "var(--color-background-popover)",
+        "color": "var(--color-text-primary)",
+        "boxShadow": "var(--shadow-low)"
+      }
+    },
+    "kbd-key": {
+      "base": {
+        "backgroundColor": "transparent",
+        "borderStyle": "solid",
+        "borderWidth": "var(--border-width)",
+        "borderColor": "var(--color-border-emphasized)",
+        "color": "var(--color-text-secondary)",
+        "fontSize": "0.75rem",
+        "lineHeight": "1rem"
       }
     }
   },

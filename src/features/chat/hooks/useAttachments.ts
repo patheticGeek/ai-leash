@@ -49,8 +49,7 @@ export function useAttachments(
   async function stage(name: string, run: () => Promise<Attachment>) {
     const key = crypto.randomUUID();
     setPending((prev) => [...prev, { key, name }]);
-    try {
-      const attachment = await run();
+    const accept = (attachment: Attachment) => {
       const refused =
         attachment.kind === "image" ? imagesReasonRef.current : null;
       if (refused) {
@@ -59,11 +58,13 @@ export function useAttachments(
         return;
       }
       setAttachments((prev) => [...prev, attachment]);
+    };
+    try {
+      accept(await run());
     } catch (e) {
       onErrorRef.current(`Couldn't attach ${name}: ${e}`);
-    } finally {
-      setPending((prev) => prev.filter((p) => p.key !== key));
     }
+    setPending((prev) => prev.filter((p) => p.key !== key));
   }
 
   function addPaths(paths: string[]) {

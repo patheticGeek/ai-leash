@@ -68,17 +68,23 @@ export function useTurnDurations(
     const startedAt = startedAtMsRef.current;
     if (!startedAt) return;
     const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-    const list = entriesRef.current;
-    for (let i = list.length - 1; i >= 0; i--) {
-      const e = list[i];
-      if (e.kind === "text" && e.role === "assistant") {
-        setTurnDurations((prev) => ({ ...prev, [i]: seconds }));
-        break;
-      }
-      if (e.kind === "text" && e.role === "user") break;
+    const index = lastAssistantReply(entriesRef.current);
+    if (index !== null) {
+      setTurnDurations((prev) => ({ ...prev, [index]: seconds }));
     }
     startedAtMsRef.current = null;
   }, [sending]);
 
   return turnDurations;
+}
+
+// The index of the current turn's assistant reply: the last assistant text
+// entry, unless a user message comes after it (the turn has no reply yet).
+function lastAssistantReply(list: readonly PanelEntry[]): number | null {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i];
+    if (e.kind === "text" && e.role === "assistant") return i;
+    if (e.kind === "text" && e.role === "user") return null;
+  }
+  return null;
 }

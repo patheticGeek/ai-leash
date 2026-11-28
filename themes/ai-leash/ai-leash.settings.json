@@ -51,58 +51,11 @@
       "state": "selected"
     },
     {
-      "thing": "neutral",
-      "value": "#8b8d98",
-      "source": "dial"
-    },
-    {
-      "thing": "--color-background-body",
-      "value": "#101114",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
-      "thing": "--color-background-card",
-      "value": "#17181c",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
-      "thing": "--color-background-popover",
-      "value": "#17181c",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
-      "thing": "--color-background-surface",
-      "value": "#1f2025",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
-      "thing": "--color-text-primary",
-      "value": "#e4e4e7",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
-      "thing": "--color-icon-primary",
-      "value": "#e4e4e7",
-      "source": "token",
-      "mode": "dark"
-    },
-    {
       "thing": "color",
       "value": "#ffffff",
       "source": "property",
       "on": "toast",
       "when": "type:error"
-    },
-    {
-      "thing": "--color-background-muted",
-      "value": "#141518",
-      "source": "token",
-      "mode": "dark"
     },
     {
       "thing": "color",
@@ -147,10 +100,151 @@
       "value": "0.75rem",
       "source": "property",
       "on": "badge"
+    },
+    {
+      "thing": "corners",
+      "value": "6px",
+      "source": "dial"
+    },
+    {
+      "thing": "--radius-container",
+      "value": "10px",
+      "source": "token"
+    },
+    {
+      "thing": "neutral",
+      "value": "#8b8b91",
+      "source": "dial"
+    },
+    {
+      "thing": "--color-background-muted",
+      "value": "#161617",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-card",
+      "value": "#1c1c1e",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-popover",
+      "value": "#1c1c1e",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-text-primary",
+      "value": "#ededef",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-icon-primary",
+      "value": "#ededef",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-text-secondary",
+      "value": "#a1a1a8",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-icon-secondary",
+      "value": "#a1a1a8",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-border-emphasized",
+      "value": "#34343a",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-syntax-background",
+      "value": "#0e0e0f",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-surface",
+      "value": "#0f0f10",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "--color-background-body",
+      "value": "#161617",
+      "source": "token",
+      "mode": "dark"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-background-popover)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-primary)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "box-shadow",
+      "value": "var(--shadow-low)",
+      "source": "property",
+      "on": "tooltip"
+    },
+    {
+      "thing": "background-color",
+      "value": "transparent",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-style",
+      "value": "solid",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-width",
+      "value": "var(--border-width)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "border-color",
+      "value": "var(--color-border-emphasized)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-secondary)",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "font-size",
+      "value": "0.75rem",
+      "source": "property",
+      "on": "kbd-key"
+    },
+    {
+      "thing": "line-height",
+      "value": "1rem",
+      "source": "property",
+      "on": "kbd-key"
     }
   ],
   "lifted": [
     "side-nav-item selected:selected:hover color"
   ],
-  "palette": "c5ecb3be69c7c96015830e7a6256f254e543947e80ed69ef16f966f8e67d6df6"
+  "palette": "dde09156326deb40f677a29d75c23d88d7c789c68681c2c331e241dded88fb9b"
 }

@@ -6,7 +6,7 @@ import { usePreference } from "@/data/preferences";
 import { api } from "../lib/tauriApi";
 import { useActiveCheckoutPath } from "../lib/useActiveCheckoutPath";
 
-// Title-bar shortcut that opens the active conversation's checkout (primary
+// Top-bar shortcut that opens the active conversation's checkout (primary
 // root or worktree) in the external editor configured under Settings >
 // External editor.
 export default function OpenInIdeButton() {

@@ -4,11 +4,12 @@ import { useRef } from "react";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { LS_KEYS } from "../../lib/localStorageKeys";
 import ChatPanel from "../chat/ChatPanel";
+import { useTrackBandFit } from "./BoardBand";
 import BoardView from "./BoardView";
 import { useBoardLayout } from "./boardLayout";
 
 // What a project's board chat (`role: "project"`) shows in place of a plain
-// chat: the board, its chat, or both (`BoardLayoutSwitch` in the title bar).
+// chat: the board, its chat, or both (`BoardLayoutSwitch` in the top bar).
 // In Both the chat docks in the ide template's end panel behind a
 // ResizeHandle, and the board keeps its column widths and scrolls sideways
 // in what's left. The chat never has a checkout bar: it always works in the
@@ -34,6 +35,9 @@ export default function ProjectBoardView({
     false,
     containerRef,
   );
+  // This view is as wide as the window's top band above it, which holds
+  // the board's controls: how many of them fit follows its width.
+  useTrackBandFit(containerRef, layout);
 
   if (layout === "chat") {
     // On its own, a normal centered chat.

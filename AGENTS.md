@@ -41,6 +41,7 @@ separate `<path>`s makes the gradient repeat instead of sweep once.
 npm run tauri dev     # app, hot reload
 npm run tauri build   # installer/bundle
 npx tsc --noEmit      # frontend typecheck
+npm run check:compiler  # list components/hooks the React Compiler skips (must be none)
 cd src-tauri && cargo check && cargo test   # backend
 
 # regenerate src-tauri/icons/* from public/logo.svg after editing it
@@ -81,6 +82,13 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   changing anything in `tools/sub_agent_tools.rs`'s sub-agent handling
   or the `Backend` trait's `run_task`/`deliver_task_result`
   (`backend/native.rs`, `acp/backend.rs`).
+- **Read `docs/design-guide.md` before any UI change.** It is the app's
+  design guide: the principles (keep the leash visible, speed, the work
+  is the centre, calm defaults) and the concrete rules that follow from
+  them — layout and the top band, colour and status roles, which Button
+  variant for which job, icons, tabs, shortcuts, empty/error states — plus
+  a checklist to run before finishing. When a change sets a new pattern
+  (a new control, a new kind of row), add it to the guide.
 - **The UI is Astryx components only** (see the ASTRYX block at the end
   of this file). Start every new surface from its Astryx template
   (`astryx build` → `astryx template`) and keep the template's frame;
@@ -94,9 +102,14 @@ Delete the `src-tauri/icons/{android,ios}` directories as we do not make android
   `stylex.create`) with Astryx tokens from
   `@astryxdesign/core/theme/tokens.stylex` (`colorVars`, `spacingVars`,
   `radiusVars`, …). No raw hex or px values.
-- **The theme is stock Astryx (`neutral`, dark).** Don't recolour or
-  respace it; build each surface from its Astryx template and keep the
-  template's frame, gaps and padding. The theme edits are chrome text on
+- **The theme is Astryx `neutral` (dark), made near-black with smaller
+  corners.** Its dark greys are pure neutral with no blue tint. Surface (the
+  main region: chat, board) is the darkest, `#0f0f10`; body and muted (the
+  sidebar, the side panel via `App.tsx`) are `#161617`; card/popover
+  `#1c1c1e`. Corners use the `6px` dial with
+  `--radius-container` at 10px. Don't recolour or
+  respace it further; build each surface from its Astryx template and keep the
+  template's frame, gaps and padding. The other theme edits are chrome text on
   the 12px scale step (tabs, small buttons/inputs/selectors), sidebar
   text at 14px (`side-nav-item` font-size and `--text-supporting-size` on
   `side-nav-section`, #55) and sidebar rows (`side-nav-item`: secondary

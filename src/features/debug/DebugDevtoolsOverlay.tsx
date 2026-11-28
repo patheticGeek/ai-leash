@@ -25,8 +25,8 @@ const styles = stylex.create({
 /**
  * The always-mounted (but usually invisible) devtools overlay: the ACP
  * Events panel, styled after React Query Devtools. Its toggle icon lives in
- * `TitleBar.tsx`, before the window controls, not here — this only renders
- * the panel itself, gated on Settings > Debug's "Enable debug mode" and the
+ * the centre's top band (`CentreBandEnd` in `TopBar.tsx`), not here — this
+ * only renders the panel itself, gated on Settings > Debug's "Enable debug mode" and the
  * icon's open/closed state; event capture itself (`useDebugEventCapture`)
  * runs regardless of whether the panel is currently open, so toggling the
  * panel never drops anything already collected.

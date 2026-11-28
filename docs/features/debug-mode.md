@@ -9,7 +9,8 @@ Leash's own external-agent (ACP) connections while you use the app.
 2. Select **Debug** (under Preferences).
 3. Turn on **Debug mode**.
 
-A small bug icon appears in the title bar, before the window controls, while
+A small bug icon appears at the end of the chat area's top band, after the
+Actions buttons, while
 debug mode is on. Click it to open or close the **ACP Events** panel; click
 it again (or the panel's close button) to hide the panel without turning
 debug mode off.
@@ -37,10 +38,10 @@ does — nothing here is written to disk or included in conversation history.
 With debug mode off the backend doesn't produce these events at all, so it
 costs nothing while you aren't using it.
 
-## Showing IDs in the title bar
+## Showing IDs in the top bar
 
-The **Debug** panel also has a **Show IDs in the title bar** switch. When enabled, the title
-bar's center section shows:
+The **Debug** panel also has a **Show IDs in the top bar** switch. When enabled, the chat
+area's top band shows, at the start of its right-hand controls:
 
 ```
 <project id> / <conversation id> / <ACP session id>

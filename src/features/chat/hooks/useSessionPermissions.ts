@@ -57,9 +57,11 @@ export function useSessionPermissions(
   // rather than waiting for the backend's own `permission://resolved`, which
   // still fires regardless and is what makes this safe even when a
   // sub-agent's request got answered from its *parent's* popover instance.
-  async function respondPermission(approved: boolean) {
-    if (!pendingPermission) return;
-    const id = pendingPermission.id;
+  // `requestId`: which of several pending requests (the one the prompt has
+  // stepped to); the oldest when left out.
+  async function respondPermission(approved: boolean, requestId?: string) {
+    const id = requestId ?? pendingPermission?.id;
+    if (!id) return;
     resolvePendingPermission(id);
     try {
       await api.respondPermission(id, approved);

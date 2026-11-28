@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { TITLEBAR_HEIGHT } from "../../app/TitleBar";
+import { TOP_BAR_HEIGHT } from "../../app/TopBar";
 import { LS_KEYS } from "../../lib/localStorageKeys";
 
 const DEFAULT_WIDTH = 420;
@@ -32,7 +32,7 @@ function persist(width: number, height: number, x: number, y: number) {
  *
  * Kept fully on-screen at all times (clamped against the current
  * `window.innerWidth`/`innerHeight` on every drag/resize step) — including
- * never above the title bar, whose drag region is otherwise reserved for
+ * never above the top bar, whose drag region is otherwise reserved for
  * moving the OS window itself — so the panel's own header and resize handle
  * can never be dragged out of reach.
  */
@@ -48,7 +48,7 @@ export function useFloatingDebugPanel() {
       LS_KEYS.debugPanelX,
       window.innerWidth - DEFAULT_WIDTH - EDGE_MARGIN,
     ),
-    y: readNumber(LS_KEYS.debugPanelY, TITLEBAR_HEIGHT + EDGE_MARGIN),
+    y: readNumber(LS_KEYS.debugPanelY, TOP_BAR_HEIGHT + EDGE_MARGIN),
   }));
 
   const onDragStart = useCallback(
@@ -68,7 +68,7 @@ export function useFloatingDebugPanel() {
             window.innerWidth - width,
           ),
           y: Math.min(
-            Math.max(TITLEBAR_HEIGHT, startPos.y + (ev.clientY - startY)),
+            Math.max(TOP_BAR_HEIGHT, startPos.y + (ev.clientY - startY)),
             window.innerHeight - height,
           ),
         };

@@ -4,6 +4,8 @@ import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { Timestamp } from "@astryxdesign/core/Timestamp";
+import { sizeVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import * as stylex from "@stylexjs/stylex";
 import { Check, Copy, RotateCcw } from "lucide-react";
 import { formatDuration } from "@/lib/format";
 import { turnInset } from "./turnInset";
@@ -41,33 +43,54 @@ export default function MessageFooter({
     <ChatMessageMetadata
       xstyle={isInset ? turnInset.inset : undefined}
       timestamp={<Timestamp value={time} format="time" />}
+      // A fragment, not a stack: its items join the metadata row itself, so
+      // they share its gap, and "Worked for" gets the same "·" separator the
+      // row puts after the timestamp.
       footer={
-        <HStack gap={0.5} vAlign="center">
+        <>
           {turnDuration !== undefined && (
-            <Text type="supporting" color="secondary" hasTabularNumbers>
-              Worked for {formatDuration(turnDuration)}
-            </Text>
+            <>
+              <Text type="supporting" color="secondary" hasTabularNumbers>
+                Worked for {formatDuration(turnDuration)}
+              </Text>
+              <Text type="supporting" color="secondary" aria-hidden>
+                ·
+              </Text>
+            </>
           )}
-          <IconButton
-            variant="ghost"
-            size="sm"
-            label={copied ? "Copied" : "Copy"}
-            tooltip="Copy"
-            icon={<Icon icon={copied ? Check : Copy} size="sm" />}
-            onClick={onCopy}
-          />
-          {showRetry && (
+          <HStack gap={0.5} vAlign="center">
             <IconButton
               variant="ghost"
               size="sm"
-              label="Retry"
-              tooltip="Retry"
-              icon={<Icon icon={RotateCcw} size="sm" />}
-              onClick={onRetry}
+              label={copied ? "Copied" : "Copy"}
+              tooltip="Copy"
+              icon={<Icon icon={copied ? Check : Copy} size="xsm" />}
+              onClick={onCopy}
+              xstyle={styles.action}
             />
-          )}
-        </HStack>
+            {showRetry && (
+              <IconButton
+                variant="ghost"
+                size="sm"
+                label="Retry"
+                tooltip="Retry"
+                icon={<Icon icon={RotateCcw} size="xsm" />}
+                onClick={onRetry}
+                xstyle={styles.action}
+              />
+            )}
+          </HStack>
+        </>
       }
     />
   );
 }
+
+const styles = stylex.create({
+  // The smallest IconButton (`sm`) is taller than the row's supporting text;
+  // one --spacing-2 step down it is about the text's line height. Still
+  // square: the icon-only button keeps its 1 / 1 aspect ratio.
+  action: {
+    height: `calc(${sizeVars["--size-element-sm"]} - ${spacingVars["--spacing-2"]})`,
+  },
+});

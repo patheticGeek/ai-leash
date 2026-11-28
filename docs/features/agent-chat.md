@@ -120,7 +120,9 @@ Every message has a timestamp and a copy button, lined up with the
 message's text: under an agent reply they start where the reply's text
 starts, under your bubble they end where its text ends. The final assistant message
 also shows how long the agent spent working once the reply is complete, when
-there is no **Worked for** row above it already showing that. While the agent
+there is no **Worked for** row above it already showing that. The line's
+items are joined by dots, *10:42 · Worked for 2m 10s · copy*, and the copy
+(and retry) buttons are small, sized to the line's text. While the agent
 works, the end of its reply shows a spinner with **Working for** and the
 elapsed time (**Waiting** until it produces anything). The timing stays
 accurate if you switch to another conversation while the agent works.
@@ -129,7 +131,11 @@ Messages from other chats — a task chat's message to the project chat or
 the other way round, and notes another chat left — appear collapsed, as a
 centred one-line system message: **Message from #42 · *title*** (or **from
 Project chat**; **Note from …** for a note), where the sender is a link that
-opens that chat. Click **Show** to read the whole message; whether you left
+opens that chat. The line never wraps: as it narrows, the sender's title
+truncates with an ellipsis, and once there's no room for any of it the
+title and `·` drop, leaving just **#42** (a chat that isn't a task
+truncates its name instead); the link's tooltip has the full name. Click
+**Show** to read the whole message; whether you left
 it open is remembered for the rest of the session. Local notices such as
 **Conversation compacted** are one-line system messages too. An empty conversation (for example after
 `/clear`) says so; while a saved conversation loads, the transcript shows
@@ -285,8 +291,13 @@ shows a "couldn't restore its previous session" error.
 
 Agents can use project tools to inspect and modify files or run shell
 commands. In **Ask** permission mode, the chat input is replaced temporarily
-by a permission request when approval is needed. Review the title and details,
-then choose **Approve** or **Deny**.
+by a permission request when approval is needed: one compact card,
+marked by an amber icon and label. A single small header line says what the agent wants
+("Wants to run a command", "Wants to edit a file") and how long it has been
+waiting; under it are the target in monospace and the command or diff (a
+long one is cut to its first lines, with **Show all**), then one row of
+small buttons, **Allow once** first, then **Deny**, each showing its key.
+See [Tools and permissions](./tools.md#your-choices) for the keys.
 
 The permission mode picker in the chat bar offers the external agent's own
 modes when it has any (see above). Otherwise it has two choices:
@@ -311,18 +322,36 @@ turn.
 
 An external agent can stop mid-turn to ask you for structured input, such as a
 choice between approaches or a value it needs. When it does, the chat input is
-replaced by a short form in the same place, one question at a time, with the
-agent's message above it. The conversation's row in the sidebar highlights so you can find it
+replaced by a short form in the same compact card, one question at a time:
+a header line ("Asked you a question", with the form's title, which
+question you're on and how long it has waited), the agent's question in
+larger text, its options as compact rows each led by its number key (the
+one you pick is highlighted; there are no radio buttons, though questions
+where you can pick several keep their checkboxes), then one row of buttons (**Submit** or **Next** first). The conversation's row in the sidebar highlights so you can find it
 if you're in another conversation.
 
 - Pick an option, enter a value, or select several, depending on the question.
   Use **Skip** on optional questions, and **Previous**/**Next** to move around.
 - When a question comes with a free-text box (an "Other" answer, or a note on
   your pick), it sits under that question's options rather than on a page of
-  its own.
+  its own, as a plain input whose placeholder says what to type.
 - **Submit** sends your answers to the agent.
-- **Decline** tells the agent you don't want to answer. The close button (or
-  `Esc`) dismisses the form without answering, and so does stopping the turn.
+- **Decline** tells the agent you don't want to answer. The close button
+  dismisses the form without answering, and so does stopping the turn.
+
+The form is keyboard-first, like the permission prompt:
+
+| Key | Does |
+|---|---|
+| `1`–`9` | pick the question's options in order (toggle them when you can pick several); with nothing to fill in, `1` accepts and `2` declines |
+| `Enter` | **Next**, or **Submit** on the last question (**Accept** with nothing to fill in) |
+| `Esc` | **Decline** |
+| `[` / `]` | step through several open questions ("1 of 3") |
+
+In a text box, numbers and letters type as usual; only `Enter`, `Esc` and
+`Tab` act there. If an agent asks several questions at once, they're answered
+one at a time, oldest first; stepping to another one drops what you typed into
+the one you left.
 
 Bypass permission mode doesn't apply here — the agent is asking you, not
 requesting approval, so a form always waits for you.
@@ -460,6 +489,12 @@ chart component; both have Storybook stories.
 
 ## Send, stop, and queue messages
 
+Press **/** from anywhere in the app, when you aren't typing in a field, to
+jump to the message box (also **Focus message box** in the command palette).
+While the box is empty and not focused, a dimmed **/** key at the end of its
+first line shows the shortcut. It doesn't type the `/`; see
+[Keyboard shortcuts](./ui-shell.md#keyboard-shortcuts) for where it applies.
+
 While the agent is working, **Stop** cancels the current user-initiated turn.
 An operation already in progress, such as a shell command, may finish before
 the stop takes effect.
@@ -520,7 +555,14 @@ writes the trailer. Reading the files and handing them to an agent is the
 shared `src-tauri/src/file_context.rs` (size caps, `native_block` for the
 built-in agent, `acp_blocks` for ACP), which any feature that attaches files
 to a prompt should use. The frontend side (`src/lib/mentions.ts`,
-`useMentionPicker`, `MentionMenu`) mirrors the slash-command menu.
+`useMentionPicker`, `MentionMenu`) mirrors the slash-command menu, and
+both are built on `ComposerMenu` (`popovers/ComposerMenu.tsx`): the command
+palette's own parts (`CommandPaletteItem`, `CommandPaletteGroup`,
+`CommandPaletteEmpty`, `CommandPaletteFooter`) used standalone in the
+popover above the input, so their rows, highlight and footer match the
+palette's. A file row shows the file's tab icon (`features/tabs/fileIcon.ts`:
+code or text; a folder for a directory), its name, then its folder muted and
+truncating.
 
 ## Attach images and files
 
@@ -730,6 +772,12 @@ Type `/` in the chat input to open command suggestions. Continue typing to
 filter them. Select a suggestion with the mouse, **Tab**, or **Enter**;
 **Escape** dismisses the suggestions without removing what you typed.
 Commands can include arguments when the suggestion shows an argument hint.
+
+The suggestions are grouped like the command palette: **Built-in** (AI
+Leash's own commands) then **Agent** (the connected agent's). Each row is an
+icon, `/name`, its description muted, and its argument hint at the end, with
+the palette's ↑↓ / ↵ / Esc key hints underneath. `/help` lists the same
+groups, plus **Shell** for the `!` escape, in the same rows.
 
 ### Commands provided by AI Leash
 

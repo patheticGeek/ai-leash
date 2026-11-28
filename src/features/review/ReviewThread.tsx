@@ -6,6 +6,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { Pencil, Trash2 } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
+import { formatShortcut } from "@/lib/shortcuts";
 import Markdown from "../../ui/Markdown";
 import { lineLabel } from "./reviewComments";
 
@@ -55,7 +56,7 @@ function CommentForm({
           label={saveLabel}
           isDisabled={!canSave}
           onClick={() => onSave(body.trim())}
-          tooltip="Ctrl+Enter"
+          tooltip={formatShortcut("mod+enter")}
         />
       </HStack>
     </VStack>

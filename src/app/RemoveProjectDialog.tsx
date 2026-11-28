@@ -1,6 +1,7 @@
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { useState } from "react";
 import { useConversations } from "../data/conversations";
+import { withCleanup } from "../lib/withCleanup";
 import { type RecentProject, useAppStore } from "../store";
 
 // Confirms the sidebar's "Remove project" (a project group's ⋯ / right-click
@@ -28,12 +29,14 @@ export default function RemoveProjectDialog({
   async function remove() {
     if (!project) return;
     setRemoving(true);
-    try {
-      await removeProject(project.path);
-    } finally {
-      setRemoving(false);
-      onClose();
-    }
+    const path = project.path;
+    await withCleanup(
+      () => removeProject(path),
+      () => {
+        setRemoving(false);
+        onClose();
+      },
+    );
   }
 
   return (

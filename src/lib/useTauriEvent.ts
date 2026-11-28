@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 type Handler<T> = (payload: T) => void;
 
@@ -52,7 +52,9 @@ export function useTauriEvent<T>(
   handler: Handler<T>,
 ): void {
   const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  useLayoutEffect(() => {
+    handlerRef.current = handler;
+  });
 
   useEffect(() => {
     if (eventName === null) return;

@@ -12,20 +12,23 @@ import {
 import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { FolderOpen } from "lucide-react";
+import { BoardBandSlot } from "../features/board/BoardBand";
 import { useIsBoardView } from "../features/board/useIsBoardView";
 import { TabBody } from "../features/tabs/TabContent";
 import { useTabDropArea } from "../features/tabs/TabDnd";
 import TabStrip from "../features/tabs/TabStrip";
+import TopBand from "../features/tabs/TopBand";
 import { useAppStore } from "../store";
 import { PRIMARY_TAB_ID } from "../store/panelSlice";
 import { pickAndAddProject } from "./projectActions";
+import type { SidebarCollapse } from "./sidebarCollapse";
+import { CentreBandEnd, CentreBandStart, LocationCrumbs } from "./TopBar";
 
 const styles = stylex.create({
   fill: { height: "100%" },
   // The tab body: takes what the tab strip leaves, and is the positioning
   // context for tab content that overlays it.
   body: { position: "relative", flex: 1, minHeight: 0 },
-  tabStrip: { flexShrink: 0 },
   // The folder glyph's tile above the welcome heading.
   iconTile: {
     width: spacingVars["--spacing-12"],
@@ -77,7 +80,14 @@ function NoProjectState() {
   );
 }
 
-export default function CenterPanel() {
+// The centre pane: its top band (its tabs, or where you are when there are
+// none, then the palette, actions and panel toggle — see `TopBand`), then
+// the selected tab's body.
+export default function CenterPanel({
+  sidebarCollapse,
+}: {
+  sidebarCollapse: SidebarCollapse;
+}) {
   const projectRoot = useAppStore((s) => s.projectRoot);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const hasDraft = useAppStore((s) => s.draft !== null);
@@ -88,19 +98,41 @@ export default function CenterPanel() {
   // The board is one view, not a set of tabs: only its primary tab shows.
   const boardView = useIsBoardView();
 
+  const bandStart = <CentreBandStart sidebarCollapse={sidebarCollapse} />;
+
   if (!projectRoot || (!activeSessionId && !hasDraft)) {
-    return <NoProjectState />;
+    return (
+      <VStack xstyle={styles.fill}>
+        <TopBand start={bandStart} end={<CentreBandEnd />} />
+        <VStack xstyle={styles.body}>
+          <NoProjectState />
+        </VStack>
+      </VStack>
+    );
   }
 
   return (
     <VStack ref={dropRef} xstyle={styles.fill}>
-      {!boardView && (
+      {boardView ? (
+        <TopBand
+          start={
+            <>
+              {bandStart}
+              <LocationCrumbs />
+              {/* The board's task count and epic filter (BoardBand). */}
+              <BoardBandSlot slot="start" />
+            </>
+          }
+          end={<CentreBandEnd />}
+        />
+      ) : (
         <TabStrip
           label="Chat tabs"
           tabs={chatTabs}
           value={activeChatTabId}
           onSelect={activateTab}
-          xstyle={styles.tabStrip}
+          startContent={bandStart}
+          endContent={<CentreBandEnd />}
         />
       )}
       <VStack xstyle={styles.body}>

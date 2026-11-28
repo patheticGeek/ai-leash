@@ -8,6 +8,7 @@ import {
   MoveVertical,
   SquareKanban,
 } from "lucide-react";
+import { formatShortcut } from "@/lib/shortcuts";
 import {
   COMPOSER_MIN_ROWS,
   DEFAULT_COMPOSER_MAX_ROWS,
@@ -54,7 +55,7 @@ export default function ChatSettingsTab() {
         <SettingsRow
           title="Compose mode"
           icon={Keyboard}
-          description="Enter adds a new line and Ctrl+Enter sends. Off: Enter sends, Shift+Enter adds a line."
+          description={`${formatShortcut("enter")} adds a new line and ${formatShortcut("mod+enter")} sends. Off: ${formatShortcut("enter")} sends, ${formatShortcut("shift+enter")} adds a line.`}
           control={
             <Switch
               label="Compose mode"

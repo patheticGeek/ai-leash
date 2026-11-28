@@ -12,7 +12,7 @@ open that project.
 Actions belong to the checkout the conversation is working in. If a
 conversation uses a [worktree](./ui-shell.md#worktree-and-branch), its
 Actions are the ones in that worktree, and running or stopping an Action, from
-the sidebar or the title bar, affects that worktree rather than the main
+the sidebar or the top bar, affects that worktree rather than the main
 project folder. This stays true when you reopen the conversation later.
 
 ## Create an Action
@@ -44,17 +44,23 @@ a development server start, check a build, or follow test results.
 
 You can also select an Action's row, or **Show output** in its **⋯** menu,
 to open its terminal view. For quick
-access, the most recently used Action appears in the title bar when Actions
+access, the most recently used Action appears in the top bar when Actions
 are available. Use the dropdown there to choose another Action.
 
-The title-bar button uses the same colours as the Actions tab, on its icon
+The top-bar button uses the same colours as the Actions tab, on its icon
 and label rather than a dot. The icon always sits in the same place. While
 its Action is starting or stopping it shows a spinner. While the Action is
 running, the play icon becomes an amber stop icon, the label turns amber, and
 the tooltip says, for example, "dev is running — click to stop". If the last
 run exited with an error, the play icon and label are red, and the tooltip
 gives the exit code. Otherwise the button shows a plain play icon. Actions in
-the dropdown tint their icon the same way.
+the dropdown tint their icon the same way, and so does an Action's output
+tab: its play icon turns amber while the Action runs (it stays a play icon,
+not a stop, since the tab isn't a control), red after a failed run, and
+plain otherwise. Point at the tab, or move keyboard focus
+onto it, and the icon still turns into its **×**. All three read the same
+Actions list and share one icon component (`features/actions/RunIcon.tsx`,
+tones from `runState`).
 
 If an Action is already running, starting it again does not create a second
 copy of the command. When you start a new run, the Action's terminal clears

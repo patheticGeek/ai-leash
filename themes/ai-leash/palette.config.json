@@ -5,19 +5,19 @@
     {
       "id": "neutral",
       "name": "Neutral",
-      "seed": "#8b8d98",
+      "seed": "#8b8b91",
       "kind": "neutral",
       "anchors": [
         {
           "mode": "light",
           "stop": 60,
-          "color": "#8b8d98",
+          "color": "#8b8b91",
           "policy": "exact"
         },
         {
           "mode": "dark",
           "stop": 60,
-          "color": "#8b8d98",
+          "color": "#8b8b91",
           "policy": "exact"
         }
       ]

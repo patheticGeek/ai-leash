@@ -180,9 +180,38 @@ approve it.
 
 When a prompt appears, choose:
 
-- **Approve** to allow that specific request.
+- **Allow once** to allow that specific request.
 - **Deny** to block it. The agent is told that you denied the request and can
   adjust its approach or ask what you would prefer.
+
+The prompt is a compact card in the message box's place, marked by an amber
+icon and label: a one-line header (what the agent wants, whether a sub-agent
+is asking, and how long it has been waiting), the request itself, the
+agent's reason when it gave one, and one row of small buttons, **Allow
+once** first. For an external agent's command (an ACP tool call of kind
+`execute`), the command is shown as the code — taken from the call's
+`rawInput.command`, or its title with any backticks removed — and the
+call's own text, usually the agent's description of the command, as the
+reason underneath. It is keyboard-first, and each
+button shows its key:
+
+| Key | Does |
+|---|---|
+| `Enter` or `1` | **Allow once** |
+| `Esc` or `2` | **Deny** |
+| `[` / `]` | step through several waiting requests ("1 of 3") |
+| `Tab` | move between the buttons |
+
+The keys only act while the prompt has focus. It takes focus when it appears,
+unless you're typing somewhere else (another text field, the terminal or the
+editor) — then click it or `Tab` to it. For a moment after it appears it
+ignores `Enter` and the number keys, so an `Enter` meant for the message you
+were typing can't approve a request you haven't read; `Esc` works at once.
+After you answer, focus returns to the message box.
+
+A conversation and the sub-agents it started can each be waiting on you at
+the same time: their requests share one prompt, oldest first, and the prompt
+says when one comes from a sub-agent.
 
 There is no separate "always allow this action" choice on an individual
 prompt. In Ask mode, later file changes and commands produce their own

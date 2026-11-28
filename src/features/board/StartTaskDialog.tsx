@@ -88,9 +88,8 @@ export default function StartTaskDialog({
       if (openAfter) await openConversation(conversationId);
     } catch (err) {
       setError(String(err));
-    } finally {
-      setStarting(false);
     }
+    setStarting(false);
   }
 
   const sizeThinking = effortForSize(task?.effort ?? null);

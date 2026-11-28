@@ -29,10 +29,11 @@ import {
   SideNavSection,
 } from "@astryxdesign/core/SideNav";
 import { Spinner } from "@astryxdesign/core/Spinner";
-import { HStack, Stack, VStack } from "@astryxdesign/core/Stack";
+import { HStack, Stack, StackItem, VStack } from "@astryxdesign/core/Stack";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { Token } from "@astryxdesign/core/Token";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 import {
   borderVars,
   colorVars,
@@ -52,6 +53,7 @@ import {
   ListFilter,
   MessagesSquare,
   QuestionMark,
+  Search,
   SettingsIcon,
   ShieldAlert,
   SquareKanban,
@@ -78,6 +80,7 @@ import { PriorityBadge, STATUS_DOT } from "../features/board/TaskMeta";
 import { BUILD_LABEL } from "../lib/buildChannel";
 import { formatDuration } from "../lib/format";
 import { useGenerating } from "../lib/generatingQuery";
+import { kbdKeys, SHORTCUTS, withShortcut } from "../lib/shortcuts";
 import type {
   ElicitationRequestPayload,
   PermissionRequestPayload,
@@ -97,6 +100,25 @@ import RemoveProjectDialog from "./RemoveProjectDialog";
 import type { SidebarCollapse } from "./sidebarCollapse";
 
 const styles = stylex.create({
+  // The Search button's icon and text at its start and its Ctrl+K badge at
+  // its end, like the rows' badges below it. Button wraps its content in a
+  // span that hugs the text, so the row can't grow to the edge from inside
+  // it; instead the button is a size container and the row takes its full
+  // content width (`100cqw`).
+  // The collapse chevron's glyph on the content edge the rows' badges end
+  // at: the heading already pads its end like the rows do, and the button's
+  // own box centres a 1rem glyph in `--size-element-sm`, which put the
+  // chevron that much further in. Pull the box out by that inset.
+  collapseButton: {
+    marginInlineEnd: `calc((${sizeVars["--size-element-sm"]} - 1rem) / -2)`,
+  },
+  // The rows' inline padding (navItemStyles' `--spacing-2`, not Button's
+  // `--spacing-3`), so its icon, text and badge line up with New thread's.
+  searchButton: {
+    containerType: "inline-size",
+    paddingInline: spacingVars["--spacing-2"],
+  },
+  searchContent: { width: "100cqw" },
   // The hairline between the sidebar and the rest of the window, full
   // height. AppShell draws one only in its `section` variant, which would
   // also drop the elevated variant's colours (#42), and the theme has no
@@ -159,6 +181,24 @@ const styles = stylex.create({
     gridTemplateColumns: "minmax(0, 1fr)",
     minHeight: 0,
     flexShrink: 1,
+  },
+  // The flat layout's Projects section, beside a long Chats list: its list
+  // row keeps room for up to three project rows (a side-nav row is
+  // `--size-element-md`, the list's gap `--spacing-0-5`) and scrolls inside
+  // it, and the section won't shrink below that (`min-content` is the grid's
+  // track minimums), so the chats give way instead. One style per row count
+  // so a project or two takes only its own height.
+  projectsMin1: {
+    gridTemplateRows: `auto minmax(${sizeVars["--size-element-md"]}, 1fr)`,
+    minHeight: "min-content",
+  },
+  projectsMin2: {
+    gridTemplateRows: `auto minmax(calc(2 * ${sizeVars["--size-element-md"]} + ${spacingVars["--spacing-0-5"]}), 1fr)`,
+    minHeight: "min-content",
+  },
+  projectsMin3: {
+    gridTemplateRows: `auto minmax(calc(3 * ${sizeVars["--size-element-md"]} + 2 * ${spacingVars["--spacing-0-5"]}), 1fr)`,
+    minHeight: "min-content",
   },
   scrollFrame: { position: "relative", minHeight: 0, flexShrink: 1 },
   // Out into the side nav's inline padding, so focus rings at the rows'
@@ -932,7 +972,7 @@ export default function LeftBar({
 }: {
   // The sidebar's width and collapse state (`App.tsx`).
   resizable: ResizableRegion;
-  // Shared with the title bar's expand toggle (`sidebarCollapse.ts`).
+  // Shared with the top band's expand toggle (`sidebarCollapse.ts`).
   collapse: SidebarCollapse;
 }) {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
@@ -951,8 +991,8 @@ export default function LeftBar({
     null,
   );
   const setConversationDone = useAppStore((s) => s.setConversationDone);
-  const isNewThread = useAppStore((s) => s.draft !== null);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
   const collapsedProjects = useAppStore((s) => s.sidebarCollapsedProjects);
   const setProjectCollapsed = useAppStore((s) => s.setSidebarProjectCollapsed);
   const isDoneOpen = useAppStore((s) => s.sidebarDoneOpen);
@@ -1048,6 +1088,18 @@ export default function LeftBar({
       ? projects
       : projects.filter((p) => !isIdle(p.path));
 
+  // Flat: the Projects list's rows (the "More projects" button counts as
+  // one), for its minimum height.
+  const projectRowCount = visibleProjects.length + (idleCount > 0 ? 1 : 0);
+  const projectsMinStyle =
+    projectRowCount >= 3
+      ? styles.projectsMin3
+      : projectRowCount === 2
+        ? styles.projectsMin2
+        : projectRowCount === 1
+          ? styles.projectsMin1
+          : null;
+
   const filterMenu = (
     <DropdownMenu
       placement="below"
@@ -1115,7 +1167,7 @@ export default function LeftBar({
       collapsible={{ hasButton: false }}
       header={
         // The collapse toggle sits beside the logo; the heading hides its end
-        // slot while collapsed, when the toggle leads the title bar instead.
+        // slot while collapsed, when the toggle leads the centre's top band.
         <SideNavHeading
           heading="ai leash"
           icon={
@@ -1132,7 +1184,16 @@ export default function LeftBar({
               {BUILD_LABEL && (
                 <Token size="sm" color="orange" label={BUILD_LABEL} />
               )}
-              <SideNavCollapseButton size="sm" label="Collapse sidebar" />
+              <Tooltip
+                content={withShortcut("Collapse sidebar", "toggleSidebar")}
+                hasHoverIndication={false}
+              >
+                <SideNavCollapseButton
+                  size="sm"
+                  label="Collapse sidebar"
+                  xstyle={styles.collapseButton}
+                />
+              </Tooltip>
             </HStack>
           }
         />
@@ -1203,11 +1264,42 @@ export default function LeftBar({
         {/* Same order as the shell-side-nav template: the menu, a rule, the
           projects (and, flat, a rule and the chats). Done is in the footer. */}
         <SideNavSection title="Menu" isHeaderHidden>
+          {/* Search: a frosted (secondary) button the sidebar's width, the
+              look the top bar's old "Jump to or run…" button had, so it
+              reads as the place to type rather than one more row. The
+              collapsed rail has no room for it, so there it's an icon row
+              like its neighbours. */}
+          {collapse.isCollapsed ? (
+            <SideNavItem
+              label="Search"
+              icon={Search}
+              onClick={() => setCommandPaletteOpen(true)}
+            />
+          ) : (
+            <Button
+              variant="secondary"
+              width="100%"
+              label="Search"
+              onClick={() => setCommandPaletteOpen(true)}
+              xstyle={styles.searchButton}
+            >
+              <HStack
+                as="span"
+                align="center"
+                gap={2}
+                xstyle={styles.searchContent}
+              >
+                <Icon icon={Search} size="sm" />
+                <Text>Search</Text>
+                <StackItem size="fill" />
+                <Kbd keys={kbdKeys(SHORTCUTS.palette.keys)} />
+              </HStack>
+            </Button>
+          )}
           <SideNavItem
             label="New thread"
             icon={SquarePen}
-            isSelected={isNewThread}
-            endContent={<Kbd keys="ctrl+n" />}
+            endContent={<Kbd keys={kbdKeys(SHORTCUTS.newThread.keys)} />}
             onClick={() => void startNewThread()}
           />
           <SideNavItem
@@ -1220,7 +1312,12 @@ export default function LeftBar({
         <SideNavSection
           title="Projects"
           endContent={filterMenu}
-          xstyle={!collapse.isCollapsed && styles.fillSection}
+          xstyle={
+            !collapse.isCollapsed && [
+              styles.fillSection,
+              isFlat && projectsMinStyle,
+            ]
+          }
         >
           <ScrollList isActive={!collapse.isCollapsed}>
             {projects.length === 0 && !collapse.isCollapsed && (

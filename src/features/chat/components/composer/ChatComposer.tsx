@@ -14,6 +14,7 @@ import { useModelVision } from "@/data/backends";
 import { usePreference } from "@/data/preferences";
 import { useElementHeight } from "@/hooks/useElementHeight";
 import { rememberMention } from "@/lib/mentions";
+import { formatShortcut } from "@/lib/shortcuts";
 import { useActiveCheckoutPath } from "@/lib/useActiveCheckoutPath";
 import {
   type AcpCommandInfo,
@@ -37,6 +38,7 @@ import {
   COMPACT_COMMAND,
   LOCAL_COMMANDS,
 } from "../../hooks/useChatSession";
+import { useComposerFocusRequest } from "../../hooks/useComposerFocusRequest";
 import { useMentionPicker } from "../../hooks/useMentionPicker";
 import { useMessageQueue } from "../../hooks/useMessageQueue";
 import { useSessionElicitation } from "../../hooks/useSessionElicitation";
@@ -211,6 +213,8 @@ export default function ChatComposer({
   const composerRef = useRef<HTMLDivElement>(null);
   const { input, setInput, setInputValue, textareaRef } =
     useChatInput(sessionId);
+  // `/` from anywhere (and the palette's "Focus message box") lands here.
+  useComposerFocusRequest(textareaRef);
   const permissions = useSessionPermissions(
     sessionId,
     !!session.modeOptions,
@@ -661,7 +665,7 @@ export default function ChatComposer({
                       label="Queue"
                       icon={<Clock size={14} />}
                       onClick={() => void queueMessage()}
-                      tooltip="Send after the current turn finishes (Ctrl+Enter)"
+                      tooltip={`Send after the current turn finishes (${formatShortcut("mod+enter")})`}
                     />
                   )}
                 </>

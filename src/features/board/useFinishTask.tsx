@@ -79,9 +79,8 @@ export function useFinishTask(): {
       await run(pending.task, pending.beforeId, true);
     } catch (err) {
       setError(String(err));
-    } finally {
-      setWorking(false);
     }
+    setWorking(false);
   }
 
   const close = () => {

@@ -15,7 +15,7 @@ export default function DebugSettingsTab() {
         <SettingsRow
           title="Debug mode"
           icon={Bug}
-          description="Adds a bug button to the title bar that opens the live ACP Events panel: every request, response, notification and error on every conversation's agent connection. Events are kept in memory only while this is on."
+          description="Adds a bug button to the top bar that opens the live ACP Events panel: every request, response, notification and error on every conversation's agent connection. Events are kept in memory only while this is on."
           control={
             <Switch
               label="Debug mode"
@@ -28,12 +28,12 @@ export default function DebugSettingsTab() {
           }
         />
         <SettingsRow
-          title="Show IDs in the title bar"
+          title="Show IDs in the top bar"
           icon={Fingerprint}
           description="The current project, conversation and ACP session ids, as project / conversation / session, for bug reports."
           control={
             <Switch
-              label="Show IDs in the title bar"
+              label="Show IDs in the top bar"
               isLabelHidden
               value={debugShowIds}
               onChange={(debugShowIds) => setPreferences({ debugShowIds })}

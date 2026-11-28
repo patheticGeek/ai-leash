@@ -13,7 +13,7 @@ import { useTauriEvent } from "../../lib/useTauriEvent";
 //
 // No polling: `useActionEvents` (mounted once in `App.tsx`) keeps this live
 // off the backend's `run://status` and `action://defs-changed` events, so
-// every caller — the Actions tab, the title bar's split button,
+// every caller — the Actions tab, the top bar's split button,
 // `ActionTerminalTab` — sees a run start, stop or exit the moment it happens.
 export function useActions() {
   const checkoutPath = useActiveCheckoutPath();

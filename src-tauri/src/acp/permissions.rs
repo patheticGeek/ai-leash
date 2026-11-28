@@ -3,7 +3,7 @@ use crate::state::AppState;
 use crate::tools;
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionId, PermissionOptionKind, RequestPermissionOutcome,
-    RequestPermissionRequest, SelectedPermissionOutcome,
+    RequestPermissionRequest, SelectedPermissionOutcome, ToolKind,
 };
 use tauri::{AppHandle, Manager};
 
@@ -12,17 +12,32 @@ pub(super) async fn bridge_acp_permission(
     session_id: &str,
     request: &RequestPermissionRequest,
 ) -> RequestPermissionOutcome {
-    let title = request
-        .tool_call
-        .fields
+    let fields = &request.tool_call.fields;
+    let title = fields
         .title
         .clone()
         .unwrap_or_else(|| "ACP tool call".to_string());
-    let content = request.tool_call.fields.content.clone().unwrap_or_default();
-    let detail = summarize_tool_call_content(&content);
+    let content = fields.content.clone().unwrap_or_default();
+    let summary = summarize_tool_call_content(&content);
+
+    // An `execute` tool call is a command: show the command as the code and
+    // the agent's own text (its description of what the command does) as the
+    // reason — the same shape as a native shell request. Agents put the
+    // command in `rawInput.command` and/or the title (often as a code span).
+    let (kind, title, detail, reason) = if fields.kind == Some(ToolKind::Execute) {
+        let command = execute_command(fields.raw_input.as_ref(), &title);
+        let reason = (!content.is_empty())
+            .then_some(summary)
+            .filter(|r| !r.trim().is_empty());
+        ("shell", "Run shell command".to_string(), command, reason)
+    } else {
+        ("acp", title, summary, None)
+    };
 
     let state = app.state::<AppState>();
-    let approved = tools::request_permission(app, &state, session_id, "acp", title, detail).await;
+    let approved =
+        tools::request_permission_with_reason(app, &state, session_id, kind, title, detail, reason)
+            .await;
 
     match select_permission_option(&request.options, approved) {
         Some(option_id) => {
@@ -30,6 +45,33 @@ pub(super) async fn bridge_acp_permission(
         }
         None => RequestPermissionOutcome::Cancelled,
     }
+}
+
+/// The command of an `execute` tool call: `rawInput.command` when the agent
+/// sends one (a string, or an argv array joined with spaces), else the title
+/// with a surrounding Markdown code span (`` `cmd` ``) stripped.
+fn execute_command(raw_input: Option<&serde_json::Value>, title: &str) -> String {
+    let from_input = raw_input
+        .and_then(|v| v.get("command"))
+        .and_then(|c| match c {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Array(a) => Some(
+                a.iter()
+                    .filter_map(|p| p.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            ),
+            _ => None,
+        });
+    from_input
+        .filter(|c| !c.trim().is_empty())
+        .unwrap_or_else(|| {
+            let t = title.trim();
+            t.strip_prefix('`')
+                .and_then(|t| t.strip_suffix('`'))
+                .unwrap_or(t)
+                .to_string()
+        })
 }
 
 /// Collapses ACP's multi-option permission request down to our existing
@@ -59,6 +101,25 @@ fn select_permission_option(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn execute_command_prefers_raw_input() {
+        let input = serde_json::json!({ "command": "npm run build", "description": "Build it" });
+        assert_eq!(
+            execute_command(Some(&input), "`npm run build`"),
+            "npm run build"
+        );
+        let argv = serde_json::json!({ "command": ["git", "status"] });
+        assert_eq!(execute_command(Some(&argv), "Run"), "git status");
+    }
+
+    #[test]
+    fn execute_command_falls_back_to_the_title() {
+        assert_eq!(execute_command(None, "`ls -la`"), "ls -la");
+        assert_eq!(execute_command(None, "cargo test"), "cargo test");
+        let empty = serde_json::json!({ "command": "" });
+        assert_eq!(execute_command(Some(&empty), "`pwd`"), "pwd");
+    }
+
     use super::*;
 
     fn option(id: &str, kind: PermissionOptionKind) -> PermissionOption {
